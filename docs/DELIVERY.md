@@ -17,6 +17,7 @@
 | Diagnostic détaillé de montages et permissions | Disponible dans le helper, sous réserve de sa visibilité filesystem |
 | Inventaire captures, journaux, caches, homebrews, installations | Scanner en lecture seule dans le helper ; résumé agrégé désormais consultable dans l'écran Analyse natif, liste détaillée non portée |
 | Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | En lecture seule dans l'ancienne interface WebKit ; portage natif à faire |
+| Pré-analyse nettoyage native | Comptage des captures de 50 Mio et plus / anciennes de 90 jours par mtime, sans chemins transmis ni suppression permise |
 | Effacement captures, caches, doublons ou résidus | **Désactivé**, aucun mécanisme d'effacement validé |
 | Restauration, quarantaine, synchronisation base multimédia | Non implémentés |
 | Espace récupérable | **Non calculé** : les tailles affichées sont nominales, pas des promesses de gain |
