@@ -53,6 +53,6 @@ The CI may cross-compile a candidate ELF, but this **does not** prove PS5 runtim
 
 ## Sources and safety
 
-[Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md)
+[Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
 
 Licensed GPL-3.0. Files, capture metadata, saves and etaHEN configurations are never silently considered disposable.
