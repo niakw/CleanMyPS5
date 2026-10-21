@@ -1,6 +1,8 @@
-# Architecture de CleanMyPS5 0.10
+# Architecture de CleanMyPS5 — titre natif et helper
 
-Le binaire C11/POSIX embarque l’interface et les règles. Le serveur HTTP local écoute en loopback sur le port 8877, avec quatre travailleurs bornés et arrêt par SIGINT/SIGTERM. Aucun endpoint d’écriture ou de suppression n’existe.
+Deux contextes distincts sont désormais livrés : **un frontend PS5 natif** (`native/main.cpp` → `PPSA99784/eboot.bin`) avec VideoOut et navigation DualSense, et **un moteur C11/POSIX** lancé comme `cleanmyps5-helper.elf`. Le titre natif effectue des sondes de lecture de son propre sandbox et interroge le helper via `127.0.0.1:8877`. Il n'hérite ni des droits ni des montages du payload. L'ancienne interface WebKit reste intégrée au payload historique, uniquement pendant la transition.
+
+Le serveur du helper écoute en loopback sur le port 8877, avec quatre travailleurs bornés et arrêt par SIGINT/SIGTERM. Aucun endpoint d'écriture ou de suppression n'existe.
 
 ## API
 
@@ -36,4 +38,4 @@ L’analyse coordonnée n’appelle ni les aperçus, ni les doublons exacts, ni 
 
 Les tests synthétiques vérifient les apps inconnues, un autre dossier NPXS, les caches/journaux système, les exclusions privées, les liens, FIFO, alias d’inode, limites par racine, récupération après saturation HTTP, origine, méthodes et empreintes/mtime inchangés. JavaScript est testé séparément pour l’import, l’export, les filtres et le bilan.
 
-`make package` livre un unique payload ELF avec interface intégrée. Ce format nécessite un lanceur de payloads et un navigateur console utilisable. Le dossier natif Itemzflow/ShadowMount avec véritable `eboot.bin` est une chaîne distincte qui reste à porter et valider. Aucun déploiement console n’est exécuté par le build.
+`make native-app` produit l'archive du **dossier de titre natif** et le helper ELF séparé ; ce n'est ni un PKG retail ni une preuve de compatibilité FW 13.60. `make package` maintient l'ancienne livraison navigateur ELF. Aucun déploiement console n'est exécuté par le build et aucune suppression n'est autorisée.
