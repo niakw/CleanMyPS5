@@ -8,6 +8,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <cerrno>
+#include <sys/statvfs.h>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -70,6 +71,8 @@ struct LocalProbe {
  unsigned entries=0;
  bool truncated=false;
  bool io_error=false;
+ bool volume_known=false;
+ std::uint64_t available_bytes=0;
 };
 LocalProbe local_probe[4]{};
 bool local_checked=false;
@@ -88,6 +91,14 @@ void probe_local() noexcept {
   LocalProbe result{};
   const int fd=open(local_paths[i],0);
   if(fd<0){result.status=open_error(errno);local_probe[i]=result;continue;}
+  struct statvfs volume{};
+  if(fstatvfs(fd,&volume)==0){
+   const std::uint64_t block=volume.f_frsize?volume.f_frsize:volume.f_bsize;
+   if(block && static_cast<std::uint64_t>(volume.f_bavail)<=UINT64_MAX/block){
+    result.volume_known=true;
+    result.available_bytes=static_cast<std::uint64_t>(volume.f_bavail)*block;
+   }
+  }
   (void)close(fd);
   if(i==0){result.status=LocalAccess::opened;local_probe[i]=result;continue;}
   errno=0;
@@ -330,7 +341,12 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   const auto state=probe.status;
   char detail[100]{};
   if(state==LocalAccess::listable){
-   (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
+   if(probe.volume_known)
+    (void)std::snprintf(detail,sizeof(detail),"%u VUES  %llu MIO DISPO%s",
+      probe.entries,static_cast<unsigned long long>(probe.available_bytes/1048576ULL),
+      probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+   else
+    (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
       probe.entries,probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
   }else{
    const char*reason=state==LocalAccess::unchecked?"NON TESTE":
