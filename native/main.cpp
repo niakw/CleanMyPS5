@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <cerrno>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -63,21 +64,52 @@ Screen screen=Screen::menu;
 std::uint32_t previous=0;
 Link engine=Link::unchecked;
 unsigned available=0,denied=0,absent=0;
-enum class LocalAccess { unchecked, unavailable, opened, listable, enumeration_denied };
-LocalAccess local_access[4]{};
+enum class LocalAccess { unchecked, unavailable, missing, denied, opened, listable, enumeration_denied };
+struct LocalProbe {
+ LocalAccess status=LocalAccess::unchecked;
+ unsigned entries=0;
+ bool truncated=false;
+ bool io_error=false;
+};
+LocalProbe local_probe[4]{};
 bool local_checked=false;
+constexpr unsigned max_entries_per_root=256;
 
+LocalAccess open_error(int value) noexcept {
+ if(value==ENOENT)return LocalAccess::missing;
+ if(value==EACCES||value==EPERM)return LocalAccess::denied;
+ return LocalAccess::unavailable;
+}
 void probe_local() noexcept {
- // A directory may be openable yet not enumerable under the title sandbox.
- // Do not equate open(O_RDONLY) with directory listing or deletion rights.
+ // Only enumerate immediate directory entries visible to the installed title.
+ // Never follow links, walk into child directories, open file contents or write.
+ // The cap is intentional: numbers are sampled, NOT a full storage inventory.
  for(std::size_t i=0;i<4;i++){
+  LocalProbe result{};
   const int fd=open(local_paths[i],0);
-  if(fd<0){local_access[i]=LocalAccess::unavailable;continue;}
+  if(fd<0){result.status=open_error(errno);local_probe[i]=result;continue;}
   (void)close(fd);
-  if(i==0){local_access[i]=LocalAccess::opened;continue;}
+  if(i==0){result.status=LocalAccess::opened;local_probe[i]=result;continue;}
+  errno=0;
   DIR*dir=opendir(local_paths[i]);
-  if(dir){local_access[i]=LocalAccess::listable;(void)closedir(dir);}
-  else local_access[i]=LocalAccess::enumeration_denied;
+  if(!dir){result.status=open_error(errno)==LocalAccess::missing?
+     LocalAccess::missing:open_error(errno)==LocalAccess::denied?
+     LocalAccess::denied:LocalAccess::enumeration_denied;local_probe[i]=result;continue;}
+  result.status=LocalAccess::listable;
+  errno=0;
+  for(;;){
+   struct dirent*entry=readdir(dir);
+   if(!entry){
+    if(errno!=0)result.io_error=true;
+    break;
+   }
+   if(std::strcmp(entry->d_name,".")==0||std::strcmp(entry->d_name,"..")==0)continue;
+   if(result.entries==max_entries_per_root){result.truncated=true;break;}
+   ++result.entries;
+   errno=0;
+  }
+  (void)closedir(dir);
+  local_probe[i]=result;
  }
  local_checked=true;
 }
@@ -204,8 +236,20 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
  }else{
   panel(canvas,366,"MOTEUR NON DISPONIBLE","AUCUN RAPPORT GLOBAL",Color::yellow);
  }
- panel(canvas,515,"ANALYSE LOCALE",local_checked?
-  "VERIFICATION DANS LE SANDBOX":"NON EXECUTEE");
+ char local_result[96]{};
+ unsigned listable=0,sampled=0;
+ bool incomplete=false;
+ for(const auto&probe:local_probe){
+  if(probe.status==LocalAccess::listable){
+   ++listable;
+   sampled+=probe.entries;
+   incomplete|=probe.truncated||probe.io_error;
+  }
+ }
+ (void)std::snprintf(local_result,sizeof(local_result),
+  local_checked?"%u DOSSIERS  %u ENTREES VUES%s":"NON EXECUTEE",
+  listable,sampled,incomplete?" (PARTIEL)":"");
+ panel(canvas,515,"ANALYSE LOCALE",local_result);
  panel(canvas,664,"LIMITES DE COUVERTURE",
   "ACCES APP DIFFERENT DU PAYLOAD",Color::yellow);
  panel(canvas,813,"SECURITE","AUCUNE SUPPRESSION EFFECTUEE");
@@ -213,12 +257,21 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_access(ps5::demo::Canvas&canvas) noexcept {
  for(std::size_t i=0;i<4;i++){
-  const auto state=local_access[i];
-  const char*detail=state==LocalAccess::unchecked?"NON TESTE":
-    state==LocalAccess::opened?"FICHIER OUVERT":
-    state==LocalAccess::listable?"DOSSIER LISTABLE":
-    state==LocalAccess::enumeration_denied?"OUVERT MAIS LISTE BLOQUEE":
-    "INACCESSIBLE OU ABSENT";
+  const auto&probe=local_probe[i];
+  const auto state=probe.status;
+  char detail[100]{};
+  if(state==LocalAccess::listable){
+   (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
+      probe.entries,probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+  }else{
+   const char*reason=state==LocalAccess::unchecked?"NON TESTE":
+     state==LocalAccess::opened?"FICHIER OUVERT":
+     state==LocalAccess::missing?"ABSENT":
+     state==LocalAccess::denied?"PERMISSION REFUSEE":
+     state==LocalAccess::enumeration_denied?"LISTE BLOQUEE":
+     "ERREUR D ACCES";
+   (void)std::snprintf(detail,sizeof(detail),"%s",reason);
+  }
   panel(canvas,353+static_cast<unsigned>(i)*144,local_names[i],
     detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
  }
