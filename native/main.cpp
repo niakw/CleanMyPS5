@@ -65,6 +65,7 @@ Link engine=Link::unchecked;
 unsigned available=0,denied=0,absent=0;
 enum class LocalAccess { unchecked, unavailable, opened, listable, enumeration_denied };
 LocalAccess local_access[4]{};
+bool local_checked=false;
 
 void probe_local() noexcept {
  // A directory may be openable yet not enumerable under the title sandbox.
