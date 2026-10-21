@@ -22,8 +22,9 @@
 typedef struct {char *p;size_t len,cap;int fail;} Buffer;
 typedef struct {dev_t dev; ino_t ino;} Identity;
 typedef struct {const char *id;char path[PATH_CAP];const char *status;size_t items,visits;unsigned long long bytes;} Coverage;
-typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial;char warnings[32][256];size_t nw;uint64_t deadline;
- Identity seen[VISIT_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;} Scan;
+typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,summary_only;char warnings[32][256];size_t nw;uint64_t deadline;
+ Identity seen[VISIT_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;
+ size_t media,logs,caches,residuals,other;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
  return 0;
@@ -99,8 +100,17 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
           ext(path,".ini")||ext(path,".json")||ext(path,".db")){
   category="residuals";reason="Programme, ressource ou configuration : aucune preuve de residu";
  }
- if(s->b.len>OUTPUT_CAP-65536u){s->stopped=1;warn(s,"Limite de taille du rapport",path);return;}
+ if(!s->summary_only && s->b.len>OUTPUT_CAP-65536u){s->stopped=1;warn(s,"Limite de taille du rapport",path);return;}
  if(s->items>=ITEM_CAP){s->stopped=1;warn(s,"Nombre limite de fichiers",path);return;}
+ if(s->summary_only){
+  if(!strcmp(category,"media"))s->media++;
+  else if(!strcmp(category,"logs"))s->logs++;
+  else if(!strcmp(category,"cache"))s->caches++;
+  else if(!strcmp(category,"residuals"))s->residuals++;
+  else s->other++;
+  s->items++;s->bytes+=(unsigned long long)size;
+  return;
+ }
  char id[24],n[32];snprintf(id,sizeof(id),"%zu",s->items+1);
  snprintf(n,sizeof(n),"%llu",(unsigned long long)size);
  if(s->items)add(&s->b,",");
@@ -226,4 +236,58 @@ char *cmp5_report(const char*root,size_t*len){
  char*output=s->b.p;
  if(s->b.fail){free(output);output=NULL;}else *len=s->b.len;
  free(s);return output;
+}
+
+/* Small, privacy-safe native summary. Uses the SAME bounded traversal and
+ * classification as the full report, but never serializes a file name.
+ * Sizes are nominal; no space is implied to be safely recoverable.
+ */
+char *cmp5_overview(const char *root,size_t *len){
+ if(len)*len=0;
+ if(!root||!len)return NULL;
+ struct stat st;
+ if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
+ Scan*s=(Scan*)calloc(1,sizeof(*s));if(!s)return NULL;
+ s->summary_only=1;
+ uint64_t now=monotonic_ns();
+ if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
+ for(size_t i=0;i<sizeof(cmp5_roots)/sizeof(*cmp5_roots);i++)
+  root_scan(s,root,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
+ for(int slot=0;slot<8;slot++){
+  char path[80];
+  snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);
+  root_scan(s,root,"usb-homebrew",path,"application");
+  snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);
+  root_scan(s,root,"extended-homebrew",path,"application");
+ }
+ size_t complete=0,part=0,absent=0,unavailable=0,other=0;
+ for(size_t i=0;i<s->nc;i++){
+  const char*status=s->coverage[i].status;
+  if(!strcmp(status,"complete"))complete++;
+  else if(!strcmp(status,"partial"))part++;
+  else if(!strcmp(status,"absent"))absent++;
+  else if(!strcmp(status,"unavailable"))unavailable++;
+  else other++;
+ }
+ char *out=(char*)calloc(1,768);
+ if(out){
+  int n=snprintf(out,768,
+   "{\"schemaVersion\":1,\"mode\":\"metadata-only\",\"cleanupValidated\":false,"
+   "\"scope\":\"bounded-known-roots\",\"files\":%zu,\"visited\":%zu,"
+   "\"nominalBytes\":%llu,\"partial\":%s,"
+   "\"categories\":{\"media\":%zu,\"logs\":%zu,\"cache\":%zu,"
+   "\"residuals\":%zu,\"other\":%zu},"
+   "\"coverage\":{\"complete\":%zu,\"partial\":%zu,\"absent\":%zu,"
+   "\"unavailable\":%zu,\"other\":%zu},"
+   "\"limits\":{\"maxVisited\":30000,\"maxItems\":10000,"
+   "\"maxEntriesPerRoot\":2500},"
+   "\"note\":\"Nominal bytes only; never an estimate of deletable data\"}",
+   s->items,s->visits,s->bytes,(s->stopped||s->partial)?"true":"false",
+   s->media,s->logs,s->caches,s->residuals,s->other,
+   complete,part,absent,unavailable,other);
+  if(n<0||(size_t)n>=768){free(out);out=NULL;}
+  else *len=(size_t)n;
+ }
+ free(s);
+ return out;
 }
