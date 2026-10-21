@@ -4,6 +4,13 @@ on:
     branches: [main]
     paths:
       - native/**
+      - src/native/**
+      - rules/**
+      - web/**
+      - Makefile
+      - VERSION
+      - scripts/embed_assets.py
+      - scripts/embed_rules.py
       - scripts/build_native_app.sh
       - scripts/check_native_bundle.py
       - scripts/make_native_icon.py
