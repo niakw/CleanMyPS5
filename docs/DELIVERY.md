@@ -1,50 +1,45 @@
-# Livraison 0.10.1-analysis
+# Livraison actuelle — CleanMyPS5
 
-## Ce qui est livré
+## Deux livrables réellement distincts
 
-Un exécutable `cleanmyps5.elf` contenant le scanner, les règles et toute l’interface. Pas de deuxième variante, de serveur à lancer sur un ordinateur, de téléchargement de scripts ou de fichiers de la console. L’application reste strictement en lecture seule.
+**Titre PS5 natif expérimental :** l'archive `dist/native/PPSA99784.zip` contient un dossier de titre avec `eboot.bin`, `sce_sys/param.json`, une icône originale et le runtime requis. La compilation de ce format, ses métadonnées et ses tests hôte passent en CI. Ce n'est pas un PKG retail et **son fonctionnement sur PS5 13.60 reste non validé**.
 
-L’archive source contient les modifications complètes et les tests. Les rapports de métadonnées d’une console réelle et les images de référence fournies pendant la conception ne font pas partie du code ou des archives applicatives.
+**Moteur d'inspection :** `dist/native/cleanmyps5-helper.elf` est un payload distinct, en lecture seule, sans ouverture du navigateur, qui sert le diagnostic sur `127.0.0.1:8877`. Le frontend installé est capable de sonder directement quelques chemins de *son propre sandbox*, mais ne bénéficie pas automatiquement des privilèges du helper. Ce dernier doit actuellement être lancé séparément avec un chargeur compatible.
+
+**Ancienne interface :** `make package` continue à fournir l'ancien `cleanmyps5.elf` avec interface WebKit, jusqu'à ce que les fonctions de consultation soient portées sur le frontend natif. C'est un produit de transition et non le format d'installation cible.
+
+## Fonctions réellement disponibles
+
+| Fonction | État vérifié |
+|---|---|
+| Interface native VideoOut, quatre écrans, manette | Code présent, compilation native CI réussie ; test DualSense sur console requis |
+| Sonde native de chemins applicatifs et des emplacements /data, /user | Ouverture **lecture seule**, indication accessible / inaccessible ou absent ; les codes d'erreur ne sont pas encore différenciés côté titre |
+| Diagnostic détaillé de montages et permissions | Disponible dans le helper, sous réserve de sa visibilité filesystem |
+| Inventaire captures, journaux, caches, homebrews, installations | En lecture seule dans le helper ; pas encore disponible dans tous les écrans natifs |
+| Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | En lecture seule dans l'ancienne interface WebKit ; portage natif à faire |
+| Effacement captures, caches, doublons ou résidus | **Désactivé**, aucun mécanisme d'effacement validé |
+| Restauration, quarantaine, synchronisation base multimédia | Non implémentés |
+| Espace récupérable | **Non calculé** : les tailles affichées sont nominales, pas des promesses de gain |
+
+## Frontière de permission
+
+Une application PS5 installée dans le Shell ne possède pas automatiquement un accès arbitraire à `/data`, `/user`, aux fichiers des autres applications, aux bases Galerie ou aux sauvegardes. Un ELF exécuté dans un autre contexte peut voir davantage de fichiers, mais le simple fait de les lire ou d'avoir un indice d'écriture ne signifie pas qu'ils sont supprimables sans corruption.
+
+Le helper HTTP refuse les méthodes d'écriture. Aucun endpoint `/api/delete` opérationnel n'est distribué. Les fichiers système, comptes, sauvegardes, clés, licences, plugins actifs, bases avec WAL/SHM, inconnus et liens symboliques restent protégés.
 
 ## Correctif de sécurité 0.10.1
 
-Le comparateur de doublons ouvre la racine une seule fois, vérifie le descripteur avec fstat et réutilise ce même accès pendant l’énumération et les comparaisons. Il ne vérifie plus un chemin avec lstat avant de le rouvrir. Remplacer ou renommer la racine pendant l’analyse ne redirige plus les lectures vers un autre arbre. Les identités des fichiers restent revalidées après ouverture.
+Le comparateur de doublons ouvre sa racine une seule fois, vérifie le descripteur avec `fstat` et le réutilise pendant l'énumération et les comparaisons. Cela empêche qu'un renommage de la racine redirige l'analyse vers un autre arbre ; les identités des fichiers sont revalidées.
 
-Un test déterministe remplace le chemin de la racine juste après son ouverture et vérifie que seuls les fichiers de l’arbre initial sont comparés. Il couvre également le refus d’une racine symbolique ou non répertoire.
+Le serveur est borné en ressources, lié au loopback, et limite les routes et méthodes. Les essais d'accès ne modifient ni les permissions ni les paramètres de la console.
 
-## Périmètre établi à partir des besoins
+## Conditions indispensables avant de permettre une suppression
 
-| Besoin | Comportement livré |
-|---|---|
-| Entretien coordonné | Analyse des métadonnées, catalogue, montages et chemins |
-| Journaux et caches système | Inventaire protégé des racines connues, sans purge |
-| Captures, miniatures, variantes | Inventaire élargi ; fichiers associés préservés |
-| Apps, plugins, ELF inconnus | Découverte générique ; aucune liste d’apps personnelle requise |
-| Gros fichiers et anciens fichiers | Recherche, tri et filtres dans les catégories ; ancienneté par mtime |
-| Doublons | Comparaison exacte d’images sur demande ; taille égale insuffisante |
-| Démarrage | Diagnostic limité d’autoload sur demande ; aucun désarmement automatique |
-| Stockage | Carte des captures, tailles nominales et mesures de deux montages visibles |
-| Outils | Accès aux fonctions opérationnelles et indication des fonctions absentes |
-| Export | Métadonnées complètes ou sélection manuelle ; aucune copie de contenu |
-| Confidentialité | Loopback, pas de télémétrie, contenus privés non lus par l’analyse générale |
-| Désinstallation, résidus certifiés, mises à jour | Non implémentés ; fichiers inconnus protégés |
-| Purges, quarantaine, sauvegarde/restauration | Non implémentées ; pas de gain libéré annoncé |
-| Malware, permissions, processus actifs | Non implémentés ; aucune simulation de résultats |
-| Mail, cloud, instantanés du Mac | Aucun équivalent intégré à la PS5 |
+1. Valider la disponibilité et les privilèges des deux processus sur une vraie PS5 13.60, ainsi que le lancement via un gestionnaire de titres compatible.
+2. Établir pour chaque type de fichier une API sûre, son appartenance et la dépendance éventuelle aux index de la Galerie ou du gestionnaire d'applications.
+3. Ajouter une sauvegarde réelle et une restauration contrôlées, une confirmation explicite, puis des tests d'arrêt, d'interruption et de changement de fichier pendant l'opération.
+4. Mesurer l'espace avant/après sans double compter les montages ni additionner hardlinks et tailles nominales.
 
-## Format demandé et limite actuelle
+**Compilation réussie n'équivaut pas à compatibilité PS5 démontrée.** Aucune opération sur la console ne découle automatiquement de la CI.
 
-Pour Itemzflow / ShadowMount, le format de dossier demandé est bien `eboot.bin` + métadonnées d’application native. Le projet actuel utilise le démarrage et le runtime du SDK de payloads. Le livrable conserve donc l’autre format autorisé, **l’ELF unique**.
-
-La chaîne native examinée documente notamment des différences de CRT/imports et de bibliothèque C. Produire seulement un conteneur SELF ou changer une extension ne règle pas ces différences. Le portage natif et ses tests sur console restent à faire. Aucun `eboot.bin` renommé ou prétendument compatible n’est distribué.
-
-Références de format : [dossiers ELF websrv](https://github.com/ps5-payload-dev/websrv#installing-homebrew), [applications natives ps5link](https://github.com/Rufidj/ps5link-sdk#packaging-and-installing).
-
-## Validation distincte
-
-- Tests hôte : API, protections, métadonnées et interface JavaScript sur fixtures synthétiques.
-- Contrôle mémoire : tests natifs réussis avec UBSan. ASan compile, mais son runtime LLVM 18 se bloque sur ce Mac dans AsanInitInternal/InitializeShadowMemory avant main ; le contrôle ASan local ne peut pas être déclaré réussi. Le job Linux ASan/UBSan de CI reste configuré.
-- Compilation croisée : ELF PS5 x86-64, assets et règles intégrés.
-- À vérifier sur console : accès effectif aux racines, restrictions du sandbox PS5, démarrage du navigateur, contrôle DualSense et fin du cycle de vie.
-
-Cette version est livrable comme outil d’analyse à tester. Elle n’est pas une application native Itemzflow ni un nettoyeur avec effacement validé sur 13.60. Aucun fichier de console n’a été modifié pour cette livraison.
+Voir [Port natif](NATIVE_APP.md), [Architecture](ARCHITECTURE.md), [Matrice fonctionnelle](FEATURE_MATRIX.md) et [Validation matérielle](VALIDATION_PS5_13_60.md).
