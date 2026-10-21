@@ -13,6 +13,8 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/native_release_manifest.py
+      - tests/test_native_release_manifest.py
       - scripts/check_native_bundle.py
       - scripts/make_native_icon.py
       - .github/workflows/native.yml
@@ -33,6 +35,8 @@ jobs:
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol
           /tmp/cmp5-protocol
+      - name: Reject tampered or unsafe homebrew archives
+        run: python3 tests/test_native_release_manifest.py
       - name: Build genuine native eboot title and verify metadata
         run: bash scripts/build_native_app.sh
       - name: Publish a single ID-named installation archive
@@ -42,4 +46,5 @@ jobs:
           path: |
             dist/native/PPSA99784.zip
             dist/native/cleanmyps5-helper.elf
+            dist/native/manifest.json
           if-no-files-found: error
