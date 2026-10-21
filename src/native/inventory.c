@@ -46,8 +46,9 @@ static void warn(Scan*s,const char*message,const char*path){
  if(s->nw>=32)return;
  snprintf(s->warnings[s->nw++],256,"%s : %.170s",message,path);
 }
-static void file(Scan*s,const char*path,off_t size,const char*kind){
- if(s->stopped||s->b.fail||size<0)return;
+static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
+ if(s->stopped||s->b.fail||info->st_size<0)return;
+ const off_t size=info->st_size;
  const char *category=0,*risk=0,*reason=0;
  if((strcmp(kind,"photo")==0 && (ext(path,".jpg")||ext(path,".jpeg")||ext(path,".png")||ext(path,".jxr")))||
     (strcmp(kind,"video")==0 && (ext(path,".mp4")||ext(path,".webm")))){
@@ -68,7 +69,22 @@ static void file(Scan*s,const char*path,off_t size,const char*kind){
  add(&s->b,",\"bytes\":");add(&s->b,n);
  add(&s->b,",\"category\":");quote(&s->b,category);
  add(&s->b,",\"risk\":");quote(&s->b,risk);
- add(&s->b,",\"reason\":");quote(&s->b,reason);add(&s->b,"}");
+ add(&s->b,",\"reason\":");quote(&s->b,reason);
+ if(strcmp(category,"media")==0){
+   const char*mark=strstr(path,"/NPXS40087/");
+   if(mark){
+     mark+=strlen("/NPXS40087/");
+     size_t len=0;
+     while(mark[len] && mark[len]!='/' && len<24 && (isalnum((unsigned char)mark[len])||mark[len]=='_'))len++;
+     if(mark[len]=='/' && len>0){
+       char title[25];memcpy(title,mark,len);title[len]=0;
+       add(&s->b,",\"titleId\":");quote(&s->b,title);
+     }
+   }
+ }
+ char epoch[32];snprintf(epoch,sizeof(epoch),"%lld",(long long)(info->st_mtime>0?info->st_mtime:0));
+ add(&s->b,",\"modifiedAt\":");add(&s->b,epoch);
+ add(&s->b,"}");
  s->items++;
 }
 static void walk(Scan*s,const char*path,const char*kind,int depth){
@@ -85,7 +101,7 @@ static void walk(Scan*s,const char*path,const char*kind,int depth){
   if(S_ISDIR(st2.st_mode)){
    if(depth<DEPTH_CAP)walk(s,child,kind,depth+1);
    else warn(s,"Profondeur maximale atteinte",child);
-  }else if(S_ISREG(st2.st_mode))file(s,child,st2.st_size,kind);
+  }else if(S_ISREG(st2.st_mode))file(s,child,&st2,kind);
   if(s->stopped||s->b.fail)break;
  }
  closedir(d);
@@ -112,7 +128,10 @@ char *cmp5_report(const char*root,size_t*len){
  if(!s->stopped)root_scan(s,root,"data/etaHEN","etahen");
  add(&s->b,"],\"warnings\":[");
  for(size_t i=0;i<s->nw;i++){if(i)add(&s->b,",");quote(&s->b,s->warnings[i]);}
- add(&s->b,"]}");
+ char stats[256];
+ snprintf(stats,sizeof(stats),"],\"stats\":{\"visited\":%zu,\"items\":%zu,\"partial\":%s}}",
+   s->visits,s->items,(s->stopped||s->nw>0)?"true":"false");
+ add(&s->b,stats);
  char*output=s->b.p;
  if(s->b.fail){free(output);output=NULL;}else *len=s->b.len;
  free(s);return output;

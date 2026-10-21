@@ -43,6 +43,11 @@ with tempfile.TemporaryDirectory() as temp:
   entries={Path(e["path"]).name:e for e in report["items"]}
   assert set(entries)=={"image.png","clip.MP4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
+  assert entries["clip.MP4"]["titleId"]=="GAME"
+  assert isinstance(entries["image.png"]["modifiedAt"],int)
+  assert report["stats"]["items"]==4
+  assert report["stats"]["visited"]>=6
+  assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
   for route in ("/","/app.js","/styles.css"):
    with urlopen(base+route,timeout=3) as r:assert r.status==200 and len(r.read())>100
