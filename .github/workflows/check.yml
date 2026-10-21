@@ -33,8 +33,20 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+  macos-host:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure macOS host build
+        run: cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Release
+      - name: Build portable scanner on macOS
+        run: cmake --build build-mac --parallel 2
+      - name: Run read-only macOS fixtures
+        run: ctest --test-dir build-mac --output-on-failure
+      - name: Run JS validation on macOS
+        run: node tests/test_ui.js
   ps5-payload:
-    needs: [host, sanitizer]
+    needs: [host, sanitizer, macos-host]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
