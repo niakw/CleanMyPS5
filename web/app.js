@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -36,7 +36,7 @@ function useReport(report,isDemo=false,live=false){
   const sizes=new Map();
   for(const item of items)if(item.category==="media"&&item.bytes>0)sizes.set(item.bytes,(sizes.get(item.bytes)||0)+1);
   for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
-  state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
+  state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
   state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
@@ -149,17 +149,33 @@ function exportPreflight(){
  announce("Diagnostic exporté (aucun contenu de fichier).");
 }
 function mediaTitles(){const arr=[...new Set(state.items.filter(x=>x.category==="media"&&x.titleId).map(x=>x.titleId))];return arr.sort();}
-function filtered(){return state.items.filter(x=>{
- if(state.tab==="cache")return ["cache","logs"].includes(x.category);
- if(state.tab==="storage"||state.tab==="overview")return true;
- if(x.category!==state.tab)return false;
+function filtered(){
+ const items=state.items.filter(x=>{
+  if(state.tab==="cache")return ["cache","logs"].includes(x.category);
+  if(state.tab==="storage"||state.tab==="overview")return true;
+  if(x.category!==state.tab)return false;
+  if(state.tab==="media"){
+   if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
+   if(state.mediaMode==="large"&&x.bytes<250*1024*1024)return false;
+   if(state.mediaMode==="size"&&!x.possibleTwin)return false;
+  }
+  return true;
+ });
  if(state.tab==="media"){
-  if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
-  if(state.mediaMode==="large"&&x.bytes<250*1024*1024)return false;
-  if(state.mediaMode==="size"&&!x.possibleTwin)return false;
+  const mode=state.mediaSort;
+  items.sort((a,b)=>{
+   if(mode==="date")return (b.modifiedAt-a.modifiedAt)||(b.bytes-a.bytes)||a.path.localeCompare(b.path);
+   if(mode==="name")return a.path.split("/").pop().localeCompare(b.path.split("/").pop(),"fr")||(b.bytes-a.bytes);
+   return (b.bytes-a.bytes)||a.path.localeCompare(b.path);
+  });
  }
- return true;
-});}
+ return items;
+}
+function cycleMediaSort(){
+ const values=["size","date","name"];
+ state.mediaSort=values[(values.indexOf(state.mediaSort)+1)%values.length];
+ state.page=0;render();document.querySelector(".sort-cycle")?.focus({preventScroll:true});
+}
 function setMediaMode(mode){
  state.mediaMode=mode;state.page=0;render();
  document.querySelector('[data-media-mode="'+mode+'"]')?.focus({preventScroll:true});
@@ -178,7 +194,9 @@ function mediaToolbar(){
  }
  const titles=mediaTitles();const titleButton=button("Jeu : "+(state.mediaTitle==="all"?"Tous":state.mediaTitle),"secondary title-cycle",cycleMediaTitle);
  titleButton.disabled=!titles.length;titleButton.title="Changer de jeu";
- add(root,filterWrap,titleButton);
+ const sortLabels={size:"Taille ↓",date:"Date ↓",name:"Nom A–Z"};
+ const sortButton=button("Trier : "+sortLabels[state.mediaSort],"secondary sort-cycle",cycleMediaSort);
+ add(root,filterWrap,titleButton,sortButton);
  root.append(node("p","filter-warning","« Même taille » signale seulement des fichiers de taille identique, pas des doublons confirmés. Aucune suppression automatique."));
  return root;
 }

@@ -78,3 +78,7 @@ The UI distinguishes **inventoried bytes** (occupied by known files), **addition
 ## Invalidation des analyses en cours
 
 Un import ou un nouveau scan incrémente un identifiant de révision du rapport. Les réponses des vérifications de doublons en cours et des scans plus anciens ne sont plus appliquées si une nouvelle source a été chargée entre-temps. La préparation des copies exige une correspondance avec le groupe exact de la révision affichée. Les diagnostics et statistiques précédents sont effacés lorsque la source change.
+
+## Tri des captures
+
+Le bouton de tri passe successivement par taille décroissante, date de dernière modification décroissante et nom de fichier croissant. Les éléments sans métadonnées temporelles se retrouvent en bas en mode Date. Le changement de tri réinitialise la pagination sans modifier la sélection de revue.
