@@ -259,22 +259,24 @@ async function scanOfficial(){
  }catch(e){announce("Contrôle interrompu : "+e.message);}
  finally{state.officialBusy=false;state.officialStage="";render();}
 }
-function exportOfficialPlan(){
- if(typeof Blob==="undefined"||typeof URL==="undefined"||typeof URL.createObjectURL!=="function"){
-  announce("L'export n'est pas pris en charge par ce navigateur.");return;
- }
- const assessment=assessOfficial(state);
- const payload={
+function officialPlan(snapshot,date=new Date().toISOString()){
+ const assessment=assessOfficial(snapshot);
+ return {
   schemaVersion:1,kind:"official-return-review-only",
-  date:new Date().toISOString(),
-  checked:!!state.officialCheckedAt,
-  manualSteps:RETURN_STEPS.map(step=>({id:step.id,checked:state.officialManual.has(step.id)})),
-  chosenRoute:state.officialRoute,
+  date,checked:!!snapshot.officialCheckedAt,
+  manualSteps:RETURN_STEPS.map(step=>({id:step.id,checked:snapshot.officialManual instanceof Set&&snapshot.officialManual.has(step.id)})),
+  chosenRoute:OFFICIAL_ROUTES.some(x=>x.id===snapshot.officialRoute)?snapshot.officialRoute:"undecided",
   findings:assessment.findings,
   reviewCount:assessment.reviewCount,unknownCount:assessment.unknownCount,
   guaranteesAccess:false,filesDeleted:0,
   note:"Rapport local partiel, sans historique PSN. Aucune opération effectuée sur les fichiers."
  };
+}
+function exportOfficialPlan(){
+ if(typeof Blob==="undefined"||typeof URL==="undefined"||typeof URL.createObjectURL!=="function"){
+  announce("L'export n'est pas pris en charge par ce navigateur.");return;
+ }
+ const payload=officialPlan(state);
  const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
  const anchor=document.createElement("a");
  anchor.href=url;anchor.download="cleanmyps5-retour-officiel.json";
@@ -1081,6 +1083,6 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,RETURN_STEPS,OFFICIAL_ROUTES};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,officialPlan,RETURN_STEPS,OFFICIAL_ROUTES};
 }
 

@@ -52,3 +52,7 @@ Le diagnostic reconnaît les références à des binaires ELF/BIN dans les fichi
 ## Choix de la procédure
 
 La section Return to Live permet de comparer **sans lancer d'opération** cinq états : examiner, arrêter les payloads, mettre à jour, réinitialiser ou réinstaller le logiciel système. Elle ne confond pas la mise à jour avec une réinstallation et ne suggère jamais qu'une réinitialisation effacerait des données que Sony possède déjà. Le choix de la procédure figure dans le plan JSON exporté, sans lancer de modification.
+
+## Export sans données personnelles
+
+Le rapport local ne reprend aucun nom de fichier utilisateur ni contenu d'autoload ; il contient uniquement les statuts agrégés, les étapes déclarées manuellement et le scénario choisi. Un test JavaScript vérifie explicitement que des chemins privés fournis en entrée ne se retrouvent pas dans ce JSON. Le rapport n'est ni une sauvegarde ni un certificat de compatibilité PSN.

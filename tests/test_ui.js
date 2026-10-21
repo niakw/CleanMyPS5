@@ -120,3 +120,20 @@ assert.equal(extraPayload.findings.find(x=>x.id==="autoload").level,"review");
 const {OFFICIAL_ROUTES}=require("../web/app.js");
 assert.deepEqual(OFFICIAL_ROUTES.map(x=>x.id),["undecided","stop","update","reset","reinstall"]);
 assert.equal(OFFICIAL_ROUTES.some(x=>/garanti/i.test(x.impact)),true);
+
+const {officialPlan}=require("../web/app.js");
+const privateFixture={
+ diagnostics:{entries:[{path:"/secret/private-autoload.txt",status:"other-payload-reference"}]},
+ homebrew:{partial:false,items:[{path:"/secret/private-homebrew"}]},
+ preflight:{entries:[]},officialCheckedAt:"2026-10-21T12:00:00Z",
+ officialManual:new Set(["backup"]),officialRoute:"reinstall"
+};
+const exported=officialPlan(privateFixture,"2026-10-21T12:00:00Z");
+const safeJson=JSON.stringify(exported);
+assert.equal(exported.guaranteesAccess,false);
+assert.equal(exported.filesDeleted,0);
+assert.equal(exported.manualSteps.filter(x=>x.checked).length,1);
+assert.equal(exported.chosenRoute,"reinstall");
+assert.equal(safeJson.includes("private-autoload"),false);
+assert.equal(safeJson.includes("private-homebrew"),false);
+assert.equal(officialPlan({...privateFixture,officialRoute:"unexpected"}).chosenRoute,"undecided");
