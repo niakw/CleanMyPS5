@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host"};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -24,7 +24,7 @@ function safeItems(report){
   });
 }
 function useReport(report,isDemo=false){
-  const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);state.items=items;state.selected.clear();state.demo=isDemo;
+  const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);state.items=items;state.selected.clear();state.page=0;state.demo=isDemo;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
   state.warnings=Array.isArray(report.warnings)?report.warnings.slice(0,10).map(String):[];
@@ -73,7 +73,14 @@ function row(x){const selected=state.selected.has(x.id);const protectedItem=x.ri
 function filesPage(root){
  const title=labels[state.tab];const explain={media:"Retrouvez les photos, captures automatiques et clips vidéo. Sélection manuelle avant tout nettoyage.",cache:"Journaux diagnostiques et caches accessibles. Les caches système non identifiés restent exclus.",residuals:"Inspection des anciennes installations et configurations résiduelles : aucun élément n'est présumé inutile."};
  root.append(setTitle(title,explain[state.tab]));const section=node("section","data-panel");
- const items=filtered();add(section,panelHeader("Éléments répertoriés",items.length+" élément(s)"),items.length?add(node("div","item-list"),...items.map(row)):add(node("div","empty"),node("div","empty-glyph","◇"),node("p","","Aucun élément analysé dans cette catégorie.")));
+ const items=filtered();const pageCount=Math.max(1,Math.ceil(items.length/state.pageSize));state.page=Math.min(state.page,pageCount-1);
+ const from=state.page*state.pageSize;const slice=items.slice(from,from+state.pageSize);
+ add(section,panelHeader("Éléments répertoriés",items.length+" élément(s)"),items.length?add(node("div","item-list"),...slice.map(row)):add(node("div","empty"),node("div","empty-glyph","◇"),node("p","","Aucun élément analysé dans cette catégorie.")));
+ if(pageCount>1){const pager=node("div","pager");
+  const previous=button("‹  Précédent","secondary",()=>changePage(-1));previous.disabled=state.page===0;
+  const next=button("Suivant  ›","secondary",()=>changePage(1));next.disabled=state.page===pageCount-1;
+  add(pager,previous,node("span","section-note","Page "+(state.page+1)+" / "+pageCount),next);section.append(pager);
+ }
  const summary=node("div","review-bar");const nums=add(node("div"),node("small","","Sélection actuelle"),node("strong","",bytes(selectedBytes())));
  add(summary,nums,button("Examiner ma sélection  →","primary",review));
  section.append(summary);root.append(section);root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
@@ -90,7 +97,13 @@ function review(){
  const names=selected.slice(0,3).map(x=>x.path.split("/").pop()).join(", ");
  announce(selected.length+" élément(s) · "+bytes(selectedBytes())+" · prévisualisation uniquement ("+names+")");
 }
-function go(tab){if(!(tab in labels))return;const fromCard=document.activeElement?.classList.contains("summary-card");state.tab=tab;render();const nextFocus=fromCard?document.querySelector(".file-item:not(:disabled), .review-bar .primary"):document.querySelector(`[data-tab="${tab}"]`);nextFocus?.focus({preventScroll:true});}
+function changePage(delta){
+ const maxPage=Math.max(0,Math.ceil(filtered().length/state.pageSize)-1);
+ const target=Math.max(0,Math.min(maxPage,state.page+delta));
+ if(target===state.page){announce(target===0?"Première page":"Dernière page");return;}
+ state.page=target;render();document.querySelector(".file-item:not(:disabled), .pager button:not(:disabled)")?.focus();
+}
+function go(tab){if(!(tab in labels))return;state.page=0;const fromCard=document.activeElement?.classList.contains("summary-card");state.tab=tab;render();const nextFocus=fromCard?document.querySelector(".file-item:not(:disabled), .review-bar .primary"):document.querySelector(`[data-tab="${tab}"]`);nextFocus?.focus({preventScroll:true});}
 function render(preserveFocus=false){
  const before=preserveFocus&&document.activeElement?.classList.contains("file-item")?Array.from(document.querySelectorAll(".file-item")).indexOf(document.activeElement):-1;
  const content=$("#content");content.replaceChildren();content.className="main-wrap";
@@ -118,6 +131,8 @@ document.addEventListener("keydown",e=>{if(e.target.matches("input,textarea"))re
  if(e.key==="Escape"||e.key==="Backspace"){e.preventDefault();back();}
  if(e.key==="["||e.key==="PageUp"){e.preventDefault();switchTab(-1);}
  if(e.key==="]"||e.key==="PageDown"){e.preventDefault();switchTab(1);}
+ if(e.key===","&&["media","cache","residuals"].includes(state.tab)){e.preventDefault();changePage(-1);}
+ if(e.key==="."&&["media","cache","residuals"].includes(state.tab)){e.preventDefault();changePage(1);}
 });
 let previousButtons=new Set(),lastAxes=[0,0];
 function gamepadLoop(){
@@ -125,7 +140,7 @@ function gamepadLoop(){
  if(p){const pressed=new Set();p.buttons.forEach((b,i)=>{if(b.pressed)pressed.add(i);});
  const edge=i=>pressed.has(i)&&!previousButtons.has(i);
  if(edge(0)){const el=document.activeElement?.matches(".focusable")?document.activeElement:targets()[0];el?.click();}
- if(edge(1))back();if(edge(4))switchTab(-1);if(edge(5))switchTab(1);
+ if(edge(1))back();if(edge(4))switchTab(-1);if(edge(5))switchTab(1);if(edge(6)&&["media","cache","residuals"].includes(state.tab))changePage(-1);if(edge(7)&&["media","cache","residuals"].includes(state.tab))changePage(1);
  if(edge(12))move("up");if(edge(13))move("down");if(edge(14))move("left");if(edge(15))move("right");
  const axes=[p.axes[0]||0,p.axes[1]||0];
  const directions=[axes[0]<-.65?"left":axes[0]>.65?"right":null,axes[1]<-.65?"up":axes[1]>.65?"down":null];

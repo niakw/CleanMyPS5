@@ -4,6 +4,7 @@
 
 CleanMyMac sert d'inspiration pour le **parcours** (une vue simple, des catégories, la revue), sans copier ses ressources ni sa présentation. CleanMyPS5 est conçu pour l'écran TV et la manette.
 
+- **Pagination native :** 36 éléments maximum par page pour prévenir les freezes WebKit quand une bibliothèque contient des milliers de captures. L2/R2 passent les pages, les sélections sont conservées entre pages.
 - **Une décision par écran.** Un CTA principal, plus une action secondaire compréhensible.
 - **Lisible à distance.** Titres larges, catégories bien séparées, marges généreuses, contrastes élevés.
 - **Navigation explicite.** Croix/joystick: déplacement spatial; ✕ valider; ◯ retour; L1/R1 sections.

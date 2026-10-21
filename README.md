@@ -7,6 +7,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 **The dashboard now talks directly to a read-only native C HTTP scanner.** A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
+- Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
 - Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
 - No claim of SSD-wide free space: counts are for **enumerated items only**.
 - The demo is fictitious and clearly marked as such.
