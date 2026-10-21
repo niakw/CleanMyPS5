@@ -1,6 +1,6 @@
 # CleanMyPS5
 
-A controller-first PS5 storage analysis and maintenance project, with an original UI inspired by the clarity of outil générique.
+A controller-first PS5 storage analysis and maintenance project with an original, TV-first interface designed for the DualSense.
 
 ## Status (development preview — see `VERSION`)
 
@@ -69,3 +69,7 @@ Licensed GPL-3.0. Files, capture metadata, saves and etaHEN configurations are n
 ## Honest scope
 
 The program is an **exploratory, read-only PS5 cleaner prototype**, not a finished outil de nettoyage/outil générique replacement. The current release does not delete screenshots, uninstall apps, repair failed PKG installs, delete caches, compact storage, or restore backups. Follow the [feature parity audit](docs/FUNCTIONAL_PARITY_outil générique.md) before interpreting a scan result as safe to remove. The PS5 payloads remain unverified on firmware 13.60.
+
+## Return to Live / retour au système officiel
+
+The integrated Return to Live module provides read-only autoloader, homebrew and known-path checks, a seven-step **manual** preparation checklist, and an optional local JSON checklist export. No cleanup action, firmware update, restart or server interaction with PlayStation services is performed. **The tool cannot verify Sony's remote records or guarantee that a console/account won't be suspended.** Follow the [official-return guide](docs/RETURN_TO_LIVE.md) before choosing an official update, reset or reinstall.

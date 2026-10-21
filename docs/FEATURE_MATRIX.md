@@ -76,3 +76,5 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 
 ## Définition du mot « terminé »
 **Implémenté + tests hôte + compilation ELF ≠ validé sur PS5.** Une fonctionnalité est « prête PS5 » uniquement quand son comportement réel est vérifié sur FW 13.60, DualSense comprise. Une fonctionnalité de nettoyage est « prête à être activée » uniquement quand sauvegarde, restauration, synchronisation, consentement et tests d'interruption ont été démontrés.
+
+| Retour au système officiel | 🟡 | Diagnostics en lecture seule, liste manuelle et export sans opérations destructives ; état PSN jamais certifié, test FW 13.60 requis |

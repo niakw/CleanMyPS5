@@ -85,3 +85,27 @@ assert.equal(mediaMatches(still,{kind:"images",query:"SCREEN"}),true);
 assert.equal(mediaMatches(still,{kind:"all",query:"GAME"}),true);
 assert.equal(mediaMatches(still,{kind:"all",query:"something-else"}),false);
 console.log("UI report, Analyse intelligente, capture lens, search and sorting: PASS");
+
+
+const {assessOfficial,RETURN_STEPS}=require("../web/app.js");
+assert.equal(RETURN_STEPS.length,7);
+const flagged=assessOfficial({
+ diagnostics:{entries:[{path:"/known",status:"etaHEN-reference"},{path:"/cfg",status:"enabled"}]},
+ homebrew:{partial:false,items:[{path:"/data/homebrew/demo",kind:"homebrew"}]},
+ preflight:{entries:[{path:"/data/etaHEN",status:"accessible"}]}
+});
+assert.equal(flagged.reviewCount,4);
+assert.equal(flagged.canGuaranteeSafe,false);
+assert.equal(flagged.findings.find(x=>x.id==="autoload").level,"review");
+assert.equal(flagged.findings.find(x=>x.id==="network").level,"unknown");
+assert.equal(flagged.findings.some(x=>x.level==="safe"),false);
+const incomplete=assessOfficial({});
+assert.equal(incomplete.partial,true);
+assert.equal(incomplete.canGuaranteeSafe,false);
+const quiet=assessOfficial({
+ diagnostics:{entries:[]},homebrew:{partial:false,items:[]},preflight:{entries:[]}
+});
+assert.equal(quiet.reviewCount,0);
+assert.equal(quiet.canGuaranteeSafe,false);
+assert.equal(quiet.findings.find(x=>x.id==="psn").level,"unknown");
+console.log("Return to Live assessment: PASS");

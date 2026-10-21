@@ -46,3 +46,7 @@ Le jalon P0 propose aussi une variante séparée `cleanmyps5-browser.elf`, utili
 Une vue Analyse intelligente **de lecture seule** coordonne désormais l'inventaire, les contrôles de chemins, montages, etaHEN et doublons. Elle affiche quels contrôles ont réussi, les comptes et tailles à examiner, sans parler d'espace libéré. Les captures peuvent être filtrées à partir de 50 Mio ou par ancienneté de modification (90 jours), **pas** par date d'ouverture. Voir [l'audit de parité](FUNCTIONAL_PARITY_outil générique.md) pour les fonctionnalités manquantes avant nettoyage réel.
 
 Un catalogue borné des répertoires homebrew et des fichiers de plugins etaHEN est maintenant disponible en lecture seule, avec taille nominale, compte de fichiers et limite de profondeur. Les éléments sont marqués **protégés** jusqu'à une validation croisée des registres de titres, chemins et plugins actifs. Cela ne correspond pas à un désinstalleur ni à un détecteur d'orphelins fiable.
+
+## Return to Live
+
+Parcours de préparation ajouté : revue des références d'autoload, état des homebrews/plugins et chemins PS5 connus, sept vérifications manuelles et export JSON. **Aucune garantie anti-ban ni détection complète du firmware/PSN.** Les opérations de réinitialisation et réinstallation restent des procédures officielles à réaliser sur la console, après sauvegarde, jamais par l'application. État : implémenté côté UI, validation FW 13.60 à effectuer.

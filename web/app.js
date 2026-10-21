@@ -1,9 +1,9 @@
 "use strict";
 // The UI never sends a delete request. Reports are untrusted data, rendered via textContent.
-const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
+const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage",official:"Return to Live"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false,officialBusy:false,officialStage:"",officialCheckedAt:null,officialManual:new Set()};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -97,6 +97,147 @@ function categories(){
  });return cards;
 }
 function notice(title,desc){const el=node("div","notice");add(el,node("span","","ⓘ"),add(node("div"),node("strong","",title),node("div","",desc)));return el;}
+
+const RETURN_STEPS=[
+ {id:"backup",title:"Sauvegarder les données personnelles",detail:"Vérifier les sauvegardes de jeux, les captures et les données importantes sur un support adapté. L'export du rapport JSON ne sauvegarde aucun fichier."},
+ {id:"autoload",title:"Désactiver les chargements automatiques",detail:"Contrôler le gestionnaire utilisé, les fichiers d'autoload connus et les extensions configurées. Ne pas effacer un dossier actif à l'aveugle."},
+ {id:"apps",title:"Vérifier les applications et plugins installés",detail:"Identifier chaque homebrew et son mode de désinstallation ; protéger les données de jeu, licences et bases système. Ne pas supposer qu'un dossier est orphelin."},
+ {id:"network",title:"Contrôler DNS, proxy et filtrage réseau",detail:"Consulter manuellement les paramètres réseau et les éventuelles listes de blocage. Le scanner ne peut pas certifier les réglages actifs du réseau."},
+ {id:"power",title:"Effectuer un arrêt complet et vérifier le démarrage",detail:"Après avoir désactivé les chargeurs, tester un démarrage normal sans relancer volontairement de payload. Cette vérification doit être effectuée sur la vraie console."},
+ {id:"system",title:"Choisir une procédure Sony adaptée",detail:"Distinguer mise à jour (changement de firmware), réinitialisation (perte de données) et réinstallation du logiciel système (perte de données et réinstallation). Procédures officielles uniquement."},
+ {id:"account",title:"Vérifier l'état des comptes et des services en ligne",detail:"Aucune analyse locale ne peut connaître les décisions de Sony ni effacer un historique déjà détenu à distance. Ne considérer aucun indicateur local comme une garantie contre une suspension."}
+];
+function assessOfficial(snapshot){
+ const entries=Array.isArray(snapshot.diagnostics?.entries)?snapshot.diagnostics.entries:[];
+ const loaded=Array.isArray(snapshot.homebrew?.items)?snapshot.homebrew.items:[];
+ const preflight=Array.isArray(snapshot.preflight?.entries)?snapshot.preflight.entries:[];
+ const refs=entries.filter(x=>x.status==="etaHEN-reference");
+ const toolbox=entries.filter(x=>x.status==="enabled");
+ const inaccessible=entries.filter(x=>["unreadable","too-large","unknown"].includes(x.status)).length;
+ const hasDirectory=preflight.some(x=>x.path==="/data/etaHEN"&&x.status==="accessible");
+ const partial=snapshot.homebrew?.partial===true||!snapshot.diagnostics||!snapshot.homebrew||!snapshot.preflight;
+ const findings=[
+  {id:"autoload",label:"Chargement automatique",level:refs.length?"review":!snapshot.diagnostics?"unknown":"limited",
+   detail:refs.length?refs.length+" référence(s) au payload dans les configurations contrôlées.":!snapshot.diagnostics?"Analyse locale non exécutée.":"Aucune référence repérée dans l'échantillon connu, sans preuve d'absence d'autres chargeurs."},
+  {id:"toolbox",label:"Démarrage de la Toolbox",level:toolbox.length?"review":!snapshot.diagnostics?"unknown":"limited",
+   detail:toolbox.length?"Option de démarrage observée comme activée.":"État limité aux fichiers de configuration connus."},
+  {id:"homebrew",label:"Homebrews et plugins",level:loaded.length?"review":!snapshot.homebrew?"unknown":"limited",
+   detail:loaded.length?loaded.length+" entrée(s) répertoriée(s) comme protégées : aucun élément n'est présumé inutile.":"Aucun élément visible dans le catalogue borné ; d'autres emplacements peuvent exister."},
+  {id:"local",label:"Répertoires connus",level:hasDirectory?"review":!snapshot.preflight?"unknown":"limited",
+   detail:hasDirectory?"Le dossier etaHEN est accessible : sa présence ne prouve ni son exécution ni son caractère supprimable.":"L'accès aux dossiers est vérifié partiellement ; cela ne décrit pas tous les changements du système."},
+  {id:"network",label:"DNS, proxy et connexions",level:"unknown",
+   detail:"Impossible à certifier à partir des dossiers examinés. Vérification manuelle nécessaire."},
+  {id:"firmware",label:"Firmware et démarrage",level:"unknown",
+   detail:"Version effective, modifications persistantes et compatibilité de mise à jour non certifiées par cet outil."},
+  {id:"psn",label:"État des services PlayStation",level:"unknown",
+   detail:"Un scanner local ne peut pas connaître l'historique conservé par Sony ni prédire une sanction."}
+ ];
+ const unknown=findings.filter(x=>x.level==="unknown").length+inaccessible;
+ return {findings,reviewCount:findings.filter(x=>x.level==="review").length,
+  unknownCount:unknown,partial,canGuaranteeSafe:false};
+}
+function officialPage(root){
+ root.append(setTitle("Return to Live","Préparer un retour au système officiel, sans suppression automatique ni promesse de protection contre les suspensions PlayStation."));
+ const banner=node("section","data-panel official-warning");
+ add(banner,panelHeader("Diagnostic de retour","Préparation, pas certification"),
+  notice("Aucune garantie de sécurité PSN","Des éléments non détectés, des modifications persistantes ou des informations déjà détenues à distance peuvent subsister. Une mise à jour ou réinitialisation ne garantit pas l'absence de suspension."));
+ root.append(banner);
+ const actions=node("section","data-panel");
+ add(actions,panelHeader("Contrôles locaux en lecture seule",state.officialCheckedAt?"Exécutés pendant cette session":"À effectuer"));
+ if(state.backend){
+  const run=button(state.officialBusy?"Contrôles en cours…":"Examiner avant retour officiel","primary",scanOfficial);
+  run.disabled=state.officialBusy;actions.append(run);
+  if(state.officialBusy)actions.append(node("p","muted",state.officialStage));
+ }else actions.append(node("p","muted","Le moteur natif n'est pas connecté. Le guide de retour reste disponible, mais aucun diagnostic local ne peut être attesté."));
+ const findings=assessOfficial(state);
+ if(state.officialCheckedAt){
+  actions.append(node("p","filter-warning",findings.reviewCount+" point(s) à examiner, "+findings.unknownCount+" contrôle(s) ou signal(s) non vérifiables. Aucun état « prêt pour PSN » ne peut être délivré."));
+  const list=node("div","official-findings");
+  for(const item of findings.findings){
+   const row=node("div","official-finding");
+   const head=node("div","official-finding-head");
+   add(head,node("strong","",item.label),node("span","official-level "+item.level,
+    item.level==="review"?"À examiner":item.level==="limited"?"Contrôle limité":"Non vérifiable"));
+   add(row,head,node("p","",item.detail));list.append(row);
+  }
+  actions.append(list);
+ }
+ root.append(actions);
+ const guide=node("section","data-panel");
+ add(guide,panelHeader("Liste de préparation","Validation manuelle uniquement"));
+ const checkList=node("div","official-checklist");
+ for(const [i,step] of RETURN_STEPS.entries()){
+  const line=node("label","official-step");
+  const check=node("input","focusable");
+  check.type="checkbox";check.checked=state.officialManual.has(step.id);
+  check.setAttribute("aria-label","Étape "+(i+1)+" : "+step.title);
+  const copy=add(node("div","official-step-copy"),
+   node("strong","",(i+1)+". "+step.title),node("p","",step.detail));
+  add(line,check,copy);
+  check.addEventListener("change",()=>{
+   if(check.checked)state.officialManual.add(step.id);
+   else state.officialManual.delete(step.id);
+   const p=document.querySelector("#official-progress");
+   if(p)p.textContent=state.officialManual.size+" / "+RETURN_STEPS.length+" étapes déclarées vérifiées manuellement";
+  });
+  checkList.append(line);
+ }
+ guide.append(checkList);
+ const progress=node("p","filter-warning",state.officialManual.size+" / "+RETURN_STEPS.length+" étapes déclarées vérifiées manuellement");
+ progress.id="official-progress";guide.append(progress);
+ const buttons=node("div","hero-buttons");
+ add(buttons,button("Exporter mon plan de retour","secondary",exportOfficialPlan),
+  button("Effacer mes coches","secondary",()=>{
+   state.officialManual.clear();render();
+  }));
+ guide.append(buttons);
+ guide.append(notice("Attention aux mises à jour","Une mise à jour officielle peut fermer la possibilité d'utiliser ton firmware actuel. Une réinstallation du logiciel système supprime les données de la console. Aucun bouton de cette page n'exécute ces actions."));
+ root.append(guide);
+ const policy=node("section","data-panel");
+ add(policy,panelHeader("Limites de l'outil","Information essentielle"),
+  node("p","muted","Return to Live ne modifie ni les journaux système, ni les registres Sony, ni les identifiants console. Il n'essaie pas d'effacer une activité déjà enregistrée à distance et ne se substitue pas aux procédures officielles."));
+ root.append(policy);
+}
+async function scanOfficial(){
+ if(!state.backend||state.officialBusy)return;
+ state.officialBusy=true;state.officialCheckedAt=null;
+ try{
+  const steps=[["Autoloaders et Toolbox",diagnoseNow],
+   ["Homebrews et plugins",getHomebrew],
+   ["Répertoires candidats",runPreflight]];
+  for(const [label,fn] of steps){
+   state.officialStage=label;render();
+   await fn();
+  }
+  state.officialCheckedAt=new Date().toISOString();
+  const summary=assessOfficial(state);
+  announce(summary.reviewCount+" point(s) à examiner. Cette vérification ne certifie pas l'accès PSN.");
+ }catch(e){announce("Contrôle interrompu : "+e.message);}
+ finally{state.officialBusy=false;state.officialStage="";render();}
+}
+function exportOfficialPlan(){
+ if(typeof Blob==="undefined"||typeof URL==="undefined"||typeof URL.createObjectURL!=="function"){
+  announce("L'export n'est pas pris en charge par ce navigateur.");return;
+ }
+ const assessment=assessOfficial(state);
+ const payload={
+  schemaVersion:1,kind:"official-return-review-only",
+  date:new Date().toISOString(),
+  checked:!!state.officialCheckedAt,
+  manualSteps:RETURN_STEPS.map(step=>({id:step.id,checked:state.officialManual.has(step.id)})),
+  findings:assessment.findings,
+  reviewCount:assessment.reviewCount,unknownCount:assessment.unknownCount,
+  guaranteesAccess:false,filesDeleted:0,
+  note:"Rapport local partiel, sans historique PSN. Aucune opération effectuée sur les fichiers."
+ };
+ const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
+ const anchor=document.createElement("a");
+ anchor.href=url;anchor.download="cleanmyps5-retour-officiel.json";
+ document.body.append(anchor);anchor.click();anchor.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+ announce("Plan de vérification exporté ; aucun fichier supprimé.");
+}
+
 function overview(root){
  root.append(setTitle("Prenez soin de votre PS5.","Une vision claire de votre stockage, des captures volumineuses aux fichiers résiduels. Rien n'est supprimé sans vérification."));
  const hero=node("section","hero");const c=node("div","hero-copy");
@@ -139,7 +280,8 @@ function quickToolsPanel(){
   ["Captures anciennes",()=>{state.mediaMode="old";go("media");}],
   ["Fichiers de même taille",()=>{state.mediaMode="size";go("media");}],
   ["Homebrews et etaHEN",()=>go("residuals")],
-  ["Carte de stockage",()=>go("storage")]
+  ["Carte de stockage",()=>go("storage")],
+  ["Retour au système officiel",()=>go("official")]
  ];
  for(const [label,action] of choices){
   const b=button(label+"  ›","secondary quick-tool",action);
@@ -767,7 +909,7 @@ function render(preserveFocus=false){
  const content=$("#content");content.replaceChildren();content.className="main-wrap";
  document.querySelectorAll("[data-tab]").forEach(b=>{const active=b.dataset.tab===state.tab;b.classList.toggle("active",active);b.setAttribute("aria-current",active?"page":"false");});
  $("#breadcrumb").textContent=labels[state.tab];$("#source-label").textContent=state.source==="none"?(state.backend?"Scanner local connecté":"Aucun scan chargé"):state.demo?"Données fictives":"Rapport : "+state.source;
- if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else filesPage(content);
+ if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else if(state.tab==="official")officialPage(content);else filesPage(content);
  if(before>=0){const item=document.querySelectorAll(".file-item")[before];if(item)item.focus({preventScroll:true});}
 }
 if(typeof document!=="undefined")document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
@@ -893,5 +1035,5 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,RETURN_STEPS};
 }
