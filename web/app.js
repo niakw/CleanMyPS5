@@ -103,6 +103,7 @@ const RETURN_STEPS=[
  {id:"backup",title:"Sauvegarder les données personnelles",detail:"Vérifier les sauvegardes de jeux, les captures et les données importantes sur un support adapté. L'export du rapport JSON ne sauvegarde aucun fichier."},
  {id:"autoload",title:"Désactiver les chargements automatiques",detail:"Contrôler le gestionnaire utilisé, les fichiers d'autoload connus et les extensions configurées. Ne pas effacer un dossier actif à l'aveugle."},
  {id:"apps",title:"Vérifier les applications et plugins installés",detail:"Identifier chaque homebrew et son mode de désinstallation ; protéger les données de jeu, licences et bases système. Ne pas supposer qu'un dossier est orphelin."},
+ {id:"shortcut",title:"Inspecter les raccourcis WebKit et la Toolbox",detail:"Contrôler les icônes d'accueil, le gestionnaire de payloads et les éléments de paramètres ajoutés par les homebrews. Une entrée visible peut provenir d'une injection en mémoire ; ne pas supprimer un fichier de configuration au hasard."},
  {id:"network",title:"Contrôler DNS, proxy et filtrage réseau",detail:"Consulter manuellement les paramètres réseau et les éventuelles listes de blocage. Le scanner ne peut pas certifier les réglages actifs du réseau."},
  {id:"power",title:"Effectuer un arrêt complet et vérifier le démarrage",detail:"Après avoir désactivé les chargeurs, tester un démarrage normal sans relancer volontairement de payload. Cette vérification doit être effectuée sur la vraie console."},
  {id:"system",title:"Choisir une procédure Sony adaptée",detail:"Distinguer mise à jour (changement de firmware), réinitialisation (perte de données) et réinstallation du logiciel système (perte de données et réinstallation). Procédures officielles uniquement."},
@@ -162,6 +163,20 @@ function officialPage(root){
    add(row,head,node("p","",item.detail));list.append(row);
   }
   actions.append(list);
+  const affected=Array.isArray(state.diagnostics?.entries)?state.diagnostics.entries.filter(x=>
+    x.status==="etaHEN-reference"||x.status==="other-payload-reference"||x.status==="enabled"):[];
+  if(affected.length){
+   const box=node("div","official-configs");
+   box.append(node("strong","","Configurations connues à revoir dans leurs gestionnaires"));
+   for(const entry of affected){
+    const row=node("div","official-config");
+    add(row,node("span","",entry.path),
+      node("small","",entry.status==="enabled"?"Démarrage Toolbox configuré":"Référence de payload"));
+    box.append(row);
+   }
+   const open=button("Examiner les installations  ›","secondary",()=>go("residuals"));
+   box.append(open);actions.append(box);
+  }
  }
  root.append(actions);
  const guide=node("section","data-panel");
@@ -204,13 +219,16 @@ async function scanOfficial(){
  state.officialBusy=true;state.officialCheckedAt=null;
  state.diagnostics=null;state.homebrew=null;state.preflight=null;
  try{
-  const steps=[["Autoloaders et Toolbox",diagnoseNow],
+  const revision=state.reportRevision;
+ const steps=[["Autoloaders et Toolbox",diagnoseNow],
    ["Homebrews et plugins",getHomebrew],
    ["Répertoires candidats",runPreflight]];
   for(const [label,fn] of steps){
+   if(revision!==state.reportRevision)throw Error("Le rapport affiché a changé ; refaire le contrôle.");
    state.officialStage=label;render();
    await fn();
   }
+  if(revision!==state.reportRevision)throw Error("Le rapport affiché a changé ; refaire le contrôle.");
   state.officialCheckedAt=new Date().toISOString();
   const summary=assessOfficial(state);
   announce(summary.reviewCount+" point(s) à examiner. Cette vérification ne certifie pas l'accès PSN.");
@@ -1040,3 +1058,4 @@ if(typeof document!=="undefined"){
 if(typeof module!=="undefined"&&module.exports){
  module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,RETURN_STEPS};
 }
+

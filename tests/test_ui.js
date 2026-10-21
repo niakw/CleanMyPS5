@@ -88,7 +88,8 @@ console.log("UI report, Analyse intelligente, capture lens, search and sorting: 
 
 
 const {assessOfficial,RETURN_STEPS}=require("../web/app.js");
-assert.equal(RETURN_STEPS.length,7);
+assert.equal(RETURN_STEPS.length,8);
+assert.equal(RETURN_STEPS.some(x=>x.id==='shortcut'),true);
 const flagged=assessOfficial({
  diagnostics:{entries:[{path:"/known",status:"etaHEN-reference"},{path:"/cfg",status:"enabled"}]},
  homebrew:{partial:false,items:[{path:"/data/homebrew/demo",kind:"homebrew"}]},

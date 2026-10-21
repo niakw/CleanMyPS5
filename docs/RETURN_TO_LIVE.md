@@ -18,10 +18,11 @@ Préparer **volontairement** une console ayant utilisé des payloads et homebrew
 1. **Sauvegarder.** Utiliser les fonctions système PS5 de sauvegarde des données et captures. Un export JSON de CleanMyPS5 n'est pas une copie des fichiers. Confirmer la restauration avant une réinitialisation.
 2. **Contrôler les autoloaders.** Désactiver les démarrages automatiques dans les gestionnaires d'origine et vérifier les configurations reconnues, sans suppression aveugle.
 3. **Identifier les homebrews et plugins.** Employer uniquement les mécanismes de désinstallation adaptés et validés. Ne pas confondre dossier présent et application installée/active.
-4. **Revoir les paramètres réseau.** Consulter manuellement DNS, proxy, listes de blocage et réseau personnel. Ne pas supposer qu'un réglage « automatique » garantit quoi que ce soit sur un compte.
-5. **Redémarrage normal.** Après désactivation des chargeurs, faire un arrêt complet puis tester le comportement sans relancer de payload. Les contrôles natifs ne sont pas une preuve d'absence de modification persistante.
-6. **Choisir la procédure officielle.** La **mise à jour** modifie le firmware et peut faire perdre l'accès à l'environnement actuel. La **réinitialisation** efface les données utilisateur. La **réinstallation** du logiciel système est une option de dernier recours : elle efface les données et réinstalle le système. Aucune ne peut garantir l'état des historiques distants.
-7. **Vérifier le compte indépendamment.** Consulter les informations officielles de support et de suspension PlayStation ; un outil local ne peut pas prononcer ni lever une suspension.
+4. **Examiner les raccourcis et menus.** Consigner les raccourcis de lancement WebKit et les éventuelles entrées Toolbox dans les paramètres. Elles peuvent être liées au logiciel actif ou à une personnalisation du menu. Une absence de fichiers dans les chemins connus ne les exclut pas.
+5. **Revoir les paramètres réseau.** Consulter manuellement DNS, proxy, listes de blocage et réseau personnel. Ne pas supposer qu'un réglage « automatique » garantit quoi que ce soit sur un compte.
+6. **Redémarrage normal.** Après désactivation des chargeurs, faire un arrêt complet puis tester le comportement sans relancer de payload. Les contrôles natifs ne sont pas une preuve d'absence de modification persistante.
+7. **Choisir la procédure officielle.** La **mise à jour** modifie le firmware et peut faire perdre l'accès à l'environnement actuel. La **réinitialisation** efface les données utilisateur. La **réinstallation** du logiciel système est une option de dernier recours : elle efface les données et réinstalle le système. Aucune ne peut garantir l'état des historiques distants.
+8. **Vérifier le compte indépendamment.** Consulter les informations officielles de support et de suspension PlayStation ; un outil local ne peut pas prononcer ni lever une suspension.
 
 ## Procédures et documentation officielle PlayStation
 

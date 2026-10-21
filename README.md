@@ -72,6 +72,6 @@ The program is an **exploratory, read-only PS5 cleaner prototype**, not a finish
 
 ## Return to Live / retour au système officiel
 
-The integrated Return to Live module provides read-only autoloader, homebrew and known-path checks, a seven-step **manual** preparation checklist, and an optional local JSON checklist export. No cleanup action, firmware update, restart or server interaction with PlayStation services is performed. **The tool cannot verify Sony's remote records or guarantee that a console/account won't be suspended.** Follow the [official-return guide](docs/RETURN_TO_LIVE.md) before choosing an official update, reset or reinstall.
+The integrated Return to Live module provides read-only autoloader, homebrew and known-path checks, an eight-step **manual** preparation checklist, and an optional local JSON checklist export. No cleanup action, firmware update, restart or server interaction with PlayStation services is performed. **The tool cannot verify Sony's remote records or guarantee that a console/account won't be suspended.** Follow the [official-return guide](docs/RETURN_TO_LIVE.md) before choosing an official update, reset or reinstall.
 
 The current-tree branding check prevents accidental third-party product references from being added to source files, documentation or filenames. Existing Git history is not rewritten.
