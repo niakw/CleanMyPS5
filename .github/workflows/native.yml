@@ -27,5 +27,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PPSA99784-native-title-unverified-on-13-60
-          path: dist/native/PPSA99784.zip
+          path: |
+            dist/native/PPSA99784.zip
+            dist/native/cleanmyps5-helper.elf
           if-no-files-found: error
