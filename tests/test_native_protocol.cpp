@@ -24,6 +24,19 @@ int main(){
  assert(cmp5_native::parse_http_json(good.data(),good.size(),&body));
  assert(std::string(body.data,body.size)==json);
  assert(accepts(good));
+ // Match exact expected read-only helper contract; a web server or an older
+ // helper reusing :8877 cannot silently become a source of native scan data.
+ constexpr auto*cap=cmp5_native::expected_capabilities;
+ assert(cmp5_native::matches_expected_helper(cap,std::strlen(cap)));
+ assert(!cmp5_native::matches_expected_helper(cap,std::strlen(cap)-1));
+ std::string stale(cap);
+ stale.replace(stale.find("\"protocol\":2"),std::strlen("\"protocol\":2"),"\"protocol\":1");
+ assert(!cmp5_native::matches_expected_helper(stale.data(),stale.size()));
+ std::string writable(cap);
+ writable.replace(writable.find("\"delete\":false"),std::strlen("\"delete\":false"),
+                  "\"delete\":true");
+ assert(!cmp5_native::matches_expected_helper(writable.data(),writable.size()));
+ assert(!cmp5_native::matches_expected_helper(nullptr,0));
  assert(!accepts("HTTP/1.1 503 Service Unavailable\r\n"
                  "Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"));
  assert(!accepts("HTTP/1.1 200 OK\r\n"
