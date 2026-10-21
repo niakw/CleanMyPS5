@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -24,9 +24,10 @@ function buildSmartSummary(snapshot,now=Date.now()){
   duplicates:!!snapshot.duplicates,
   preflight:!!snapshot.preflight,
   volumes:!!snapshot.volumes,
-  autoload:!!snapshot.diagnostics
+  autoload:!!snapshot.diagnostics,
+  homebrew:!!snapshot.homebrew
  };
- const partial=snapshot.scanStats?.partial===true||snapshot.duplicates?.partial===true||
+ const partial=snapshot.scanStats?.partial===true||snapshot.duplicates?.partial===true||snapshot.homebrew?.partial===true||
    Object.values(checks).some(x=>!x);
  return {
   files:items.length,mediaFiles:media.length,
@@ -34,6 +35,7 @@ function buildSmartSummary(snapshot,now=Date.now()){
   largeFiles:media.filter(x=>x.bytes>=50*1024*1024).length,
   oldFiles:media.filter(x=>mediaOld(x,now)).length,
   logFiles:items.filter(x=>x.category==="logs").length,
+  homebrewEntries:snapshot.homebrew?.items?.length||0,
   protectedFiles:items.filter(x=>x.risk==="protected").length,
   exactGroups:groups.length,verifiedCopyBytes,
   suspiciousAutoloads:autoload.filter(x=>x.status==="etaHEN-reference"||x.status==="enabled").length,
@@ -69,7 +71,7 @@ function useReport(report,isDemo=false,live=false){
   for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
   state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
-  state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;
+  state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;state.homebrew=null;
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
@@ -134,6 +136,7 @@ function smartCarePanel(summary){
  const fields=[
   ["Captures répertoriées",summary.mediaFiles],
   ["Captures de 50 Mio et plus",summary.largeFiles],
+  ["Éléments homebrew recensés",summary.homebrewEntries],
   ["Captures modifiées il y a ≥90 j",summary.oldFiles],
   ["Groupes identiques vérifiés",summary.exactGroups],
   ["Copies supplémentaires à examiner",bytes(summary.verifiedCopyBytes)],
@@ -146,7 +149,7 @@ function smartCarePanel(summary){
  for(const [key,label] of [
   ["inventory","Captures / journaux"],["duplicates","Doublons exacts"],
   ["preflight","Répertoires PS5"],["volumes","Montages visibles"],
-  ["autoload","Autoload / etaHEN"]
+  ["autoload","Autoload / etaHEN"],["homebrew","Installations homebrew"]
  ]){
   add(steps,add(node("div","smart-check"),
    node("span","",label),node("strong",summary.checks[key]?"Examiné":"Indisponible")));
@@ -172,6 +175,7 @@ async function smartCareNow(){
    ["Montages du stockage",getVolumes],
    ["Chemins d'accès",runPreflight],
    ["Diagnostic etaHEN",diagnoseNow],
+   ["Installations et plugins protégés",getHomebrew],
    ["Doublons octet à octet (bornés)",checkDuplicates]
   ];
   for(const [stage,fn] of stages){
@@ -329,7 +333,7 @@ function filesPage(root){
  add(summary,nums,button("Examiner ma sélection  →","primary",review));
  section.append(summary);root.append(section);
  if(state.tab==="media")root.append(duplicatesPanel());
- if(state.tab==="residuals")root.append(diagnosticsPanel());
+ if(state.tab==="residuals"){root.append(diagnosticsPanel());root.append(homebrewPanel());}
  root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
 }
 function openPreview(item){
@@ -456,6 +460,49 @@ async function checkDuplicates(){
    state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,comparedBytes:Number(data.comparedBytes)||0,partial:data.partial===true,revision};
  }catch(e){announce("Comparaison impossible : "+e.message);}
  finally{state.checkingDuplicates=false;render();}
+}
+function homebrewPanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Homebrews et plugins","Inventaire protégé"));
+ if(state.backend){
+  const b=button(state.homebrewBusy?"Inspection en cours…":state.homebrew?"Actualiser les chemins":"Recenser les installations","primary",getHomebrew);
+  b.disabled=state.homebrewBusy;panel.append(b);
+ }else panel.append(node("p","muted","Nécessite le moteur natif local, sans accès en écriture."));
+ if(state.homebrew){
+  const list=node("div","homebrew-list");
+  for(const item of state.homebrew.items){
+   const line=node("div","homebrew-item");
+   add(line,node("strong","",item.path),node("span","",bytes(item.nominalBytes)+" nominaux · "+item.files+" fichiers"));
+   line.append(node("small","",item.kind==="plugin"?"Plugin etaHEN · protégé":"Homebrew · protégé"));
+   list.append(line);
+  }
+  if(!state.homebrew.items.length)list.append(node("p","muted","Aucun dossier ou fichier identifiable dans les chemins connus."));
+  panel.append(list);
+  panel.append(node("p","filter-warning",state.homebrew.partial?
+   "Inventaire PARTIEL : chemins indisponibles ou limites de parcours atteintes.":
+   "Analyse terminée dans les seuls chemins candidats. La présence d'un dossier ne prouve ni une installation valide ni un résidu inutile."));
+ }
+ panel.append(notice("Aucune désinstallation possible ici","Les dossiers /data/homebrew et /data/etaHEN/plugins peuvent contenir des applications ou plugins actifs. La taille correspond seulement aux fichiers visibles et ne mesure pas l'espace réellement récupérable."));
+ return panel;
+}
+async function getHomebrew(){
+ if(!state.backend||state.homebrewBusy)return;
+ state.homebrewBusy=true;render();
+ try{
+  const resp=await fetch("/api/homebrew",{cache:"no-store"});
+  if(!resp.ok)throw Error("Service indisponible ("+resp.status+")");
+  const raw=await resp.text();if(raw.length>256*1024)throw Error("Réponse trop volumineuse");
+  const data=JSON.parse(raw);
+  if(data.schemaVersion!==1||data.scope!=="protected-homebrew-metadata"||data.mode!=="read-only"||
+     !Array.isArray(data.items)||data.items.length>64)throw Error("Format non reconnu");
+  state.homebrew={partial:data.partial===true,items:data.items.map(v=>({
+    path:typeof v.path==="string"?v.path.slice(0,2048):"(inconnu)",
+    files:Number.isSafeInteger(v.files)&&v.files>=0?v.files:0,
+    nominalBytes:Number.isSafeInteger(v.nominalBytes)&&v.nominalBytes>=0?v.nominalBytes:0,
+    kind:v.kind==="plugin"?"plugin":"homebrew",
+  }))};
+ }catch(error){announce("Inventaire homebrew impossible : "+error.message);}
+ finally{state.homebrewBusy=false;render();}
 }
 function diagnosticsPanel(){
  const panel=node("section","data-panel");

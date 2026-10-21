@@ -41,6 +41,14 @@ with tempfile.TemporaryDirectory() as temp:
  usb.mkdir(parents=True)
  (usb/"autoload.txt").write_text("!2000\n# etaHEN.elf\n")
  (other/"save.bin").write_text("DO NOT TOUCH")
+ homebrew=root/"data/homebrew/HB_DEMO"
+ homebrew.mkdir(parents=True)
+ (homebrew/"assets.bin").write_bytes(b"H"*137)
+ plug=eta/"plugins"
+ plug.mkdir()
+ (plug/"plugin-note.txt").write_bytes(b"P"*73)
+ try:(homebrew/"linked-save").symlink_to(other,target_is_directory=True)
+ except OSError:pass
  try:(image/"link.png").symlink_to(other/"save.bin")
  except OSError:pass
  with socket.socket() as sk:
@@ -196,6 +204,15 @@ with tempfile.TemporaryDirectory() as temp:
   assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
   assert "PRIVATE_TOKEN" not in json.dumps(diag)
+  with urlopen(base+"/api/homebrew",timeout=3) as r:hb=json.load(r)
+  assert hb["schemaVersion"]==1 and hb["scope"]=="protected-homebrew-metadata"
+  indexed={x["path"]:x for x in hb["items"]}
+  assert indexed["/data/homebrew/HB_DEMO"]["nominalBytes"]==137
+  assert indexed["/data/homebrew/HB_DEMO"]["files"]==1
+  assert indexed["/data/homebrew/HB_DEMO"]["risk"]=="protected"
+  assert indexed["/data/etaHEN/plugins/plugin-note.txt"]["nominalBytes"]==73
+  assert not any("linked-save" in x["path"] for x in hb["items"])
+  assert not hb["partial"] and "DO NOT TOUCH" not in json.dumps(hb)
   with urlopen(base+"/api/preflight",timeout=3) as r:preflight=json.load(r)
   assert preflight["schemaVersion"]==1
   assert preflight["scope"]=="known-paths-only"

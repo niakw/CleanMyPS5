@@ -30,7 +30,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, pagination 36 ; pas de recherche globale ni de galerie miniature |
 | Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |
-| Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN 11 fichiers connus + 15 chemins preflight ; ne prouve pas un orphelin |
+| Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN, preflight et catalogue protégé des homebrews/plugins (taille nominale). Aucune corrélation avec registre d'installation, donc aucun orphelin avéré |
 | Applications : PKG/DLC incomplets | ❌ | Aucune corrélation registre/metadata FPKG, protections inconnues |
 | Applications : mises à jour | ❌ | Gestionnaire d'updates PS5 non implémenté ; ne pas modifier firmware |
 | Performance : entretien et redémarrage | — | Aucune réparation système générale justifiée ; proposer des diagnostics spécialisés uniquement |

@@ -40,3 +40,5 @@ Le jalon P0 propose aussi une variante séparée `cleanmyps5-browser.elf`, utili
 ## Développement après audit CleanMyMac
 
 Une vue Smart Care **de lecture seule** coordonne désormais l'inventaire, les contrôles de chemins, montages, etaHEN et doublons. Elle affiche quels contrôles ont réussi, les comptes et tailles à examiner, sans parler d'espace libéré. Les captures peuvent être filtrées à partir de 50 Mio ou par ancienneté de modification (90 jours), **pas** par date d'ouverture. Voir [l'audit de parité](FUNCTIONAL_PARITY_CLEANMYMAC.md) pour les fonctionnalités manquantes avant nettoyage réel.
+
+Un catalogue borné des répertoires homebrew et des fichiers de plugins etaHEN est maintenant disponible en lecture seule, avec taille nominale, compte de fichiers et limite de profondeur. Les éléments sont marqués **protégés** jusqu'à une validation croisée des registres de titres, chemins et plugins actifs. Cela ne correspond pas à un désinstalleur ni à un détecteur d'orphelins fiable.

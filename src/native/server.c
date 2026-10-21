@@ -5,6 +5,7 @@
 #include "media.h"
 #include "volumes.h"
 #include "preflight.h"
+#include "homebrew.h"
 #include "video.h"
 #include "assets.h"
 #include <arpa/inet.h>
@@ -296,6 +297,10 @@ static void handle(int fd,const char*root,int port){
     cmp5_version,target);
   if(n<0||(size_t)n>=sizeof(status)){plain(fd,500,"Version metadata unavailable");return;}
   reply(fd,200,"application/json; charset=utf-8",status,(size_t)n);
+ }else if(strcmp(path,"/api/homebrew")==0){
+  size_t length=0;char*json=cmp5_homebrew(root,&length);
+  if(!json){plain(fd,500,"Homebrew inventory unavailable");return;}
+  reply(fd,200,"application/json; charset=utf-8",json,length);free(json);
  }else if(strcmp(path,"/api/preflight")==0){
   size_t size=0;char*json=cmp5_preflight(root,&size);
   if(!json){plain(fd,500,"Preflight unavailable");return;}

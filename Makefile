@@ -3,16 +3,16 @@ CC = cc
 PS5_CC = $(PS5_PAYLOAD_SDK)/bin/prospero-clang
 CFLAGS = -O2 -std=c11 -Wall -Wextra -Wpedantic
 ASSETS = build/generated/assets.h
-NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c src/native/preflight.c
+NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c src/native/preflight.c src/native/homebrew.c
 all: server
 $(ASSETS): VERSION scripts/embed_assets.py web/index.html web/styles.css web/app.js
 	$(PYTHON) scripts/embed_assets.py $(ASSETS) web/index.html web/styles.css web/app.js
-server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
+server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
 	$(CC) $(CFLAGS) -pthread -Isrc/native -Ibuild/generated $(NATIVE) -o build/cleanmyps5-server
-ps5: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
+ps5: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
 	$(PS5_CC) $(CFLAGS) -DPS5 -Isrc/native -Ibuild/generated $(NATIVE) -o cleanmyps5.elf
-ps5-browser: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
+ps5-browser: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
 	$(PS5_CC) $(CFLAGS) -DPS5 -DCMP5_AUTO_BROWSER -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-browser.elf
 clean:
