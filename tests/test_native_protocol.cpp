@@ -1,0 +1,51 @@
+// Regression tests for the PS5 title's strict read-only loopback decoder.
+#include "native/loopback_protocol.hpp"
+#include <cassert>
+#include <string>
+
+namespace {
+std::string response(const std::string&body,
+                     const std::string&type="application/json; charset=utf-8"){
+ return "HTTP/1.1 200 OK\r\nContent-Type: "+type+
+   "\r\nContent-Length: "+std::to_string(body.size())+
+   "\r\nConnection: close\r\n\r\n"+body;
+}
+bool accepts(const std::string&http){
+ cmp5_native::HttpBody body{};
+ return cmp5_native::parse_http_json(http.data(),http.size(),&body)&&
+   body.data>=http.data() && body.size<=http.size() &&
+   body.data+body.size==http.data()+http.size();
+}
+}
+int main(){
+ const std::string json="{\"schemaVersion\":1,\"mode\":\"read-only\"}";
+ const auto good=response(json);
+ cmp5_native::HttpBody body{};
+ assert(cmp5_native::parse_http_json(good.data(),good.size(),&body));
+ assert(std::string(body.data,body.size)==json);
+ assert(accepts(good));
+ assert(!accepts("HTTP/1.1 503 Service Unavailable\r\n"
+                 "Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\n"
+                 "Content-Type: text/html\r\nContent-Length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 9999999999999999999\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\nContent-Length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\n\r\n[]"));
+ assert(!accepts(good+"trailing"));
+ assert(!accepts(good.substr(0,good.size()-1)));
+ assert(!accepts(good.substr(0,good.find("\r\n\r\n")+2)));
+ for(std::size_t size=0;size<good.size();size++){
+  assert(!cmp5_native::parse_http_json(good.data(),size,&body));
+ }
+ std::string padded(2050,'X');
+ assert(!accepts("HTTP/1.1 200 OK\r\n"+padded+"\r\nContent-Type: application/json"
+                 "\r\nContent-Length: 2\r\n\r\n{}"));
+ return 0;
+}
