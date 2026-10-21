@@ -28,7 +28,7 @@ function safeItems(report){
         /^\/user\/av_contents\/photo\/NPXS40087\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
       videoPath:typeof v.previewPath==="string"&&
         /^\/user\/av_contents\/video\/NPXS40087\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
-      sortName:path.split("/").pop().toLocaleLowerCase("fr")};
+      sortName:v.path.split("/").pop().toLocaleLowerCase("fr")};
   });
 }
 function useReport(report,isDemo=false,live=false){
@@ -150,6 +150,11 @@ function exportPreflight(){
  announce("Diagnostic exporté (aucun contenu de fichier).");
 }
 function mediaTitles(){const arr=[...new Set(state.items.filter(x=>x.category==="media"&&x.titleId).map(x=>x.titleId))];return arr.sort();}
+function compareMedia(a,b,mode){
+ if(mode==="date")return (b.modifiedAt-a.modifiedAt)||(b.bytes-a.bytes)||a.path.localeCompare(b.path);
+ if(mode==="name")return a.sortName.localeCompare(b.sortName,"fr")||(b.bytes-a.bytes);
+ return (b.bytes-a.bytes)||a.path.localeCompare(b.path);
+}
 function filtered(){
  const items=state.items.filter(x=>{
   if(state.tab==="cache")return ["cache","logs"].includes(x.category);
@@ -162,14 +167,7 @@ function filtered(){
   }
   return true;
  });
- if(state.tab==="media"){
-  const mode=state.mediaSort;
-  items.sort((a,b)=>{
-   if(mode==="date")return (b.modifiedAt-a.modifiedAt)||(b.bytes-a.bytes)||a.path.localeCompare(b.path);
-   if(mode==="name")return a.sortName.localeCompare(b.sortName,"fr")||(b.bytes-a.bytes);
-   return (b.bytes-a.bytes)||a.path.localeCompare(b.path);
-  });
- }
+ if(state.tab==="media")items.sort((a,b)=>compareMedia(a,b,state.mediaSort));
  return items;
 }
 function cycleMediaSort(){
@@ -531,8 +529,8 @@ function render(preserveFocus=false){
  if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else filesPage(content);
  if(before>=0){const item=document.querySelectorAll(".file-item")[before];if(item)item.focus({preventScroll:true});}
 }
-document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
-$("#report-input").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>8*1024*1024)throw Error("Rapport supérieur à 8 Mo");useReport(JSON.parse(await file.text()));}catch(err){announce("Import refusé : "+err.message);}e.target.value="";});
+if(typeof document!=="undefined")document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
+if(typeof document!=="undefined")$("#report-input").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>8*1024*1024)throw Error("Rapport supérieur à 8 Mo");useReport(JSON.parse(await file.text()));}catch(err){announce("Import refusé : "+err.message);}e.target.value="";});
 function back(){if(state.reviewOpen){closeReview();return;}if(state.preview){closePreview();return;}if(state.tab!=="overview")go("overview");else announce("Vous êtes sur l'accueil.");}
 function switchTab(n){const keys=Object.keys(labels);go(keys[(keys.indexOf(state.tab)+n+keys.length)%keys.length]);}
 function targets(){const modal=document.querySelector("#review-overlay, #preview-overlay");
@@ -546,7 +544,7 @@ function move(dir){
  if(primary<=4)continue;const s=primary+2.5*lateral;if(s<score){score=s;best=el;}}
  if(best){best.focus({preventScroll:true});best.scrollIntoView({block:"nearest",inline:"nearest"});}
 }
-document.addEventListener("keydown",e=>{
+if(typeof document!=="undefined")document.addEventListener("keydown",e=>{
  if(state.reviewOpen){
   if(["Escape","Backspace"].includes(e.key)){e.preventDefault();closeReview();}
   else if(e.key==="Tab"){
@@ -614,7 +612,7 @@ function gamepadLoop(){
  }else{previousButtons.clear();lastAxes=[0,0];}
  requestAnimationFrame(gamepadLoop);
 }
-window.addEventListener("gamepadconnected",()=>announce("Manette connectée · ✕ sélectionner · ◯ retour"));
+if(typeof window!=="undefined")window.addEventListener("gamepadconnected",()=>announce("Manette connectée · ✕ sélectionner · ◯ retour"));
 async function findNativeServer(){
  try{
   const response=await fetch("/api/status",{cache:"no-store"});
@@ -647,5 +645,12 @@ async function scanNow(){
  }catch(error){if(revision===state.reportRevision)announce("Analyse impossible : "+error.message);}
  finally{state.scanning=false;render();}
 }
-render();requestAnimationFrame(gamepadLoop);
-findNativeServer();
+if(typeof document!=="undefined"){
+ render();requestAnimationFrame(gamepadLoop);
+ findNativeServer();
+}
+// Node-only exports for behavioral regression tests; never available through
+// the embedded browser's ordinary script-tag execution.
+if(typeof module!=="undefined"&&module.exports){
+ module.exports={safeItems,compareMedia};
+}

@@ -96,3 +96,7 @@ Source references: https://github.com/AmineWallah/ProsperoGallery , https://gith
 2. Verify captures path, etaHEN ownership, SSD capacity measurement against **real FW 13.60**.
 3. Add rich per-file preview and duplicate detection with bounded hashing, with export before deletion.
 4. Transactional, opt-in cleanup only after tests on fixtures + real PS5 confirmation.
+
+### Validation de l'interface
+
+En complément de `node --check`, la CI exécute des tests comportementaux Node pour la normalisation des rapports JSON, la détection d'identifiants en doublon, les risques protégés, les chemins média et les trois méthodes de tri. L'application côté navigateur n'expose pas les exports Node.

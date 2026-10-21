@@ -8,7 +8,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
 - Controller-friendly review dialog; optionally exports a local JSON manifest for manual inspection, explicitly **not** an executable cleanup script.
-- Controller sorting: cycle size, modification date or filename in the media section. Date represents filesystem modification time, not guaranteed capture creation time.
+- Tested controller sorting: cycle size, modification date or filename in the media section. Date represents filesystem modification time, not guaranteed capture creation time.
 - Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
 - Media filters for large captures (250 MiB), title IDs and same-size candidates. **Same size is not a verified duplicate.**
 - Local, opt-in **JPEG/PNG preview** of allowlisted captures from the native service (32 MiB per file, file type checked by signature, no arbitrary path access). JXR is not yet previewable. MP4/WebM video preview uses strict bounded HTTP byte ranges (maximum 1 MiB per GET), browser decode support permitting.

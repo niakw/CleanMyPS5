@@ -16,6 +16,8 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: JavaScript syntax
         run: node --check web/app.js
+      - name: JavaScript data validation and ordering tests
+        run: node tests/test_ui.js
   sanitizer:
     runs-on: ubuntu-latest
     steps:
