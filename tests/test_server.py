@@ -67,6 +67,18 @@ with tempfile.TemporaryDirectory() as temp:
   else:raise AssertionError("server failed to start")
   assert status["mode"]=="read-only"
   assert status["target"]=="host"
+  with urlopen(base+"/api/capabilities",timeout=2) as r:
+   caps=json.load(r)
+  assert caps["schemaVersion"]==1
+  assert caps["service"]=="CleanMyPS5-helper"
+  assert caps["protocol"]==2 and caps["transport"]=="loopback"
+  assert caps["mode"]=="read-only"
+  assert caps["permissionScope"]=="runtime-dependent"
+  assert caps["features"]["overview"] and caps["features"]["preflight"]
+  assert caps["features"]["delete"] is False
+  assert caps["features"]["quarantine"] is False
+  assert caps["features"]["privilegeEscalation"] is False
+  assert "path" not in json.dumps(caps).lower()
   # A deliberately slow, incomplete HTTP request must not freeze the entire UI.
   stalled=socket.create_connection(("127.0.0.1",port),timeout=2)
   try:
