@@ -70,3 +70,7 @@ La présence d'un conteneur MP4 ou WebM valide ne garantit pas que le navigateur
 In a confirmed byte-identical group, the action to prepare extra copies requires a **live native scan**. It selects copies after the first path, leaving an arbitrary anchor unselected. This does not imply that the anchor is the user's preferred quality/version or that the copies can be deleted safely; review remains manual and deletion absent. Imported reports cannot unlock candidate preparation.
 
 The etaHEN diagnostic now provides a context-dependent suggested next check, but never changes Toolbox or autoloader settings.
+
+## Reclaimable vs reviewed bytes
+
+The UI distinguishes **inventoried bytes** (occupied by known files), **additional copies verified identical** (review candidates only), and **bytes actually freed** (always zero until a real, tested transaction is implemented). This avoids claiming savings from metadata, originals, or protected data.

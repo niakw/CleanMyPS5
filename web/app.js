@@ -226,6 +226,14 @@ function duplicatesPanel(){
   const data=state.duplicates;
   const n=data.groups.length;const label=n?"Groupes identiques confirmés : "+n:"Aucune paire confirmée dans l'échantillon analysé.";
   panel.append(node("p","dup-head",label));
+  const duplicateBytes=data.groups.reduce((total,g)=>total+Math.max(0,g.paths.length-1)*g.bytesEach,0);
+  if(duplicateBytes>0){
+   const impact=node("div","dup-impact");
+   add(impact,node("span","","Volume des copies supplémentaires vérifiées"),
+       node("strong","",bytes(duplicateBytes)),
+       node("small","","Ce volume est à examiner ; aucun octet n'est encore libéré."));
+   panel.append(impact);
+  }
   for(const group of data.groups.slice(0,30)){
    const el=node("div","dup-group");
    add(el,node("strong","",group.paths.length+" fichiers identiques · "+bytes(group.bytesEach)+" chacun"));
