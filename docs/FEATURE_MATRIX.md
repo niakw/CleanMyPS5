@@ -2,7 +2,7 @@
 
 ## Livraison actuelle
 
-La version 0.10.0-analysis élargit l’inventaire aux apps inconnues et aux racines système et multimédia. Elle ajoute la couverture par racine, l’export intégral des métadonnées et le hub Outils. Les diagnostics lisant du contenu sont séparés du bilan général. [État précis et format de livraison](DELIVERY.md). Les fonctions d’effacement et le dossier natif Itemzflow restent absents.
+La version 0.10.0-analysis élargit l’inventaire aux apps inconnues et aux racines système et multimédia. Elle ajoute la couverture par racine, l’export intégral des métadonnées et le hub Outils. Les diagnostics lisant du contenu sont séparés du bilan général. [État précis et format de livraison](DELIVERY.md). Les fonctions d’effacement restent absentes. Un dossier de titre natif est maintenant produit en CI, sans validation sur PS5 13.60 ; l'application native n'embarque pas les droits du helper ELF.
 
 ## Objet et méthode
 
@@ -48,8 +48,8 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Actions rapides 'Accès rapides' | 🟡 | Navigation par cinq sections ; pas de lanceur d'outils centralisé |
 | Sauvegarde / quarantaine / restauration | ❌ | Export JSON de revue uniquement (ce n'est **pas** une copie de données) |
 | Suppression sélective / vérification | ❌ | Pas de point d'écriture, pas de confirmation double, pas de contrôle base multimédia |
-| Contrôle manette TV | 🟡 | Gamepad API / navigation / modal ; non testé sur véritable WebKit PS5 13.60 |
-| Installation dans l'accueil PS5 | ❌ | Payload ELF standard et expérimental navigateur ; aucune application PS5 persistante installée |
+| Contrôle manette TV | 🟡 | Navigation DualSense native (quatre écrans) et interface navigateur historique ; compilation vérifiée, matériel 13.60 non testé |
+| Installation dans l'accueil PS5 | 🟡 | Titre homebrew natif `PPSA99784/` compilé avec `eboot.bin` et icône. Enregistrement dans le Shell par gestionnaire compatible et lancement réel sur 13.60 à vérifier |
 | Compactage / défragmentation du SSD | — | Éviter : pas de défragmentation flash, pas de gains imaginaires |
 
 ## Priorités, avec portes de sécurité
@@ -79,6 +79,6 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 - Ne jamais toucher aux sauvegardes, aux jeux, aux licences ni aux bases de captures sans validation spécifique.
 
 ## Définition du mot « terminé »
-**Implémenté + tests hôte + compilation ELF ≠ validé sur PS5.** Une fonctionnalité est « prête PS5 » uniquement quand son comportement réel est vérifié sur FW 13.60, DualSense comprise. Une fonctionnalité de nettoyage est « prête à être activée » uniquement quand sauvegarde, restauration, synchronisation, consentement et tests d'interruption ont été démontrés.
+**Implémenté + tests hôte + compilation ELF ou titre natif ≠ validé sur PS5.** Une fonctionnalité est « prête PS5 » uniquement quand son comportement réel est vérifié sur FW 13.60, DualSense comprise. Une fonctionnalité de nettoyage est « prête à être activée » uniquement quand sauvegarde, restauration, synchronisation, consentement et tests d'interruption ont été démontrés.
 
 | Retour au système officiel | 🟡 | Diagnostics en lecture seule, liste manuelle et export sans opérations destructives ; état PSN jamais certifié, test FW 13.60 requis |
