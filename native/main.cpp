@@ -64,7 +64,6 @@ std::uint32_t previous=0;
 Link engine=Link::unchecked;
 unsigned available=0,denied=0,absent=0;
 enum class LocalAccess { unchecked, unavailable, opened, listable, enumeration_denied };
-bool local_checked=false;
 LocalAccess local_access[4]{};
 bool local_checked=false;
 
