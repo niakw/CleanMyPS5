@@ -88,3 +88,7 @@ Le bouton de comparaison est uniquement affiché lorsqu'un inventaire local nati
 ## Analyse intelligente (lecture seule)
 
 Un bouton principal de l'accueil orchestre successivement l'inventaire des chemins autorisés, les montages, le preflight PS5, les configurations etaHEN et une comparaison de doublons plafonnée. L'interface affiche l'étape en cours, puis un bilan par famille : captures, fichiers volumineux, anciens selon mtime, groupes identiques vérifiés et autoload à examiner. Les modules indisponibles restent signalés ; la revue ne prétend jamais avoir libéré de l'espace. Les contrôles restent accessibles séparément.
+
+## Carte de stockage des captures
+
+La page Stockage présente une carte à barres des dix jeux/identifiants capturant le plus d'espace parmi **les seuls médias inventoriés**, séparant images et vidéos. L'agrégat « Autres jeux » évite des centaines de lignes. Chaque jeu identifié peut être ouvert via Croix/manette. La carte n'est ni une représentation du SSD ni un balayage arbitraire du système.

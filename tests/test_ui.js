@@ -60,4 +60,19 @@ assert.equal(summary.protectedFiles,1);
 assert.equal(summary.partial,false);
 assert.equal(buildSmartSummary({items:[]},snapshotNow).partial,true);
 
-console.log("UI report validation, Smart Care and media sorting: PASS");
+const {captureLensGroups}=require("../web/app.js");
+const lens=captureLensGroups([
+ {category:"media",titleId:"GAME_A",bytes:100,path:"/photo/cap.png"},
+ {category:"media",titleId:"GAME_A",bytes:300,path:"/video/cap.mp4"},
+ {category:"media",titleId:"GAME_B",bytes:200,path:"/photo/p.png"},
+ {category:"logs",titleId:"GAME_C",bytes:1000,path:"/log.txt"},
+],1);
+assert.equal(lens.totalBytes,600);
+assert.equal(lens.allGames,2);
+assert.equal(lens.groups.length,2);
+assert.equal(lens.groups[0].titleId,"GAME_A");
+assert.equal(lens.groups[0].photos,100);
+assert.equal(lens.groups[0].videos,300);
+assert.equal(lens.groups[1].titleId,"Autres jeux");
+assert.equal(lens.groups[1].bytes,200);
+console.log("UI report validation, Smart Care, capture lens and media sorting: PASS");

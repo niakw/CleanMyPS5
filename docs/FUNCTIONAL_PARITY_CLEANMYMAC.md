@@ -18,17 +18,17 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 
 | CleanMyMac / besoin PS5 | CleanMyPS5 | Écart vérifié et acceptation |
 |---|---|---|
-| Smart Care : analyse coordonnée | ❌ | Unifier inventaire, stockage, doublons, autoload et chemins, scorecard non destructive, erreurs partielles visibles |
+| Smart Care : analyse coordonnée | 🟡 | Orchestration lecture seule et scorecard ajoutées (inventaire, stockage, doublons, autoload et chemins). Erreurs par module visibles ; reste non validé sur PS5 |
 | Smart Care : recommandation et bilan | 🟡 | Sélection manuelle, aucune suggestion certifiée ni espace réellement libéré |
 | Cleanup : fichiers journaux | 🟡 | Journaux etaHEN (.log) répertoriés, pas d'autres sources validées ni effacement |
 | Cleanup : caches utilisateur/système | ❌ | Aucune cartographie PS5 certifiant que les caches sont jetables ; ne jamais supprimer save/config |
 | Cleanup : corbeilles | ❌ | Pas d'équivalent PS5 avéré ; à confirmer dans les mounts multimédias |
 | Cleanup : captures écran & vidéos | 🟡 | Inventaire JPG/JXR/PNG, MP4/WebM, revue, photos JPG/PNG et vidéo selon codec ; pas de synchronisation base multimédia ni retrait sûr |
-| My Clutter : fichiers volumineux et anciens | 🟡 | Taille et mtime dans les captures, seuil 250 Mio ; âge/dernier accès non couvert ; pas d'autres dossiers |
+| My Clutter : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
 | My Clutter : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
 | My Clutter : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
 | My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, pagination 36 ; pas de recherche globale ni de galerie miniature |
-| Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + classement par jeu parmi les captures, pas de navigation arbitraire dans les dossiers ni carte graphique |
+| Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |
 | Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN 11 fichiers connus + 15 chemins preflight ; ne prouve pas un orphelin |
 | Applications : PKG/DLC incomplets | ❌ | Aucune corrélation registre/metadata FPKG, protections inconnues |

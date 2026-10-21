@@ -512,6 +512,32 @@ async function diagnoseNow(){
  }catch(e){announce("Diagnostic impossible : "+e.message);}
  finally{state.diagnosing=false;render();}
 }
+function captureLensGroups(items,limit=10){
+ const groups=new Map();
+ for(const item of items){
+  if(item.category!=="media")continue;
+  const key=item.titleId||"Jeu inconnu";
+  const current=groups.get(key)||{titleId:key,count:0,bytes:0,photos:0,videos:0};
+  current.count++;
+  current.bytes+=item.bytes;
+  if(/\.(mp4|webm)$/i.test(item.path))current.videos+=item.bytes;
+  else current.photos+=item.bytes;
+  groups.set(key,current);
+ }
+ const all=[...groups.values()].sort((a,b)=>b.bytes-a.bytes);
+ const totalBytes=all.reduce((sum,g)=>sum+g.bytes,0);
+ const top=all.slice(0,limit).map(g=>({...g,percent:totalBytes?100*g.bytes/totalBytes:0}));
+ const other=all.slice(limit);
+ if(other.length){
+  const rest={titleId:"Autres jeux",count:0,bytes:0,photos:0,videos:0};
+  for(const g of other){
+   rest.count+=g.count;rest.bytes+=g.bytes;
+   rest.photos+=g.photos;rest.videos+=g.videos;
+  }
+  top.push({...rest,percent:totalBytes?100*rest.bytes/totalBytes:0});
+ }
+ return {groups:top,totalBytes,allGames:all.length};
+}
 function storage(root){
  root.append(setTitle("L'espace, en toute transparence.","Répartition des seuls fichiers inventoriés par le scanner — ce n'est pas la capacité totale du SSD PS5."));
  const s=node("div","data-panel");add(s,node("div","eyebrow","TAILLE DES ÉLÉMENTS INVENTORIÉS"),node("div","large-number",bytes(total())),node("div","tiny-label",state.items.length+" élément(s) au total · aucun calcul de capacité système"));
@@ -536,15 +562,33 @@ function storage(root){
  }
  mountPanel.append(node("p","filter-warning","Mesures statvfs de montages visibles, pas nécessairement de tout le SSD PS5. Deux chemins peuvent partager un même volume."));
  root.append(mountPanel);
- const grouped=new Map();
- for(const item of state.items)if(item.category==="media"){
-  const title=item.titleId||"Jeu inconnu";grouped.set(title,(grouped.get(title)||0)+item.bytes);
+ const lens=captureLensGroups(state.items);
+ if(lens.groups.length){
+  const perGame=node("section","data-panel");
+  add(perGame,panelHeader("Carte des captures","Répartition des seuls médias inventoriés"));
+  perGame.append(node("p","muted",lens.allGames+" jeux ou groupes · "+bytes(lens.totalBytes)+" au total, pas une cartographie du SSD."));
+  const list=node("div","capture-lens");
+  for(const group of lens.groups){
+   const clickable=group.titleId!=="Jeu inconnu"&&group.titleId!=="Autres jeux";
+   const element=node(clickable?"button":"div","lens-item"+(clickable?" focusable":""));
+   if(clickable){
+    element.type="button";
+    element.addEventListener("click",()=>{state.mediaMode="all";state.mediaTitle=group.titleId;go("media");});
+   }
+   const row=node("div","lens-top");
+   add(row,node("strong","",group.titleId),node("span","",bytes(group.bytes)+" · "+group.count+" éléments"));
+   element.append(row);
+   const bar=node("div","lens-bar");
+   const photo=node("span","lens-photo");photo.style.width=(lens.totalBytes?100*group.photos/lens.totalBytes:0)+"%";
+   const video=node("span","lens-video");video.style.width=(lens.totalBytes?100*group.videos/lens.totalBytes:0)+"%";
+   add(bar,photo,video);element.append(bar);
+   element.append(node("span","lens-sub",bytes(group.photos)+" images · "+bytes(group.videos)+" vidéos"+(clickable?" · ✕ explorer":"")));
+   list.append(element);
+  }
+  perGame.append(list);
+  perGame.append(node("p","filter-warning","Largeur des barres relative au total des captures inventoriées ; les éléments cachés par des limites d'analyse ne sont pas comptabilisés. Aucun dossier système n'est parcouru."));
+  root.append(perGame);
  }
- const groups=[...grouped].sort((a,b)=>b[1]-a[1]).slice(0,8);
- if(groups.length){const perGame=node("section","data-panel");add(perGame,panelHeader("Captures par jeu","Top 8 identifiants"));
-  const list=node("div","game-size-list");for(const [title,amount] of groups){
-   const r=add(node("div","game-size-row"),node("span","",title),node("strong","",bytes(amount)));list.append(r);
-  }perGame.append(list);root.append(perGame);}
  root.append(add(node("div","data-panel"),panelHeader("Interprétation","Important"),notice("Stockage PS5 ≠ vue FTP /data","Un volume de 64 Go exposé par un montage /data ne représente pas forcément le SSD système. CleanMyPS5 n'affiche aucune capacité globale non vérifiée.")));
 }
 async function getVolumes(){
@@ -753,5 +797,5 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups};
 }

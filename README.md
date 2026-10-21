@@ -19,6 +19,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 - File modification timestamps and bounded scan coverage/partial warnings.
 - Local **PS5 preflight** report: opens only 15 preconfigured candidate directories (including all eight USB autoloader slots) and identifies accessible, absent, symlinked or denied paths. The UI can export the path-status-only JSON to help firmware 13.60 testing; no private file contents are read.
 - On-demand read-only `statvfs` measurements for two known mount paths, each reported separately and flagged if sharing one filesystem (not the whole PS5 SSD).
+- Controller-friendly capture-space map by title ID with separate photo/video segments and drilldown, never shown as whole-console storage.
 - Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
 - No claim of SSD-wide free space: counts are for **enumerated items only**.
 - The demo is fictitious and clearly marked as such.
