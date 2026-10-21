@@ -20,7 +20,7 @@
 #define JSON_CAP (512u*1024u)
 #define MAX_MONOTONIC_NS (6000000000ULL)
 typedef struct {char path[PATH_CAP];off_t size;dev_t device;ino_t inode;time_t modified;int paired;} Item;
-typedef struct {Item items[ITEM_CAP];size_t count,visits;int partial;uint64_t deadline;} Scan;
+typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped;int partial;uint64_t deadline;} Scan;
 static uint64_t now_ns(void){
  struct timespec ts;
  if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0||ts.tv_sec<0)return 0;
@@ -63,10 +63,21 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
     else walk(s,child,path,depth+1);
    }else s->partial=1;
   }else if(S_ISREG(st.st_mode)&&is_image(path)&&st.st_size>0&&st.st_size<=(off_t)FILE_CAP){
-   if(s->count>=ITEM_CAP){s->partial=1;break;}
-   Item *i=&s->items[s->count++];
-   memcpy(i->path,path,strlen(path)+1);
-   i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;i->modified=st.st_mtime;
+   // Multiple directory entries may point to the same inode. They are not
+   // separately reclaimable copies; never count those paths as duplicates.
+   int same_inode=0;
+   for(size_t k=0;k<s->count;k++){
+    if(s->items[k].device==st.st_dev&&s->items[k].inode==st.st_ino){
+     same_inode=1;break;
+    }
+   }
+   if(same_inode){s->hardlinksSkipped++;}
+   else{
+    if(s->count>=ITEM_CAP){s->partial=1;break;}
+    Item *i=&s->items[s->count++];
+    memcpy(i->path,path,strlen(path)+1);
+    i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;i->modified=st.st_mtime;
+   }
   }
   if(s->partial)break;
  }
@@ -196,10 +207,10 @@ char *cmp5_duplicates(const char*root,size_t*length){
   }
  }
  char stats[512];
- snprintf(stats,sizeof(stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
+ snprintf(stats,sizeof(stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
-  s->count,s->visits,budget,s->partial?"true":"false");
+  s->count,s->visits,s->hardlinksSkipped,budget,s->partial?"true":"false");
  add(&out,stats);free(s);
  if(out.error){free(out.data);return NULL;}
  *length=out.len;return out.data;

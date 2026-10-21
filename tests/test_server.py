@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory() as temp:
  (image/"image.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"sidecar.dat").write_text("metadata")
  (image/"same.jpg").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
+ # A hardlink is another directory entry for the same physical bytes:
+ # it must NOT increase independently recoverable duplicate space.
+ (image/"hardlink.jpg").hardlink_to(image/"image.png")
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
  (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
@@ -76,12 +79,12 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as err:assert err.code==403,err.code
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
+  assert set(entries)=={"image.png","same.jpg","hardlink.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
   assert entries["image.png"]["previewPath"]=="/user/av_contents/photo/NPXS40087/GAME/image.png"
   assert isinstance(entries["image.png"]["modifiedAt"],int)
-  assert report["stats"]["items"]==9
+  assert report["stats"]["items"]==10
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
@@ -154,7 +157,10 @@ with tempfile.TemporaryDirectory() as temp:
   assert dup["mode"]=="read-only"
   assert len(dup["groups"])==1,dup
   match={Path(p).name for p in dup["groups"][0]["paths"]}
-  assert match=={"image.png","same.jpg"},match
+  # Which path becomes the group representative depends on directory order.
+  # The independently stored copy is same.jpg; the image/hardlink inode appears once.
+  assert len(match)==2 and "same.jpg" in match and bool(match&{"image.png","hardlink.jpg"}),match
+  assert dup["hardlinksSkipped"]==1
   assert dup["groups"][0]["bytesEach"]==35
   assert dup["filesConsidered"]==3
   assert dup["partial"] is False
