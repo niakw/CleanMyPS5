@@ -931,7 +931,12 @@ function storage(root){
   const list=node("div","volume-list");
   for(const v of state.volumes){
    const row=node("div","volume-row");
-   add(row,node("strong","",v.path),node("span","",v.status==="ok"?"Disponible : "+bytes(v.availableBytes)+" / "+bytes(v.totalBytes):"Mesure indisponible"));
+   const statusText=v.status==="ok"?"Disponible : "+bytes(v.availableBytes)+" / "+bytes(v.totalBytes)+(v.readOnlyMount?" · lecture seule":""):
+    v.status==="denied"?"Accès refusé par le système":
+    v.status==="absent"?"Volume non monté":
+    v.status==="symlink"?"Lien symbolique exclu":
+    "Mesure indisponible";
+   add(row,node("strong","",v.path),node("span","",statusText));
    if(v.sharedWith)row.append(node("small","", "Même système de fichiers que "+v.sharedWith+" — ne pas additionner"));
    list.append(row);
   }
@@ -979,7 +984,8 @@ async function getVolumes(){
   if(data.schemaVersion!==1||data.scope!=="mounts-not-total-ssd"||!Array.isArray(data.volumes)||data.volumes.length>8)throw Error("Format incompatible");
   state.volumes=data.volumes.map(v=>({
    path:typeof v.path==="string"?v.path.slice(0,100):"(inconnu)",
-   status:v.status==="ok"?"ok":"unavailable",
+   status:["ok","denied","absent","symlink"].includes(v.status)?v.status:"unavailable",
+   readOnlyMount:v.readOnlyMount===true,
    totalBytes:Number.isSafeInteger(v.totalBytes)?v.totalBytes:0,
    availableBytes:Number.isSafeInteger(v.availableBytes)?v.availableBytes:0,
    sharedWith:typeof v.sharedWith==="string"?v.sharedWith.slice(0,100):null
