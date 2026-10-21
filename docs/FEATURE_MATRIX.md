@@ -1,5 +1,9 @@
 # CleanMyPS5 — matrice fonctionnelle
 
+## Livraison actuelle
+
+La version 0.10.0-analysis élargit l’inventaire aux apps inconnues et aux racines système et multimédia. Elle ajoute la couverture par racine, l’export intégral des métadonnées et le hub Outils. Les diagnostics lisant du contenu sont séparés du bilan général. [État précis et format de livraison](DELIVERY.md). Les fonctions d’effacement et le dossier natif Itemzflow restent absents.
+
 ## Objet et méthode
 
 Ce document évalue uniquement les fonctions attendues de CleanMyPS5, leur avancement et leurs conditions de validation. La marque, l'interface et les fonctionnalités proposées sont indépendantes de logiciels tiers.
@@ -13,8 +17,8 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 |---|---|---|
 | Analyse intelligente : analyse coordonnée | 🟡 | Orchestration lecture seule et scorecard ajoutées (inventaire, stockage, doublons, autoload et chemins). Erreurs par module visibles ; reste non validé sur PS5 |
 | Analyse intelligente : recommandation et bilan | 🟡 | Sélection manuelle, aucune suggestion certifiée ni espace réellement libéré |
-| Cleanup : fichiers journaux | 🟡 | Journaux etaHEN (.log) répertoriés, pas d'autres sources validées ni effacement |
-| Cleanup : caches utilisateur/système | ❌ | Aucune cartographie PS5 certifiant que les caches sont jetables ; ne jamais supprimer save/config |
+| Cleanup : fichiers journaux | 🟡 | Journaux système et d’apps inconnues inventoriés, aucune purge validée |
+| Cleanup : caches utilisateur/système | ❌ | Métadonnées des caches HTTP système et caches potentiels d’apps ; aucune suppression certifiée |
 | Cleanup : corbeilles | ❌ | Pas d'équivalent PS5 avéré ; à confirmer dans les mounts multimédias |
 | Cleanup : captures écran & vidéos | 🟡 | Inventaire JPG/JXR/PNG, MP4/WebM, revue, photos JPG/PNG et vidéo selon codec ; pas de synchronisation base multimédia ni retrait sûr |
 | Fichiers à examiner : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |

@@ -1,5 +1,7 @@
 #define _DEFAULT_SOURCE
 #include "inventory.h"
+#include "scan_rules.h"
+#include <strings.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -18,7 +20,24 @@
 #define DEPTH_CAP 12
 #define SCAN_MAX_NANOSECONDS 5000000000ULL
 typedef struct {char *p;size_t len,cap;int fail;} Buffer;
-typedef struct {Buffer b;size_t visits,items;int stopped;char warnings[32][256];size_t nw;uint64_t deadline;} Scan;
+typedef struct {dev_t dev; ino_t ino;} Identity;
+typedef struct {const char *id;char path[PATH_CAP];const char *status;size_t items,visits;unsigned long long bytes;} Coverage;
+typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial;char warnings[32][256];size_t nw;uint64_t deadline;
+ Identity seen[VISIT_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;} Scan;
+static int listed(const char *name,const char *const *names,size_t count){
+ for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
+ return 0;
+}
+static int private_name(const char *name,int directory){
+ if(name[0]=='.')return 1;
+ if(directory)return listed(name,cmp5_private_dirs,sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs));
+ return listed(name,cmp5_private_files,sizeof(cmp5_private_files)/sizeof(*cmp5_private_files));
+}
+static int seen(Scan*s,const struct stat*st){
+ for(size_t i=0;i<s->nseen;i++)if(s->seen[i].dev==st->st_dev&&s->seen[i].ino==st->st_ino){s->aliases++;return 1;}
+ if(s->nseen>=VISIT_CAP){s->stopped=1;return 1;}
+ s->seen[s->nseen++]=(Identity){st->st_dev,st->st_ino};return 0;
+}
 static uint64_t monotonic_ns(void){
  struct timespec t;
  if(clock_gettime(CLOCK_MONOTONIC,&t)!=0||t.tv_sec<0)return 0;
@@ -52,23 +71,35 @@ static int ext(const char*path,const char*extension){
  return 1;
 }
 static void warn(Scan*s,const char*message,const char*path){
+ s->partial=1;s->rootPartial=1;
  if(s->nw>=32)return;
  snprintf(s->warnings[s->nw++],256,"%s : %.170s",message,path);
 }
 static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  if(s->stopped||s->b.fail||info->st_size<0)return;
  const off_t size=info->st_size;
- const char *category=0,*risk=0,*reason=0;
- if((strcmp(kind,"photo")==0 && (ext(path,".jpg")||ext(path,".jpeg")||ext(path,".png")||ext(path,".jxr")))||
-    (strcmp(kind,"video")==0 && (ext(path,".mp4")||ext(path,".webm")))){
-  category="media";risk="review";reason="Capture personnelle : selection manuelle";
- }else if(strcmp(kind,"etahen")==0){
-  if(ext(path,".log")){category="logs";risk="review";reason="Journal : sauvegarder avant suppression";}
-  else if(ext(path,".elf")||ext(path,".ini")||ext(path,".json")||ext(path,".sprx")){
-   category="residuals";risk="protected";reason="Composant etaHEN : utilite non determinee";
-  }
+ if((uint64_t)size>9007199254740991ULL){s->rootPartial=1;return;}
+ const char *category="other",*risk="protected",*reason="Donnee inconnue : aucune regle de suppression validee";
+ if((!strcmp(kind,"photo")&&(ext(path,".jpg")||ext(path,".jpeg")||ext(path,".png")||ext(path,".jxr")))||
+    (!strcmp(kind,"video")&&(ext(path,".mp4")||ext(path,".webm")))){
+  category="media";risk="review";reason="Capture personnelle : conserver les associations galerie, variantes et miniatures";
+ }else if(!strcmp(kind,"associated")||!strcmp(kind,"photo")||!strcmp(kind,"video")){
+  category="other";reason="Fichier associe aux captures : index, miniature ou variante a conserver";
+ }else if(!strcmp(kind,"system-log")){
+  category="logs";reason="Journal ou base systeme active : purge non validee, WAL/SHM et historique proteges";
+ }else if(!strcmp(kind,"system-cache")){
+  category="cache";reason="Cache systeme : base et fichiers associes proteges, purge non validee";
+ }else if(!strcmp(kind,"runtime")){
+  reason="Etat temporaire ou communication active : ne pas supprimer";
+ }else if(ext(path,".log")||strstr(path,"/logs/")){
+  category="logs";reason="Journal potentiel d'application : motif de nom uniquement, conservation obligatoire";
+ }else if(strstr(path,"/cache/")||strstr(path,"/caches/")){
+  category="cache";reason="Cache potentiel d'application : dependances inconnues, conservation obligatoire";
+ }else if(ext(path,".elf")||ext(path,".bin")||ext(path,".sprx")||ext(path,".prx")||
+          ext(path,".ini")||ext(path,".json")||ext(path,".db")){
+  category="residuals";reason="Programme, ressource ou configuration : aucune preuve de residu";
  }
- if(!category)return;
+ if(s->b.len>OUTPUT_CAP-65536u){s->stopped=1;warn(s,"Limite de taille du rapport",path);return;}
  if(s->items>=ITEM_CAP){s->stopped=1;warn(s,"Nombre limite de fichiers",path);return;}
  char id[24],n[32];snprintf(id,sizeof(id),"%zu",s->items+1);
  snprintf(n,sizeof(n),"%llu",(unsigned long long)size);
@@ -80,39 +111,33 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  add(&s->b,",\"risk\":");quote(&s->b,risk);
  add(&s->b,",\"reason\":");quote(&s->b,reason);
  if(strcmp(category,"media")==0){
-   // URI is always canonical root-relative, not a host mount/FTP path.
-   const char*prefix="/user/av_contents/";
-   const char*canonical=NULL;
-   for(const char*cursor=path;(cursor=strstr(cursor,prefix))!=NULL;cursor++)
-      canonical=cursor;
-   if(canonical){add(&s->b,",\"previewPath\":");quote(&s->b,canonical);}
+   add(&s->b,",\"previewPath\":");quote(&s->b,path);
  }
  if(strcmp(category,"media")==0){
-   const char*mark=strstr(path,"/NPXS40087/");
+   const char*mark=strstr(path,!strcmp(kind,"photo")?"/photo/":"/video/");
    if(mark){
-     mark+=strlen("/NPXS40087/");
-     size_t len=0;
-     while(mark[len] && mark[len]!='/' && len<24 && (isalnum((unsigned char)mark[len])||mark[len]=='_'))len++;
-     if(mark[len]=='/' && len>0){
-       char title[25];memcpy(title,mark,len);title[len]=0;
-       add(&s->b,",\"titleId\":");quote(&s->b,title);
-     }
+     mark+=7; /* both /photo/ and /video/ have seven bytes */
+     if(!strncmp(mark,"NPXS",4)){const char *next=strchr(mark,'/');mark=next?next+1:mark;}
+     size_t n=0;while(mark[n]&&mark[n]!='/'&&n<24&&(isalnum((unsigned char)mark[n])||mark[n]=='_'))n++;
+     if(n&&mark[n]=='/'){char title[25];memcpy(title,mark,n);title[n]=0;add(&s->b,",\"titleId\":");quote(&s->b,title);}
    }
  }
+
  char epoch[32];snprintf(epoch,sizeof(epoch),"%lld",(long long)(info->st_mtime>0?info->st_mtime:0));
  add(&s->b,",\"modifiedAt\":");add(&s->b,epoch);
  add(&s->b,"}");
- s->items++;
+ s->items++;s->bytes+=(unsigned long long)size;
 }
 // Enumerate via an anchored directory fd. A symlink swap in an ancestor
 // cannot cause traversal into an unrelated homebrew, title or OS tree.
 static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
- if(s->stopped||s->b.fail){close(fd);return;}
+ if(s->stopped||s->b.fail||s->rootPartial){close(fd);return;}
  DIR*d=fdopendir(fd);
- if(!d){warn(s,"Acces refuse",path);close(fd);return;}
+ if(!d){s->rootPartial=1;warn(s,"Acces refuse",path);close(fd);return;}
  struct dirent*e;
  while((e=readdir(d))!=NULL){
   if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0)continue;
+  if(s->visits-s->rootStart>=2500){s->rootPartial=1;warn(s,"Limite locale de parcours",path);break;}
   if(++s->visits>VISIT_CAP){s->stopped=1;warn(s,"Limite de parcours atteinte",path);break;}
   if(s->deadline && (s->visits&63u)==0u){
    uint64_t now=monotonic_ns();
@@ -124,59 +149,79 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
   if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
   struct stat st;
   if(fstatat(dirfd(d),e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
-   warn(s,"Entree inaccessible",child);continue;
+   s->rootPartial=1;warn(s,"Entree inaccessible",child);continue;
   }
-  if(S_ISLNK(st.st_mode))continue;
+  if(S_ISLNK(st.st_mode)){s->links++;continue;}
+  if(!strcmp(kind,"application")&&private_name(e->d_name,S_ISDIR(st.st_mode))){s->excluded++;continue;}
+  if(!S_ISDIR(st.st_mode)&&!S_ISREG(st.st_mode)){s->special++;continue;}
+  if(seen(s,&st))continue;
   if(S_ISDIR(st.st_mode)){
+   if(!strcmp(kind,"runtime")){s->excluded++;continue;}
    if(depth<DEPTH_CAP){
     int next=openat(dirfd(d),e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-    if(next<0)warn(s,"Dossier inaccessible",child);
+    if(next<0){s->rootPartial=1;warn(s,"Dossier inaccessible",child);}
     else walk(s,next,child,kind,depth+1);
-   }else warn(s,"Profondeur maximale atteinte",child);
+   }else {s->rootPartial=1;warn(s,"Profondeur maximale atteinte",child);}
   }else if(S_ISREG(st.st_mode))file(s,child,&st,kind);
-  if(s->stopped||s->b.fail)break;
+  if(s->stopped||s->b.fail||s->rootPartial)break;
  }
  closedir(d);
 }
-static void root_scan(Scan*s,const char*root,const char*rel,const char*kind){
- char copy[PATH_CAP],path[PATH_CAP],next[PATH_CAP];
- if(strlen(root)>=sizeof(path)||strlen(rel)>=sizeof(copy)){
-  warn(s,"Racine trop longue",rel);return;
- }
- memcpy(path,root,strlen(root)+1);
- memcpy(copy,rel,strlen(rel)+1);
+static void root_scan(Scan*s,const char*root,const char*id,const char*rel,const char*kind){
+ Coverage*c=&s->coverage[s->nc++];c->id=id;c->status="not-scanned";
+ snprintf(c->path,sizeof(c->path),"/%s",rel);
+ if(s->stopped){s->partial=1;return;}
+ char copy[PATH_CAP],path[PATH_CAP];
+ if(strlen(rel)>=sizeof(copy)){c->status="partial";s->partial=1;return;}
+ snprintf(path,sizeof(path),"/%s",rel);memcpy(copy,rel,strlen(rel)+1);
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(fd<0){warn(s,"Racine du scan inaccessible",rel);return;}
+ if(fd<0){c->status="unavailable";s->partial=1;return;}
  char*save=NULL;
  for(char*part=strtok_r(copy,"/",&save);part;part=strtok_r(NULL,"/",&save)){
-  if(!join(next,sizeof(next),path,part)){
-   warn(s,"Racine trop longue",rel);close(fd);return;
-  }
   int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   if(child<0){
-   warn(s,"Racine absente, symbolique ou inaccessible",rel);
-   close(fd);return;
+   int err=errno;close(fd);c->status=err==ENOENT?"absent":"unavailable";
+   if(err!=ENOENT)s->partial=1;
+   return;
   }
   close(fd);fd=child;
-  memcpy(path,next,strlen(next)+1);
  }
+ struct stat st;
+ if(fstat(fd,&st)){close(fd);c->status="unavailable";s->partial=1;return;}
+ if(seen(s,&st)){close(fd);c->status="alias-skipped";return;}
+ size_t before=s->items;unsigned long long bytes=s->bytes;
+ s->rootStart=s->visits;s->rootPartial=0;
  walk(s,fd,path,kind,0);
+ c->items=s->items-before;c->visits=s->visits-s->rootStart;c->bytes=s->bytes-bytes;
+ c->status=(s->stopped||s->rootPartial)?"partial":"complete";
+ if(s->stopped||s->rootPartial)s->partial=1;
 }
 char *cmp5_report(const char*root,size_t*len){
- if(len)*len=0;if(!root||!len)return NULL;
+ if(len)*len=0;
+ if(!root||!len)return NULL;
  struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
  Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
  uint64_t now=monotonic_ns();
  if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
- add(&s->b,"{\"schemaVersion\":1,\"source\":\"CleanMyPS5 (read-only)\",\"items\":[");
- root_scan(s,root,"user/av_contents/photo/NPXS40087","photo");
- if(!s->stopped)root_scan(s,root,"user/av_contents/video/NPXS40087","video");
- if(!s->stopped)root_scan(s,root,"data/etaHEN","etahen");
+ add(&s->b,"{\"schemaVersion\":1,\"source\":\"CleanMyPS5 (read-only)\",\"ruleVersion\":");quote(&s->b,cmp5_rule_version);
+ add(&s->b,",\"mode\":\"metadata-only\",\"cleanupValidated\":false,\"items\":[");
+ for(size_t i=0;i<sizeof(cmp5_roots)/sizeof(*cmp5_roots);i++)
+  root_scan(s,root,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
+ for(int slot=0;slot<8;slot++){
+  char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);root_scan(s,root,"usb-homebrew",path,"application");
+  snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);root_scan(s,root,"extended-homebrew",path,"application");
+ }
+ add(&s->b,"],\"coverage\":[");
+ for(size_t i=0;i<s->nc;i++){
+  Coverage*c=&s->coverage[i];if(i)add(&s->b,",");
+  add(&s->b,"{\"id\":");quote(&s->b,c->id);add(&s->b,",\"path\":");quote(&s->b,c->path);add(&s->b,",\"status\":");quote(&s->b,c->status);
+  char nums[180];snprintf(nums,sizeof(nums),",\"items\":%zu,\"visited\":%zu,\"nominalBytes\":%llu}",c->items,c->visits,c->bytes);add(&s->b,nums);
+ }
  add(&s->b,"],\"warnings\":[");
  for(size_t i=0;i<s->nw;i++){if(i)add(&s->b,",");quote(&s->b,s->warnings[i]);}
- char stats[256];
- snprintf(stats,sizeof(stats),"],\"stats\":{\"visited\":%zu,\"items\":%zu,\"partial\":%s}}",
-   s->visits,s->items,(s->stopped||s->nw>0)?"true":"false");
+ char stats[700];
+ snprintf(stats,sizeof(stats),"],\"stats\":{\"visited\":%zu,\"items\":%zu,\"partial\":%s,\"aliasesSkipped\":%zu,\"symlinksSkipped\":%zu,\"specialFilesSkipped\":%zu,\"privateEntriesExcluded\":%zu},\"limits\":{\"maxVisited\":30000,\"maxItems\":10000,\"maxEntriesPerRoot\":2500,\"maxDepth\":12,\"softDurationSeconds\":5}}",
+   s->visits,s->items,(s->stopped||s->partial)?"true":"false",s->aliases,s->links,s->special,s->excluded);
  add(&s->b,stats);
  char*output=s->b.p;
  if(s->b.fail){free(output);output=NULL;}else *len=s->b.len;

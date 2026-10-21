@@ -1,77 +1,62 @@
 # CleanMyPS5
 
-A controller-first PS5 storage analysis and maintenance project with an original, TV-first interface designed for the DualSense.
+Une seule application PS5 d’analyse du stockage, avec interface française utilisable à la manette et moteur natif C intégrés dans **un unique `cleanmyps5.elf`**. Version : voir `VERSION`.
 
-## Status (development preview — see `VERSION`)
+Cette livraison finalise l’analyse générale en **lecture seule**. Elle ne constitue pas un nettoyeur avec effacement : aucune suppression, désinstallation, purge, réparation, écriture système ou modification de configuration n’est disponible. Les tests sur hôte et la compilation PS5 ne prouvent pas le fonctionnement sur une console 13.60.
 
-**The dashboard now talks directly to a read-only native C HTTP scanner.** It also offers a PS5 *read-only* guided check: inventory, mounted storage, known-path preflight, etaHEN autoload and bounded exact screenshot duplicates. Unavailable checks are shown explicitly. A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
+## Fonctions disponibles
 
-- **No delete, reset, registry edit, repair, defragmentation or compression.**
-- Controller-friendly review dialog; optionally exports a local JSON manifest for manual inspection, explicitly **not** an executable cleanup script.
-- Tested controller sorting: cycle size, modification date or filename in the media section. Date represents filesystem modification time, not guaranteed capture creation time.
-- Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
-- Media filters for large captures (50 or 250 MiB), 90+ day modification age, title IDs and same-size candidates. **Same size is not a verified duplicate.**
-- Local, opt-in **JPEG/PNG preview** of allowlisted captures from the native service (32 MiB per file, file type checked by signature, no arbitrary path access). JXR is not yet previewable. MP4/WebM video preview uses strict bounded HTTP byte ranges (maximum 1 MiB per GET), browser decode support permitting.
-- Asynchronous comparisons and scanner responses are invalidated when a new report is opened, so stale results cannot reselect previous files.
-- Verified identical groups display the sum of additional-copy bytes as **review candidates, not free space**; extra copies can be added to the review while keeping one arbitrary original, with no cleanup action exposed.
-- Opt-in **exact duplicate comparison**: checks a capped sample of screenshots byte for byte (128 images, max 32 MiB/image, max 128 MiB read, approximately six-second soft deadline). Not a whole-console exhaustive search and never deletes files.
-- Read-only bounded catalog of top-level homebrews and etaHEN plugins (`/data/homebrew`, `/data/etaHEN/plugins`); folder/file bytes are nominal and every entry remains protected, never classified as orphaned.
-- Opt-in **etaHEN diagnostic**: inspect known `/data/ps5_autoloader`, `/data/pldmgr`, USB autoloads and `/data/etaHEN/config.ini` without exposing file contents. Recognized non-commented ELF/BIN references (including other payloads) are flagged separately; missing configs cannot prove the console is unmodified.
-- File modification timestamps and bounded scan coverage/partial warnings.
-- Local **PS5 preflight** report: opens only 15 preconfigured candidate directories (including all eight USB autoloader slots) and identifies accessible, absent, symlinked or denied paths. The UI can export the path-status-only JSON to help firmware 13.60 testing; no private file contents are read.
-- On-demand read-only `statvfs` measurements for two known mount paths, each reported separately and flagged if sharing one filesystem (not the whole PS5 SSD).
-- Five read-only Quick Tools shortcuts on the home screen, for large/old media, same-size candidates, homebrew diagnostics and storage.
-- Controller-friendly capture-space map by title ID with separate photo/video segments and drilldown, never shown as whole-console storage.
-- Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
-- No claim of SSD-wide free space: counts are for **enumerated items only**.
-- The demo is fictitious and clearly marked as such.
-- Native service uses four bounded worker threads so a slow video/scan does not block all requests. Excess clients receive HTTP 503. It listens on `127.0.0.1:8877` only: no network exposure or authentication assumptions. SIGINT/SIGTERM close the listener gracefully; the program never installs persistent ShellUI entries.
+- Inventaire générique des fichiers accessibles dans `/data`, indépendant des apps installées chez le développeur. Programmes, ressources et fichiers inconnus restent visibles et protégés.
+- Captures sous `/user/av_contents/photo` et `/video` sans imposer un dossier NPXS particulier. Miniatures, variantes SDR, fichiers annexes et temporaires sont inventoriés et protégés séparément.
+- Journaux système : `system_log`, `system_logger2`, `vshlog`, `error`. Caches HTTP connus, y compris métadonnées des bases et WAL/SHM. Leur présence ne justifie aucune purge.
+- Homebrews externes sous `/mnt/usb0..7/homebrew` et `/mnt/ext0..7/homebrew`. Catalogue protégé des données d’apps, installations `/user/app` et `/mnt/ext0..7/user/app`, homebrews et plugins etaHEN.
+- Chemins, tailles nominales, dates de modification, recherche, tri, filtres ≥50/250 Mio et ≥90 jours. Écran Outils et export complet JSON de métadonnées, y compris les fichiers protégés.
+- Rapport de couverture par racine : parcourue, absente, inaccessible, alias ignoré, partielle ou non parcourue. Déduplication des mêmes périphérique/inode dans l’inventaire. Les tailles ne mesurent pas l’espace récupérable.
+- Contrôle des accès à 26 chemins candidats et mesures `statvfs` de `/data` et `/user/av_contents`, avec signalement de leur éventuelle identité de volume.
+- Analyse générale coordonnée : inventaire, chemins, montages et catalogue. **Elle n’ouvre aucun contenu de fichier.**
+- Contrôles supplémentaires **sur demande** : aperçus JPEG/PNG (32 Mio maximum), vidéo MP4/WebM par plages de 1 Mio, comparaison exacte bornée d’images et diagnostic limité d’autoload/configuration etaHEN. Ces contrôles lisent du contenu localement ; ils ne font pas partie de l’analyse générale.
+- Retour au système officiel : checklist manuelle et diagnostics locaux. Aucune garantie concernant les historiques distants ou l’accès aux services Sony.
 
-## Host development
+## Protection et limites
+
+Le service écoute uniquement sur `127.0.0.1:8877`, sans télémétrie, dépendance Internet ni serveur sur PC. Il contrôle Host/origine HTTP, limite ses travailleurs à quatre et refuse les méthodes d’écriture. Les assets et les règles sont embarqués.
+
+Le scanner utilise `openat` et des descripteurs de répertoire ancrés, refuse les liens symboliques et ignore sockets, FIFO et périphériques. Les sauvegardes, comptes, profils, licences, clés et autres noms personnels connus sont exclus selon `rules/metadata-v1.json`. Cette liste ne peut pas reconnaître toutes les données d’apps inconnues : aucun contenu n’est lu par l’inventaire et aucun résultat n’est déclaré jetable.
+
+Par analyse : 30 000 entrées visitées, 10 000 fichiers, 2 500 entrées par racine, profondeur 12, rapport ≤8 Mio et délai indicatif de cinq secondes. Un appel système bloquant peut dépasser ce délai. Un chemin absent peut être normal ; un parcours terminé signifie terminé dans le périmètre autorisé, jamais « toute la console ».
+
+Les groupes du catalogue d’applications peuvent être imbriqués. Ne pas additionner leurs tailles. Une date correspond à `mtime`, pas à la création ni au dernier accès. Les bases système et fichiers associés aux médias restent protégés. Aucun fichier FTP privé n’est incorporé au programme ou à sa démonstration.
+
+## Livrable unique et lancement
+
+`make package` produit `dist/CleanMyPS5-elf.zip`, contenant **un seul exécutable**, `cleanmyps5.elf`, accompagné de sa somme SHA-256, d’un manifeste et des guides.
+
+Charger cet ELF avec un lanceur de payloads compatible déjà présent sur la console. Le programme tente d’ouvrir son interface à `http://127.0.0.1:8877/` dans le navigateur PS5. Ce lancement et la navigation DualSense demandent encore une validation physique sur 13.60. L’URL loopback se consulte sur la console ; elle n’expose pas le service sur le réseau local. Le navigateur doit rester disponible dans l’environnement de lancement.
+
+**Itemzflow / ShadowMount :** cette livraison n’est pas un dossier d’application native. Cette voie attend un véritable `eboot.bin` avec démarrage, imports, runtime et `sce_sys/param.json` adaptés. Renommer le payload ELF ne suffit pas. Aucun faux dossier homebrew n’est livré. Aucun déploiement sur console n’est effectué par les scripts.
+
+## Développement et compilation
 
 ```sh
-cmake -S . -B build
-cmake --build build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
-./build/cleanmyps5-server --root /path/to/your/fixture-or-mounted-PS5-namespace
-# Then open http://127.0.0.1:8877
+node --check web/app.js
+node tests/test_ui.js
+python3 scripts/check_branding.py
+./build/cleanmyps5-server --root /chemin/vers/une/arborescence-de-test
 ```
 
-On the embedded service, **Analyser le dossier** reads the selected root via `/api/report` automatically. Without a native server, the UI can also be previewed as static files:
+Sur hôte, `--root` est obligatoire. Ne pas utiliser un vrai dossier personnel comme fixture de test.
+
+Pour la PS5 : installer le [SDK communautaire](https://github.com/ps5-payload-dev/sdk), LLVM et définir `PS5_PAYLOAD_SDK` puis :
 
 ```sh
-python3 -m http.server 8080 --directory web
-# http://127.0.0.1:8080 — JSON import or explicit fictional demo
+make package
 ```
 
-## PS5 payload build (experimental)
+Les règles déclaratives sont compilées dans le binaire ; elles ne téléchargent ni n’exécutent de scripts. La CI teste l’API native, les exclusions, les fichiers spéciaux, les limites et l’interface, puis compile l’ELF après ASan/UBSan. Elle n’exécute rien sur PS5.
 
-Requires the official community [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) and `PS5_PAYLOAD_SDK` environment variable:
+[Livraison et limites](docs/DELIVERY.md) · [Matrice fonctionnelle](docs/FEATURE_MATRIX.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation PS5](docs/VALIDATION_PS5_13_60.md)
 
-```sh
-make ps5
-# server only: cleanmyps5.elf
-make ps5-browser
-# experimental server + browser launch: cleanmyps5-browser.elf
-# neither variant has been verified on physical PS5 13.60 yet
-```
-
-The native payload defaults to filesystem namespace `/` and **loopback only**, with URL `http://127.0.0.1:8877/`. The optional `cleanmyps5-browser.elf` uses `sceUserServiceInitialize` and `sceSystemServiceLaunchWebBrowser` from the community SDK sample to attempt opening that URL after the service starts; failure does not stop the local server. **Do not use both payload variants together**. Opening the browser may conflict with WebKit autoloaders; the original ELF remains server-only. Reaching it from a PS5 user interface requires an accessible browser/deeplink, to be verified on device. No launcher icon is installed automatically and no existing applications are touched. Loading a payload has the normal risks of an exploited console.
-
-The CI uploads both experimental ELF variants **only after** host integration tests and ASan/UBSan pass. The artifact also includes `cleanmyps5.elf.sha256` and `VERSION` for traceability. CodeQL scans the native C and JavaScript sources separately. A compiled ELF still **does not** prove PS5 runtime compatibility. Do not replace an existing payload or install an untested binary expecting production behavior.
-
-## Sources and safety
-
-[Functional comparison with outil générique](docs/FUNCTIONAL_PARITY_outil générique.md) · [Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
-
-Licensed GPL-3.0. Files, capture metadata, saves and etaHEN configurations are never silently considered disposable.
-
-## Honest scope
-
-The program is an **exploratory, read-only PS5 cleaner prototype**, not a finished outil de nettoyage/outil générique replacement. The current release does not delete screenshots, uninstall apps, repair failed PKG installs, delete caches, compact storage, or restore backups. Follow the [feature parity audit](docs/FUNCTIONAL_PARITY_outil générique.md) before interpreting a scan result as safe to remove. The PS5 payloads remain unverified on firmware 13.60.
-
-## Return to Live / retour au système officiel
-
-The integrated Return to Live module provides read-only autoloader, homebrew and known-path checks, an eight-step **manual** preparation checklist, and an optional local JSON checklist export. No cleanup action, firmware update, restart or server interaction with PlayStation services is performed. **The tool cannot verify Sony's remote records or guarantee that a console/account won't be suspended.** Follow the [official-return guide](docs/RETURN_TO_LIVE.md) before choosing an official update, reset or reinstall.
-
-The current-tree branding check prevents accidental third-party product references from being added to source files, documentation or filenames. Existing Git history is not rewritten.
+Licence GPL-3.0. Les sources correspondantes accompagnent la livraison.

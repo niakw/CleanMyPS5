@@ -137,3 +137,24 @@ assert.equal(exported.chosenRoute,"reinstall");
 assert.equal(safeJson.includes("private-autoload"),false);
 assert.equal(safeJson.includes("private-homebrew"),false);
 assert.equal(officialPlan({...privateFixture,officialRoute:"unexpected"}).chosenRoute,"undecided");
+
+const {safeCoverage,genericMatches}=require("../web/app.js");
+assert.deepEqual(safeCoverage(null),[]);
+assert.deepEqual(safeCoverage([{path:42}]),[]);
+const coverage=safeCoverage([{path:"/data",status:"partial",items:2,nominalBytes:10}]);
+assert.equal(coverage[0].status,"partial");
+assert.equal(safeCoverage([{path:"/data",status:"invented",items:-1}])[0].status,"unavailable");
+assert.equal(genericMatches({path:"/data/Unknown/cache/blob",bytes:60*1024*1024,modifiedAt:oldTime},{query:"UNKNOWN",mode:"over50"},snapshotNow),true);
+assert.equal(genericMatches({path:"/data/Unknown/boot.elf",bytes:20,modifiedAt:oldTime},{mode:"large"},snapshotNow),false);
+assert.equal(genericMatches({path:"/data/Unknown/logs/trace.txt",bytes:20,modifiedAt:oldTime},{mode:"old"},snapshotNow),true);
+const newMedia=safeItems({schemaVersion:1,items:[item("new","/user/av_contents/photo/NPXS99999/OTHER/a.png",10)]});
+assert.equal(newMedia[0].previewPath,"/user/av_contents/photo/NPXS99999/OTHER/a.png");
+console.log("Generic metadata coverage, file filters and alternate capture namespace: PASS");
+
+const {inventoryExport}=require("../web/app.js");
+const metadataExported=inventoryExport({items:[{id:"protected",path:"/data/AnyApp/config.ini",bytes:20,modifiedAt:1700000000,category:"residuals",risk:"protected",reason:"Configuration"}],coverage:[{path:"/data",status:"partial",items:1}],ruleVersion:"test",warnings:[]});
+assert.equal(metadataExported.items[0].risk,"protected");
+assert.equal(metadataExported.items[0].modifiedAt,1700000000);
+assert.equal(metadataExported.cleanupValidated,false);
+assert.equal(metadataExported.coverage[0].status,"partial");
+console.log("Complete metadata export preserves protected entries and dates: PASS");

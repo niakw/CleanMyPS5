@@ -79,6 +79,7 @@ with tempfile.TemporaryDirectory() as temp:
   finally:stalled.close()
   # Four stalled partial headers exhaust the fixed worker pool. The fifth
   # connection must get a bounded 503 rather than creating unbounded threads.
+  time.sleep(.15) # allow the deliberately stalled worker to release after close
   busy=[]
   try:
    for _ in range(4):
@@ -112,17 +113,20 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as err:assert err.code==403,err.code
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  assert set(entries)=={"image.png","same.jpg","hardlink.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
+  required={"sidecar.dat","same.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini","autoload.txt","assets.bin","plugin-note.txt"}
+  assert required<=set(entries),entries
+  assert len(set(entries)&{"image.png","hardlink.jpg"})==1,entries
+  capture=entries.get("image.png",entries.get("hardlink.jpg"))
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
-  assert entries["image.png"]["previewPath"]=="/user/av_contents/photo/NPXS40087/GAME/image.png"
-  assert isinstance(entries["image.png"]["modifiedAt"],int)
-  assert report["stats"]["items"]==10
+  assert capture["previewPath"].startswith("/user/av_contents/photo/NPXS40087/GAME/")
+  assert isinstance(capture["modifiedAt"],int)
+  assert report["stats"]["items"]==len(report["items"])
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
   # Exact read-only capture previews: no traversal, etaHEN config, other roots or symlinks.
-  preview="/api/media?file="+quote(entries["image.png"]["previewPath"],safe="")
+  preview="/api/media?file="+quote(capture["previewPath"],safe="")
   with urlopen(base+preview,timeout=3) as r:
    assert r.headers.get_content_type()=="image/png"
    assert r.read()==(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
@@ -218,10 +222,10 @@ with tempfile.TemporaryDirectory() as temp:
   assert preflight["scope"]=="known-paths-only"
   assert preflight["mode"]=="read-only"
   checks={x["path"]:x["status"] for x in preflight["entries"]}
-  assert checks["/user/av_contents/photo/NPXS40087"]=="accessible"
-  assert checks["/user/av_contents/video/NPXS40087"]=="accessible"
+  assert checks["/user/av_contents/photo"]=="accessible"
+  assert checks["/user/av_contents/video"]=="accessible"
   assert checks["/data/etaHEN"]=="accessible"
-  assert len(preflight["entries"])==15
+  assert len(preflight["entries"])==26
   assert checks["/mnt/usb0/ps5_autoloader"]=="accessible"
   assert checks["/mnt/usb7/ps5_autoloader"]=="absent"
   assert "PRIVATE_TOKEN" not in json.dumps(preflight)

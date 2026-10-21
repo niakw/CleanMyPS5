@@ -12,7 +12,7 @@
 int cmp5_open_video(const char *root,const char *path,int *out_fd,uint64_t *out_bytes,const char **mime){
  if(!root||!path||!out_fd||!out_bytes||!mime)return 404;
  *out_fd=-1;*out_bytes=0;*mime=NULL;
- static const char prefix[]="/user/av_contents/video/NPXS40087/";
+ static const char prefix[]="/user/av_contents/video/";
  size_t len=strlen(path),n=sizeof(prefix)-1;
  if(len> CMP5_VIDEO_PATH_MAX||strncmp(path,prefix,n)||!path[n])return 404;
  // No traversal, noncanonical separators, backslashes, or pseudo-hidden components.

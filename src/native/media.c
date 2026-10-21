@@ -12,7 +12,7 @@
 int cmp5_open_preview(const char*root,const char*path,int*out_fd,size_t*out_bytes,const char**mime){
  if(!root||!path||!out_fd||!out_bytes||!mime)return 404;
  *out_fd=-1;*out_bytes=0;*mime=NULL;
- static const char prefix[]="/user/av_contents/photo/NPXS40087/";
+ static const char prefix[]="/user/av_contents/photo/";
  const size_t n=strlen(prefix);
  if(strncmp(path,prefix,n)!=0||!path[n]||strlen(path)>CMP5_NAME_MAX)return 404;
  // A tokenised relative path avoids canonicalisation surprises and literal '..' segments.
