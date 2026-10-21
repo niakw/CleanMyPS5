@@ -2,6 +2,7 @@
 // Real PS5 title: reads app-visible paths locally, without opening a browser.
 // Advanced diagnostics require the separately privileged, read-only helper.
 #include "demo_renderer.hpp"
+#include "loopback_protocol.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -176,10 +177,9 @@ bool fetch_local(const char*route,char*response,std::size_t capacity,
  (void)sceNetSocketClose(socket);
  if(!ok||received==0||received>=capacity-1)return false;
  response[received]='\0';
- if(std::strncmp(response,"HTTP/1.1 200 ",13)!=0)return false;
- const char*body=std::strstr(response,"\r\n\r\n");
- if(!body)return false;
- *json=body+4;
+ cmp5_native::HttpBody body{};
+ if(!cmp5_native::parse_http_json(response,received,&body))return false;
+ *json=body.data;
  return true;
 }
 bool scan_u64(const char*text,const char*name,std::uint64_t*out) noexcept {
