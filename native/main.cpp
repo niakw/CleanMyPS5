@@ -141,7 +141,8 @@ bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
 enum class Summary { unchecked, ok, unavailable };
 Summary summary_status=Summary::unchecked;
 unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
-std::uint64_t summary_bytes=0;
+unsigned summary_large=0,summary_old=0,summary_old_large=0;
+std::uint64_t summary_bytes=0,summary_large_bytes=0;
 bool summary_partial=false;
 
 // Native UI uses only fixed paths and a closed loopback listener.
@@ -221,19 +222,29 @@ void run_overview() noexcept {
  const char*json=nullptr;
  if(!fetch_local("/api/overview",response,sizeof(response),&json))return;
  if(!std::strstr(json,"\"scope\":\"bounded-known-roots\"")||
-    !std::strstr(json,"\"cleanupValidated\":false"))return;
- unsigned files=0,media=0,cache=0,logs=0;
- std::uint64_t bytes=0;
+    !std::strstr(json,"\"cleanupValidated\":false")||
+    !std::strstr(json,"\"validatedForDeletion\":false"))return;
+ unsigned files=0,media=0,cache=0,logs=0,large=0,old=0,oldLarge=0;
+ std::uint64_t bytes=0,largeBytes=0;
  if(!scan_field(json,"\"files\":",&files)||
     !scan_u64(json,"\"nominalBytes\":",&bytes)||
     !scan_field(json,"\"media\":",&media)||
     !scan_field(json,"\"cache\":",&cache)||
-    !scan_field(json,"\"logs\":",&logs))return;
+    !scan_field(json,"\"logs\":",&logs)||
+    !scan_field(json,"\"largeMedia\":",&large)||
+    !scan_field(json,"\"oldMedia\":",&old)||
+    !scan_field(json,"\"oldLargeMedia\":",&oldLarge)||
+    !scan_u64(json,"\"largeMediaNominalBytes\":",&largeBytes)||
+    large>media||old>media||oldLarge>large||oldLarge>old)return;
  summary_files=files;
  summary_media=media;
  summary_cache=cache;
  summary_logs=logs;
  summary_bytes=bytes;
+ summary_large=large;
+ summary_old=old;
+ summary_old_large=oldLarge;
+ summary_large_bytes=largeBytes;
  summary_partial=std::strstr(json,"\"partial\":true")!=nullptr;
  summary_status=Summary::ok;
 }
@@ -257,7 +268,7 @@ void poll_pad() noexcept {
     if(screen==Screen::access)probe_local();
    }
   }else if(pressed&cross){
-   if(screen==Screen::analyze)run_overview();
+   if(screen==Screen::analyze||screen==Screen::cleanup)run_overview();
    if(screen==Screen::access)probe_local();
   }
  }
@@ -363,11 +374,22 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,"X VERIFIER A NOUVEAU    CERCLE RETOUR");
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
- panel(canvas,355,"NETTOYAGE DES CAPTURES","NON ACTIVE",Color::yellow);
- panel(canvas,503,"NETTOYAGE DES CACHES","NON ACTIVE",Color::yellow);
- panel(canvas,651,"SUPPRESSION DES DOUBLONS","NON ACTIVE",Color::yellow);
- panel(canvas,799,"PRECONDITION","ACCES, SAUVEGARDE, VALIDATION");
- footer(canvas,"PAS D'EFFACEMENT SANS CONTROLE   CERCLE RETOUR");
+ if(summary_status==Summary::ok){
+  char result[120]{};
+  (void)std::snprintf(result,sizeof(result),"%u A REVOIR (PLUS DE 50 MIO)",summary_large);
+  panel(canvas,355,"CAPTURES VOLUMINEUSES",result,Color::cyan);
+  (void)std::snprintf(result,sizeof(result),"%u ANCIENNES (MTIME 90 J)",summary_old);
+  panel(canvas,503,"CAPTURES ANCIENNES",result,Color::cyan);
+  (void)std::snprintf(result,sizeof(result),"%llu MIO NOMINAUX  %u ANCIENNES ET GROSSES",
+    static_cast<unsigned long long>(summary_large_bytes/1048576ULL),summary_old_large);
+  panel(canvas,651,"ESPACE A EXAMINER",result,Color::yellow);
+ }else{
+  panel(canvas,355,"CAPTURES VOLUMINEUSES","BILAN NON DISPONIBLE",Color::yellow);
+  panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
+  panel(canvas,651,"MOTEUR","LANCER LE HELPER SI NECESSAIRE",Color::yellow);
+ }
+ panel(canvas,799,"PROTECTION","AUCUN FICHIER DECLARE SUPPRIMABLE",Color::yellow);
+ footer(canvas,"X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,355,"REVOIR LES HOMEBREWS","VERIFIER MANUELLEMENT");
