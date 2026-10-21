@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -69,7 +69,7 @@ function useReport(report,isDemo=false,live=false){
   const sizes=new Map();
   for(const item of items)if(item.category==="media"&&item.bytes>0)sizes.set(item.bytes,(sizes.get(item.bytes)||0)+1);
   for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
-  state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
+  state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.mediaKind="all";state.mediaQuery="";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
   state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;state.homebrew=null;
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
@@ -258,12 +258,21 @@ function compareMedia(a,b,mode){
  if(mode==="name")return a.sortName.localeCompare(b.sortName,"fr")||(b.bytes-a.bytes);
  return (b.bytes-a.bytes)||a.path.localeCompare(b.path);
 }
+function mediaMatches(item,options){
+ if(options.kind==="videos"&&!/\.(mp4|webm)$/i.test(item.path))return false;
+ if(options.kind==="images"&&!/\.(png|jpe?g|jxr)$/i.test(item.path))return false;
+ const query=(options.query||"").trim().toLocaleLowerCase("fr");
+ if(query&&!item.path.toLocaleLowerCase("fr").includes(query)&&
+    !item.titleId.toLocaleLowerCase("fr").includes(query))return false;
+ return true;
+}
 function filtered(){
  const items=state.items.filter(x=>{
   if(state.tab==="cache")return ["cache","logs"].includes(x.category);
   if(state.tab==="storage"||state.tab==="overview")return true;
   if(x.category!==state.tab)return false;
   if(state.tab==="media"){
+   if(!mediaMatches(x,{kind:state.mediaKind,query:state.mediaQuery}))return false;
    if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
    if(state.mediaMode==="large"&&x.bytes<250*1024*1024)return false;
    if(state.mediaMode==="over50"&&x.bytes<50*1024*1024)return false;
@@ -284,6 +293,11 @@ function setMediaMode(mode){
  state.mediaMode=mode;state.page=0;render();
  document.querySelector('[data-media-mode="'+mode+'"]')?.focus({preventScroll:true});
 }
+function setMediaKind(kind){
+ if(!["all","images","videos"].includes(kind))return;
+ state.mediaKind=kind;state.page=0;render();
+ document.querySelector('[data-media-kind="'+kind+'"]')?.focus({preventScroll:true});
+}
 function cycleMediaTitle(){
  const values=["all",...mediaTitles()];const old=values.indexOf(state.mediaTitle);
  state.mediaTitle=values[(old+1)%values.length];state.page=0;render();
@@ -300,7 +314,22 @@ function mediaToolbar(){
  titleButton.disabled=!titles.length;titleButton.title="Changer de jeu";
  const sortLabels={size:"Taille ↓",date:"Date ↓",name:"Nom A–Z"};
  const sortButton=button("Trier : "+sortLabels[state.mediaSort],"secondary sort-cycle",cycleMediaSort);
- add(root,filterWrap,titleButton,sortButton);
+ const typeFilter=node("div","mode-group");
+ for(const [kind,label] of [["all","Tous formats"],["images","Images"],["videos","Vidéos"]]){
+  const b=button(label,"secondary mode-filter"+(state.mediaKind===kind?" chosen":""),()=>setMediaKind(kind));
+  b.dataset.mediaKind=kind;b.setAttribute("aria-pressed",String(state.mediaKind===kind));typeFilter.append(b);
+ }
+ const search=node("input","focusable media-search");
+ search.type="text";search.inputMode="search";search.autocomplete="off";search.spellcheck=false;
+ search.setAttribute("aria-label","Rechercher un fichier ou un identifiant de jeu");
+ search.placeholder="Rechercher capture ou jeu…";search.maxLength=100;search.value=state.mediaQuery;
+ search.addEventListener("input",()=>{
+  const position=search.selectionStart;
+  state.mediaQuery=search.value.slice(0,100);state.page=0;render();
+  const next=document.querySelector(".media-search");
+  if(next){next.focus({preventScroll:true});if(position!==null)next.setSelectionRange(position,position);}
+ });
+ add(root,filterWrap,titleButton,sortButton,typeFilter,search);
  root.append(node("p","filter-warning","« Anciens » utilise la date de dernière modification, et non le dernier accès ni la date de création. « Même taille » ne confirme pas un doublon. Aucune suppression automatique."));
  return root;
 }
@@ -844,5 +873,5 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches};
 }

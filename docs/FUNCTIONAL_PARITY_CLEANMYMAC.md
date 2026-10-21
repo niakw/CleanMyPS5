@@ -27,7 +27,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | My Clutter : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
 | My Clutter : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
 | My Clutter : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
-| My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, pagination 36 ; pas de recherche globale ni de galerie miniature |
+| My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
 | Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |
 | Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN, preflight et catalogue protégé des homebrews/plugins (taille nominale). Aucune corrélation avec registre d'installation, donc aucun orphelin avéré |

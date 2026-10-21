@@ -92,3 +92,7 @@ Un bouton principal de l'accueil orchestre successivement l'inventaire des chemi
 ## Carte de stockage des captures
 
 La page Stockage présente une carte à barres des dix jeux/identifiants capturant le plus d'espace parmi **les seuls médias inventoriés**, séparant images et vidéos. L'agrégat « Autres jeux » évite des centaines de lignes. Chaque jeu identifié peut être ouvert via Croix/manette. La carte n'est ni une représentation du SSD ni un balayage arbitraire du système.
+
+## Recherche et type de média
+
+L'écran Captures & vidéos dispose de filtres Images / Vidéos / Tous, d'une saisie texte par nom de fichier ou identifiant de jeu et du tri existant. La recherche ne parcourt que les fichiers inclus dans le rapport courant. La navigation par la manette peut cibler la recherche, mais l'ouverture du clavier virtuel PS5 devra être validée sur firmware 13.60.
