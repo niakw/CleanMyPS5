@@ -3,6 +3,7 @@ project(CleanMyPS5 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_package(Threads REQUIRED)
 set(ASSETS ${CMAKE_CURRENT_BINARY_DIR}/generated/assets.h)
 add_custom_command(
  OUTPUT ${ASSETS}
@@ -14,6 +15,7 @@ add_custom_command(
 )
 add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c src/native/preflight.c ${ASSETS})
 target_include_directories(cleanmyps5-server PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_link_libraries(cleanmyps5-server PRIVATE Threads::Threads)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
  target_compile_options(cleanmyps5-server PRIVATE -Wall -Wextra -Wpedantic)
 endif()

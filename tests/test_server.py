@@ -56,6 +56,16 @@ with tempfile.TemporaryDirectory() as temp:
   else:raise AssertionError("server failed to start")
   assert status["mode"]=="read-only"
   assert status["target"]=="host"
+  # A deliberately slow, incomplete HTTP request must not freeze the entire UI.
+  stalled=socket.create_connection(("127.0.0.1",port),timeout=2)
+  try:
+   stalled.sendall((f"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n").encode())
+   time.sleep(.08)
+   started=time.monotonic()
+   with urlopen(base+"/api/status",timeout=2) as r:other=json.load(r)
+   assert other["app"]=="CleanMyPS5"
+   assert time.monotonic()-started<2
+  finally:stalled.close()
   assert status["version"]==(Path(__file__).resolve().parents[1]/"VERSION").read_text().strip()
   # Reject DNS-rebinding Host values and cross-site browser origins.
   for headers in ({"Host":"unexpected.example:1234"},

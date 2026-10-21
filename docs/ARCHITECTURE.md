@@ -12,6 +12,10 @@ Controller-first PS5 storage maintenance, with a strict boundary between **disco
 - Category detail, opt-in selection, protected items disabled, and selection totals.
 - **No delete endpoint, no write permissions, no automatic system cleanups.**
 
+### Runtime concurrency
+
+The native service dispatches a maximum of four read-only workers and returns HTTP 503 rather than spawning unlimited threads. SIGINT/SIGTERM are delivered on the main accept thread, with clean draining of in-flight requests on shutdown. The host integration test opens an incomplete HTTP request and verifies that another request remains responsive.
+
 ### Implemented native read-only API
 
 - `GET /`, `/index.html`, `/app.js`, `/styles.css`: embedded UI.

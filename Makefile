@@ -8,7 +8,7 @@ all: server
 $(ASSETS): VERSION scripts/embed_assets.py web/index.html web/styles.css web/app.js
 	$(PYTHON) scripts/embed_assets.py $(ASSETS) web/index.html web/styles.css web/app.js
 server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
-	$(CC) $(CFLAGS) -Isrc/native -Ibuild/generated $(NATIVE) -o build/cleanmyps5-server
+	$(CC) $(CFLAGS) -pthread -Isrc/native -Ibuild/generated $(NATIVE) -o build/cleanmyps5-server
 ps5: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
 	$(PS5_CC) $(CFLAGS) -DPS5 -Isrc/native -Ibuild/generated $(NATIVE) -o cleanmyps5.elf

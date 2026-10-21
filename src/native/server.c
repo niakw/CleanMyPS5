@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 static volatile sig_atomic_t cmp5_shutdown=0;
 static void shutdown_signal(int signo){(void)signo;cmp5_shutdown=1;}
@@ -39,7 +40,7 @@ static int send_all(int fd,const void*data,size_t n){
  while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return 0;p+=k;n-=k;}return 1;
 }
 static void reply(int fd,int code,const char*type,const void*body,size_t size){
- const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==403?"Forbidden":code==405?"Method Not Allowed":code==413?"Content Too Large":code==416?"Range Not Satisfiable":"Internal Server Error";
+ const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==403?"Forbidden":code==405?"Method Not Allowed":code==413?"Content Too Large":code==416?"Range Not Satisfiable":code==503?"Service Unavailable":"Internal Server Error";
  char header[1024];
  int n=snprintf(header,sizeof(header),
    "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n"
@@ -283,6 +284,47 @@ static void handle(int fd,const char*root,int port){
   reply(fd,200,"application/json; charset=utf-8",json,size);free(json);
  }else plain(fd,404,"Not found");
 }
+#define MAX_WORKERS 4u
+typedef struct {int socket;const char*root;int port;} ClientTask;
+static pthread_mutex_t worker_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t worker_idle=PTHREAD_COND_INITIALIZER;
+static unsigned worker_count=0;
+static void release_worker(void){
+ pthread_mutex_lock(&worker_mutex);
+ if(worker_count>0)worker_count--;
+ pthread_cond_broadcast(&worker_idle);
+ pthread_mutex_unlock(&worker_mutex);
+}
+static void* client_worker(void*argument){
+ ClientTask*task=(ClientTask*)argument;
+ handle(task->socket,task->root,task->port);
+ close(task->socket);
+ free(task);
+ release_worker();
+ return NULL;
+}
+static int dispatch_worker(int client,const char*root,int port){
+ pthread_mutex_lock(&worker_mutex);
+ if(worker_count>=MAX_WORKERS){
+  pthread_mutex_unlock(&worker_mutex);
+  return 0;
+ }
+ worker_count++;
+ pthread_mutex_unlock(&worker_mutex);
+ ClientTask*task=(ClientTask*)malloc(sizeof(*task));
+ if(!task){release_worker();return 0;}
+ task->socket=client;task->root=root;task->port=port;
+ // Keep stop signals on the main accept thread, not on detached workers.
+ sigset_t stopped,previous;
+ sigemptyset(&stopped);sigaddset(&stopped,SIGTERM);sigaddset(&stopped,SIGINT);
+ int masked=pthread_sigmask(SIG_BLOCK,&stopped,&previous)==0;
+ pthread_t thread;
+ int created=pthread_create(&thread,NULL,client_worker,task);
+ if(masked)pthread_sigmask(SIG_SETMASK,&previous,NULL);
+ if(created!=0){free(task);release_worker();return 0;}
+ pthread_detach(thread);
+ return 1;
+}
 int main(int argc,char**argv){
 #ifdef PS5
  const char*root="/";
@@ -321,7 +363,15 @@ int main(int argc,char**argv){
    if(cmp5_shutdown)break;
    perror("accept");break;
   }
-  handle(client,root,port);close(client);
+  if(!dispatch_worker(client,root,port)){
+   plain(client,503,"All read-only workers are busy; retry.");
+   close(client);
+  }
  }
- close(fd);puts("CleanMyPS5 stopped, listener closed.");return 0;
+ close(fd);
+ // Allow in-flight reads to complete before the process exits.
+ pthread_mutex_lock(&worker_mutex);
+ while(worker_count>0)pthread_cond_wait(&worker_idle,&worker_mutex);
+ pthread_mutex_unlock(&worker_mutex);
+ puts("CleanMyPS5 stopped, listener closed.");return 0;
 }
