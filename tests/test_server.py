@@ -25,6 +25,9 @@ with tempfile.TemporaryDirectory() as temp:
  except OSError:pass
  with socket.socket() as sk:
   sk.bind(("127.0.0.1",0));port=sk.getsockname()[1]
+ # An alias to the media root is never followed, even if it appears inside an allowlisted subtree.
+ try:(image/"directory_link").symlink_to(other,target_is_directory=True)
+ except OSError:pass
  p=subprocess.Popen([sys.argv[1],"--root",str(root),"--port",str(port)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
  base="http://127.0.0.1:"+str(port)
  try:
@@ -35,6 +38,7 @@ with tempfile.TemporaryDirectory() as temp:
    except OSError:time.sleep(.05)
   else:raise AssertionError("server failed to start")
   assert status["mode"]=="read-only"
+  assert status["target"]=="host"
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
   assert set(entries)=={"image.png","clip.MP4","debug.log","config.ini"},entries
@@ -49,6 +53,7 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as e:assert e.code==404
   assert (other/"save.bin").read_text()=="DO NOT TOUCH"
   assert (eta/"config.ini").read_text()=="KEEP"
+  assert all("directory_link" not in r["path"] for r in report["items"])
  finally:
   p.terminate()
   try:p.wait(timeout=3)

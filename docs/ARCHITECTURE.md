@@ -4,13 +4,21 @@
 
 Controller-first PS5 storage maintenance, with a strict boundary between **discovery**, **classification**, **review**, **execution** and **verification**.
 
-### v0.1 delivered
+### v0.2 delivered
 
 - Offline-friendly static dashboard in `web/`, designed for TV readability, DualSense/gamepad and mouse.
 - Import of a versioned JSON inventory; optional **explicit** fictional demo, never shown as real PS5 measurements.
-- Host-compiled C++17 read-only inventory, hard-limited to selected roots and file types with fixture tests and CI.
+- Portable C11/POSIX read-only inventory and embedded-asset HTTP server, limited to known roots and formats; tested on a host fixture. PS5 cross-build and on-console behavior are separate validation gates.
 - Category detail, opt-in selection, protected items disabled, and selection totals.
 - **No delete endpoint, no write permissions, no automatic system cleanups.**
+
+### Implemented native read-only API
+
+- `GET /`, `/index.html`, `/app.js`, `/styles.css`: embedded UI.
+- `GET /api/status`: `target=host|ps5`, version and scanner capability.
+- `GET /api/report`: bounded, read-only enumeration of known roots; includes inaccessible-path warnings.
+- All other routes and write methods rejected; loopback binding is mandatory until authentication exists.
+- Host target must provide `--root`; the PS5 target defaults to `/`. This has **not** yet been verified on real firmware 13.60.
 
 ### Planned backend
 
@@ -74,7 +82,7 @@ Source references: https://github.com/AmineWallah/ProsperoGallery , https://gith
 
 ### Next milestones
 
-1. Port the C++ host scanner to the PS5 Payload SDK; add native payload + local web server/PS5 entry. Do not assume std::filesystem support without toolchain validation.
+1. Confirm `make ps5` cross-build in CI and validate **real** PS5 runtime, browser loopback, then add a native launcher entry with explicit consent.
 2. Verify captures path, etaHEN ownership, SSD capacity measurement against **real FW 13.60**.
 3. Add rich per-file preview and duplicate detection with bounded hashing, with export before deletion.
 4. Transactional, opt-in cleanup only after tests on fixtures + real PS5 confirmation.

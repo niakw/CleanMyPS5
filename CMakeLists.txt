@@ -1,14 +1,22 @@
 cmake_minimum_required(VERSION 3.16)
-project(CleanMyPS5 LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-add_executable(cleanmyps5-scan src/scanner.cpp)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
- target_compile_options(cleanmyps5-scan PRIVATE -Wall -Wextra -Wpedantic)
+project(CleanMyPS5 LANGUAGES C)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(ASSETS ${CMAKE_CURRENT_BINARY_DIR}/generated/assets.h)
+add_custom_command(
+ OUTPUT ${ASSETS}
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${ASSETS}
+         ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
+ DEPENDS ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${CMAKE_SOURCE_DIR}/web/index.html
+         ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
+ VERBATIM
+)
+add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c ${ASSETS})
+target_include_directories(cleanmyps5-server PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_compile_definitions(cleanmyps5-server PRIVATE _DEFAULT_SOURCE)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cleanmyps5-server PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 enable_testing()
-find_package(Python3 COMPONENTS Interpreter)
-if(Python3_Interpreter_FOUND)
- add_test(NAME inventory_fixture COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_scanner.py" "$<TARGET_FILE:cleanmyps5-scan>")
-endif()
+add_test(NAME native_server_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_server.py $<TARGET_FILE:cleanmyps5-server>)

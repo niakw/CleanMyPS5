@@ -8,15 +8,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Host C++ inventory configuration
+      - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Build inventory fixture
+      - name: Build portable C runtime
         run: cmake --build build --parallel 2
-      - name: Scanner regression
+      - name: Native HTTP and scanner fixtures
         run: ctest --test-dir build --output-on-failure
-      - name: Native C service build
-        run: make server
-      - name: Native HTTP integration
-        run: python3 tests/test_server.py build/cleanmyps5-server
       - name: JavaScript syntax
         run: node --check web/app.js
+  ps5-payload:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM and payload SDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clang-18 lld-18 unzip
+          curl -fL --retry 2 -o /tmp/ps5-payload-sdk.zip https://github.com/ps5-payload-dev/sdk/releases/latest/download/ps5-payload-sdk.zip
+          sudo unzip -q /tmp/ps5-payload-sdk.zip -d /opt
+          test -x /opt/ps5-payload-sdk/bin/prospero-clang
+      - name: Cross-compile PS5 ELF (no on-console claim)
+        run: make ps5
+        env:
+          PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cleanmyps5-ps5-elf-untested
+          path: cleanmyps5.elf
+          if-no-files-found: error

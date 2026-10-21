@@ -42,7 +42,11 @@ static void handle(int fd,const char*root){
  else if(strcmp(path,"/app.js")==0)
   reply(fd,200,"text/javascript; charset=utf-8",cmp5_script,cmp5_script_len);
  else if(strcmp(path,"/api/status")==0){
-  static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"api\":1}";
+  #ifdef PS5
+  static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"ps5\",\"api\":1}";
+#else
+  static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"host\",\"api\":1}";
+#endif
   reply(fd,200,"application/json; charset=utf-8",status,sizeof(status)-1);
  }else if(strcmp(path,"/api/report")==0){
   size_t size=0;char*json=cmp5_report(root,&size);
@@ -64,6 +68,7 @@ int main(int argc,char**argv){
   else {fprintf(stderr,"Usage: cleanmyps5-server --root DIR [--port 8877] [--listen 127.0.0.1]\n");return 2;}
  }
  if(!root||port<1024||port>65535){fprintf(stderr,"Host requires root, port must be >=1024\n");return 2;}
+ if(strcmp(address,"127.0.0.1")!=0){fprintf(stderr,"Network access disabled until paired/authenticated access is implemented\n");return 2;}
  struct in_addr ip;if(inet_pton(AF_INET,address,&ip)!=1)return 2;
  signal(SIGPIPE,SIG_IGN);
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return 1;

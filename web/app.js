@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host"};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -54,7 +54,7 @@ function overview(root){
  add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une console propre. L'esprit tranquille."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre sélection, sans risque pour la console.":state.backend?"Le scanner local est disponible. Lancez un inventaire en lecture seule de vos captures et fichiers etaHEN.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
  const actions=node("div","hero-buttons");
  if(state.backend){
-  add(actions,button(state.scanning?"Analyse en cours…":"Analyser ma PS5  ↗","primary",scanNow),button("Importer un rapport","secondary",()=>$("#report-input").click()));
+  add(actions,button(state.scanning?"Analyse en cours…":state.target==="ps5"?"Analyser ma PS5  ↗":"Analyser le dossier  ↗","primary",scanNow),button("Importer un rapport","secondary",()=>$("#report-input").click()));
   if(state.scanning)actions.firstChild.disabled=true;
  }else{
   add(actions,button("Importer un rapport  ↗","primary",()=>$("#report-input").click()),button(state.items.length?"Voir les éléments":"Explorer la démo","secondary",()=>state.items.length?go("media"):demo()));
@@ -140,7 +140,7 @@ async function findNativeServer(){
   const response=await fetch("/api/status",{cache:"no-store"});
   if(!response.ok)return;
   const status=await response.json();
-  if(status.app==="CleanMyPS5"&&status.mode==="read-only"&&status.api===1){state.backend=true;render();}
+  if(status.app==="CleanMyPS5"&&status.mode==="read-only"&&status.api===1){state.backend=true;state.target=status.target==="ps5"?"ps5":"host";render();}
  }catch(_error){/* Static preview: importing JSON remains available. */}
 }
 async function scanNow(){
