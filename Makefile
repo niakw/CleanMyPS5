@@ -15,8 +15,15 @@ server: $(ASSETS) $(RULES) $(NATIVE) src/native/inventory.h src/native/diagnosti
 ps5: $(ASSETS) $(RULES) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
 	$(PS5_CC) $(CFLAGS) -DPS5 -DCMP5_AUTO_BROWSER -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5.elf
+# The helper is deliberately silent; the installed native UI connects to it
+# through loopback. It never starts WebKit or exposes the service on the LAN.
+ps5-helper: $(ASSETS) $(RULES) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
+	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
+	$(PS5_CC) $(CFLAGS) -DPS5 -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-helper.elf
 package: ps5
 	$(PYTHON) scripts/package_release.py cleanmyps5.elf dist
+native-app:
+	bash scripts/build_native_app.sh
 clean:
-	rm -rf build cleanmyps5.elf
-.PHONY: all server ps5 package clean
+	rm -rf build cleanmyps5.elf cleanmyps5-helper.elf
+.PHONY: all server ps5 ps5-helper package native-app clean
