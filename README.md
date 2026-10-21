@@ -1,10 +1,10 @@
 # CleanMyPS5
 
-A controller-first PS5 storage analysis and maintenance project, with an original UI inspired by the clarity of CleanMyMac.
+A controller-first PS5 storage analysis and maintenance project, with an original UI inspired by the clarity of outil générique.
 
 ## Status (development preview — see `VERSION`)
 
-**The dashboard now talks directly to a read-only native C HTTP scanner.** It also offers a PS5 Smart Care-style *read-only* guided check: inventory, mounted storage, known-path preflight, etaHEN autoload and bounded exact screenshot duplicates. Unavailable checks are shown explicitly. A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
+**The dashboard now talks directly to a read-only native C HTTP scanner.** It also offers a PS5 *read-only* guided check: inventory, mounted storage, known-path preflight, etaHEN autoload and bounded exact screenshot duplicates. Unavailable checks are shown explicitly. A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
 - Controller-friendly review dialog; optionally exports a local JSON manifest for manual inspection, explicitly **not** an executable cleanup script.
@@ -62,10 +62,10 @@ The CI uploads both experimental ELF variants **only after** host integration te
 
 ## Sources and safety
 
-[Functional comparison with CleanMyMac](docs/FUNCTIONAL_PARITY_CLEANMYMAC.md) · [Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
+[Functional comparison with outil générique](docs/FUNCTIONAL_PARITY_outil générique.md) · [Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
 
 Licensed GPL-3.0. Files, capture metadata, saves and etaHEN configurations are never silently considered disposable.
 
 ## Honest scope
 
-The program is an **exploratory, read-only PS5 cleaner prototype**, not a finished CCleaner/CleanMyMac replacement. The current release does not delete screenshots, uninstall apps, repair failed PKG installs, delete caches, compact storage, or restore backups. Follow the [feature parity audit](docs/FUNCTIONAL_PARITY_CLEANMYMAC.md) before interpreting a scan result as safe to remove. The PS5 payloads remain unverified on firmware 13.60.
+The program is an **exploratory, read-only PS5 cleaner prototype**, not a finished outil de nettoyage/outil générique replacement. The current release does not delete screenshots, uninstall apps, repair failed PKG installs, delete caches, compact storage, or restore backups. Follow the [feature parity audit](docs/FUNCTIONAL_PARITY_outil générique.md) before interpreting a scan result as safe to remove. The PS5 payloads remain unverified on firmware 13.60.

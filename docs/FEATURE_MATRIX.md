@@ -1,34 +1,27 @@
-# Audit fonctionnel — CleanMyPS5 vs CleanMyMac (21 octobre 2026)
+# CleanMyPS5 — matrice fonctionnelle
 
 ## Objet et méthode
 
-Référence : documentation officielle MacPaw sur Smart Care, My Tools, My Clutter, Applications et Space Lens (octobre 2026). Cet inventaire compare les **fonctions**, pas la charte graphique ni les ressources de marque. Les statuts reflètent uniquement le code présent sur `main`, les tests hôte et les limites documentées ; **aucune fonction PS5 n'a encore été validée sur une console 13.60 réelle**.
+Ce document évalue uniquement les fonctions attendues de CleanMyPS5, leur avancement et leurs conditions de validation. La marque, l'interface et les fonctionnalités proposées sont indépendantes de logiciels tiers.
 
-Sources :
-- https://macpaw.com/support/cleanmymac/knowledgebase/smart-care
-- https://macpaw.com/support/cleanmymac/knowledgebase/my-tools
-- https://macpaw.com/support/cleanmymac/knowledgebase/duplicate-files
-- https://macpaw.com/support/cleanmymac/knowledgebase/large-and-old
-- https://macpaw.com/support/cleanmymac/knowledgebase/space-lens
-- https://macpaw.com/support/cleanmymac/knowledgebase/missing-features
 
 ## Matrice vérifiable
 
 Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lecture seule ; ❌ absent ; — non applicable ou inadapté sur PS5.
 
-| CleanMyMac / besoin PS5 | CleanMyPS5 | Écart vérifié et acceptation |
+| Domaine / besoin PS5 | CleanMyPS5 | Écart vérifié et acceptation |
 |---|---|---|
-| Smart Care : analyse coordonnée | 🟡 | Orchestration lecture seule et scorecard ajoutées (inventaire, stockage, doublons, autoload et chemins). Erreurs par module visibles ; reste non validé sur PS5 |
-| Smart Care : recommandation et bilan | 🟡 | Sélection manuelle, aucune suggestion certifiée ni espace réellement libéré |
+| Analyse intelligente : analyse coordonnée | 🟡 | Orchestration lecture seule et scorecard ajoutées (inventaire, stockage, doublons, autoload et chemins). Erreurs par module visibles ; reste non validé sur PS5 |
+| Analyse intelligente : recommandation et bilan | 🟡 | Sélection manuelle, aucune suggestion certifiée ni espace réellement libéré |
 | Cleanup : fichiers journaux | 🟡 | Journaux etaHEN (.log) répertoriés, pas d'autres sources validées ni effacement |
 | Cleanup : caches utilisateur/système | ❌ | Aucune cartographie PS5 certifiant que les caches sont jetables ; ne jamais supprimer save/config |
 | Cleanup : corbeilles | ❌ | Pas d'équivalent PS5 avéré ; à confirmer dans les mounts multimédias |
 | Cleanup : captures écran & vidéos | 🟡 | Inventaire JPG/JXR/PNG, MP4/WebM, revue, photos JPG/PNG et vidéo selon codec ; pas de synchronisation base multimédia ni retrait sûr |
-| My Clutter : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
-| My Clutter : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
-| My Clutter : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
+| Fichiers à examiner : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
+| Fichiers à examiner : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
+| Fichiers à examiner : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
 | Cleanup : fichiers temporaires d'applications | ❌ | Inventaire homebrew disponible, mais pas de définition sûre de cache/résidu temporaire |
-| My Clutter : téléchargements | — | Les dossiers navigateur Mac ne sont pas transposables ; détecter seulement des téléchargements PS5 réellement attestés |
+| Fichiers à examiner : téléchargements | — | Les dossiers navigateur Mac ne sont pas transposables ; détecter seulement des téléchargements PS5 réellement attestés |
 | Applications : permissions des applications | ❌ | Aucun registre de permissions des homebrews vérifié sur FW 13.60 |
 | Applications : éléments lancés au démarrage | 🟡 | Diagnostique certains fichiers autoload mais pas un inventaire exhaustif des processus actifs |
 | Cloud Cleanup : iCloud/Drive/Dropbox | — | Aucune intégration cloud macOS sur console ; ne pas modifier les sauvegardes PS Plus |
@@ -36,8 +29,8 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Informations santé/alertes de disque | 🟡 | Mesures statvfs manuelles, sans notification de seuil ni preuve d'accès au SSD complet |
 | Outils rapides : hub personnel | 🟡 | Cinq raccourcis sûrs sur l’accueil (captures lourdes/anciennes, tailles égales, homebrew, stockage). Pas de favoris configurables ni de nettoyage automatique |
 | Résultats après nettoyage / journal | ❌ | Aucun effacement actuellement, donc aucun rapport post-opération ni vérification d'espace libéré |
-| My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
-| Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
+| Fichiers à examiner : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
+| Carte du stockage : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |
 | Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN, preflight et catalogue protégé des homebrews/plugins (taille nominale). Aucune corrélation avec registre d'installation, donc aucun orphelin avéré |
 | Applications : PKG/DLC incomplets | ❌ | Aucune corrélation registre/metadata FPKG, protections inconnues |
@@ -48,7 +41,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Protection : malware | ❌ | Pas de base de signatures ni de moteur d'analyse fiable pour PS5 homebrew |
 | Protection : confidentialité | 🟡 | Serveur en loopback, origine HTTP contrôlée, pas d'écriture ; pas d'audit des autorisations payloads |
 | Mesures santé système | 🟡 | Volumes statvfs et prédiagnostic, pas de télémétrie température/CPU/GPU ou SMART validée |
-| Actions rapides 'My Tools' | 🟡 | Navigation par cinq sections ; pas de lanceur d'outils centralisé |
+| Actions rapides 'Accès rapides' | 🟡 | Navigation par cinq sections ; pas de lanceur d'outils centralisé |
 | Sauvegarde / quarantaine / restauration | ❌ | Export JSON de revue uniquement (ce n'est **pas** une copie de données) |
 | Suppression sélective / vérification | ❌ | Pas de point d'écriture, pas de confirmation double, pas de contrôle base multimédia |
 | Contrôle manette TV | 🟡 | Gamepad API / navigation / modal ; non testé sur véritable WebKit PS5 13.60 |
@@ -63,7 +56,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 3. Prouver que des résultats complets ou partiels sont présentés sans déclarer faussement l'espace « libéré ».
 
 ### P1 — Parité de lecture seule utile
-4. Agréger les modules dans un Smart Care non destructif avec statuts et avertissements.
+4. Agréger les modules dans un Analyse intelligente non destructif avec statuts et avertissements.
 5. Étendre la revue Large & Old (50 Mio et âges via mtime, **pas** la vraie date de dernière ouverture).
 6. Visualiser par jeu, date et volume avec filtre/tri manette ; disponibilité des aperçus JXR selon décodeur et SDK.
 7. Diagnostic dédié des installations FPKG, fichiers temporaires, cache homebrews, en prouvant leurs relations avec un logiciel installé avant toute qualification.

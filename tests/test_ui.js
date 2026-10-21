@@ -84,4 +84,4 @@ assert.equal(mediaMatches(movie,{kind:"images",query:""}),false);
 assert.equal(mediaMatches(still,{kind:"images",query:"SCREEN"}),true);
 assert.equal(mediaMatches(still,{kind:"all",query:"GAME"}),true);
 assert.equal(mediaMatches(still,{kind:"all",query:"something-else"}),false);
-console.log("UI report, Smart Care, capture lens, search and sorting: PASS");
+console.log("UI report, Analyse intelligente, capture lens, search and sorting: PASS");

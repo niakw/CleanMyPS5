@@ -5,7 +5,7 @@
 | Interface TV / DualSense | Oui | Syntaxe JS | Oui | **À faire** | Non |
 | Autodiagnostic répertoires | 15 chemins candidats prédéfinis | Fixture | Oui | **À faire** | Non |
 | Scanner captures et etaHEN | Oui | Fixture | Oui | **À faire** | Non |
-| Smart Care coordonné (lecture seule) | Oui, cinq familles de contrôles | Tests JS + scanner | Oui | **À faire** | Non |
+| Analyse intelligente coordonné (lecture seule) | Oui, cinq familles de contrôles | Tests JS + scanner | Oui | **À faire** | Non |
 | Recherche et filtres médias | Oui (type, jeu, nom, date, taille) | Tests JS | Oui | **À faire** | Non |
 | Carte de l'espace par jeu | Oui, sur captures connues | Tests JS | Oui | **À faire** | Non |
 | Catalogue homebrews et plugins | Oui, borné/protégé | Fixture | Oui | **À faire** | Non |
@@ -41,8 +41,8 @@ La compilation ELF dépend dorénavant de la validation des tests natifs et des 
 
 Le jalon P0 propose aussi une variante séparée `cleanmyps5-browser.elf`, utilisant l'API de lancement du navigateur documentée par l'exemple du SDK. Elle reste **expérimentale** jusqu'au test matériel et ne change pas la variante serveur seul.
 
-## Développement après audit CleanMyMac
+## Développement après audit outil générique
 
-Une vue Smart Care **de lecture seule** coordonne désormais l'inventaire, les contrôles de chemins, montages, etaHEN et doublons. Elle affiche quels contrôles ont réussi, les comptes et tailles à examiner, sans parler d'espace libéré. Les captures peuvent être filtrées à partir de 50 Mio ou par ancienneté de modification (90 jours), **pas** par date d'ouverture. Voir [l'audit de parité](FUNCTIONAL_PARITY_CLEANMYMAC.md) pour les fonctionnalités manquantes avant nettoyage réel.
+Une vue Analyse intelligente **de lecture seule** coordonne désormais l'inventaire, les contrôles de chemins, montages, etaHEN et doublons. Elle affiche quels contrôles ont réussi, les comptes et tailles à examiner, sans parler d'espace libéré. Les captures peuvent être filtrées à partir de 50 Mio ou par ancienneté de modification (90 jours), **pas** par date d'ouverture. Voir [l'audit de parité](FUNCTIONAL_PARITY_outil générique.md) pour les fonctionnalités manquantes avant nettoyage réel.
 
 Un catalogue borné des répertoires homebrew et des fichiers de plugins etaHEN est maintenant disponible en lecture seule, avec taille nominale, compte de fichiers et limite de profondeur. Les éléments sont marqués **protégés** jusqu'à une validation croisée des registres de titres, chemins et plugins actifs. Cela ne correspond pas à un désinstalleur ni à un détecteur d'orphelins fiable.
