@@ -32,7 +32,7 @@ static int send_all(int fd,const void*data,size_t n){
  while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return 0;p+=k;n-=k;}return 1;
 }
 static void reply(int fd,int code,const char*type,const void*body,size_t size){
- const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==405?"Method Not Allowed":"Internal Server Error";
+ const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==405?"Method Not Allowed":code==413?"Content Too Large":"Internal Server Error";
  char header[1024];
  int n=snprintf(header,sizeof(header),
    "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n"

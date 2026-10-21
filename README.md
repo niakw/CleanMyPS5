@@ -9,6 +9,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
 - Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
 - Media filters for large captures (250 MiB), title IDs and same-size candidates. **Same size is not a verified duplicate.**
+- Local, opt-in **JPEG/PNG preview** of allowlisted captures from the native service (32 MiB per file, file type checked by signature, no arbitrary path access). JXR and videos are not yet previewable.
 - Opt-in **exact duplicate comparison**: checks a capped sample of screenshots byte for byte (128 images, max 32 MiB/image, max 128 MiB read). Not a whole-console exhaustive search and never deletes files.
 - Opt-in **etaHEN diagnostic**: inspect known `/data/ps5_autoloader`, `/data/pldmgr`, USB autoloads and `/data/etaHEN/config.ini` without exposing file contents. Neither missing configs nor references conclusively prove runtime status.
 - File modification timestamps and bounded scan coverage/partial warnings.
