@@ -3,4 +3,6 @@
 #include <stddef.h>
 /* JSON report; read-only. Caller owns returned buffer and must free(). */
 char *cmp5_report(const char *root, size_t *len);
+/* Anonymous aggregate, same bounds as full report; does not expose paths. */
+char *cmp5_overview(const char *root, size_t *len);
 #endif
