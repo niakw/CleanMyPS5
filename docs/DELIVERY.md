@@ -6,6 +6,8 @@
 
 **Moteur d'inspection :** `dist/native/cleanmyps5-helper.elf` est un payload distinct, en lecture seule, sans ouverture du navigateur, qui sert le diagnostic sur `127.0.0.1:8877`. Le frontend installé sonde directement quelques chemins de *son propre sandbox*, et en énumère au maximum 256 entrées immédiates par dossier accessible. Il tente également de lire l'espace disponible (`fstatvfs`) pour chaque montage réellement accessible, sans établir de total SSD. Il peut demander le bilan agrégé `/api/overview` au helper, sans récupérer ni afficher de noms de fichiers. Le frontend ne bénéficie pas automatiquement des privilèges du helper. Ce dernier doit actuellement être lancé séparément avec un chargeur compatible.
 
+**Intégrité du livrable :** `dist/native/manifest.json` contient les empreintes SHA-256 de l'archive du titre et du helper distinct. `scripts/native_release_manifest.py check dist/native PPSA99784 <revision-40-hex>` permet de contrôler un dossier construit avec la révision indiquée. L'archive est inspectée pour refuser la traversée de chemins, les liens symboliques, les titres erronés et les entrées dupliquées. L'intégrité des fichiers ne démontre pas la compatibilité sur une console.
+
 **Ancienne interface :** `make package` continue à fournir l'ancien `cleanmyps5.elf` avec interface WebKit, jusqu'à ce que les fonctions de consultation soient portées sur le frontend natif. C'est un produit de transition et non le format d'installation cible.
 
 ## Fonctions réellement disponibles
