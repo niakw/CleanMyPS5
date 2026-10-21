@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -134,8 +134,49 @@ function filesPage(root){
  const summary=node("div","review-bar");const nums=add(node("div"),node("small","","Sélection actuelle"),node("strong","",bytes(selectedBytes())));
  add(summary,nums,button("Examiner ma sélection  →","primary",review));
  section.append(summary);root.append(section);
+ if(state.tab==="media")root.append(duplicatesPanel());
  if(state.tab==="residuals")root.append(diagnosticsPanel());
  root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
+}
+function duplicatesPanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Doublons vérifiés","Comparaison octet par octet"));
+ if(state.backend){
+  const b=button(state.checkingDuplicates?"Comparaison en cours…":state.duplicates?"Relancer la vérification":"Comparer le contenu des captures","primary",checkDuplicates);
+  b.disabled=state.checkingDuplicates;panel.append(b);
+ }else panel.append(node("p","muted","Pour vérifier des doublons, ouvre le tableau de bord avec le service natif. L'import JSON n'autorise pas la lecture des fichiers."));
+ if(state.duplicates){
+  const data=state.duplicates;
+  const n=data.groups.length;const label=n?"Groupes identiques confirmés : "+n:"Aucune paire confirmée dans l'échantillon analysé.";
+  panel.append(node("p","dup-head",label));
+  for(const group of data.groups.slice(0,30)){
+   const el=node("div","dup-group");
+   add(el,node("strong","",group.paths.length+" fichiers identiques · "+bytes(group.bytesEach)+" chacun"));
+   const list=node("div","dup-list");
+   for(const path of group.paths)list.append(node("div","",path));
+   el.append(list);panel.append(el);
+  }
+  panel.append(node("p","filter-warning",data.filesConsidered+" images considérées, "+bytes(data.comparedBytes)+" lus en comparaison. "+(data.partial?"Analyse partielle : certains doublons n'ont pas été vérifiés.":"Limites appliquées : cette vérification n'est pas exhaustive pour toute la console.")+" Images de 32 Mio maximum, 128 images et 128 Mio de lectures au plus. Aucun fichier supprimé."));
+ }
+ return panel;
+}
+async function checkDuplicates(){
+ if(!state.backend||state.checkingDuplicates)return;
+ state.checkingDuplicates=true;render();
+ try{
+  const resp=await fetch("/api/duplicates",{cache:"no-store"});
+  if(!resp.ok)throw Error("Comparaison indisponible : "+resp.status);
+  const raw=await resp.text();if(raw.length>1024*1024)throw Error("Réponse trop grande");
+  const data=JSON.parse(raw);
+  if(data.schemaVersion!==1||data.mode!=="read-only"||data.algorithm!=="byte-compare"||
+     !Array.isArray(data.groups)||data.groups.length>128)throw Error("Format non reconnu");
+  const groups=data.groups.map(g=>({
+   bytesEach:Number.isSafeInteger(g.bytesEach)&&g.bytesEach>=0?g.bytesEach:0,
+   paths:Array.isArray(g.paths)?g.paths.slice(0,128).map(p=>String(p).slice(0,2048)):[]
+  })).filter(g=>g.paths.length>=2);
+  state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,comparedBytes:Number(data.comparedBytes)||0,partial:data.partial===true};
+ }catch(e){announce("Comparaison impossible : "+e.message);}
+ finally{state.checkingDuplicates=false;render();}
 }
 function diagnosticsPanel(){
  const panel=node("section","data-panel");

@@ -17,6 +17,8 @@ with tempfile.TemporaryDirectory() as temp:
  for d in (image,clip,eta,other):d.mkdir(parents=True)
  (image/"image.png").write_bytes(b"A"*35)
  (image/"sidecar.dat").write_text("metadata")
+ (image/"same.jpg").write_bytes(b"A"*35)
+ (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
  (clip/"clip.MP4").write_bytes(b"B"*150)
  (eta/"debug.log").write_text("LOG")
  (eta/"config.ini").write_text("toolbox_auto_start = 1\nPRIVATE_TOKEN=not-for-web")
@@ -50,11 +52,11 @@ with tempfile.TemporaryDirectory() as temp:
   assert status["target"]=="host"
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  assert set(entries)=={"image.png","clip.MP4","debug.log","config.ini"},entries
+  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
   assert isinstance(entries["image.png"]["modifiedAt"],int)
-  assert report["stats"]["items"]==4
+  assert report["stats"]["items"]==6
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
@@ -69,6 +71,15 @@ with tempfile.TemporaryDirectory() as temp:
   assert (eta/"config.ini").read_text().startswith("toolbox_auto_start = 1")
   with urlopen(base+"/api/diagnostics",timeout=3) as r:diag=json.load(r)
   assert diag["checked"]==11
+  with urlopen(base+"/api/duplicates",timeout=5) as r:dup=json.load(r)
+  assert dup["algorithm"]=="byte-compare"
+  assert dup["mode"]=="read-only"
+  assert len(dup["groups"])==1,dup
+  match={Path(p).name for p in dup["groups"][0]["paths"]}
+  assert match=={"image.png","same.jpg"},match
+  assert dup["groups"][0]["bytesEach"]==35
+  assert dup["filesConsidered"]==3
+  assert dup["partial"] is False
   found={x["path"]:x for x in diag["entries"]}
   assert found["/data/ps5_autoloader/autoload.txt"]["status"]=="etaHEN-reference"
   assert found["/data/pldmgr/autoload.txt"]["status"]=="no-reference"

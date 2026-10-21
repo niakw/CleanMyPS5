@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 #include "inventory.h"
 #include "diagnostics.h"
+#include "duplicates.h"
 #include "assets.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -61,6 +62,10 @@ static void handle(int fd,const char*root){
   static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"host\",\"api\":1}";
 #endif
   reply(fd,200,"application/json; charset=utf-8",status,sizeof(status)-1);
+ }else if(strcmp(path,"/api/duplicates")==0){
+  size_t size=0;char*json=cmp5_duplicates(root,&size);
+  if(!json){plain(fd,500,"Duplicate analysis unavailable");return;}
+  reply(fd,200,"application/json; charset=utf-8",json,size);free(json);
  }else if(strcmp(path,"/api/diagnostics")==0){
   size_t size=0;char*json=cmp5_diagnostics(root,&size);
   if(!json){plain(fd,500,"Diagnostic unavailable");return;}
