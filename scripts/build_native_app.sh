@@ -23,6 +23,7 @@ test "$(git -C "$tmp/native-toolchain" rev-parse HEAD)" = "$pin" || {
 # Overlay only CleanMyPS5-authored UI. The external toolchain stays in a
 # temporary directory; its source/history/branding never enter this repo.
 cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
+cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
 python3 "$project/scripts/make_native_icon.py" "$tmp/native-toolchain/sce_sys/icon0.png"
 # Never distribute the toolchain demo title backgrounds/audio.
 rm -f -- "$tmp/native-toolchain/sce_sys/pic0.dds" \
