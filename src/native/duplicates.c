@@ -85,16 +85,14 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
 }
 // Open only within the capture namespace; verify that the file is the one
 // snapshotted during enumeration, not a replacement after the scan.
-static int open_snapshot(const char*root,const Item*i){
- size_t rootlen=strlen(root);
- if(strncmp(i->path,root,rootlen)!=0)return -1;
- const char*rel=i->path+rootlen;
- if(rootlen&&root[rootlen-1]!='/'){if(*rel!='/')return -1;rel++;}
- static const char prefix[]="user/av_contents/photo/";
- if(strncmp(rel,prefix,sizeof(prefix)-1)!=0||!rel[sizeof(prefix)-1]||strlen(rel)>=PATH_CAP)return -1;
- for(const char*p=rel;*p;p++)if(*p=='\\'||(p>rel&&*p=='/'&&p[-1]=='/'))return -1;
- char copy[PATH_CAP];memcpy(copy,rel,strlen(rel)+1);
- int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(fd<0)return -1;
+static int open_snapshot(int root_fd,const Item*i){
+ static const char prefix[]="/user/av_contents/photo/";
+ const char*path=i->path;
+ if(strncmp(path,prefix,sizeof(prefix)-1)!=0||!path[sizeof(prefix)-1]||strlen(path)>=PATH_CAP)return -1;
+ for(const char*p=path;*p;p++)if(*p=='\\'||(p>path&&*p=='/'&&p[-1]=='/'))return -1;
+ char copy[PATH_CAP];memcpy(copy,path+1,strlen(path));
+ // Reuse the already-opened namespace, even if its original pathname moves.
+ int fd=dup(root_fd);if(fd<0)return -1;
  char*save=NULL,*part=strtok_r(copy,"/",&save);
  while(part){
   if(part[0]=='.'){close(fd);return -1;}
@@ -122,10 +120,10 @@ static ssize_t read_full(int fd,unsigned char*buf,size_t count){
  }return (ssize_t)got;
 }
 // 1 = byte-identical, 0 = different, -1 = inconclusive. Adds actual transferred bytes to budget.
-static int compare(const char*root,const Item*a,const Item*b,size_t *budget,const Scan*s){
- int x=open_snapshot(root,a),y=-1;
+static int compare(int root_fd,const Item*a,const Item*b,size_t *budget,const Scan*s){
+ int x=open_snapshot(root_fd,a),y=-1;
  if(x<0)return -1;
- y=open_snapshot(root,b);
+ y=open_snapshot(root_fd,b);
  if(y<0){close(x);return -1;}
  struct stat sa,sb;
  if(fstat(x,&sa)||fstat(y,&sb)||!S_ISREG(sa.st_mode)||!S_ISREG(sb.st_mode)||
@@ -165,14 +163,19 @@ static void quote(Json*b,const char*s){
 }
 char *cmp5_duplicates(const char*root,size_t*length){
  if(length)*length=0;if(!root||!length)return NULL;
- struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
- Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
+ // Open first, then inspect that descriptor. A pathname pre-check can race
+ // with replacement; every subsequent lookup stays anchored to this handle.
+ int root_fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(root_fd<0)return NULL;
+ struct stat st;
+ if(fstat(root_fd,&st)||!S_ISDIR(st.st_mode)){close(root_fd);return NULL;}
+ Scan*s=(Scan*)calloc(1,sizeof(Scan));
+ if(!s){close(root_fd);return NULL;}
  uint64_t started=now_ns();
  if(started && started<=UINT64_MAX-MAX_MONOTONIC_NS)s->deadline=started+MAX_MONOTONIC_NS;
  // Open the known parent components relative to anchored directory handles.
- char dir[PATH_CAP],step[PATH_CAP];size_t rootlen=strlen(root);
- int fd=-1,valid=rootlen<sizeof(dir);
- if(valid){memcpy(dir,root,rootlen+1);fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);valid=fd>=0;}
+ char dir[PATH_CAP]="/",step[PATH_CAP];
+ int fd=dup(root_fd),valid=fd>=0;
  const char*parts[]={"user","av_contents","photo"};
  for(size_t k=0;valid&&k<3;k++){
   if(!join(step,sizeof(step),dir,parts[k])){valid=0;break;}
@@ -184,7 +187,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
  else{if(fd>=0)close(fd);s->partial=1;}
  qsort(s->items,s->count,sizeof(Item),cmp_items);
  Json out={0};out.data=(char*)calloc(1,JSON_CAP);
- if(!out.data){free(s);return NULL;}
+ if(!out.data){close(root_fd);free(s);return NULL;}
  add(&out,"{\"schemaVersion\":1,\"mode\":\"read-only\",\"algorithm\":\"byte-compare\",\"groups\":[");
  size_t budget=0;int groups=0;
  for(size_t i=0;i<s->count;i++){
@@ -194,7 +197,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
   for(size_t j=i+1;j<s->count&&s->items[j].size==s->items[i].size;j++){
    if(s->items[j].paired)continue;
    if(budget>=IO_CAP||expired(s)){s->partial=1;break;}
-   int result=compare(root,&s->items[i],&s->items[j],&budget,s);
+   int result=compare(root_fd,&s->items[i],&s->items[j],&budget,s);
    if(result==1){matches[nm++]=j;s->items[j].paired=1;}
    else if(result<0)s->partial=1;
   }
@@ -202,7 +205,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
    if(groups++)add(&out,",");
    char n[40];snprintf(n,sizeof(n),"%llu",(unsigned long long)s->items[i].size);
    add(&out,"{\"bytesEach\":");add(&out,n);add(&out,",\"paths\":[");
-   for(size_t k=0;k<nm;k++){if(k)add(&out,",");const char *canonical=strstr(s->items[matches[k]].path,"/user/av_contents/photo/");quote(&out,canonical?canonical:s->items[matches[k]].path);}
+   for(size_t k=0;k<nm;k++){if(k)add(&out,",");quote(&out,s->items[matches[k]].path);}
    add(&out,"]}");
   }
  }
@@ -211,7 +214,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
   s->count,s->visits,s->hardlinksSkipped,budget,s->partial?"true":"false");
- add(&out,stats);free(s);
+ add(&out,stats);close(root_fd);free(s);
  if(out.error){free(out.data);return NULL;}
  *length=out.len;return out.data;
 }
