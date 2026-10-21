@@ -80,7 +80,14 @@ static const char *analyze(char *bytes,int toolbox){
     if(strcmp(value,"1")==0)status="enabled";
     else if(strcmp(value,"0")==0)status="disabled";
    }
-  }else if(contains_ci(text,"etahen"))status="etaHEN-reference";
+  }else if(text[0]!='!'&&text[0]!='@'){
+   // Known autoload formats contain one active binary filename per line.
+   // Delay directives and comments must not count as payload references.
+   if(contains_ci(text,".elf")||contains_ci(text,".bin")){
+    if(contains_ci(text,"etahen"))status="etaHEN-reference";
+    else if(strcmp(status,"no-reference")==0)status="other-payload-reference";
+   }
+  }
  }
  return status;
 }

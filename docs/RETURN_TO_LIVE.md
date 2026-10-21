@@ -43,3 +43,7 @@ Les guides de Sony font notamment la distinction entre « restaurer les paramèt
 ## Données récentes
 
 Lorsqu'un nouvel inventaire est chargé dans l'interface, les coches manuelles et la date d'un ancien diagnostic sont remises à zéro. Un nouveau contrôle Return to Live invalide d'abord les anciens résultats autoload, chemins et homebrews ; un résultat non disponible n'est jamais hérité d'un précédent contrôle.
+
+## Détection des autoloads
+
+Le diagnostic reconnaît les références à des binaires ELF/BIN dans les fichiers `autoload.txt` connus, et différencie les entrées etaHEN des autres charges. Les lignes vides, commentaires et commandes de temporisation `!<ms>` sont ignorés. Il ne lit pas la liste du gestionnaire graphique lorsqu'elle est stockée ailleurs, ni les processus en RAM : une absence de référence n'est **jamais** une preuve d'absence d'exploit.

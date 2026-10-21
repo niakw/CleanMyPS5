@@ -109,3 +109,9 @@ assert.equal(quiet.reviewCount,0);
 assert.equal(quiet.canGuaranteeSafe,false);
 assert.equal(quiet.findings.find(x=>x.id==="psn").level,"unknown");
 console.log("Return to Live assessment: PASS");
+
+const extraPayload=assessOfficial({
+ diagnostics:{entries:[{path:"/loader",status:"other-payload-reference"}]},
+ homebrew:{partial:false,items:[]},preflight:{entries:[]}
+});
+assert.equal(extraPayload.findings.find(x=>x.id==="autoload").level,"review");

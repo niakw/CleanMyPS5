@@ -200,7 +200,7 @@ with tempfile.TemporaryDirectory() as temp:
   assert all("directory_link" not in p and "/data/" not in p for group in dup["groups"] for p in group["paths"])
   found={x["path"]:x for x in diag["entries"]}
   assert found["/data/ps5_autoloader/autoload.txt"]["status"]=="etaHEN-reference"
-  assert found["/data/pldmgr/autoload.txt"]["status"]=="no-reference"
+  assert found["/data/pldmgr/autoload.txt"]["status"]=="other-payload-reference"
   assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
   assert "PRIVATE_TOKEN" not in json.dumps(diag)

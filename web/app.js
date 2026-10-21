@@ -112,14 +112,14 @@ function assessOfficial(snapshot){
  const entries=Array.isArray(snapshot.diagnostics?.entries)?snapshot.diagnostics.entries:[];
  const loaded=Array.isArray(snapshot.homebrew?.items)?snapshot.homebrew.items:[];
  const preflight=Array.isArray(snapshot.preflight?.entries)?snapshot.preflight.entries:[];
- const refs=entries.filter(x=>x.status==="etaHEN-reference");
+ const refs=entries.filter(x=>x.status==="etaHEN-reference"||x.status==="other-payload-reference");
  const toolbox=entries.filter(x=>x.status==="enabled");
  const inaccessible=entries.filter(x=>["unreadable","too-large","unknown"].includes(x.status)).length;
  const hasDirectory=preflight.some(x=>x.path==="/data/etaHEN"&&x.status==="accessible");
  const partial=snapshot.homebrew?.partial===true||!snapshot.diagnostics||!snapshot.homebrew||!snapshot.preflight;
  const findings=[
   {id:"autoload",label:"Chargement automatique",level:refs.length?"review":!snapshot.diagnostics?"unknown":"limited",
-   detail:refs.length?refs.length+" référence(s) au payload dans les configurations contrôlées.":!snapshot.diagnostics?"Analyse locale non exécutée.":"Aucune référence repérée dans l'échantillon connu, sans preuve d'absence d'autres chargeurs."},
+   detail:refs.length?refs.length+" fichier(s) de configuration avec référence ELF/BIN active dans les emplacements contrôlés.":!snapshot.diagnostics?"Analyse locale non exécutée.":"Aucune référence reconnue dans l'échantillon connu, sans preuve d'absence d'autres chargeurs."},
   {id:"toolbox",label:"Démarrage de la Toolbox",level:toolbox.length?"review":!snapshot.diagnostics?"unknown":"limited",
    detail:toolbox.length?"Option de démarrage observée comme activée.":"État limité aux fichiers de configuration connus."},
   {id:"homebrew",label:"Homebrews et plugins",level:loaded.length?"review":!snapshot.homebrew?"unknown":"limited",
@@ -710,7 +710,8 @@ function diagnosticsPanel(){
   const entries=state.diagnostics.entries;const list=node("div","diag-list");
   const statuses={
     "etaHEN-reference":"Référence etaHEN trouvée : chargement possible, pas nécessairement actif",
-    "no-reference":"Pas de référence etaHEN dans ce fichier",
+    "other-payload-reference":"Autre ELF/BIN référencé dans l'autoloader : vérifier le gestionnaire",
+    "no-reference":"Aucune référence ELF/BIN identifiée dans ce fichier",
     "enabled":"Démarrage Toolbox activé dans la configuration",
     "disabled":"Démarrage Toolbox désactivé",
     "unknown":"Réglage non identifié",
@@ -724,10 +725,10 @@ function diagnosticsPanel(){
   }
   if(!entries.length)list.append(node("p","muted","Aucun des fichiers de configuration connus n'a été trouvé. Cela n'exclut pas un autoloader propre à une application ou une injection en mémoire."));
   panel.append(list);
-  const hasAuto=entries.some(x=>x.status==="etaHEN-reference");
+  const hasAuto=entries.some(x=>x.status==="etaHEN-reference"||x.status==="other-payload-reference");
   const hasToolbox=entries.some(x=>x.status==="enabled");
   let guidance;
-  if(hasAuto)guidance="Une référence à etaHEN subsiste dans un autoloader. Vérifiez son activation depuis son propre gestionnaire, puis effectuez un arrêt complet et redémarrez sans relancer le payload. Retirer un ELF du gestionnaire principal ne désactive pas nécessairement tous les chargeurs.";
+  if(hasAuto)guidance="Une référence à un payload persiste dans un autoloader connu. Vérifiez sa configuration avec le gestionnaire correspondant, puis effectuez un arrêt complet sans relancer l'environnement modifié. Les deux mécanismes de chargement automatique peuvent être indépendants.";
   else if(hasToolbox)guidance="Le démarrage de la Toolbox est activé dans la configuration etaHEN, mais ce paramètre ne prouve pas qu'etaHEN soit encore chargé. Inspectez les réglages du payload réellement utilisé et vérifiez après redémarrage complet.";
   else guidance="Aucune référence active n'a été détectée dans les fichiers connus. L'ancienne Toolbox peut encore être injectée en mémoire, ou un autre autoloader peut être en cause. Vérifiez après extinction complète, avant de relancer le jailbreak.";
   panel.append(notice("Interprétation suggérée",guidance));
