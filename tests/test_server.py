@@ -69,6 +69,31 @@ with tempfile.TemporaryDirectory() as temp:
    assert second_status["app"]=="CleanMyPS5"
    assert time.monotonic()-started<2
   finally:stalled.close()
+  # Four stalled partial headers exhaust the fixed worker pool. The fifth
+  # connection must get a bounded 503 rather than creating unbounded threads.
+  busy=[]
+  try:
+   for _ in range(4):
+    sock=socket.create_connection(("127.0.0.1",port),timeout=2)
+    sock.sendall((f"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n").encode())
+    busy.append(sock)
+   time.sleep(.15)
+   try:
+    urlopen(base+"/api/status",timeout=2)
+    raise AssertionError("Expected saturated worker pool to reject fifth client")
+   except HTTPError as err:assert err.code==503
+  finally:
+   for sock in busy:sock.close()
+  # Reclaimed slots become usable immediately after the partial sockets close.
+  for _ in range(40):
+   try:
+    with urlopen(base+"/api/status",timeout=2) as r:
+     assert json.load(r)["app"]=="CleanMyPS5"
+    break
+   except HTTPError as err:
+    if err.code!=503:raise
+    time.sleep(.05)
+  else:raise AssertionError("Workers failed to recover from saturation")
   assert status["version"]==(Path(__file__).resolve().parents[1]/"VERSION").read_text().strip()
   # Reject DNS-rebinding Host values and cross-site browser origins.
   for headers in ({"Host":"unexpected.example:1234"},

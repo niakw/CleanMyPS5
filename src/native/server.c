@@ -37,7 +37,13 @@ static void startup_notification(void){}
 #endif
 static int send_all(int fd,const void*data,size_t n){
  const char*p=(const char*)data;
- while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return 0;p+=k;n-=k;}return 1;
+ while(n){
+  ssize_t k=send(fd,p,n,0);
+  if(k<0&&errno==EINTR)continue;
+  if(k<=0)return 0;
+  p+=k;n-=(size_t)k;
+ }
+ return 1;
 }
 static void reply(int fd,int code,const char*type,const void*body,size_t size){
  const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==403?"Forbidden":code==405?"Method Not Allowed":code==413?"Content Too Large":code==416?"Range Not Satisfiable":code==503?"Service Unavailable":"Internal Server Error";
