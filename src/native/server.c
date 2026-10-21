@@ -317,6 +317,10 @@ static void handle(int fd,const char*root,int port){
   size_t size=0;char*json=cmp5_diagnostics(root,&size);
   if(!json){plain(fd,500,"Diagnostic unavailable");return;}
   reply(fd,200,"application/json; charset=utf-8",json,size);free(json);
+ }else if(strcmp(path,"/api/overview")==0){
+  size_t size=0;char*json=cmp5_overview(root,&size);
+  if(!json){plain(fd,500,"Summary unavailable");return;}
+  reply(fd,200,"application/json; charset=utf-8",json,size);free(json);
  }else if(strcmp(path,"/api/report")==0){
   size_t size=0;char*json=cmp5_report(root,&size);
   if(!json){plain(fd,500,"Scan unavailable");return;}
