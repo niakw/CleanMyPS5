@@ -494,11 +494,18 @@ function preflightPanel(){
   const counters=new Map();
   for(const item of state.preflight.entries){
    const line=node("div","preflight-line");
-   add(line,node("strong","",item.path),node("span","",labels[item.status]||labels.unknown));
+   const label=labels[item.status]||labels.unknown;
+   const detail=item.status==="denied"?" — Permission refusée par le système":
+    item.readOnlyMount?" — Volume en lecture seule":
+    item.status==="accessible"?(item.writableHint?" — Écriture théoriquement permise":" — Écriture non autorisée ou indéterminée"):
+    item.status==="symlink"?" — Lien non suivi par sécurité":"";
+   add(line,node("strong","",item.path),node("span","",label+detail));
    list.append(line);counters.set(item.status,(counters.get(item.status)||0)+1);
   }
   panel.append(list);
-  panel.append(node("p","filter-warning","Seulement "+state.preflight.entries.length+" emplacements prédéfinis. Des dossiers absents peuvent être normaux. Ce contrôle ne prouve ni la compatibilité WebKit, ni le bon fonctionnement des API système."));
+  const denied=counters.get("denied")||0;
+  if(denied)panel.append(notice("Accès limités",denied+" chemin(s) refusé(s) par le système. Vérifie les privilèges réellement accordés au lanceur et au contexte de l'application native."));
+  panel.append(node("p","filter-warning","Ces tests ne modifient rien. Un droit apparent d'écriture ne signifie pas que l'effacement est sûr : la galerie, les bases de données et les applications peuvent dépendre des fichiers."));
  }
  return panel;
 }
@@ -515,7 +522,10 @@ async function runPreflight(){
      !Array.isArray(data.entries)||data.entries.length>64)throw Error("Diagnostic non conforme");
   state.preflight={entries:data.entries.map(x=>({
    path:typeof x.path==="string"?x.path.slice(0,120):"(inconnu)",
-   status:typeof x.status==="string"?x.status.slice(0,40):"unknown"
+   status:typeof x.status==="string"?x.status.slice(0,40):"unknown",
+   reason:typeof x.reason==="string"?x.reason.slice(0,80):"",
+   writableHint:x.writableHint===true,
+   readOnlyMount:x.readOnlyMount===true
   }))};
  }catch(error){announce("Diagnostic impossible : "+error.message);}
  finally{state.preflightBusy=false;render();}
