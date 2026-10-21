@@ -12,6 +12,18 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#ifdef PS5
+// Notification only: never persist an icon, app entry or settings modification.
+typedef struct { char reserved[45]; char message[3075]; } Cmp5Notify;
+int sceKernelSendNotificationRequest(int, Cmp5Notify*, size_t, int);
+static void startup_notification(void){
+ Cmp5Notify info;memset(&info,0,sizeof(info));
+ snprintf(info.message,sizeof(info.message),"CleanMyPS5: interface http://127.0.0.1:8877/ (lecture seule)");
+ sceKernelSendNotificationRequest(0,&info,sizeof(info),0);
+}
+#else
+static void startup_notification(void){}
+#endif
 static int send_all(int fd,const void*data,size_t n){
  const char*p=(const char*)data;
  while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return 0;p+=k;n-=k;}return 1;
@@ -77,6 +89,7 @@ int main(int argc,char**argv){
  bindaddr.sin_family=AF_INET;bindaddr.sin_port=htons((uint16_t)port);bindaddr.sin_addr=ip;
  if(bind(fd,(struct sockaddr*)&bindaddr,sizeof(bindaddr))!=0||listen(fd,16)!=0){perror("bind/listen");close(fd);return 1;}
  printf("CleanMyPS5 http://%s:%d/ (read-only)\n",address,port);fflush(stdout);
+ startup_notification();
  for(;;){int client=accept(fd,NULL,NULL);if(client<0){if(errno==EINTR)continue;break;}handle(client,root);close(client);}
  close(fd);return 0;
 }
