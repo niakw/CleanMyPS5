@@ -39,3 +39,7 @@ Les guides de Sony font notamment la distinction entre « restaurer les paramèt
 - Les cases de la checklist n'attestent que les déclarations manuelles de l'utilisateur et n'entraînent aucune opération.
 - Le rapport exporté ne comporte pas de chemins de fichiers personnels, ni de contenu de configuration, ni de données de compte.
 - Une validation réelle sur console PS5 13.60 est nécessaire, distincte des compilations ELF et des tests host.
+
+## Données récentes
+
+Lorsqu'un nouvel inventaire est chargé dans l'interface, les coches manuelles et la date d'un ancien diagnostic sont remises à zéro. Un nouveau contrôle Return to Live invalide d'abord les anciens résultats autoload, chemins et homebrews ; un résultat non disponible n'est jamais hérité d'un précédent contrôle.

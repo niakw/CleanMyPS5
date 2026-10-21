@@ -72,6 +72,7 @@ function useReport(report,isDemo=false,live=false){
   state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.mediaKind="all";state.mediaQuery="";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
   state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;state.homebrew=null;
+  state.officialCheckedAt=null;state.officialManual.clear();
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
@@ -201,6 +202,7 @@ function officialPage(root){
 async function scanOfficial(){
  if(!state.backend||state.officialBusy)return;
  state.officialBusy=true;state.officialCheckedAt=null;
+ state.diagnostics=null;state.homebrew=null;state.preflight=null;
  try{
   const steps=[["Autoloaders et Toolbox",diagnoseNow],
    ["Homebrews et plugins",getHomebrew],
