@@ -14,7 +14,7 @@ ps5: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/nat
 	$(PS5_CC) $(CFLAGS) -DPS5 -Isrc/native -Ibuild/generated $(NATIVE) -o cleanmyps5.elf
 ps5-browser: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
-	$(PS5_CC) $(CFLAGS) -DPS5 -DCMP5_AUTO_BROWSER -Isrc/native -Ibuild/generated $(NATIVE) -o cleanmyps5-browser.elf
+	$(PS5_CC) $(CFLAGS) -DPS5 -DCMP5_AUTO_BROWSER -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-browser.elf
 clean:
 	rm -rf build cleanmyps5.elf cleanmyps5-browser.elf
 .PHONY: all server ps5 ps5-browser clean
