@@ -1,8 +1,10 @@
 # CleanMyPS5
 
-Une seule application PS5 d’analyse du stockage, avec interface française utilisable à la manette et moteur natif C intégrés dans **un unique `cleanmyps5.elf`**. Version : voir `VERSION`.
+Le projet comporte désormais **une interface native PS5 expérimentale**, distincte du moteur C d'analyse et de son ancien frontend WebKit. Les deux processus communiquent par l'interface locale `127.0.0.1:8877`. Version du moteur : voir `VERSION`.
 
-Cette livraison finalise l’analyse générale en **lecture seule**. Elle ne constitue pas un nettoyeur avec effacement : aucune suppression, désinstallation, purge, réparation, écriture système ou modification de configuration n’est disponible. Les tests sur hôte et la compilation PS5 ne prouvent pas le fonctionnement sur une console 13.60.
+Le frontend natif utilise VideoOut et la manette et se compile comme un véritable titre homebrew `PPSA99784` (`eboot.bin`, métadonnées et icône). La compilation et les vérifications sur hôte sont réalisées, **mais aucune validation sur une PS5 13.60 n'est encore établie**. L'interface native n'a pas encore la parité fonctionnelle avec la version navigateur.
+
+Le moteur est toujours **en lecture seule** : aucune suppression, désinstallation, purge, réparation, écriture système ou changement de configuration n'est actuellement autorisé. La détection de permissions n'accorde pas de privilèges et ne démontre pas qu'un effacement serait sûr.
 
 ## Fonctions disponibles
 
@@ -27,13 +29,15 @@ Par analyse : 30 000 entrées visitées, 10 000 fichiers, 2 500 entrées par rac
 
 Les groupes du catalogue d’applications peuvent être imbriqués. Ne pas additionner leurs tailles. Une date correspond à `mtime`, pas à la création ni au dernier accès. Les bases système et fichiers associés aux médias restent protégés. Aucun fichier FTP privé n’est incorporé au programme ou à sa démonstration.
 
-## Livrable unique et lancement
+## Application native et démarrage
 
-`make package` produit `dist/CleanMyPS5-elf.zip`, contenant **un seul exécutable**, `cleanmyps5.elf`, accompagné de sa somme SHA-256, d’un manifeste et des guides.
+`make native-app` utilise une chaîne de compilation communautaire épinglée, génère `dist/native/PPSA99784.zip` (dossier d'application `PPSA99784/`, `eboot.bin`, `sce_sys/`, `sce_module/`) et `dist/native/cleanmyps5-helper.elf`, payload silencieux qui fournit le backend local **sans ouvrir de navigateur**. La CI publie ces deux fichiers comme artefact de build.
 
-Charger cet ELF avec un lanceur de payloads compatible déjà présent sur la console. Le programme tente d’ouvrir son interface à `http://127.0.0.1:8877/` dans le navigateur PS5. Ce lancement et la navigation DualSense demandent encore une validation physique sur 13.60. L’URL loopback se consulte sur la console ; elle n’expose pas le service sur le réseau local. Le navigateur doit rester disponible dans l’environnement de lancement.
+La copie de `PPSA99784/` dans `/data/homebrew/` nécessite un gestionnaire de titres homebrew qui sait enregistrer les applications ; cela n'est **pas** un PKG Sony signé ni une installation automatique. Le helper se lance séparément avec un chargeur de payloads compatible.
 
-**Itemzflow / ShadowMount :** cette livraison n’est pas un dossier d’application native. Cette voie attend un véritable `eboot.bin` avec démarrage, imports, runtime et `sce_sys/param.json` adaptés. Renommer le payload ELF ne suffit pas. Aucun faux dossier homebrew n’est livré. Aucun déploiement sur console n’est effectué par les scripts.
+L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le frontend WebKit et le payload intégré. Il est conservé le temps de porter les autres fonctionnalités vers l'application native. Ne pas confondre le prototype natif avec une version finale de nettoyage.
+
+**Procédure de test et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
 
 ## Développement et compilation
 
@@ -59,4 +63,4 @@ Les règles déclaratives sont compilées dans le binaire ; elles ne télécharg
 
 [Livraison et limites](docs/DELIVERY.md) · [Matrice fonctionnelle](docs/FEATURE_MATRIX.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation PS5](docs/VALIDATION_PS5_13_60.md)
 
-Licence GPL-3.0. Les sources correspondantes accompagnent la livraison.
+Licence GPL-3.0. Les sources sont conservées dans le dépôt GPL-3.0 et les dépendances externes restent identifiées dans la documentation du port natif.
