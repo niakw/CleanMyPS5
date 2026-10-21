@@ -24,7 +24,10 @@ typedef struct {dev_t dev; ino_t ino;} Identity;
 typedef struct {const char *id;char path[PATH_CAP];const char *status;size_t items,visits;unsigned long long bytes;} Coverage;
 typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,summary_only;char warnings[32][256];size_t nw;uint64_t deadline;
  Identity seen[VISIT_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;
- size_t media,logs,caches,residuals,other;} Scan;
+ size_t media,logs,caches,residuals,other;
+ size_t largeMedia,oldMedia,oldLargeMedia;
+ unsigned long long largeMediaBytes;
+ time_t scanEpoch;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
  return 0;
@@ -103,7 +106,15 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  if(!s->summary_only && s->b.len>OUTPUT_CAP-65536u){s->stopped=1;warn(s,"Limite de taille du rapport",path);return;}
  if(s->items>=ITEM_CAP){s->stopped=1;warn(s,"Nombre limite de fichiers",path);return;}
  if(s->summary_only){
-  if(!strcmp(category,"media"))s->media++;
+  if(!strcmp(category,"media")){
+   s->media++;
+   const int large=(uint64_t)size>=50ULL*1024ULL*1024ULL;
+   const int old=s->scanEpoch>90*86400 && info->st_mtime>0 &&
+     info->st_mtime<=s->scanEpoch-90*86400;
+   if(large){s->largeMedia++;s->largeMediaBytes+=(unsigned long long)size;}
+   if(old)s->oldMedia++;
+   if(old&&large)s->oldLargeMedia++;
+  }
   else if(!strcmp(category,"logs"))s->logs++;
   else if(!strcmp(category,"cache"))s->caches++;
   else if(!strcmp(category,"residuals"))s->residuals++;
@@ -249,6 +260,7 @@ char *cmp5_overview(const char *root,size_t *len){
  if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
  Scan*s=(Scan*)calloc(1,sizeof(*s));if(!s)return NULL;
  s->summary_only=1;
+ s->scanEpoch=time(NULL);
  uint64_t now=monotonic_ns();
  if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
  for(size_t i=0;i<sizeof(cmp5_roots)/sizeof(*cmp5_roots);i++)
@@ -269,9 +281,9 @@ char *cmp5_overview(const char *root,size_t *len){
   else if(!strcmp(status,"unavailable"))unavailable++;
   else other++;
  }
- char *out=(char*)calloc(1,768);
+ char *out=(char*)calloc(1,1024);
  if(out){
-  int n=snprintf(out,768,
+  int n=snprintf(out,1024,
    "{\"schemaVersion\":1,\"mode\":\"metadata-only\",\"cleanupValidated\":false,"
    "\"scope\":\"bounded-known-roots\",\"files\":%zu,\"visited\":%zu,"
    "\"nominalBytes\":%llu,\"partial\":%s,"
@@ -279,13 +291,17 @@ char *cmp5_overview(const char *root,size_t *len){
    "\"residuals\":%zu,\"other\":%zu},"
    "\"coverage\":{\"complete\":%zu,\"partial\":%zu,\"absent\":%zu,"
    "\"unavailable\":%zu,\"other\":%zu},"
+   "\"review\":{\"largeMedia\":%zu,\"oldMedia\":%zu,\"oldLargeMedia\":%zu,"
+   "\"largeMediaNominalBytes\":%llu,\"validatedForDeletion\":false,"
+   "\"minLargeBytes\":52428800,\"oldDays\":90},"
    "\"limits\":{\"maxVisited\":30000,\"maxItems\":10000,"
    "\"maxEntriesPerRoot\":2500},"
    "\"note\":\"Nominal bytes only; never an estimate of deletable data\"}",
    s->items,s->visits,s->bytes,(s->stopped||s->partial)?"true":"false",
    s->media,s->logs,s->caches,s->residuals,s->other,
-   complete,part,absent,unavailable,other);
-  if(n<0||(size_t)n>=768){free(out);out=NULL;}
+   complete,part,absent,unavailable,other,
+   s->largeMedia,s->oldMedia,s->oldLargeMedia,s->largeMediaBytes);
+  if(n<0||(size_t)n>=1024){free(out);out=NULL;}
   else *len=(size_t)n;
  }
  free(s);
