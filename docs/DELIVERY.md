@@ -4,7 +4,7 @@
 
 **Titre PS5 natif expérimental :** l'archive `dist/native/PPSA99784.zip` contient un dossier de titre avec `eboot.bin`, `sce_sys/param.json`, une icône originale et le runtime requis. La compilation de ce format, ses métadonnées et ses tests hôte passent en CI. Ce n'est pas un PKG retail et **son fonctionnement sur PS5 13.60 reste non validé**.
 
-**Moteur d'inspection :** `dist/native/cleanmyps5-helper.elf` est un payload distinct, en lecture seule, sans ouverture du navigateur, qui sert le diagnostic sur `127.0.0.1:8877`. Le frontend installé est capable de sonder directement quelques chemins de *son propre sandbox*, mais ne bénéficie pas automatiquement des privilèges du helper. Ce dernier doit actuellement être lancé séparément avec un chargeur compatible.
+**Moteur d'inspection :** `dist/native/cleanmyps5-helper.elf` est un payload distinct, en lecture seule, sans ouverture du navigateur, qui sert le diagnostic sur `127.0.0.1:8877`. Le frontend installé sonde directement quelques chemins de *son propre sandbox*, et en énumère au maximum 256 entrées immédiates par dossier accessible. Il peut demander le bilan agrégé `/api/overview` au helper, sans récupérer ni afficher de noms de fichiers. Le frontend ne bénéficie pas automatiquement des privilèges du helper. Ce dernier doit actuellement être lancé séparément avec un chargeur compatible.
 
 **Ancienne interface :** `make package` continue à fournir l'ancien `cleanmyps5.elf` avec interface WebKit, jusqu'à ce que les fonctions de consultation soient portées sur le frontend natif. C'est un produit de transition et non le format d'installation cible.
 
@@ -15,7 +15,7 @@
 | Interface native VideoOut, quatre écrans, manette | Code présent, compilation native CI réussie ; test DualSense sur console requis |
 | Sonde native de chemins applicatifs et des emplacements /data, /user | Ouverture **lecture seule**, indication accessible / inaccessible ou absent ; les codes d'erreur ne sont pas encore différenciés côté titre |
 | Diagnostic détaillé de montages et permissions | Disponible dans le helper, sous réserve de sa visibilité filesystem |
-| Inventaire captures, journaux, caches, homebrews, installations | En lecture seule dans le helper ; pas encore disponible dans tous les écrans natifs |
+| Inventaire captures, journaux, caches, homebrews, installations | Scanner en lecture seule dans le helper ; résumé agrégé désormais consultable dans l'écran Analyse natif, liste détaillée non portée |
 | Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | En lecture seule dans l'ancienne interface WebKit ; portage natif à faire |
 | Effacement captures, caches, doublons ou résidus | **Désactivé**, aucun mécanisme d'effacement validé |
 | Restauration, quarantaine, synchronisation base multimédia | Non implémentés |
