@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -321,10 +321,54 @@ async function getVolumes(){
  }catch(error){announce("Mesure impossible : "+error.message);}
  finally{state.volumeBusy=false;render();}
 }
+function closeReview(){
+ const overlay=document.querySelector("#review-overlay");if(!overlay)return;
+ overlay.remove();state.reviewOpen=false;
+ const previous=state.previousFocus;state.previousFocus=null;
+ if(previous?.isConnected)previous.focus({preventScroll:true});
+}
+function exportReview(items){
+ if(items.length>500){announce("Export limité à 500 éléments, réduis la sélection.");return;}
+ if(typeof Blob==="undefined"||typeof URL.createObjectURL!=="function"){
+  announce("L'export local n'est pas pris en charge sur ce navigateur.");return;
+ }
+ const plan={
+  schemaVersion:1,kind:"review-only",createdAt:new Date().toISOString(),
+  warning:"Ce plan ne prouve pas que les fichiers sont inutiles. Aucune suppression n'a ete effectuee.",
+  items:items.map(x=>({path:x.path,bytes:x.bytes,category:x.category,risk:x.risk,reason:x.reason}))
+ };
+ const content=JSON.stringify(plan,null,2);
+ const blob=new Blob([content],{type:"application/json"});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement("a");link.href=url;link.download="cleanmyps5-plan.json";
+ document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+ announce("Plan de revue exporté, sans aucune modification sur la PS5.");
+}
 function review(){
  const selected=state.items.filter(x=>state.selected.has(x.id));if(!selected.length){announce("Sélectionne d'abord un ou plusieurs éléments.");return;}
- const names=selected.slice(0,3).map(x=>x.path.split("/").pop()).join(", ");
- announce(selected.length+" élément(s) · "+bytes(selectedBytes())+" · prévisualisation uniquement ("+names+")");
+ state.reviewOpen=true;state.previousFocus=document.activeElement;
+ const shade=node("div","preview-shade");shade.id="review-overlay";
+ shade.setAttribute("role","dialog");shade.setAttribute("aria-modal","true");
+ shade.setAttribute("aria-label","Revue avant nettoyage");
+ const panel=node("div","preview-modal review-modal");
+ const top=node("div","preview-header");
+ const title=add(node("div"),node("strong","","Revue de la sélection"),node("span","",selected.length+" éléments · "+bytes(selectedBytes())+" inventoriés"));
+ const close=button("✕  Fermer","secondary",closeReview);close.id="review-close";
+ add(top,title,close);panel.append(top);
+ panel.append(notice("Aucune suppression possible à ce stade.","Une sélection n'indique pas qu'un fichier est inutile. Le plan sert uniquement à examiner les candidats sur ordinateur."));
+ const items=node("div","review-items");
+ for(const item of selected.slice(0,100)){
+  const line=node("div","review-item");
+  add(line,node("span","",item.path),node("strong","",bytes(item.bytes)));
+  items.append(line);
+ }
+ if(selected.length>100)items.append(node("p","muted","+"+(selected.length-100)+" éléments non affichés dans cette prévisualisation."));
+ panel.append(items);
+ const actions=node("div","review-actions");
+ add(actions,button("Exporter le plan JSON","primary",()=>exportReview(selected)),button("Retour à l'analyse","secondary",closeReview));
+ panel.append(actions);shade.append(panel);document.body.append(shade);
+ close.focus({preventScroll:true});
 }
 function changePage(delta){
  const maxPage=Math.max(0,Math.ceil(filtered().length/state.pageSize)-1);
@@ -343,9 +387,10 @@ function render(preserveFocus=false){
 }
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
 $("#report-input").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>8*1024*1024)throw Error("Rapport supérieur à 8 Mo");useReport(JSON.parse(await file.text()));}catch(err){announce("Import refusé : "+err.message);}e.target.value="";});
-function back(){if(state.preview){closePreview();return;}if(state.tab!=="overview")go("overview");else announce("Vous êtes sur l'accueil.");}
+function back(){if(state.reviewOpen){closeReview();return;}if(state.preview){closePreview();return;}if(state.tab!=="overview")go("overview");else announce("Vous êtes sur l'accueil.");}
 function switchTab(n){const keys=Object.keys(labels);go(keys[(keys.indexOf(state.tab)+n+keys.length)%keys.length]);}
-function targets(){return [...document.querySelectorAll(".focusable:not(:disabled)")].filter(el=>el.getClientRects().length);}
+function targets(){const modal=document.querySelector("#review-overlay, #preview-overlay");
+ return [...(modal||document).querySelectorAll(".focusable:not(:disabled)")].filter(el=>el.getClientRects().length);}
 function move(dir){
  const all=targets();if(!all.length)return;const active=document.activeElement;const cur=all.includes(active)?active:all[0];if(!all.includes(active)){cur.focus();return;}
  const r=cur.getBoundingClientRect();const cx=r.left+r.width/2,cy=r.top+r.height/2;
@@ -356,6 +401,21 @@ function move(dir){
  if(best){best.focus({preventScroll:true});best.scrollIntoView({block:"nearest",inline:"nearest"});}
 }
 document.addEventListener("keydown",e=>{
+ if(state.reviewOpen){
+  if(["Escape","Backspace"].includes(e.key)){e.preventDefault();closeReview();}
+  else if(e.key==="Tab"){
+   const controls=[...document.querySelectorAll("#review-overlay .focusable:not(:disabled)")];
+   if(controls.length){
+    const current=controls.indexOf(document.activeElement);
+    if((e.shiftKey&&current===0)||(!e.shiftKey&&current===controls.length-1)){
+      e.preventDefault();controls[e.shiftKey?controls.length-1:0].focus();
+    }
+   }
+  }else if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){
+   e.preventDefault();move(e.key.slice(5).toLowerCase());
+  }
+  return;
+ }
  if(state.preview){
   if(["Escape","Backspace"].includes(e.key)){e.preventDefault();closePreview();}
   else if(e.key==="Tab"){e.preventDefault();document.querySelector("#preview-close")?.focus();}
@@ -374,6 +434,12 @@ function gamepadLoop(){
  const pads=navigator.getGamepads?.()||[];const p=Array.from(pads).find(Boolean);
  if(p){const pressed=new Set();p.buttons.forEach((b,i)=>{if(b.pressed)pressed.add(i);});
  const edge=i=>pressed.has(i)&&!previousButtons.has(i);
+ if(state.reviewOpen){
+  if(edge(1))closeReview();
+  else if(edge(0))document.activeElement?.click();
+  if(edge(12))move("up");if(edge(13))move("down");if(edge(14))move("left");if(edge(15))move("right");
+  previousButtons=pressed;requestAnimationFrame(gamepadLoop);return;
+ }
  if(state.preview){
   if(edge(0)||edge(1))closePreview();
   previousButtons=pressed;requestAnimationFrame(gamepadLoop);return;

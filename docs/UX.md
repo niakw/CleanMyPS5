@@ -52,3 +52,9 @@ Le navigateur PS5 et sa prise en charge Gamepad devront être vérifiés physiqu
 - Read-only preview opens in a controller-friendly overlay. Circle / Escape dismisses it, restoring the prior focus.
 - Imported JSON inventory never unlocks media access; demos are never treated as real files.
 - Videos and JXR/HDR screenshots are not yet displayable through this endpoint. No thumbnail conversion/cache is written to disk.
+
+## Review workflow (v0.4)
+
+The action **Examiner ma sélection** now opens a distinct dialog listing selected files and their occupied size, with explicit notice that none are verified to be useless. There is no delete button. Users may download a **review-only JSON manifest** on browsers that support downloads; this is a client-side file operation and does not modify PS5 files. A 500-entry cap prevents accidental massive exports.
+
+Circle closes the review panel and restores the previously selected control. Gamepad focus is constrained to modal actions.

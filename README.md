@@ -7,6 +7,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 **The dashboard now talks directly to a read-only native C HTTP scanner.** A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
+- Controller-friendly review dialog; optionally exports a local JSON manifest for manual inspection, explicitly **not** an executable cleanup script.
 - Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
 - Media filters for large captures (250 MiB), title IDs and same-size candidates. **Same size is not a verified duplicate.**
 - Local, opt-in **JPEG/PNG preview** of allowlisted captures from the native service (32 MiB per file, file type checked by signature, no arbitrary path access). JXR and videos are not yet previewable.
