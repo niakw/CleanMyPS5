@@ -160,7 +160,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
    add(&out,"]}");
   }
  }
- char stats[256];
+ char stats[512];
  snprintf(stats,sizeof(stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
