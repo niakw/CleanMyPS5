@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <dirent.h>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -62,16 +63,20 @@ Screen screen=Screen::menu;
 std::uint32_t previous=0;
 Link engine=Link::unchecked;
 unsigned available=0,denied=0,absent=0;
-bool local_checked=false;
-bool local_readable[4]{};
+enum class LocalAccess { unchecked, unavailable, opened, listable, enumeration_denied };
+LocalAccess local_access[4]{};
 
 void probe_local() noexcept {
- // The native title does not inherit the permissions of the payload/FTP server.
- // Open only for reading. Never create, modify, or unlink a filesystem entry.
+ // A directory may be openable yet not enumerable under the title sandbox.
+ // Do not equate open(O_RDONLY) with directory listing or deletion rights.
  for(std::size_t i=0;i<4;i++){
   const int fd=open(local_paths[i],0);
-  local_readable[i]=fd>=0;
-  if(fd>=0)(void)close(fd);
+  if(fd<0){local_access[i]=LocalAccess::unavailable;continue;}
+  (void)close(fd);
+  if(i==0){local_access[i]=LocalAccess::opened;continue;}
+  DIR*dir=opendir(local_paths[i]);
+  if(dir){local_access[i]=LocalAccess::listable;(void)closedir(dir);}
+  else local_access[i]=LocalAccess::enumeration_denied;
  }
  local_checked=true;
 }
@@ -207,9 +212,14 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_access(ps5::demo::Canvas&canvas) noexcept {
  for(std::size_t i=0;i<4;i++){
+  const auto state=local_access[i];
+  const char*detail=state==LocalAccess::unchecked?"NON TESTE":
+    state==LocalAccess::opened?"FICHIER OUVERT":
+    state==LocalAccess::listable?"DOSSIER LISTABLE":
+    state==LocalAccess::enumeration_denied?"OUVERT MAIS LISTE BLOQUEE":
+    "INACCESSIBLE OU ABSENT";
   panel(canvas,353+static_cast<unsigned>(i)*144,local_names[i],
-    !local_checked?"NON TESTE":local_readable[i]?"OUVERT EN LECTURE":
-    "INACCESSIBLE OU ABSENT",local_checked&&local_readable[i]?Color::cyan:Color::yellow);
+    detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
  }
  footer(canvas,"X VERIFIER A NOUVEAU    CERCLE RETOUR");
 }
