@@ -116,3 +116,7 @@ const extraPayload=assessOfficial({
  homebrew:{partial:false,items:[]},preflight:{entries:[]}
 });
 assert.equal(extraPayload.findings.find(x=>x.id==="autoload").level,"review");
+
+const {OFFICIAL_ROUTES}=require("../web/app.js");
+assert.deepEqual(OFFICIAL_ROUTES.map(x=>x.id),["undecided","stop","update","reset","reinstall"]);
+assert.equal(OFFICIAL_ROUTES.some(x=>/garanti/i.test(x.impact)),true);

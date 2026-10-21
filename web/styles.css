@@ -51,3 +51,5 @@
 .official-step-copy{display:grid;gap:7px}
 .official-step-copy strong{font-size:13px;color:#e2e9fa}
 .official-step-copy p{font-size:12px;color:#a9bddb;line-height:1.5;margin:0}
+
+.official-route-pickers{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;margin:14px 0}.official-route-pickers button{text-align:left;min-height:55px;padding:12px 14px;font-size:12px}.official-route-pickers .chosen{background:#6350a660;border-color:#a68aff;color:#fff}

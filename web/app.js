@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage",official:"Return to Live"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false,officialBusy:false,officialStage:"",officialCheckedAt:null,officialManual:new Set()};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false,officialBusy:false,officialStage:"",officialCheckedAt:null,officialManual:new Set(),officialRoute:"undecided"};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -99,6 +99,13 @@ function categories(){
 }
 function notice(title,desc){const el=node("div","notice");add(el,node("span","","ⓘ"),add(node("div"),node("strong","",title),node("div","",desc)));return el;}
 
+const OFFICIAL_ROUTES=[
+ {id:"undecided",title:"Comparer d'abord",impact:"Aucune action automatique. Comparer les conséquences avant de choisir."},
+ {id:"stop",title:"Arrêter les payloads",impact:"Conserve le firmware actuel. N'efface pas les installations, modifications ou historiques déjà existants."},
+ {id:"update",title:"Mise à jour officielle",impact:"Change le firmware ; le jailbreak peut devenir inutilisable. Ce n'est pas une opération d'effacement des traces ou des données utilisateur."},
+ {id:"reset",title:"Réinitialiser la console",impact:"Efface les données utilisateur et paramètres associés. Ce n'est pas la réinstallation complète du logiciel système."},
+ {id:"reinstall",title:"Réinstaller le logiciel système",impact:"Procédure officielle de dernier recours : efface les données et réinstalle le système. Aucun effet garanti sur l'historique distant ou le statut du compte."}
+];
 const RETURN_STEPS=[
  {id:"backup",title:"Sauvegarder les données personnelles",detail:"Vérifier les sauvegardes de jeux, les captures et les données importantes sur un support adapté. L'export du rapport JSON ne sauvegarde aucun fichier."},
  {id:"autoload",title:"Désactiver les chargements automatiques",detail:"Contrôler le gestionnaire utilisé, les fichiers d'autoload connus et les extensions configurées. Ne pas effacer un dossier actif à l'aveugle."},
@@ -179,6 +186,23 @@ function officialPage(root){
   }
  }
  root.append(actions);
+ const pathsPanel=node("section","data-panel");
+ add(pathsPanel,panelHeader("Quelle méthode officielle envisager ?","Information seulement"));
+ const pickers=node("div","official-route-pickers");
+ for(const route of OFFICIAL_ROUTES){
+  const b=button(route.title,"secondary"+(state.officialRoute===route.id?" chosen":""),()=>{
+   state.officialRoute=route.id;render();
+   document.querySelector('[data-official-route="'+route.id+'"]')?.focus({preventScroll:true});
+  });
+  b.dataset.officialRoute=route.id;
+  b.setAttribute("aria-pressed",String(state.officialRoute===route.id));
+  pickers.append(b);
+ }
+ pathsPanel.append(pickers);
+ const choice=OFFICIAL_ROUTES.find(r=>r.id===state.officialRoute)||OFFICIAL_ROUTES[0];
+ pathsPanel.append(notice(choice.title,choice.impact));
+ pathsPanel.append(node("p","filter-warning","Aucune option ne garantit l'absence de suspension. Pour toute mise à jour ou réinstallation, consulter la procédure officielle et sauvegarder les données avant de commencer."));
+ root.append(pathsPanel);
  const guide=node("section","data-panel");
  add(guide,panelHeader("Liste de préparation","Validation manuelle uniquement"));
  const checkList=node("div","official-checklist");
@@ -245,6 +269,7 @@ function exportOfficialPlan(){
   date:new Date().toISOString(),
   checked:!!state.officialCheckedAt,
   manualSteps:RETURN_STEPS.map(step=>({id:step.id,checked:state.officialManual.has(step.id)})),
+  chosenRoute:state.officialRoute,
   findings:assessment.findings,
   reviewCount:assessment.reviewCount,unknownCount:assessment.unknownCount,
   guaranteesAccess:false,filesDeleted:0,
@@ -1056,6 +1081,6 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,RETURN_STEPS};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,RETURN_STEPS,OFFICIAL_ROUTES};
 }
 

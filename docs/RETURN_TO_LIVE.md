@@ -48,3 +48,7 @@ Lorsqu'un nouvel inventaire est chargé dans l'interface, les coches manuelles e
 ## Détection des autoloads
 
 Le diagnostic reconnaît les références à des binaires ELF/BIN dans les fichiers `autoload.txt` connus, et différencie les entrées etaHEN des autres charges. Les lignes vides, commentaires et commandes de temporisation `!<ms>` sont ignorés. Il ne lit pas la liste du gestionnaire graphique lorsqu'elle est stockée ailleurs, ni les processus en RAM : une absence de référence n'est **jamais** une preuve d'absence d'exploit.
+
+## Choix de la procédure
+
+La section Return to Live permet de comparer **sans lancer d'opération** cinq états : examiner, arrêter les payloads, mettre à jour, réinitialiser ou réinstaller le logiciel système. Elle ne confond pas la mise à jour avec une réinstallation et ne suggère jamais qu'une réinitialisation effacerait des données que Sony possède déjà. Le choix de la procédure figure dans le plan JSON exporté, sans lancer de modification.

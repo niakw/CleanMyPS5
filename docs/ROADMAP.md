@@ -49,4 +49,4 @@ Un catalogue borné des répertoires homebrew et des fichiers de plugins etaHEN 
 
 ## Return to Live
 
-Parcours de préparation ajouté : revue des références d'autoload, état des homebrews/plugins et chemins PS5 connus, sept vérifications manuelles et export JSON. **Aucune garantie anti-ban ni détection complète du firmware/PSN.** Les opérations de réinitialisation et réinstallation restent des procédures officielles à réaliser sur la console, après sauvegarde, jamais par l'application. État : implémenté côté UI, validation FW 13.60 à effectuer.
+Parcours de préparation ajouté : revue des références d'autoload, état des homebrews/plugins et chemins PS5 connus, huit vérifications manuelles et export JSON. **Aucune garantie anti-ban ni détection complète du firmware/PSN.** Les opérations de réinitialisation et réinstallation restent des procédures officielles à réaliser sur la console, après sauvegarde, jamais par l'application. État : implémenté côté UI, validation FW 13.60 à effectuer.
