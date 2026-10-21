@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -24,7 +24,7 @@ function safeItems(report){
   });
 }
 function useReport(report,isDemo=false){
-  const items=safeItems(report);state.items=items;state.selected.clear();state.demo=isDemo;
+  const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);state.items=items;state.selected.clear();state.demo=isDemo;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
   state.warnings=Array.isArray(report.warnings)?report.warnings.slice(0,10).map(String):[];
@@ -51,9 +51,14 @@ function notice(title,desc){const el=node("div","notice");add(el,node("span","",
 function overview(root){
  root.append(setTitle("Prenez soin de votre PS5.","Une vision claire de votre stockage, des captures volumineuses aux fichiers résiduels. Rien n'est supprimé sans vérification."));
  const hero=node("section","hero");const c=node("div","hero-copy");
- add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une console propre. L'esprit tranquille."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre sélection, sans risque pour la console.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
+ add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une console propre. L'esprit tranquille."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre sélection, sans risque pour la console.":state.backend?"Le scanner local est disponible. Lancez un inventaire en lecture seule de vos captures et fichiers etaHEN.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
  const actions=node("div","hero-buttons");
- add(actions,button("Importer un rapport  ↗","primary",()=>$("#report-input").click()),button(state.items.length?"Voir les éléments":"Explorer la démo","secondary",()=>state.items.length?go("media"):demo()));
+ if(state.backend){
+  add(actions,button(state.scanning?"Analyse en cours…":"Analyser ma PS5  ↗","primary",scanNow),button("Importer un rapport","secondary",()=>$("#report-input").click()));
+  if(state.scanning)actions.firstChild.disabled=true;
+ }else{
+  add(actions,button("Importer un rapport  ↗","primary",()=>$("#report-input").click()),button(state.items.length?"Voir les éléments":"Explorer la démo","secondary",()=>state.items.length?go("media"):demo()));
+ }
  c.append(actions);add(hero,c,add(node("div","hero-orb"),node("span","orb-shape","✧")));root.append(hero);
  root.append(add(node("div","section-header"),node("h3","","Les espaces à explorer"),node("span","section-note",state.demo?"Données de démonstration":state.items.length?"Données du rapport":"Aucune mesure pour l'instant")));root.append(categories());
  const panel=node("section","data-panel");add(panel,panelHeader("Sécurité avant tout","Suppression désactivée"),notice("Un rapport n'est pas une preuve qu'un fichier est inutile.","Captures personnelles, sauvegardes, dossiers d'applications et données système restent protégés tant qu'aucune règle de nettoyage n'est validée."));root.append(panel);
@@ -90,7 +95,7 @@ function render(preserveFocus=false){
  const before=preserveFocus&&document.activeElement?.classList.contains("file-item")?Array.from(document.querySelectorAll(".file-item")).indexOf(document.activeElement):-1;
  const content=$("#content");content.replaceChildren();content.className="main-wrap";
  document.querySelectorAll("[data-tab]").forEach(b=>{const active=b.dataset.tab===state.tab;b.classList.toggle("active",active);b.setAttribute("aria-current",active?"page":"false");});
- $("#breadcrumb").textContent=labels[state.tab];$("#source-label").textContent=state.source==="none"?"Aucun scan chargé":state.demo?"Données fictives":"Rapport : "+state.source;
+ $("#breadcrumb").textContent=labels[state.tab];$("#source-label").textContent=state.source==="none"?(state.backend?"Scanner local connecté":"Aucun scan chargé"):state.demo?"Données fictives":"Rapport : "+state.source;
  if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else filesPage(content);
  if(before>=0){const item=document.querySelectorAll(".file-item")[before];if(item)item.focus({preventScroll:true});}
 }
@@ -130,4 +135,27 @@ function gamepadLoop(){
  requestAnimationFrame(gamepadLoop);
 }
 window.addEventListener("gamepadconnected",()=>announce("Manette connectée · ✕ sélectionner · ◯ retour"));
+async function findNativeServer(){
+ try{
+  const response=await fetch("/api/status",{cache:"no-store"});
+  if(!response.ok)return;
+  const status=await response.json();
+  if(status.app==="CleanMyPS5"&&status.mode==="read-only"&&status.api===1){state.backend=true;render();}
+ }catch(_error){/* Static preview: importing JSON remains available. */}
+}
+async function scanNow(){
+ if(!state.backend||state.scanning)return;
+ state.scanning=true;render();
+ try{
+  const response=await fetch("/api/report",{cache:"no-store"});
+  if(!response.ok)throw Error("Service d'analyse indisponible ("+response.status+")");
+  const type=response.headers.get("content-type")||"";
+  if(!type.includes("application/json"))throw Error("Réponse non JSON");
+  const raw=await response.text();
+  if(raw.length>8*1024*1024)throw Error("Rapport trop volumineux");
+  useReport(JSON.parse(raw));
+ }catch(error){announce("Analyse impossible : "+error.message);}
+ finally{state.scanning=false;render();}
+}
 render();requestAnimationFrame(gamepadLoop);
+findNativeServer();

@@ -8,11 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
+      - name: Host C++ inventory configuration
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Build
+      - name: Build inventory fixture
         run: cmake --build build --parallel 2
       - name: Scanner regression
         run: ctest --test-dir build --output-on-failure
+      - name: Native C service build
+        run: make server
+      - name: Native HTTP integration
+        run: python3 tests/test_server.py build/cleanmyps5-server
       - name: JavaScript syntax
         run: node --check web/app.js
