@@ -96,3 +96,7 @@ La page Stockage présente une carte à barres des dix jeux/identifiants captura
 ## Recherche et type de média
 
 L'écran Captures & vidéos dispose de filtres Images / Vidéos / Tous, d'une saisie texte par nom de fichier ou identifiant de jeu et du tri existant. La recherche ne parcourt que les fichiers inclus dans le rapport courant. La navigation par la manette peut cibler la recherche, mais l'ouverture du clavier virtuel PS5 devra être validée sur firmware 13.60.
+
+## Accès rapides inspirés des My Tools (sans copier leurs ressources)
+
+L'accueil ajoute cinq raccourcis manette qui ouvrent directement les filtres utiles : captures volumineuses, captures anciennes, éléments de même taille, installations/homebrews et carte de stockage. Les contrôles sont des boutons de navigation, pas des commandes d'effacement ni des réparations automatiques. Ils fonctionnent également avec un rapport importé et montrent la limite du rapport.

@@ -34,7 +34,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Cloud Cleanup : iCloud/Drive/Dropbox | — | Aucune intégration cloud macOS sur console ; ne pas modifier les sauvegardes PS Plus |
 | AI Clutter : modèles et caches IA | — | Non applicable de manière générale ; nécessite des fournisseurs homebrew particuliers |
 | Informations santé/alertes de disque | 🟡 | Mesures statvfs manuelles, sans notification de seuil ni preuve d'accès au SSD complet |
-| Outils rapides : hub personnel | ❌ | Navigation par rubriques ; pas encore de vue de raccourcis favoris |
+| Outils rapides : hub personnel | 🟡 | Cinq raccourcis sûrs sur l’accueil (captures lourdes/anciennes, tailles égales, homebrew, stockage). Pas de favoris configurables ni de nettoyage automatique |
 | Résultats après nettoyage / journal | ❌ | Aucun effacement actuellement, donc aucun rapport post-opération ni vérification d'espace libéré |
 | My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
 | Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |

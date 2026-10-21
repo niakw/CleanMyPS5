@@ -120,6 +120,7 @@ function overview(root){
  }
  if(state.smartSummary)root.append(smartCarePanel(state.smartSummary));
  root.append(add(node("div","section-header"),node("h3","","Les espaces à explorer"),node("span","section-note",state.demo?"Données de démonstration":state.items.length?"Données du rapport":"Aucune mesure pour l'instant")));root.append(categories());
+ root.append(quickToolsPanel());
  const panel=node("section","data-panel");add(panel,panelHeader("Sécurité avant tout","Suppression désactivée"),notice("Un rapport n'est pas une preuve qu'un fichier est inutile.","Captures personnelles, sauvegardes, dossiers d'applications et données système restent protégés tant qu'aucune règle de nettoyage n'est validée."));root.append(panel);
  if(state.backend)root.append(preflightPanel());
  if(state.scanStats){const summary=node("section","data-panel");
@@ -128,6 +129,25 @@ function overview(root){
   root.append(summary);
  }
  if(state.warnings.length){const w=node("section","data-panel");add(w,panelHeader("Messages de l'analyse","Informations"),...state.warnings.map(s=>node("p","muted",s)));root.append(w);}
+}
+function quickToolsPanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Accès rapides","Fonctions utilisables à la manette"));
+ const tools=node("div","quick-tools");
+ const choices=[
+  ["Captures volumineuses",()=>{state.mediaMode="large";go("media");}],
+  ["Captures anciennes",()=>{state.mediaMode="old";go("media");}],
+  ["Fichiers de même taille",()=>{state.mediaMode="size";go("media");}],
+  ["Homebrews et etaHEN",()=>go("residuals")],
+  ["Carte de stockage",()=>go("storage")]
+ ];
+ for(const [label,action] of choices){
+  const b=button(label+"  ›","secondary quick-tool",action);
+  tools.append(b);
+ }
+ panel.append(tools);
+ panel.append(node("p","filter-warning","Ces raccourcis n'effectuent aucune suppression ; ils ouvrent les modules d'inspection. Le contenu disponible dépend du rapport chargé."));
+ return panel;
 }
 function smartCarePanel(summary){
  const panel=node("section","data-panel smart-care-panel");
