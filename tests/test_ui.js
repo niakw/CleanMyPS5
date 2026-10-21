@@ -158,3 +158,13 @@ assert.equal(metadataExported.items[0].modifiedAt,1700000000);
 assert.equal(metadataExported.cleanupValidated,false);
 assert.equal(metadataExported.coverage[0].status,"partial");
 console.log("Complete metadata export preserves protected entries and dates: PASS");
+
+const {categoryItems}=require("../web/app.js");
+const cacheRows=[{path:"/system/cache/cache.db",category:"cache",bytes:1,modifiedAt:0},
+ {path:"/data/AnyApp/logs/run.log",category:"logs",bytes:60*1024*1024,modifiedAt:0},
+ {path:"/data/AnyApp/eboot.elf",category:"residuals",bytes:60*1024*1024,modifiedAt:0}];
+assert.deepEqual(categoryItems(cacheRows,"cache",{query:"AnyApp"}).map(x=>x.category),["logs"]);
+assert.deepEqual(categoryItems(cacheRows,"cache",{mode:"over50"}).map(x=>x.category),["logs"]);
+assert.deepEqual(categoryItems(cacheRows,"cache",{query:"absent"}),[]);
+assert.deepEqual(categoryItems(cacheRows,"residuals",{query:"eboot"}).map(x=>x.category),["residuals"]);
+console.log("Cache/log category filtering respects search and size filters: PASS");

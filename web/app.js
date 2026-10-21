@@ -551,13 +551,16 @@ function mediaMatches(item,options){
     !item.titleId.toLocaleLowerCase("fr").includes(query))return false;
  return true;
 }
+function categoryItems(items,tab,options={}){
+ return items.filter(item=>{
+  const matches=tab==="cache"?["cache","logs"].includes(item.category):
+    tab==="residuals"?["residuals","other"].includes(item.category):
+    ["overview","storage"].includes(tab)||item.category===tab;
+  return matches&&(tab==="media"||genericMatches(item,options));
+ });
+}
 function filtered(){
- const items=state.items.filter(x=>{
-  if(state.tab==="cache")return ["cache","logs"].includes(x.category);
-  if(state.tab==="storage"||state.tab==="overview")return true;
-  if(state.tab==="residuals"){if(!["residuals","other"].includes(x.category))return false;}
-  else if(x.category!==state.tab)return false;
-  if(state.tab!=="media"&&!genericMatches(x,{query:state.mediaQuery,mode:state.mediaMode}))return false;
+ const items=categoryItems(state.items,state.tab,{query:state.mediaQuery,mode:state.mediaMode}).filter(x=>{
   if(state.tab==="media"){
    if(!mediaMatches(x,{kind:state.mediaKind,query:state.mediaQuery}))return false;
    if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
@@ -1161,6 +1164,6 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={inventoryExport,safeCoverage,genericMatches,safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,officialPlan,RETURN_STEPS,OFFICIAL_ROUTES};
+ module.exports={categoryItems,inventoryExport,safeCoverage,genericMatches,safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,officialPlan,RETURN_STEPS,OFFICIAL_ROUTES};
 }
 
