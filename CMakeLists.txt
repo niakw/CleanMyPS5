@@ -29,3 +29,6 @@ enable_testing()
 add_test(NAME native_server_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_server.py $<TARGET_FILE:cleanmyps5-server>)
 
 add_test(NAME generic_inventory_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_inventory.py $<TARGET_FILE:cleanmyps5-server>)
+
+add_executable(cmp5-duplicates-root-race tests/test_duplicates_root_race.c)
+add_test(NAME duplicates_root_race COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_duplicates_root_race.py $<TARGET_FILE:cmp5-duplicates-root-race>)

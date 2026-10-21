@@ -1,10 +1,16 @@
-# Livraison 0.10.0-analysis
+# Livraison 0.10.1-analysis
 
 ## Ce qui est livré
 
 Un exécutable `cleanmyps5.elf` contenant le scanner, les règles et toute l’interface. Pas de deuxième variante, de serveur à lancer sur un ordinateur, de téléchargement de scripts ou de fichiers de la console. L’application reste strictement en lecture seule.
 
 L’archive source contient les modifications complètes et les tests. Les rapports de métadonnées d’une console réelle et les images de référence fournies pendant la conception ne font pas partie du code ou des archives applicatives.
+
+## Correctif de sécurité 0.10.1
+
+Le comparateur de doublons ouvre la racine une seule fois, vérifie le descripteur avec fstat et réutilise ce même accès pendant l’énumération et les comparaisons. Il ne vérifie plus un chemin avec lstat avant de le rouvrir. Remplacer ou renommer la racine pendant l’analyse ne redirige plus les lectures vers un autre arbre. Les identités des fichiers restent revalidées après ouverture.
+
+Un test déterministe remplace le chemin de la racine juste après son ouverture et vérifie que seuls les fichiers de l’arbre initial sont comparés. Il couvre également le refus d’une racine symbolique ou non répertoire.
 
 ## Périmètre établi à partir des besoins
 
