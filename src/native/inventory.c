@@ -8,13 +8,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #define PATH_CAP 2048
 #define OUTPUT_CAP (8u*1024u*1024u)
 #define VISIT_CAP 30000u
 #define ITEM_CAP 10000u
 #define DEPTH_CAP 12
+#define SCAN_MAX_NANOSECONDS 5000000000ULL
 typedef struct {char *p;size_t len,cap;int fail;} Buffer;
-typedef struct {Buffer b;size_t visits,items;int stopped;char warnings[32][256];size_t nw;} Scan;
+typedef struct {Buffer b;size_t visits,items;int stopped;char warnings[32][256];size_t nw;uint64_t deadline;} Scan;
+static uint64_t monotonic_ns(void){
+ struct timespec t;
+ if(clock_gettime(CLOCK_MONOTONIC,&t)!=0||t.tv_sec<0)return 0;
+ return (uint64_t)t.tv_sec*1000000000ULL+(uint64_t)t.tv_nsec;
+}
 static void put(Buffer*b,const char*s,size_t n){
  if(b->fail||n>=OUTPUT_CAP-b->len){b->fail=1;return;}
  size_t want=b->len+n+1;
@@ -103,6 +110,13 @@ static void walk(Scan*s,const char*path,const char*kind,int depth){
  while((e=readdir(d))!=NULL){
   if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0)continue;
   if(++s->visits>VISIT_CAP){s->stopped=1;warn(s,"Limite de parcours atteinte",path);break;}
+  // Check the monotonic deadline every 64 entries to bound CPU/metadata I/O overhead.
+  if(s->deadline && (s->visits&63u)==0u){
+   uint64_t now=monotonic_ns();
+   if(now && now>s->deadline){
+    s->stopped=1;warn(s,"Analyse partielle : limite de 5 secondes atteinte",path);break;
+   }
+  }
   char child[PATH_CAP];if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
   struct stat st2;if(lstat(child,&st2))continue;
   if(S_ISLNK(st2.st_mode))continue;
@@ -130,6 +144,8 @@ char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;if(!root||!len)return NULL;
  struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
  Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
+ uint64_t now=monotonic_ns();
+ if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
  add(&s->b,"{\"schemaVersion\":1,\"source\":\"CleanMyPS5 (read-only)\",\"items\":[");
  root_scan(s,root,"user/av_contents/photo/NPXS40087","photo");
  if(!s->stopped)root_scan(s,root,"user/av_contents/video/NPXS40087","video");

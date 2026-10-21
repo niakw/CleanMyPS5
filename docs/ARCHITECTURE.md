@@ -16,7 +16,7 @@ Controller-first PS5 storage maintenance, with a strict boundary between **disco
 
 - `GET /`, `/index.html`, `/app.js`, `/styles.css`: embedded UI.
 - `GET /api/status`: `target=host|ps5`, version and scanner capability.
-- `GET /api/report`: bounded, read-only enumeration of known roots; includes inaccessible-path warnings.
+- `GET /api/report`: bounded, read-only enumeration of known roots; includes inaccessible-path warnings. Scanner stops after ~5 seconds of monotonic scan time (checked every 64 entries) or existing hard item/visit limits; reports truncation rather than claiming exhaustive results.
 - `GET /api/volumes`: opt-in `statvfs` stats for two allowlisted mount roots. Records shared-device paths instead of summing capacity. These measurements do not claim to represent PS5-wide free space.
 - `GET /api/media?file=<percent-encoded-absolute-relative-path>`: on-demand JPEG/PNG originals only, served from a fixed screenshot tree via `openat` with `O_NOFOLLOW`; rejects traversal, symlinks, foreign directories, incorrect signatures, and images >32 MiB. The service is loopback only. This URL does **not** download config, saves or logs.
 - `GET /api/duplicates`: explicit and bounded exact byte comparison for screenshot images. No trust in equal size alone; read budget and image count limits; no file removal.
