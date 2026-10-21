@@ -36,3 +36,7 @@ P0 et P1 sont bloqués sans PS5 13.60 accessible ; compilation ELF et sanitizers
 La compilation ELF dépend dorénavant de la validation des tests natifs et des sanitizers. L'artefact fourni est accompagné de son SHA-256 et du numéro de version issu du dépôt. CodeQL examine les sources C et JavaScript via un workflow dédié ; la réussite de CodeQL n'est pas une preuve de bon fonctionnement sur la PS5.
 
 Le jalon P0 propose aussi une variante séparée `cleanmyps5-browser.elf`, utilisant l'API de lancement du navigateur documentée par l'exemple du SDK. Elle reste **expérimentale** jusqu'au test matériel et ne change pas la variante serveur seul.
+
+## Développement après audit CleanMyMac
+
+Une vue Smart Care **de lecture seule** coordonne désormais l'inventaire, les contrôles de chemins, montages, etaHEN et doublons. Elle affiche quels contrôles ont réussi, les comptes et tailles à examiner, sans parler d'espace libéré. Les captures peuvent être filtrées à partir de 50 Mio ou par ancienneté de modification (90 jours), **pas** par date d'ouverture. Voir [l'audit de parité](FUNCTIONAL_PARITY_CLEANMYMAC.md) pour les fonctionnalités manquantes avant nettoyage réel.

@@ -33,4 +33,31 @@ const badPreview=safeItems({schemaVersion:1,items:[{
  previewPath:"/data/etaHEN/config.png",
 } ]})[0];
 assert.equal(badPreview.previewPath,"");
-console.log("UI report validation and media sorting: PASS");
+
+const {mediaOld,buildSmartSummary}=require("../web/app.js");
+const snapshotNow=Date.UTC(2026,9,21);
+const oldTime=Math.floor((snapshotNow-91*86400000)/1000);
+const recentTime=Math.floor((snapshotNow-20*86400000)/1000);
+assert.equal(mediaOld({category:"media",modifiedAt:oldTime},snapshotNow),true);
+assert.equal(mediaOld({category:"media",modifiedAt:recentTime},snapshotNow),false);
+assert.equal(mediaOld({category:"logs",modifiedAt:oldTime},snapshotNow),false);
+const summary=buildSmartSummary({
+ items:[{category:"media",bytes:75*1024*1024,modifiedAt:oldTime,risk:"review"},
+        {category:"media",bytes:500,modifiedAt:recentTime,risk:"review"},
+        {category:"logs",bytes:100,modifiedAt:oldTime,risk:"review"},
+        {category:"residuals",bytes:100,modifiedAt:0,risk:"protected"}],
+ liveReport:true,scanStats:{partial:false},
+ duplicates:{groups:[{bytesEach:1000,paths:["a","b","c"]}],partial:false},
+ preflight:{entries:[]},volumes:[],diagnostics:{entries:[{status:"enabled"}]},
+},snapshotNow);
+assert.equal(summary.mediaFiles,2);
+assert.equal(summary.largeFiles,1);
+assert.equal(summary.oldFiles,1);
+assert.equal(summary.verifiedCopyBytes,2000);
+assert.equal(summary.suspiciousAutoloads,1);
+assert.equal(summary.logFiles,1);
+assert.equal(summary.protectedFiles,1);
+assert.equal(summary.partial,false);
+assert.equal(buildSmartSummary({items:[]},snapshotNow).partial,true);
+
+console.log("UI report validation, Smart Care and media sorting: PASS");

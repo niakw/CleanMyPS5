@@ -4,13 +4,13 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 
 ## Status (development preview — see `VERSION`)
 
-**The dashboard now talks directly to a read-only native C HTTP scanner.** A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
+**The dashboard now talks directly to a read-only native C HTTP scanner.** It also offers a PS5 Smart Care-style *read-only* guided check: inventory, mounted storage, known-path preflight, etaHEN autoload and bounded exact screenshot duplicates. Unavailable checks are shown explicitly. A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
 - Controller-friendly review dialog; optionally exports a local JSON manifest for manual inspection, explicitly **not** an executable cleanup script.
 - Tested controller sorting: cycle size, modification date or filename in the media section. Date represents filesystem modification time, not guaranteed capture creation time.
 - Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
-- Media filters for large captures (250 MiB), title IDs and same-size candidates. **Same size is not a verified duplicate.**
+- Media filters for large captures (50 or 250 MiB), 90+ day modification age, title IDs and same-size candidates. **Same size is not a verified duplicate.**
 - Local, opt-in **JPEG/PNG preview** of allowlisted captures from the native service (32 MiB per file, file type checked by signature, no arbitrary path access). JXR is not yet previewable. MP4/WebM video preview uses strict bounded HTTP byte ranges (maximum 1 MiB per GET), browser decode support permitting.
 - Asynchronous comparisons and scanner responses are invalidated when a new report is opened, so stale results cannot reselect previous files.
 - Verified identical groups display the sum of additional-copy bytes as **review candidates, not free space**; extra copies can be added to the review while keeping one arbitrary original, with no cleanup action exposed.

@@ -3,13 +3,43 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
 function bytes(value){if(!Number.isFinite(value)||value<0)return "0 o";const u=["o","Ko","Mo","Go","To"];let i=0;while(value>=1024&&i<u.length-1){value/=1024;i++;}return (i?value.toLocaleString("fr-FR",{maximumFractionDigits:1}):Math.round(value).toLocaleString("fr-FR"))+" "+u[i];}
 function setTitle(title,lead){const e=add(node("div",""),node("div","eyebrow","NETTOYAGE INTELLIGENT"),node("h1","page-heading",title),node("p","lead",lead));return e;}
 function button(text,cls,fn){const b=node("button",cls+" focusable",text);b.type="button";b.addEventListener("click",fn);return b;}
+function mediaOld(item,now=Date.now()){
+ return item.category==="media"&&item.modifiedAt>0&&now-item.modifiedAt*1000>=90*86400000;
+}
+function buildSmartSummary(snapshot,now=Date.now()){
+ const items=Array.isArray(snapshot.items)?snapshot.items:[];
+ const media=items.filter(x=>x.category==="media");
+ const groups=snapshot.duplicates?.groups||[];
+ const verifiedCopyBytes=groups.reduce((sum,g)=>sum+Math.max(0,g.paths.length-1)*g.bytesEach,0);
+ const autoload=snapshot.diagnostics?.entries||[];
+ const checks={
+  inventory:!!snapshot.liveReport,
+  duplicates:!!snapshot.duplicates,
+  preflight:!!snapshot.preflight,
+  volumes:!!snapshot.volumes,
+  autoload:!!snapshot.diagnostics
+ };
+ const partial=snapshot.scanStats?.partial===true||snapshot.duplicates?.partial===true||
+   Object.values(checks).some(x=>!x);
+ return {
+  files:items.length,mediaFiles:media.length,
+  mediaBytes:media.reduce((sum,x)=>sum+x.bytes,0),
+  largeFiles:media.filter(x=>x.bytes>=50*1024*1024).length,
+  oldFiles:media.filter(x=>mediaOld(x,now)).length,
+  logFiles:items.filter(x=>x.category==="logs").length,
+  protectedFiles:items.filter(x=>x.risk==="protected").length,
+  exactGroups:groups.length,verifiedCopyBytes,
+  suspiciousAutoloads:autoload.filter(x=>x.status==="etaHEN-reference"||x.status==="enabled").length,
+  checks,partial,
+ };
+}
 function numberFor(cat){return state.items.filter(x=>x.category===cat).reduce((a,x)=>a+x.bytes,0);}
 function total(){return state.items.reduce((a,x)=>a+x.bytes,0);}
 function selectedBytes(){return state.items.filter(x=>state.selected.has(x.id)).reduce((a,x)=>a+x.bytes,0);}
@@ -39,7 +69,7 @@ function useReport(report,isDemo=false,live=false){
   for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
   state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.mediaSort="size";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
-  state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;
+  state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
@@ -71,12 +101,22 @@ function overview(root){
  add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une console propre. L'esprit tranquille."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre sélection, sans risque pour la console.":state.backend?"Le scanner local est disponible. Lancez un inventaire en lecture seule de vos captures et fichiers etaHEN.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
  const actions=node("div","hero-buttons");
  if(state.backend){
-  add(actions,button(state.scanning?"Analyse en cours…":state.target==="ps5"?"Analyser ma PS5  ↗":"Analyser le dossier  ↗","primary",scanNow),button("Importer un rapport","secondary",()=>$("#report-input").click()));
-  if(state.scanning)actions.firstChild.disabled=true;
+  const smart=button(state.smartBusy?"Bilan en cours…":"Analyse intelligente  ✧","primary",smartCareNow);
+  smart.disabled=state.smartBusy||state.scanning;
+  const quick=button(state.scanning?"Inventaire en cours…":"Inventaire seul","secondary",scanNow);
+  quick.disabled=state.smartBusy||state.scanning;
+  add(actions,smart,quick,button("Importer un rapport","secondary",()=>$("#report-input").click()));
  }else{
   add(actions,button("Importer un rapport  ↗","primary",()=>$("#report-input").click()),button(state.items.length?"Voir les éléments":"Explorer la démo","secondary",()=>state.items.length?go("media"):demo()));
  }
  c.append(actions);add(hero,c,add(node("div","hero-orb"),node("span","orb-shape","✧")));root.append(hero);
+ if(state.smartBusy){
+  const progress=node("section","data-panel smart-care-panel");
+  add(progress,panelHeader("Analyse intelligente","Lecture seule"),
+    node("p","muted",state.smartStage+" · aucune suppression ni optimisation du système."));
+  root.append(progress);
+ }
+ if(state.smartSummary)root.append(smartCarePanel(state.smartSummary));
  root.append(add(node("div","section-header"),node("h3","","Les espaces à explorer"),node("span","section-note",state.demo?"Données de démonstration":state.items.length?"Données du rapport":"Aucune mesure pour l'instant")));root.append(categories());
  const panel=node("section","data-panel");add(panel,panelHeader("Sécurité avant tout","Suppression désactivée"),notice("Un rapport n'est pas une preuve qu'un fichier est inutile.","Captures personnelles, sauvegardes, dossiers d'applications et données système restent protégés tant qu'aucune règle de nettoyage n'est validée."));root.append(panel);
  if(state.backend)root.append(preflightPanel());
@@ -86,6 +126,65 @@ function overview(root){
   root.append(summary);
  }
  if(state.warnings.length){const w=node("section","data-panel");add(w,panelHeader("Messages de l'analyse","Informations"),...state.warnings.map(s=>node("p","muted",s)));root.append(w);}
+}
+function smartCarePanel(summary){
+ const panel=node("section","data-panel smart-care-panel");
+ add(panel,panelHeader("Bilan intelligent",summary.partial?"Résultats partiels":"Contrôles exécutés"));
+ const metrics=node("div","smart-metrics");
+ const fields=[
+  ["Captures répertoriées",summary.mediaFiles],
+  ["Captures de 50 Mio et plus",summary.largeFiles],
+  ["Captures modifiées il y a ≥90 j",summary.oldFiles],
+  ["Groupes identiques vérifiés",summary.exactGroups],
+  ["Copies supplémentaires à examiner",bytes(summary.verifiedCopyBytes)],
+  ["Références autoload à examiner",summary.suspiciousAutoloads],
+ ];
+ for(const [label,value] of fields)add(metrics,add(node("div","smart-metric"),
+  node("span","",label),node("strong","",String(value))));
+ panel.append(metrics);
+ const steps=node("div","smart-checks");
+ for(const [key,label] of [
+  ["inventory","Captures / journaux"],["duplicates","Doublons exacts"],
+  ["preflight","Répertoires PS5"],["volumes","Montages visibles"],
+  ["autoload","Autoload / etaHEN"]
+ ]){
+  add(steps,add(node("div","smart-check"),
+   node("span","",label),node("strong",summary.checks[key]?"Examiné":"Indisponible")));
+ }
+ panel.append(steps);
+ panel.append(node("p","filter-warning","Seuls les fichiers accessibles et autorisés sont examinés. Aucun de ces volumes n'est un calcul d'espace réellement libéré. Les vérifications partielles ne prouvent pas l'absence d'autres fichiers."));
+ const buttons=node("div","hero-buttons");
+ add(buttons,button("Examiner les captures","secondary",()=>go("media")),
+  button("Diagnostics etaHEN","secondary",()=>go("residuals")),
+  button("Stockage","secondary",()=>go("storage")));
+ panel.append(buttons);return panel;
+}
+async function smartCareNow(){
+ if(!state.backend||state.smartBusy||state.scanning)return;
+ state.smartBusy=true;state.smartStage="Inventaire des fichiers autorisés";state.smartSummary=null;render();
+ const before=state.reportRevision;
+ try{
+  await scanNow();
+  if(state.reportRevision===before||!state.liveReport)
+   throw Error("L'inventaire n'a pas pu être chargé.");
+  const revision=state.reportRevision;
+  const stages=[
+   ["Montages du stockage",getVolumes],
+   ["Chemins d'accès",runPreflight],
+   ["Diagnostic etaHEN",diagnoseNow],
+   ["Doublons octet à octet (bornés)",checkDuplicates]
+  ];
+  for(const [stage,fn] of stages){
+   if(revision!==state.reportRevision)throw Error("Un autre rapport a remplacé l'analyse.");
+   state.smartStage=stage;render();
+   await fn();
+  }
+  if(revision!==state.reportRevision)throw Error("Le rapport a changé.");
+  state.smartSummary=buildSmartSummary(state);
+  if(state.smartSummary.partial)announce("Bilan partiel : certains contrôles sont indisponibles.");
+  else announce("Bilan de lecture seule terminé.");
+ }catch(error){announce("Bilan interrompu : "+error.message);}
+ finally{state.smartBusy=false;state.smartStage="";render();}
 }
 function preflightPanel(){
  const panel=node("section","data-panel");
@@ -163,6 +262,8 @@ function filtered(){
   if(state.tab==="media"){
    if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
    if(state.mediaMode==="large"&&x.bytes<250*1024*1024)return false;
+   if(state.mediaMode==="over50"&&x.bytes<50*1024*1024)return false;
+   if(state.mediaMode==="old"&&!mediaOld(x))return false;
    if(state.mediaMode==="size"&&!x.possibleTwin)return false;
   }
   return true;
@@ -187,7 +288,7 @@ function cycleMediaTitle(){
 function mediaToolbar(){
  const root=node("div","media-tools");
  const filterWrap=node("div","mode-group");add(filterWrap,node("span","control-caption","AFFICHER"));
- for(const [key,label] of [["all","Toutes"],["large","≥ 250 Mo"],["size","Même taille"]]){
+ for(const [key,label] of [["all","Toutes"],["over50","≥ 50 Mio"],["large","≥ 250 Mio"],["old","Modifiées il y a ≥ 90 j"],["size","Même taille"]]){
   const b=button(label,"secondary mode-filter"+(state.mediaMode===key?" chosen":""),()=>setMediaMode(key));
   b.dataset.mediaMode=key;b.setAttribute("aria-pressed",String(state.mediaMode===key));filterWrap.append(b);
  }
@@ -196,7 +297,7 @@ function mediaToolbar(){
  const sortLabels={size:"Taille ↓",date:"Date ↓",name:"Nom A–Z"};
  const sortButton=button("Trier : "+sortLabels[state.mediaSort],"secondary sort-cycle",cycleMediaSort);
  add(root,filterWrap,titleButton,sortButton);
- root.append(node("p","filter-warning","« Même taille » signale seulement des fichiers de taille identique, pas des doublons confirmés. Aucune suppression automatique."));
+ root.append(node("p","filter-warning","« Anciens » utilise la date de dernière modification, et non le dernier accès ni la date de création. « Même taille » ne confirme pas un doublon. Aucune suppression automatique."));
  return root;
 }
 function row(x){const selected=state.selected.has(x.id);const protectedItem=x.risk==="protected";const el=node("button","file-item focusable"+(selected?" chosen":"")+(protectedItem?" protected":""));el.type="button";el.disabled=protectedItem;el.setAttribute("aria-pressed",String(selected));
@@ -652,5 +753,5 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia};
+ module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary};
 }
