@@ -85,7 +85,7 @@ function review(){
  const names=selected.slice(0,3).map(x=>x.path.split("/").pop()).join(", ");
  announce(selected.length+" élément(s) · "+bytes(selectedBytes())+" · prévisualisation uniquement ("+names+")");
 }
-function go(tab){if(!(tab in labels))return;state.tab=tab;render();}
+function go(tab){if(!(tab in labels))return;const fromCard=document.activeElement?.classList.contains("summary-card");state.tab=tab;render();const nextFocus=fromCard?document.querySelector(".file-item:not(:disabled), .review-bar .primary"):document.querySelector(`[data-tab="${tab}"]`);nextFocus?.focus({preventScroll:true});}
 function render(preserveFocus=false){
  const before=preserveFocus&&document.activeElement?.classList.contains("file-item")?Array.from(document.querySelectorAll(".file-item")).indexOf(document.activeElement):-1;
  const content=$("#content");content.replaceChildren();content.className="main-wrap";

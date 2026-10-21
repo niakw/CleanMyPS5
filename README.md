@@ -6,26 +6,26 @@
 
 ## Try the UI
 
-\`\`\`sh
+```sh
 python3 -m http.server 8080 --directory web
 # Open http://localhost:8080
-\`\`\`
+```
 
 Choose **Explorer la démo** for clearly fictional sample entries, or **Importer un rapport** to inspect your own JSON inventory. Works offline with local assets. The UI is usable with a PS5/DualSense gamepad on browsers supporting Gamepad API, plus keyboard, mouse and touch.
 
 ## Scan a mounted PS5-style folder (host development)
 
-\`\`\`sh
+```sh
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
 ./build/cleanmyps5-scan --root /path/to/fixture-or-mounted-namespace > report.json
-\`\`\`
+```
 
 The scanner only enumerates whitelisted relative locations:
-\`user/av_contents/{photo,video}/NPXS40087\` and \`data/etaHEN\`.
+`user/av_contents/{photo,video}/NPXS40087` and `data/etaHEN`.
 Missing paths are reported as warnings, not assumed absent on the console.
-It will not delete or modify any file. Import \`report.json\` in the UI.
+It will not delete or modify any file. Import `report.json` in the UI.
 
 **Not a native PS5 payload yet.** The host binary and its directory assumptions need PS5 Payload SDK porting and real console testing.
 
