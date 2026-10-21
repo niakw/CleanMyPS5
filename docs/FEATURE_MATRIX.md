@@ -30,7 +30,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Applications : éléments lancés au démarrage | 🟡 | Diagnostique certains fichiers autoload mais pas un inventaire exhaustif des processus actifs |
 | Cloud Cleanup : iCloud/Drive/Dropbox | — | Aucune intégration cloud macOS sur console ; ne pas modifier les sauvegardes PS Plus |
 | AI Clutter : modèles et caches IA | — | Non applicable de manière générale ; nécessite des fournisseurs homebrew particuliers |
-| Informations santé/alertes de disque | 🟡 | Mesures statvfs manuelles, sans notification de seuil ni preuve d'accès au SSD complet |
+| Informations santé/alertes de disque | 🟡 | Mesures statvfs du helper et fstatvfs natives par montage visible, sans preuve d'accès au SSD complet et sans addition des montages équivalents |
 | Outils rapides : hub personnel | 🟡 | Cinq raccourcis sûrs sur l’accueil (captures lourdes/anciennes, tailles égales, homebrew, stockage). Pas de favoris configurables ni de nettoyage automatique |
 | Résultats après nettoyage / journal | ❌ | Aucun effacement actuellement, donc aucun rapport post-opération ni vérification d'espace libéré |
 | Fichiers à examiner : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
