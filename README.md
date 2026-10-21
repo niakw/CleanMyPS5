@@ -8,6 +8,8 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 
 - **No delete, reset, registry edit, repair, defragmentation or compression.**
 - Controller pagination: max 36 visible items per page; L2/R2 advances without losing selections.
+- Media filters for large captures (250 MiB), title IDs and same-size candidates. **Same size is not a verified duplicate.**
+- File modification timestamps and bounded scan coverage/partial warnings.
 - Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
 - No claim of SSD-wide free space: counts are for **enumerated items only**.
 - The demo is fictitious and clearly marked as such.

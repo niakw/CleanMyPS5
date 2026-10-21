@@ -37,3 +37,11 @@ Le fait d'observer « etaHEN Toolbox » dans les paramètres **ne prouve pas** q
 Manette DualSense réelle, parcours complet sans clavier, mode sans défilement horizontal, correct retour ◯, lisibilité en 1080p et 4K, gestion des chemins manquants, tests sans suppression, pas de demande de privilèges supplémentaires pour un simple inventaire.
 
 Le navigateur PS5 et sa prise en charge Gamepad devront être vérifiés physiquement avant de considérer ce jalon comme terminé.
+
+## Filtres médias (v0.3)
+
+- Fichiers volumineux : seuil de 250 Mio, calculé à partir de l'inventaire réel.
+- Même taille : **simple présélection de candidats**, aucune identité de contenu inférée sans hash et comparaison complète ultérieure.
+- Filtre par identifiant de titre (extrait du chemin) ; il ne remplace pas le nom commercial d'un jeu.
+- Date de dernière modification à partir des métadonnées POSIX, sans interprétation de la date de création réelle.
+- Pages limitées à 36 lignes ; le nombre de fichiers et la couverture de scan sont séparés des tailles totales du SSD.

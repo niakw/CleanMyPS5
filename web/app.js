@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -20,11 +20,20 @@ function safeItems(report){
   return report.items.map((v,i)=>{
     if(!v||typeof v!=="object"||typeof v.path!=="string"||v.path.length>2048||typeof v.bytes!=="number"||!Number.isSafeInteger(v.bytes)||v.bytes<0)throw Error("Entrée invalide à la ligne "+(i+1));
     const id=String(v.id??i);if(ids.has(id))throw Error("Identifiant en double");ids.add(id);
-    return {id,path:v.path,bytes:v.bytes,category:Object.prototype.hasOwnProperty.call(categoryLabels,v.category)?v.category:"other",risk:["review","safe","protected"].includes(v.risk)?v.risk:"protected",reason:String(v.reason||"Analyse locale, aucune suppression automatique.").slice(0,400)};
+    return {id,path:v.path,bytes:v.bytes,category:Object.prototype.hasOwnProperty.call(categoryLabels,v.category)?v.category:"other",
+      risk:["review","safe","protected"].includes(v.risk)?v.risk:"protected",reason:String(v.reason||"Analyse locale, aucune suppression automatique.").slice(0,400),
+      titleId:typeof v.titleId==="string"&&/^[A-Za-z0-9_]{1,24}$/.test(v.titleId)?v.titleId:"",
+      modifiedAt:Number.isSafeInteger(v.modifiedAt)&&v.modifiedAt>0&&v.modifiedAt<4102444800?v.modifiedAt:0,
+      possibleTwin:false};
   });
 }
 function useReport(report,isDemo=false){
-  const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);state.items=items;state.selected.clear();state.page=0;state.demo=isDemo;
+  const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);
+  const sizes=new Map();
+  for(const item of items)if(item.category==="media"&&item.bytes>0)sizes.set(item.bytes,(sizes.get(item.bytes)||0)+1);
+  for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
+  state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.demo=isDemo;
+  state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
   state.warnings=Array.isArray(report.warnings)?report.warnings.slice(0,10).map(String):[];
@@ -32,7 +41,8 @@ function useReport(report,isDemo=false){
 }
 function demo(){const G=1024**3,M=1024**2;useReport({schemaVersion:1,source:"Démo",scannedAt:new Date().toISOString(),warnings:["Exemple fictif : aucun espace réel de la console n'a été mesuré."],items:[
  {id:"d1",category:"media",path:"/user/av_contents/video/NPXS40087/EXEMPLE/clip.mp4",bytes:Math.round(5.6*G),risk:"review",reason:"Vidéo personnelle : vérifier avant toute suppression."},
- {id:"d2",category:"media",path:"/user/av_contents/photo/NPXS40087/EXEMPLE/capture.png",bytes:85*M,risk:"review",reason:"Capture d'écran personnelle."},
+ {id:"d2",category:"media",path:"/user/av_contents/photo/NPXS40087/EXEMPLE/capture.png",titleId:"EXEMPLE",modifiedAt:1792468800,bytes:85*M,risk:"review",reason:"Capture d'écran personnelle."},
+ {id:"d6",category:"media",path:"/user/av_contents/photo/NPXS40087/EXEMPLE/capture2.png",titleId:"EXEMPLE",modifiedAt:1792468800,bytes:85*M,risk:"review",reason:"Même taille que capture.png : pas un doublon vérifié."},
  {id:"d3",category:"logs",path:"/data/etaHEN/debug.log",bytes:23*M,risk:"review",reason:"Journal diagnostic : archive recommandée."},
  {id:"d4",category:"residuals",path:"/data/etaHEN/config.ini",bytes:12*1024,risk:"protected",reason:"Configuration etaHEN : ce n'est pas un résidu avéré."},
  {id:"d5",category:"cache",path:"/data/unknown-cache",bytes:700*M,risk:"protected",reason:"Cache non qualifié : exclusion."}
@@ -62,17 +72,57 @@ function overview(root){
  c.append(actions);add(hero,c,add(node("div","hero-orb"),node("span","orb-shape","✧")));root.append(hero);
  root.append(add(node("div","section-header"),node("h3","","Les espaces à explorer"),node("span","section-note",state.demo?"Données de démonstration":state.items.length?"Données du rapport":"Aucune mesure pour l'instant")));root.append(categories());
  const panel=node("section","data-panel");add(panel,panelHeader("Sécurité avant tout","Suppression désactivée"),notice("Un rapport n'est pas une preuve qu'un fichier est inutile.","Captures personnelles, sauvegardes, dossiers d'applications et données système restent protégés tant qu'aucune règle de nettoyage n'est validée."));root.append(panel);
+ if(state.scanStats){const summary=node("section","data-panel");
+  add(summary,panelHeader("Couverture de l'analyse",state.scanStats.partial?"Analyse partielle":"Inventaire réalisé"),
+      node("p","muted",state.scanStats.visited.toLocaleString("fr-FR")+" entrées parcourues · "+state.scanStats.items.toLocaleString("fr-FR")+" fichiers répertoriés. Une analyse partielle ne garantit pas l'absence d'autres fichiers."));
+  root.append(summary);
+ }
  if(state.warnings.length){const w=node("section","data-panel");add(w,panelHeader("Messages de l'analyse","Informations"),...state.warnings.map(s=>node("p","muted",s)));root.append(w);}
 }
-function filtered(){return state.items.filter(x=>state.tab==="cache"?["cache","logs"].includes(x.category):state.tab==="storage"||state.tab==="overview"?true:x.category===state.tab);}
+function mediaTitles(){const arr=[...new Set(state.items.filter(x=>x.category==="media"&&x.titleId).map(x=>x.titleId))];return arr.sort();}
+function filtered(){return state.items.filter(x=>{
+ if(state.tab==="cache")return ["cache","logs"].includes(x.category);
+ if(state.tab==="storage"||state.tab==="overview")return true;
+ if(x.category!==state.tab)return false;
+ if(state.tab==="media"){
+  if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
+  if(state.mediaMode==="large"&&x.bytes<250*1024*1024)return false;
+  if(state.mediaMode==="size"&&!x.possibleTwin)return false;
+ }
+ return true;
+});}
+function setMediaMode(mode){
+ state.mediaMode=mode;state.page=0;render();
+ document.querySelector('[data-media-mode="'+mode+'"]')?.focus({preventScroll:true});
+}
+function cycleMediaTitle(){
+ const values=["all",...mediaTitles()];const old=values.indexOf(state.mediaTitle);
+ state.mediaTitle=values[(old+1)%values.length];state.page=0;render();
+ document.querySelector(".title-cycle")?.focus({preventScroll:true});
+}
+function mediaToolbar(){
+ const root=node("div","media-tools");
+ const filterWrap=node("div","mode-group");add(filterWrap,node("span","control-caption","AFFICHER"));
+ for(const [key,label] of [["all","Toutes"],["large","≥ 250 Mo"],["size","Même taille"]]){
+  const b=button(label,"secondary mode-filter"+(state.mediaMode===key?" chosen":""),()=>setMediaMode(key));
+  b.dataset.mediaMode=key;b.setAttribute("aria-pressed",String(state.mediaMode===key));filterWrap.append(b);
+ }
+ const titles=mediaTitles();const titleButton=button("Jeu : "+(state.mediaTitle==="all"?"Tous":state.mediaTitle),"secondary title-cycle",cycleMediaTitle);
+ titleButton.disabled=!titles.length;titleButton.title="Changer de jeu";
+ add(root,filterWrap,titleButton);
+ root.append(node("p","filter-warning","« Même taille » signale seulement des fichiers de taille identique, pas des doublons confirmés. Aucune suppression automatique."));
+ return root;
+}
 function row(x){const selected=state.selected.has(x.id);const protectedItem=x.risk==="protected";const el=node("button","file-item focusable"+(selected?" chosen":"")+(protectedItem?" protected":""));el.type="button";el.disabled=protectedItem;el.setAttribute("aria-pressed",String(selected));
  const box=node("span","file-check",selected?"✓":protectedItem?"–":"");
- const info=add(node("span","file-meta"),node("span","file-name",x.path.split("/").pop()||x.path),node("span","file-desc",x.path+" · "+x.reason));
+ const stamp=x.modifiedAt?new Date(x.modifiedAt*1000).toLocaleDateString("fr-FR"):"";
+ const detail=[x.titleId,stamp,x.possibleTwin?"Même taille qu'un autre fichier":"",x.reason].filter(Boolean).join(" · ");
+ const info=add(node("span","file-meta"),node("span","file-name",x.path.split("/").pop()||x.path),node("span","file-desc",x.path+" · "+detail));
  const right=add(node("span",""),node("span","file-size",bytes(x.bytes)),node("span","risk"+(protectedItem?" protected":""),protectedItem?"PROTÉGÉ":x.risk==="review"?"À VÉRIFIER":"EXAMINÉ"));
  add(el,box,info,right);el.addEventListener("click",()=>{if(state.selected.has(x.id))state.selected.delete(x.id);else state.selected.add(x.id);render(true);});return el;}
 function filesPage(root){
  const title=labels[state.tab];const explain={media:"Retrouvez les photos, captures automatiques et clips vidéo. Sélection manuelle avant tout nettoyage.",cache:"Journaux diagnostiques et caches accessibles. Les caches système non identifiés restent exclus.",residuals:"Inspection des anciennes installations et configurations résiduelles : aucun élément n'est présumé inutile."};
- root.append(setTitle(title,explain[state.tab]));const section=node("section","data-panel");
+ root.append(setTitle(title,explain[state.tab]));if(state.tab==="media")root.append(mediaToolbar());const section=node("section","data-panel");
  const items=filtered();const pageCount=Math.max(1,Math.ceil(items.length/state.pageSize));state.page=Math.min(state.page,pageCount-1);
  const from=state.page*state.pageSize;const slice=items.slice(from,from+state.pageSize);
  add(section,panelHeader("Éléments répertoriés",items.length+" élément(s)"),items.length?add(node("div","item-list"),...slice.map(row)):add(node("div","empty"),node("div","empty-glyph","◇"),node("p","","Aucun élément analysé dans cette catégorie.")));
@@ -90,7 +140,17 @@ function storage(root){
  const s=node("div","data-panel");add(s,node("div","eyebrow","TAILLE DES ÉLÉMENTS INVENTORIÉS"),node("div","large-number",bytes(total())),node("div","tiny-label",state.items.length+" élément(s) au total · aucun calcul de capacité système"));
  const track=node("div","storage-track");Object.entries(categoryColors).forEach(([cat,color])=>{const n=node("span");n.style.width=(total()?numberFor(cat)/total()*100:0)+"%";n.style.background=color;track.append(n);});s.append(track);
  const legend=node("div","legend");Object.entries(categoryLabels).forEach(([cat,label])=>{if(numberFor(cat)){const labelEl=node("span");const b=node("b");b.style.background=categoryColors[cat];add(labelEl,b,document.createTextNode(label+" · "+bytes(numberFor(cat))));legend.append(labelEl);}});s.append(legend);
- root.append(s);root.append(add(node("div","data-panel"),panelHeader("Interprétation","Important"),notice("Stockage PS5 ≠ vue FTP /data","Un volume de 64 Go exposé par un montage /data ne représente pas forcément le SSD système. CleanMyPS5 n'affiche aucune capacité globale non vérifiée.")));
+ root.append(s);
+ const grouped=new Map();
+ for(const item of state.items)if(item.category==="media"){
+  const title=item.titleId||"Jeu inconnu";grouped.set(title,(grouped.get(title)||0)+item.bytes);
+ }
+ const groups=[...grouped].sort((a,b)=>b[1]-a[1]).slice(0,8);
+ if(groups.length){const perGame=node("section","data-panel");add(perGame,panelHeader("Captures par jeu","Top 8 identifiants"));
+  const list=node("div","game-size-list");for(const [title,amount] of groups){
+   const r=add(node("div","game-size-row"),node("span","",title),node("strong","",bytes(amount)));list.append(r);
+  }perGame.append(list);root.append(perGame);}
+ root.append(add(node("div","data-panel"),panelHeader("Interprétation","Important"),notice("Stockage PS5 ≠ vue FTP /data","Un volume de 64 Go exposé par un montage /data ne représente pas forcément le SSD système. CleanMyPS5 n'affiche aucune capacité globale non vérifiée.")));
 }
 function review(){
  const selected=state.items.filter(x=>state.selected.has(x.id));if(!selected.length){announce("Sélectionne d'abord un ou plusieurs éléments.");return;}
