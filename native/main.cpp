@@ -150,7 +150,8 @@ bool summary_partial=false;
 bool fetch_local(const char*route,char*response,std::size_t capacity,
                  const char**json) noexcept {
  if(!route||!response||capacity<256||!json)return false;
- if(std::strcmp(route,"/api/preflight")&&std::strcmp(route,"/api/overview"))return false;
+ if(std::strcmp(route,"/api/preflight")&&std::strcmp(route,"/api/overview")&&
+    std::strcmp(route,"/api/capabilities"))return false;
  int socket=sceNetSocket("cleanmyps5_ui",2,1,6);
  if(socket<0)return false;
  const int timeout_us=std::strcmp(route,"/api/overview")==0?6000000:350000;
@@ -198,6 +199,12 @@ bool scan_u64(const char*text,const char*name,std::uint64_t*out) noexcept {
  *out=n;
  return true;
 }
+bool helper_is_compatible() noexcept {
+ char response[1024]{};
+ const char*json=nullptr;
+ if(!fetch_local("/api/capabilities",response,sizeof(response),&json))return false;
+ return cmp5_native::matches_expected_helper(json,std::strlen(json));
+}
 bool get_preflight() noexcept {
  char response[18432]{};
  const char*json=nullptr;
@@ -212,12 +219,15 @@ bool get_preflight() noexcept {
 }
 void run_environment_check() noexcept {
  probe_local();
- engine=get_preflight()?Link::ok:Link::offline;
+ engine=Link::offline;
+ if(helper_is_compatible() && get_preflight())engine=Link::ok;
  summary_status=Summary::unchecked;
 }
 void run_overview() noexcept {
  summary_status=Summary::unavailable;
  // May take several seconds on large drives. Only execute on explicit X action.
+ // A foreign or old process on :8877 must never be mistaken for this helper.
+ if(!helper_is_compatible())return;
  char response[2048]{};
  const char*json=nullptr;
  if(!fetch_local("/api/overview",response,sizeof(response),&json))return;
@@ -313,7 +323,7 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
                        available,denied,absent);
   panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
  }else{
-  panel(canvas,366,"MOTEUR NON DISPONIBLE","AUCUN RAPPORT GLOBAL",Color::yellow);
+  panel(canvas,366,"MOTEUR NON DISPONIBLE","ABSENT OU VERSION INCOMPATIBLE",Color::yellow);
  }
  char local_result[96]{};
  unsigned listable=0,sampled=0;
