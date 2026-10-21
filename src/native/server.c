@@ -36,7 +36,7 @@ static int send_all(int fd,const void*data,size_t n){
  while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return 0;p+=k;n-=k;}return 1;
 }
 static void reply(int fd,int code,const char*type,const void*body,size_t size){
- const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==405?"Method Not Allowed":code==413?"Content Too Large":code==416?"Range Not Satisfiable":"Internal Server Error";
+ const char*status=code==200?"OK":code==400?"Bad Request":code==404?"Not Found":code==403?"Forbidden":code==405?"Method Not Allowed":code==413?"Content Too Large":code==416?"Range Not Satisfiable":"Internal Server Error";
  char header[1024];
  int n=snprintf(header,sizeof(header),
    "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n"
@@ -180,9 +180,56 @@ static void video_response(int client,const char*root,const char*encoded,
  close(file);
 }
 
-static void handle(int fd,const char*root){
+static int exact_header(const char *start,size_t length,const char *expected){
+ return strlen(expected)==length&&memcmp(start,expected,length)==0;
+}
+static int validate_local_headers(const char*req,int port){
+ const char*line=strstr(req,"\r\n");if(!line)return 0;
+ line+=2;char host[80],local_host[80],origin[100],local_origin[100];
+ snprintf(host,sizeof(host),"127.0.0.1:%d",port);
+ snprintf(local_host,sizeof(local_host),"localhost:%d",port);
+ snprintf(origin,sizeof(origin),"http://127.0.0.1:%d",port);
+ snprintf(local_origin,sizeof(local_origin),"http://localhost:%d",port);
+ int found=0;
+ while(*line&&strncmp(line,"\r\n",2)!=0){
+  const char*end=strstr(line,"\r\n");if(!end)return 0;
+  const char*colon=memchr(line,':',(size_t)(end-line));
+  if(!colon)return 0;
+  const char*value=colon+1;
+  while(value<end&&(*value==' '||*value=='\t'))value++;
+  const char*last=end;
+  while(last>value&&(last[-1]==' '||last[-1]=='\t'))last--;
+  size_t len=(size_t)(last-value),name=(size_t)(colon-line);
+  if(name==4&&strncasecmp(line,"Host",4)==0){
+   if(found++||(!exact_header(value,len,host)&&!exact_header(value,len,local_host)))return 0;
+  }else if(name==6&&strncasecmp(line,"Origin",6)==0){
+   if(!exact_header(value,len,origin)&&!exact_header(value,len,local_origin))return 0;
+  }else if(name==7&&strncasecmp(line,"Referer",7)==0){
+   // A same-origin referrer may contain a path. Reject cross-origin URLs.
+   if(!((len>=strlen(origin)&&!memcmp(value,origin,strlen(origin))&&
+         (len==strlen(origin)||value[strlen(origin)]=='/'))||
+        (len>=strlen(local_origin)&&!memcmp(value,local_origin,strlen(local_origin))&&
+         (len==strlen(local_origin)||value[strlen(local_origin)]=='/'))))return 0;
+  }else if(name==14&&strncasecmp(line,"Sec-Fetch-Site",14)==0){
+   if(!exact_header(value,len,"same-origin")&&!exact_header(value,len,"none"))return 0;
+  }
+  line=end+2;
+ }
+ return found==1;
+}
+
+static void handle(int fd,const char*root,int port){
  struct timeval t={3,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));
- char req[4096];ssize_t len=recv(fd,req,sizeof(req)-1,0);if(len<=0)return;req[len]=0;
+ char req[4096];size_t length=0;req[0]=0;
+ while(length<sizeof(req)-1){
+  ssize_t got=recv(fd,req+length,sizeof(req)-1-length,0);
+  if(got<0&&errno==EINTR)continue;
+  if(got<=0)return;
+  length+=(size_t)got;req[length]=0;
+  if(strstr(req,"\r\n\r\n"))break;
+ }
+ if(!strstr(req,"\r\n\r\n")){plain(fd,400,"Incomplete headers");return;}
+ if(!validate_local_headers(req,port)){plain(fd,403,"Local origin required");return;}
  char method[12],path[3072],proto[16];
  if(sscanf(req,"%11s %3071s %15s",method,path,proto)!=3){plain(fd,400,"Bad request");return;}
  int is_head=strcmp(method,"HEAD")==0;
@@ -248,6 +295,6 @@ int main(int argc,char**argv){
  if(bind(fd,(struct sockaddr*)&bindaddr,sizeof(bindaddr))!=0||listen(fd,16)!=0){perror("bind/listen");close(fd);return 1;}
  printf("CleanMyPS5 http://%s:%d/ (read-only)\n",address,port);fflush(stdout);
  startup_notification();
- for(;;){int client=accept(fd,NULL,NULL);if(client<0){if(errno==EINTR)continue;break;}handle(client,root);close(client);}
+ for(;;){int client=accept(fd,NULL,NULL);if(client<0){if(errno==EINTR)continue;break;}handle(client,root,port);close(client);}
  close(fd);return 0;
 }

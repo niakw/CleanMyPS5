@@ -53,6 +53,13 @@ with tempfile.TemporaryDirectory() as temp:
   else:raise AssertionError("server failed to start")
   assert status["mode"]=="read-only"
   assert status["target"]=="host"
+  # Reject DNS-rebinding Host values and cross-site browser origins.
+  for headers in ({"Host":"unexpected.example:1234"},
+                  {"Origin":"https://malicious.invalid"},
+                  {"Referer":"https://malicious.invalid/page"},
+                  {"Sec-Fetch-Site":"cross-site"}):
+   try:urlopen(Request(base+"/api/status",headers=headers),timeout=3);raise AssertionError("Cross-origin access accepted: "+repr(headers))
+   except HTTPError as err:assert err.code==403,err.code
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
   assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
