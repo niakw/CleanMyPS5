@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as temp:
  (image/"sidecar.dat").write_text("metadata")
  (image/"same.jpg").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
-  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
+ (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
  (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
  (clip/"another.webm").write_bytes(bytes.fromhex("1a45dfa3")+b"W"*128)
  (eta/"debug.log").write_text("LOG")
