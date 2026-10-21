@@ -204,6 +204,8 @@ with tempfile.TemporaryDirectory() as temp:
   assert checks["/user/av_contents/photo/NPXS40087"]=="accessible"
   assert checks["/user/av_contents/video/NPXS40087"]=="accessible"
   assert checks["/data/etaHEN"]=="accessible"
+  assert len(preflight["entries"])==15
+  assert checks["/mnt/usb0/ps5_autoloader"]=="accessible"
   assert checks["/mnt/usb7/ps5_autoloader"]=="absent"
   assert "PRIVATE_TOKEN" not in json.dumps(preflight)
   with urlopen(base+"/api/volumes",timeout=3) as r:volumes=json.load(r)

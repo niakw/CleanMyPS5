@@ -27,3 +27,7 @@
 Vérifier les chemins réels, les APIs multimédias, la synchronisation avec les bases de captures et le cycle de vie du payload. Définir un export ou sauvegarde réversible, protéger les sauvegardes et titres, confirmer avant toute opération, puis vérifier la taille libérée. Aucune suppression générique de dossiers système ; aucune défragmentation SSD.
 
 La version actuelle reste en lecture seule.
+
+### Diagnostic USB
+
+Le preflight examine à présent les répertoires autoloader candidats de `/mnt/usb0` à `/mnt/usb7` en lecture seule. La présence ou l'absence d'un montage n'établit pas à elle seule si le chargeur de payload est actif ; les vrais chemins doivent être confirmés sur la console 13.60.

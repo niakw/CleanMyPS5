@@ -47,6 +47,13 @@ char *cmp5_preflight(const char*root,size_t*out_len){
   "data/etaHEN",
   "data/ps5_autoloader",
   "data/pldmgr",
+  "mnt/usb0/ps5_autoloader",
+  "mnt/usb1/ps5_autoloader",
+  "mnt/usb2/ps5_autoloader",
+  "mnt/usb3/ps5_autoloader",
+  "mnt/usb4/ps5_autoloader",
+  "mnt/usb5/ps5_autoloader",
+  "mnt/usb6/ps5_autoloader",
   "mnt/usb7/ps5_autoloader"
  };
  char*out=(char*)calloc(1,PREFLIGHT_JSON_MAX);
