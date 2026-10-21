@@ -199,6 +199,20 @@ function closePreview(){
  const former=state.previousFocus;state.previousFocus=null;
  if(former?.isConnected)former.focus({preventScroll:true});
 }
+function prepareDupGroup(group){
+ if(!state.liveReport||!state.backend||!group||!Array.isArray(group.paths))return;
+ const byPath=new Map(state.items.filter(x=>x.category==="media"&&x.risk!=="protected").map(x=>[x.path,x]));
+ // Keep the first file as an anchor; copies are flagged for human inspection,
+ // not for deletion. The retained anchor is arbitrary and not a quality choice.
+ let added=0;
+ for(const path of group.paths.slice(1)){
+  const item=byPath.get(path);
+  if(!item||item.bytes!==group.bytesEach)continue;
+  if(!state.selected.has(item.id)){state.selected.add(item.id);added++;}
+ }
+ render();
+ announce(added+" copie(s) ajoutée(s) à la revue. Rien n'a été effacé.");
+}
 function duplicatesPanel(){
  const panel=node("section","data-panel");
  add(panel,panelHeader("Doublons vérifiés","Comparaison octet par octet"));
@@ -215,9 +229,15 @@ function duplicatesPanel(){
    add(el,node("strong","",group.paths.length+" fichiers identiques · "+bytes(group.bytesEach)+" chacun"));
    const list=node("div","dup-list");
    for(const path of group.paths)list.append(node("div","",path));
-   el.append(list);panel.append(el);
+   el.append(list);
+   if(state.liveReport){
+    const prepare=button("Ajouter les copies à examiner","secondary",()=>prepareDupGroup(group));
+    prepare.title="Prépare uniquement la sélection ; ne supprime aucune capture";
+    el.append(prepare);
+   }
+   panel.append(el);
   }
-  panel.append(node("p","filter-warning",data.filesConsidered+" images considérées, "+bytes(data.comparedBytes)+" lus en comparaison. "+(data.partial?"Analyse partielle : certains doublons n'ont pas été vérifiés.":"Limites appliquées : cette vérification n'est pas exhaustive pour toute la console.")+" Images de 32 Mio maximum, 128 images et 128 Mio de lectures au plus. Aucun fichier supprimé."));
+  panel.append(node("p","filter-warning","La première copie de chaque groupe est conservée par convention, sans garantie qu'il s'agisse de la meilleure. Vérifiez votre sélection. "+data.filesConsidered+" images considérées, "+bytes(data.comparedBytes)+" lus en comparaison. "+(data.partial?"Analyse partielle : certains doublons n'ont pas été vérifiés.":"Limites appliquées : cette vérification n'est pas exhaustive pour toute la console.")+" Images de 32 Mio maximum, 128 images et 128 Mio de lectures au plus. Aucun fichier supprimé."));
  }
  return panel;
 }
@@ -266,6 +286,13 @@ function diagnosticsPanel(){
   }
   if(!entries.length)list.append(node("p","muted","Aucun des fichiers de configuration connus n'a été trouvé. Cela n'exclut pas un autoloader propre à une application ou une injection en mémoire."));
   panel.append(list);
+  const hasAuto=entries.some(x=>x.status==="etaHEN-reference");
+  const hasToolbox=entries.some(x=>x.status==="enabled");
+  let guidance;
+  if(hasAuto)guidance="Une référence à etaHEN subsiste dans un autoloader. Vérifiez son activation depuis son propre gestionnaire, puis effectuez un arrêt complet et redémarrez sans relancer le payload. Retirer un ELF du gestionnaire principal ne désactive pas nécessairement tous les chargeurs.";
+  else if(hasToolbox)guidance="Le démarrage de la Toolbox est activé dans la configuration etaHEN, mais ce paramètre ne prouve pas qu'etaHEN soit encore chargé. Inspectez les réglages du payload réellement utilisé et vérifiez après redémarrage complet.";
+  else guidance="Aucune référence active n'a été détectée dans les fichiers connus. L'ancienne Toolbox peut encore être injectée en mémoire, ou un autre autoloader peut être en cause. Vérifiez après extinction complète, avant de relancer le jailbreak.";
+  panel.append(notice("Interprétation suggérée",guidance));
   panel.append(node("p","filter-warning","11 emplacements standard examinés. Certaines configurations propres aux applications ne sont pas couvertes ; aucune modification n'est effectuée."));
  }
  return panel;

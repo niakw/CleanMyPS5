@@ -20,3 +20,5 @@
 .review-modal{max-width:850px}.review-items{max-height:45vh;overflow:auto;display:grid;gap:6px;margin-top:18px}.review-item{display:flex;align-items:center;justify-content:space-between;gap:13px;background:#0d1627;border:1px solid var(--edge);border-radius:10px;padding:12px 14px}.review-item span{overflow-wrap:anywhere;color:#a9bad7;font-size:12px}.review-item strong{white-space:nowrap;font-size:12px}.review-actions{display:flex;flex-wrap:wrap;gap:11px;margin-top:20px}.review-modal .notice{margin-top:12px}
 
 .preview-video{display:block;max-width:100%;width:100%;height:auto;max-height:62vh;aspect-ratio:16/9;border-radius:9px;background:#05070e;object-fit:contain}.preview-video-controls{display:flex;align-items:center;flex-wrap:wrap;justify-content:center;gap:9px;margin-top:14px}.preview-video-controls button{min-height:44px;padding:10px 17px}.preview-shade .focusable:focus-visible{outline-offset:4px}
+
+.dup-group>.secondary{margin-top:13px;padding:10px 13px;font-size:12px;border-color:#a896ff70}.diag-list+.notice{margin-top:18px}

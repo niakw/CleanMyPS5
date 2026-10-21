@@ -64,3 +64,9 @@ Circle closes the review panel and restores the previously selected control. Gam
 Les vidéos MP4/WebM sont affichées dans la modale avec contrôles accessibles à la manette : croix sur le bouton Lecture/Pause, commandes ±10 secondes, rond pour revenir. Lecture progressive strictement bornée à un morceau d'1 Mio maximum par requête ; aucun téléchargement complet, aucune conversion sur SSD, aucune miniature écrite.
 
 La présence d'un conteneur MP4 ou WebM valide ne garantit pas que le navigateur PS5 puisse décoder le codec vidéo embarqué. Cette étape nécessite une validation physique du firmware et de WebKit.
+
+## Safe candidate preparation (v0.6)
+
+In a confirmed byte-identical group, the action to prepare extra copies requires a **live native scan**. It selects copies after the first path, leaving an arbitrary anchor unselected. This does not imply that the anchor is the user's preferred quality/version or that the copies can be deleted safely; review remains manual and deletion absent. Imported reports cannot unlock candidate preparation.
+
+The etaHEN diagnostic now provides a context-dependent suggested next check, but never changes Toolbox or autoloader settings.
