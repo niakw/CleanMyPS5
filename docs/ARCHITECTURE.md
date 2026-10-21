@@ -17,6 +17,7 @@ Controller-first PS5 storage maintenance, with a strict boundary between **disco
 - `GET /`, `/index.html`, `/app.js`, `/styles.css`: embedded UI.
 - `GET /api/status`: `target=host|ps5`, version and scanner capability.
 - `GET /api/report`: bounded, read-only enumeration of known roots; includes inaccessible-path warnings.
+- `GET /api/diagnostics`: explicit metadata-only etaHEN/autoload inspection of 11 documented paths (two internal loaders, eight generic USB loaders, one etaHEN config); ignores commented references. App-specific autoloaders and active ShellUI injections cannot be ruled out.
 - All other routes and write methods rejected; loopback binding is mandatory until authentication exists.
 - Host target must provide `--root`; the PS5 target defaults to `/`. This has **not** yet been verified on real firmware 13.60.
 

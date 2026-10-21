@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -133,7 +133,57 @@ function filesPage(root){
  }
  const summary=node("div","review-bar");const nums=add(node("div"),node("small","","Sélection actuelle"),node("strong","",bytes(selectedBytes())));
  add(summary,nums,button("Examiner ma sélection  →","primary",review));
- section.append(summary);root.append(section);root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
+ section.append(summary);root.append(section);
+ if(state.tab==="residuals")root.append(diagnosticsPanel());
+ root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
+}
+function diagnosticsPanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Pourquoi etaHEN est encore visible ?","Diagnostic non destructif"));
+ if(state.backend){
+  const b=button(state.diagnosing?"Inspection…":state.diagnostics?"Actualiser le diagnostic":"Examiner les autoloads et etaHEN","primary",diagnoseNow);
+  b.disabled=state.diagnosing;panel.append(b);
+ }else{
+  panel.append(node("p","muted","Ce diagnostic nécessite le service natif local. L'import d'un rapport reste disponible hors ligne."));
+ }
+ if(state.diagnostics){
+  const entries=state.diagnostics.entries;const list=node("div","diag-list");
+  const statuses={
+    "etaHEN-reference":"Référence etaHEN trouvée : chargement possible, pas nécessairement actif",
+    "no-reference":"Pas de référence etaHEN dans ce fichier",
+    "enabled":"Démarrage Toolbox activé dans la configuration",
+    "disabled":"Démarrage Toolbox désactivé",
+    "unknown":"Réglage non identifié",
+    "too-large":"Fichier trop volumineux pour cette inspection",
+    "unreadable":"Impossible d'analyser ce fichier"
+  };
+  for(const entry of entries){
+    const line=node("div","diag-row");
+    add(line,node("strong","",entry.path),node("span","",statuses[entry.status]||"État inconnu"));
+    list.append(line);
+  }
+  if(!entries.length)list.append(node("p","muted","Aucun des fichiers de configuration connus n'a été trouvé. Cela n'exclut pas un autoloader propre à une application ou une injection en mémoire."));
+  panel.append(list);
+  panel.append(node("p","filter-warning","11 emplacements standard examinés. Certaines configurations propres aux applications ne sont pas couvertes ; aucune modification n'est effectuée."));
+ }
+ return panel;
+}
+async function diagnoseNow(){
+ if(!state.backend||state.diagnosing)return;
+ state.diagnosing=true;render();
+ try{
+  const resp=await fetch("/api/diagnostics",{cache:"no-store"});
+  if(!resp.ok)throw Error("Service indisponible : "+resp.status);
+  const raw=await resp.text();
+  if(raw.length>65536)throw Error("Rapport trop volumineux");
+  const data=JSON.parse(raw);
+  if(data.schemaVersion!==1||!Array.isArray(data.entries)||data.entries.length>32)throw Error("Format non reconnu");
+  state.diagnostics={entries:data.entries.map(x=>({
+   path:typeof x.path==="string"?x.path.slice(0,180):"(inconnu)",
+   status:typeof x.status==="string"?x.status.slice(0,40):"unknown"
+  }))};
+ }catch(e){announce("Diagnostic impossible : "+e.message);}
+ finally{state.diagnosing=false;render();}
 }
 function storage(root){
  root.append(setTitle("L'espace, en toute transparence.","Répartition des seuls fichiers inventoriés par le scanner — ce n'est pas la capacité totale du SSD PS5."));

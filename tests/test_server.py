@@ -19,7 +19,16 @@ with tempfile.TemporaryDirectory() as temp:
  (image/"sidecar.dat").write_text("metadata")
  (clip/"clip.MP4").write_bytes(b"B"*150)
  (eta/"debug.log").write_text("LOG")
- (eta/"config.ini").write_text("KEEP")
+ (eta/"config.ini").write_text("toolbox_auto_start = 1\nPRIVATE_TOKEN=not-for-web")
+ loader=root/"data/ps5_autoloader"
+ loader.mkdir(parents=True)
+ (loader/"autoload.txt").write_text("# etaHEN.elf (comment)\nkstuff.elf\netaHEN.elf\n")
+ manager=root/"data/pldmgr"
+ manager.mkdir(parents=True)
+ (manager/"autoload.txt").write_text("# etaHEN.elf\nother.elf\n")
+ usb=root/"mnt/usb0/ps5_autoloader"
+ usb.mkdir(parents=True)
+ (usb/"autoload.txt").write_text("!2000\n# etaHEN.elf\n")
  (other/"save.bin").write_text("DO NOT TOUCH")
  try:(image/"link.png").symlink_to(other/"save.bin")
  except OSError:pass
@@ -57,7 +66,15 @@ with tempfile.TemporaryDirectory() as temp:
    try:urlopen(base+route,timeout=3);raise AssertionError("private file served")
    except HTTPError as e:assert e.code==404
   assert (other/"save.bin").read_text()=="DO NOT TOUCH"
-  assert (eta/"config.ini").read_text()=="KEEP"
+  assert (eta/"config.ini").read_text().startswith("toolbox_auto_start = 1")
+  with urlopen(base+"/api/diagnostics",timeout=3) as r:diag=json.load(r)
+  assert diag["checked"]==11
+  found={x["path"]:x for x in diag["entries"]}
+  assert found["/data/ps5_autoloader/autoload.txt"]["status"]=="etaHEN-reference"
+  assert found["/data/pldmgr/autoload.txt"]["status"]=="no-reference"
+  assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
+  assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
+  assert "PRIVATE_TOKEN" not in json.dumps(diag)
   assert all("directory_link" not in r["path"] for r in report["items"])
  finally:
   p.terminate()
