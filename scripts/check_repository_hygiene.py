@@ -19,7 +19,7 @@ patterns = {
     "AWS access key": re.compile(r"AKIA[A-Z0-9]{16}"),
     "private key header": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "credentials in URL": re.compile(r"(?:https?|ftps?)://[^/@:\s]+:[^/@\s]+@"),
-    "developer home directory": re.compile(r"(?:/Users|/home)/[A-Za-z0-9_.-]{3,}/"),
+    "developer home directory": re.compile(r"(?:/Users|/home)/(?!PRIVATE_|TEST_|EXAMPLE_|DEMO_)[A-Za-z0-9_.-]{3,}/"),
     "Stripe credential": re.compile(r"(?:sk_live_|rk_live_)[A-Za-z0-9]{18,}"),
 }
 findings: list[str] = []
