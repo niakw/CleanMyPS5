@@ -59,3 +59,6 @@ with ZipFile(dest, "w", ZIP_DEFLATED, compresslevel=6) as archive:
             archive.write(file, Path(source.name) / file.relative_to(source))
 print(f"Native title archive: {dest}")
 PY
+
+python3 "$project/scripts/native_release_manifest.py" write   "$project/dist/native" "$title" "$pin"
+python3 "$project/scripts/native_release_manifest.py" check   "$project/dist/native" "$title" "$pin"
