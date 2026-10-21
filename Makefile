@@ -3,11 +3,11 @@ CC = cc
 PS5_CC = $(PS5_PAYLOAD_SDK)/bin/prospero-clang
 CFLAGS = -O2 -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic
 ASSETS = build/generated/assets.h
-NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c
+NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c
 all: server
 $(ASSETS): scripts/embed_assets.py web/index.html web/styles.css web/app.js
 	$(PYTHON) scripts/embed_assets.py $(ASSETS) web/index.html web/styles.css web/app.js
-server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h
+server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/video.h
 	$(CC) $(CFLAGS) -Isrc/native -Ibuild/generated $(NATIVE) -o build/cleanmyps5-server
 ps5: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)

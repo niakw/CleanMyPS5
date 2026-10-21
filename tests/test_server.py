@@ -20,7 +20,9 @@ with tempfile.TemporaryDirectory() as temp:
  (image/"sidecar.dat").write_text("metadata")
  (image/"same.jpg").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
- (clip/"clip.MP4").write_bytes(b"B"*150)
+  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
+ (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
+ (clip/"another.webm").write_bytes(bytes.fromhex("1a45dfa3")+b"W"*128)
  (eta/"debug.log").write_text("LOG")
  (eta/"config.ini").write_text("toolbox_auto_start = 1\nPRIVATE_TOKEN=not-for-web")
  loader=root/"data/ps5_autoloader"
@@ -53,12 +55,12 @@ with tempfile.TemporaryDirectory() as temp:
   assert status["target"]=="host"
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","debug.log","config.ini"},entries
+  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
   assert entries["image.png"]["previewPath"]=="/user/av_contents/photo/NPXS40087/GAME/image.png"
   assert isinstance(entries["image.png"]["modifiedAt"],int)
-  assert report["stats"]["items"]==6
+  assert report["stats"]["items"]==8
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
@@ -81,6 +83,29 @@ with tempfile.TemporaryDirectory() as temp:
    url=base+"/api/media?file="+quote(forbidden_path,safe="")
    try:urlopen(url,timeout=3);raise AssertionError("Preview unexpectedly exposed: "+forbidden_path)
    except HTTPError as ex:assert ex.code in (400,404,413),ex.code
+  # Chunked video preview: only the allowlisted original file and exact byte ranges.
+  video="/api/video?file="+quote("/user/av_contents/video/NPXS40087/GAME/clip.MP4",safe="")
+  with urlopen(Request(base+video,method="HEAD"),timeout=3) as r:
+   assert r.status==200 and int(r.headers["Content-Length"])==150
+   assert r.headers.get_content_type()=="video/mp4"
+   assert r.headers["Accept-Ranges"]=="bytes"
+  with urlopen(Request(base+video,headers={"Range":"bytes=0-19"}),timeout=3) as r:
+   assert r.status==206 and r.headers["Content-Range"]=="bytes 0-19/150"
+   assert r.read()==b"\x00\x00\x00\x14ftypisom"+b"B"*8
+  with urlopen(Request(base+video,headers={"Range":"bytes=-8"}),timeout=3) as r:
+   assert r.status==206 and r.headers["Content-Range"]=="bytes 142-149/150"
+   assert r.read()==b"B"*8
+  webm="/api/video?file="+quote("/user/av_contents/video/NPXS40087/GAME/another.webm",safe="")
+  with urlopen(Request(base+webm,headers={"Range":"bytes=0-3"}),timeout=3) as r:
+   assert r.headers.get_content_type()=="video/webm" and r.read()==bytes.fromhex("1a45dfa3")
+  for bad in ("bytes=999-","bytes=0-1,5-7","bytes=-0","bytes=99999999999999999999999-"):
+   try:urlopen(Request(base+video,headers={"Range":bad}),timeout=3);raise AssertionError("Invalid Range: "+bad)
+   except HTTPError as e:assert e.code==416
+  for bad in ("/data/etaHEN/config.ini","/user/av_contents/photo/NPXS40087/GAME/image.png",
+              "/user/av_contents/video/NPXS40087/GAME/not-a-real-video.mp4",
+              "/user/av_contents/video/NPXS40087/GAME/../GAME/clip.MP4"):
+   try:urlopen(Request(base+"/api/video?file="+quote(bad,safe=""),headers={"Range":"bytes=0-20"}),timeout=3);raise AssertionError("Unexpected video access")
+   except HTTPError as e:assert e.code in (400,404,413)
   for route in ("/","/app.js","/styles.css"):
    with urlopen(base+route,timeout=3) as r:assert r.status==200 and len(r.read())>100
   try:urlopen(Request(base+"/api/report",method="POST"),timeout=3);raise AssertionError("write method allowed")
