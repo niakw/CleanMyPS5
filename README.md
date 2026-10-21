@@ -61,6 +61,6 @@ make package
 
 Les règles déclaratives sont compilées dans le binaire ; elles ne téléchargent ni n’exécutent de scripts. La CI teste l’API native, les exclusions, les fichiers spéciaux, les limites et l’interface, puis compile l’ELF après ASan/UBSan. Elle n’exécute rien sur PS5.
 
-[Livraison et limites](docs/DELIVERY.md) · [Matrice fonctionnelle](docs/FEATURE_MATRIX.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation PS5](docs/VALIDATION_PS5_13_60.md)
+[Livraison et limites](docs/DELIVERY.md) · [Matrice fonctionnelle](docs/FEATURE_MATRIX.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation PS5](docs/VALIDATION_PS5_13_60.md) · [Audit technique des homebrews PS5](docs/PS5_HOMEBREW_TECH_AUDIT.md)
 
 Licence GPL-3.0. Les sources sont conservées dans le dépôt GPL-3.0 et les dépendances externes restent identifiées dans la documentation du port natif.
