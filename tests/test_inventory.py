@@ -63,6 +63,18 @@ with tempfile.TemporaryDirectory() as temporary:
         else:
             raise AssertionError('server did not start')
         report=get('/api/report')
+        overview=get('/api/overview')
+        assert overview['mode']=='metadata-only'
+        assert overview['cleanupValidated'] is False
+        assert overview['scope']=='bounded-known-roots'
+        assert overview['files']==report['stats']['items']
+        assert overview['visited']==report['stats']['visited']
+        assert overview['partial']==report['stats']['partial']
+        assert sum(overview['categories'].values())==overview['files']
+        assert overview['nominalBytes']==sum(item['bytes'] for item in report['items'])
+        assert sum(overview['coverage'].values())==len(report['coverage'])
+        assert 'items' not in overview and 'PRIVATE' not in json.dumps(overview)
+        assert str(root) not in json.dumps(overview)
         assert report['mode']=='metadata-only' and report['cleanupValidated'] is False
         assert report['ruleVersion']=='2026.10.21.1'
         items={item['path']:item for item in report['items']}
@@ -101,6 +113,12 @@ with tempfile.TemporaryDirectory() as temporary:
         for i in range(2510):
             (photos/f'{i:04d}.jxr').touch()
         capped=get('/api/report')
+        capped_overview=get('/api/overview')
+        assert capped_overview['partial'] is True
+        assert capped_overview['coverage']['partial']>=1
+        assert capped_overview['files']==capped['stats']['items']
+        assert capped_overview['nominalBytes']==sum(x['bytes'] for x in capped['items'])
+        assert 'many/' not in json.dumps(capped_overview)
         coverage={row['path']:row for row in capped['coverage']}
         assert capped['stats']['partial'] is True
         assert coverage['/user/av_contents/photo']['status']=='partial'
