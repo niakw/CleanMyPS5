@@ -6,6 +6,20 @@
 #include <cstring>
 
 namespace cmp5_native {
+// Native/helper protocol v2: fail closed on an unexpected process or version.
+// This is an identity/compatibility check, NOT authentication or an elevation.
+inline constexpr char expected_capabilities[]=
+  "{\"schemaVersion\":1,\"service\":\"CleanMyPS5-helper\",\"protocol\":2,"
+  "\"transport\":\"loopback\",\"mode\":\"read-only\","
+  "\"permissionScope\":\"runtime-dependent\","
+  "\"features\":{\"preflight\":true,\"overview\":true,\"delete\":false,"
+  "\"quarantine\":false,\"privilegeEscalation\":false}}";
+
+inline bool matches_expected_helper(const char*json,std::size_t length) noexcept {
+ return json && length==sizeof(expected_capabilities)-1 &&
+   std::memcmp(json,expected_capabilities,length)==0;
+}
+
 struct HttpBody {
  const char* data=nullptr;
  std::size_t size=0;
