@@ -126,37 +126,70 @@ bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
  }
  *out=n;return true;
 }
-bool get_preflight() noexcept {
+enum class Summary { unchecked, ok, unavailable };
+Summary summary_status=Summary::unchecked;
+unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
+std::uint64_t summary_bytes=0;
+bool summary_partial=false;
+
+// Native UI uses only fixed paths and a closed loopback listener.
+// Bounded receive buffers; the backend never receives a write command.
+bool fetch_local(const char*route,char*response,std::size_t capacity,
+                 const char**json) noexcept {
+ if(!route||!response||capacity<256||!json)return false;
+ if(std::strcmp(route,"/api/preflight")&&std::strcmp(route,"/api/overview"))return false;
  int socket=sceNetSocket("cleanmyps5_ui",2,1,6);
  if(socket<0)return false;
- constexpr int timeout_us=350000;
+ const int timeout_us=std::strcmp(route,"/api/overview")==0?6000000:350000;
  (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
  (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
  const NetSockaddrIn local{16,2,static_cast<std::uint16_t>((8877u<<8)|(8877u>>8)),0x0100007f,0,{0}};
  bool ok=sceNetConnect(socket,&local,sizeof(local))>=0;
- static constexpr char request[]=
-  "GET /api/preflight HTTP/1.1\r\n"
-  "Host: 127.0.0.1:8877\r\n"
-  "Connection: close\r\n\r\n";
- if(ok){
-  const int sent=sceNetSend(socket,request,sizeof(request)-1,0);
-  ok=sent==static_cast<int>(sizeof(request)-1);
+ char request[128]{};
+ int length=std::snprintf(request,sizeof(request),
+   "GET %s HTTP/1.1\r\nHost: 127.0.0.1:8877\r\nConnection: close\r\n\r\n",route);
+ if(length<=0||static_cast<std::size_t>(length)>=sizeof(request))ok=false;
+ std::size_t sent=0;
+ while(ok&&sent<static_cast<std::size_t>(length)){
+  const int got=sceNetSend(socket,request+sent,static_cast<std::size_t>(length)-sent,0);
+  if(got<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(got);
  }
- char response[18432]{};
  std::size_t received=0;
- while(ok && received<sizeof(response)-1){
-  const int got=sceNetRecv(socket,response+received,sizeof(response)-received-1,0);
+ while(ok&&received<capacity-1){
+  const int got=sceNetRecv(socket,response+received,capacity-received-1,0);
   if(got<0){ok=false;break;}
   if(got==0)break;
   received+=static_cast<std::size_t>(got);
  }
  (void)sceNetSocketClose(socket);
- if(!ok||received==0||received>=sizeof(response)-1)return false;
+ if(!ok||received==0||received>=capacity-1)return false;
  response[received]='\0';
  if(std::strncmp(response,"HTTP/1.1 200 ",13)!=0)return false;
- const char*json=std::strstr(response,"\r\n\r\n");
- if(!json)return false;
- json+=4;
+ const char*body=std::strstr(response,"\r\n\r\n");
+ if(!body)return false;
+ *json=body+4;
+ return true;
+}
+bool scan_u64(const char*text,const char*name,std::uint64_t*out) noexcept {
+ const char*start=std::strstr(text,name);
+ if(!start)return false;
+ start+=std::strlen(name);
+ if(*start<'0'||*start>'9')return false;
+ std::uint64_t n=0;
+ while(*start>='0'&&*start<='9'){
+  const unsigned digit=static_cast<unsigned>(*start-'0');
+  if(n>(UINT64_MAX-digit)/10)return false;
+  n=n*10+digit;
+  ++start;
+ }
+ *out=n;
+ return true;
+}
+bool get_preflight() noexcept {
+ char response[18432]{};
+ const char*json=nullptr;
+ if(!fetch_local("/api/preflight",response,sizeof(response),&json))return false;
  if(!std::strstr(json,"\"scope\":\"known-paths-only\""))return false;
  unsigned a=0,d=0,b=0;
  if(!scan_field(json,"\"accessible\":",&a)||
@@ -168,6 +201,30 @@ bool get_preflight() noexcept {
 void run_environment_check() noexcept {
  probe_local();
  engine=get_preflight()?Link::ok:Link::offline;
+ summary_status=Summary::unchecked;
+}
+void run_overview() noexcept {
+ summary_status=Summary::unavailable;
+ // May take several seconds on large drives. Only execute on explicit X action.
+ char response[2048]{};
+ const char*json=nullptr;
+ if(!fetch_local("/api/overview",response,sizeof(response),&json))return;
+ if(!std::strstr(json,"\"scope\":\"bounded-known-roots\"")||
+    !std::strstr(json,"\"cleanupValidated\":false"))return;
+ unsigned files=0,media=0,cache=0,logs=0;
+ std::uint64_t bytes=0;
+ if(!scan_field(json,"\"files\":",&files)||
+    !scan_u64(json,"\"nominalBytes\":",&bytes)||
+    !scan_field(json,"\"media\":",&media)||
+    !scan_field(json,"\"cache\":",&cache)||
+    !scan_field(json,"\"logs\":",&logs))return;
+ summary_files=files;
+ summary_media=media;
+ summary_cache=cache;
+ summary_logs=logs;
+ summary_bytes=bytes;
+ summary_partial=std::strstr(json,"\"partial\":true")!=nullptr;
+ summary_status=Summary::ok;
 }
 void poll_pad() noexcept {
  if(controller<0)return;
@@ -189,7 +246,7 @@ void poll_pad() noexcept {
     if(screen==Screen::access)probe_local();
    }
   }else if(pressed&cross){
-   if(screen==Screen::analyze)run_environment_check();
+   if(screen==Screen::analyze)run_overview();
    if(screen==Screen::access)probe_local();
   }
  }
@@ -250,10 +307,22 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   local_checked?"%u DOSSIERS  %u ENTREES VUES%s":"NON EXECUTEE",
   listable,sampled,incomplete?" (PARTIEL)":"");
  panel(canvas,515,"ANALYSE LOCALE",local_result);
- panel(canvas,664,"LIMITES DE COUVERTURE",
-  "ACCES APP DIFFERENT DU PAYLOAD",Color::yellow);
- panel(canvas,813,"SECURITE","AUCUNE SUPPRESSION EFFECTUEE");
- footer(canvas,"X RECONTROLER    CERCLE RETOUR");
+ char detail[112]{};
+ if(summary_status==Summary::ok){
+  (void)std::snprintf(detail,sizeof(detail),"%u FICHIERS  %llu MIO NOMINAUX%s",
+    summary_files,static_cast<unsigned long long>(summary_bytes/1048576ULL),
+    summary_partial?"  PARTIEL":"");
+  panel(canvas,664,"BILAN DU HELPER",detail,Color::cyan);
+  (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u",
+    summary_media,summary_cache,summary_logs);
+  panel(canvas,813,"CATEGORIES VUES",detail);
+ }else{
+  panel(canvas,664,"BILAN DU HELPER",
+    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"INDISPONIBLE",
+    Color::yellow);
+  panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
+ }
+ footer(canvas,"X ANALYSE APPROFONDIE    CERCLE RETOUR");
 }
 void show_access(ps5::demo::Canvas&canvas) noexcept {
  for(std::size_t i=0;i<4;i++){
