@@ -90,7 +90,7 @@ static int open_snapshot(const char*root,const Item*i){
  if(strncmp(i->path,root,rootlen)!=0)return -1;
  const char*rel=i->path+rootlen;
  if(rootlen&&root[rootlen-1]!='/'){if(*rel!='/')return -1;rel++;}
- static const char prefix[]="user/av_contents/photo/NPXS40087/";
+ static const char prefix[]="user/av_contents/photo/";
  if(strncmp(rel,prefix,sizeof(prefix)-1)!=0||!rel[sizeof(prefix)-1]||strlen(rel)>=PATH_CAP)return -1;
  for(const char*p=rel;*p;p++)if(*p=='\\'||(p>rel&&*p=='/'&&p[-1]=='/'))return -1;
  char copy[PATH_CAP];memcpy(copy,rel,strlen(rel)+1);
@@ -173,8 +173,8 @@ char *cmp5_duplicates(const char*root,size_t*length){
  char dir[PATH_CAP],step[PATH_CAP];size_t rootlen=strlen(root);
  int fd=-1,valid=rootlen<sizeof(dir);
  if(valid){memcpy(dir,root,rootlen+1);fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);valid=fd>=0;}
- const char*parts[]={"user","av_contents","photo","NPXS40087"};
- for(size_t k=0;valid&&k<4;k++){
+ const char*parts[]={"user","av_contents","photo"};
+ for(size_t k=0;valid&&k<3;k++){
   if(!join(step,sizeof(step),dir,parts[k])){valid=0;break;}
   int child=openat(fd,parts[k],O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   if(child<0){valid=0;break;}
@@ -202,7 +202,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
    if(groups++)add(&out,",");
    char n[40];snprintf(n,sizeof(n),"%llu",(unsigned long long)s->items[i].size);
    add(&out,"{\"bytesEach\":");add(&out,n);add(&out,",\"paths\":[");
-   for(size_t k=0;k<nm;k++){if(k)add(&out,",");quote(&out,s->items[matches[k]].path);}
+   for(size_t k=0;k<nm;k++){if(k)add(&out,",");const char *canonical=strstr(s->items[matches[k]].path,"/user/av_contents/photo/");quote(&out,canonical?canonical:s->items[matches[k]].path);}
    add(&out,"]}");
   }
  }

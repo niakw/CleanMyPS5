@@ -5,6 +5,12 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Threads REQUIRED)
 set(ASSETS ${CMAKE_CURRENT_BINARY_DIR}/generated/assets.h)
+set(RULES ${CMAKE_CURRENT_BINARY_DIR}/generated/scan_rules.h)
+add_custom_command(OUTPUT ${RULES}
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_rules.py
+         ${CMAKE_SOURCE_DIR}/rules/metadata-v1.json ${RULES}
+ DEPENDS ${CMAKE_SOURCE_DIR}/scripts/embed_rules.py ${CMAKE_SOURCE_DIR}/rules/metadata-v1.json
+ VERBATIM)
 add_custom_command(
  OUTPUT ${ASSETS}
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${ASSETS}
@@ -13,7 +19,7 @@ add_custom_command(
          ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
  VERBATIM
 )
-add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c src/native/preflight.c src/native/homebrew.c ${ASSETS})
+add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c src/native/preflight.c src/native/homebrew.c ${ASSETS} ${RULES})
 target_include_directories(cleanmyps5-server PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(cleanmyps5-server PRIVATE Threads::Threads)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -21,3 +27,5 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 enable_testing()
 add_test(NAME native_server_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_server.py $<TARGET_FILE:cleanmyps5-server>)
+
+add_test(NAME generic_inventory_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_inventory.py $<TARGET_FILE:cleanmyps5-server>)

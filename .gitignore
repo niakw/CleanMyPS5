@@ -1,0 +1,6 @@
+/build*/
+*.elf
+*.elf.sha256
+__pycache__/
+.DS_Store
+/dist/

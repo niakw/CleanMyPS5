@@ -1,14 +1,14 @@
 "use strict";
 // The UI never sends a delete request. Reports are untrusted data, rendered via textContent.
-const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage",official:"Return to Live"};
-const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
+const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Apps & fichiers",storage:"Stockage",official:"Return to Live",tools:"Outils"};
+const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Applications",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false,officialBusy:false,officialStage:"",officialCheckedAt:null,officialManual:new Set(),officialRoute:"undecided"};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",mediaSort:"size",mediaKind:"all",mediaQuery:"",scanStats:null,coverage:[],ruleVersion:"",diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0,smartBusy:false,smartStage:'',smartSummary:null,homebrew:null,homebrewBusy:false,officialBusy:false,officialStage:"",officialCheckedAt:null,officialManual:new Set(),officialRoute:"undecided"};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
 function bytes(value){if(!Number.isFinite(value)||value<0)return "0 o";const u=["o","Ko","Mo","Go","To"];let i=0;while(value>=1024&&i<u.length-1){value/=1024;i++;}return (i?value.toLocaleString("fr-FR",{maximumFractionDigits:1}):Math.round(value).toLocaleString("fr-FR"))+" "+u[i];}
-function setTitle(title,lead){const e=add(node("div",""),node("div","eyebrow","NETTOYAGE INTELLIGENT"),node("h1","page-heading",title),node("p","lead",lead));return e;}
+function setTitle(title,lead){const e=add(node("div",""),node("div","eyebrow","ANALYSE DU STOCKAGE"),node("h1","page-heading",title),node("p","lead",lead));return e;}
 function button(text,cls,fn){const b=node("button",cls+" focusable",text);b.type="button";b.addEventListener("click",fn);return b;}
 function mediaOld(item,now=Date.now()){
  return item.category==="media"&&item.modifiedAt>0&&now-item.modifiedAt*1000>=90*86400000;
@@ -21,14 +21,14 @@ function buildSmartSummary(snapshot,now=Date.now()){
  const autoload=snapshot.diagnostics?.entries||[];
  const checks={
   inventory:!!snapshot.liveReport,
-  duplicates:!!snapshot.duplicates,
+  duplicates:snapshot.duplicates?true:null,
+  autoload:snapshot.diagnostics?true:null,
   preflight:!!snapshot.preflight,
   volumes:!!snapshot.volumes,
-  autoload:!!snapshot.diagnostics,
   homebrew:!!snapshot.homebrew
  };
  const partial=snapshot.scanStats?.partial===true||snapshot.duplicates?.partial===true||snapshot.homebrew?.partial===true||
-   Object.values(checks).some(x=>!x);
+   Object.values(checks).some(x=>x===false);
  return {
   files:items.length,mediaFiles:media.length,
   mediaBytes:media.reduce((sum,x)=>sum+x.bytes,0),
@@ -57,12 +57,65 @@ function safeItems(report){
       titleId:typeof v.titleId==="string"&&/^[A-Za-z0-9_]{1,24}$/.test(v.titleId)?v.titleId:"",
       modifiedAt:Number.isSafeInteger(v.modifiedAt)&&v.modifiedAt>0&&v.modifiedAt<4102444800?v.modifiedAt:0,
       possibleTwin:false,previewPath:typeof v.previewPath==="string"&&
-        /^\/user\/av_contents\/photo\/NPXS40087\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
+        /^\/user\/av_contents\/photo\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
       videoPath:typeof v.previewPath==="string"&&
-        /^\/user\/av_contents\/video\/NPXS40087\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
+        /^\/user\/av_contents\/video\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
       sortName:v.path.split("/").pop().toLocaleLowerCase("fr")};
   });
 }
+
+function inventoryExport(snapshot){
+ return {schemaVersion:1,kind:"metadata-inventory",mode:"metadata-only",cleanupValidated:false,
+  source:"CleanMyPS5",ruleVersion:snapshot.ruleVersion||"",coverage:safeCoverage(snapshot.coverage),
+  stats:snapshot.scanStats||null,warnings:(snapshot.warnings||[]).slice(0,32),
+  items:snapshot.items.map(x=>({id:x.id,path:x.path,bytes:x.bytes,modifiedAt:x.modifiedAt,category:x.category,risk:x.risk,reason:x.reason,titleId:x.titleId||""}))};
+}
+function exportInventory(){
+ if(!state.items.length)return;
+ const url=URL.createObjectURL(new Blob([JSON.stringify(inventoryExport(state),null,2)],{type:"application/json"}));
+ const a=document.createElement("a");a.href=url;a.download="cleanmyps5-inventaire.json";document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);announce("Inventaire des métadonnées exporté localement.");
+}
+
+function safeCoverage(value){
+ if(!Array.isArray(value))return [];
+ const statuses=["complete","partial","absent","unavailable","alias-skipped","not-scanned"];
+ return value.slice(0,64).filter(x=>x&&typeof x.path==="string"&&x.path.startsWith("/")&&x.path.length<=2048).map(x=>({
+  path:x.path,status:statuses.includes(x.status)?x.status:"unavailable",
+  items:Number.isSafeInteger(x.items)&&x.items>=0?x.items:0,
+  nominalBytes:Number.isSafeInteger(x.nominalBytes)&&x.nominalBytes>=0?x.nominalBytes:0
+ }));
+}
+function coveragePanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Périmètre et règles",state.ruleVersion||"Rapport importé"));
+ const statuses={complete:"Parcours terminé",partial:"Partiel",absent:"Absent",unavailable:"Inaccessible / lien refusé","alias-skipped":"Alias ignoré","not-scanned":"Non parcouru"};
+ const list=node("div","preflight-list");
+ for(const entry of state.coverage){
+  const line=node("div","preflight-line");add(line,node("strong","",entry.path),node("span","",statuses[entry.status]+" · "+entry.items+" fichiers · "+bytes(entry.nominalBytes)));list.append(line);
+ }
+ add(panel,list,node("p","filter-warning","Métadonnées uniquement. Sauvegardes, comptes, licences, profils, runtimes et autres répertoires personnels connus sont exclus. Liens symboliques et fichiers spéciaux ignorés ; les alias d’inodes ne sont comptés qu’une fois. Des données privées dans un dossier inconnu restent possibles : aucun contenu n’est ouvert par cet inventaire."));
+ return panel;
+}
+function genericMatches(item,{query="",mode="all"},now=Date.now()){
+ if(query&&!item.path.toLocaleLowerCase("fr").includes(query.trim().toLocaleLowerCase("fr")))return false;
+ if(mode==="over50"&&item.bytes<50*1024*1024)return false;
+ if(mode==="large"&&item.bytes<250*1024*1024)return false;
+ if(mode==="old"&&!(item.modifiedAt>0&&now-item.modifiedAt*1000>=90*86400000))return false;
+ return true;
+}
+function genericToolbar(){
+ const tools=node("div","media-tools");
+ const search=node("input","focusable media-search");search.type="search";search.maxLength=100;search.value=state.mediaQuery;
+ search.placeholder="Rechercher un chemin…";search.setAttribute("aria-label","Rechercher dans les fichiers");
+ search.addEventListener("input",()=>{const pos=search.selectionStart;state.mediaQuery=search.value;state.page=0;render();const next=document.querySelector(".media-search");if(next){next.focus({preventScroll:true});if(pos!==null)next.setSelectionRange(pos,pos);}});
+ add(tools,search,button("Trier : "+({size:"Taille ↓",date:"Date ↓",name:"Nom A–Z"}[state.mediaSort]),"secondary sort-cycle",cycleMediaSort));
+ for(const [mode,label] of [["all","Tous"],["over50","≥ 50 Mio"],["large","≥ 250 Mio"],["old","Modifiés il y a ≥ 90 j"]]){
+  const b=button(label,"secondary mode-filter"+(state.mediaMode===mode?" chosen":""),()=>setMediaMode(mode));b.dataset.mediaMode=mode;b.setAttribute("aria-pressed",String(state.mediaMode===mode));tools.append(b);
+ }
+ tools.append(node("p","filter-warning","Taille et ancienneté servent à explorer. Elles ne prouvent pas qu’un fichier peut être supprimé."));return tools;
+}
+
 function useReport(report,isDemo=false,live=false){
   const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);
   state.reportRevision++;
@@ -73,6 +126,8 @@ function useReport(report,isDemo=false,live=false){
   // A previous exact match must never survive a refreshed/imported inventory.
   state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;state.smartSummary=null;state.homebrew=null;
   state.officialCheckedAt=null;state.officialManual.clear();
+  state.coverage=safeCoverage(report.coverage);
+  state.ruleVersion=typeof report.ruleVersion==="string"?report.ruleVersion.slice(0,40):"";
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
@@ -89,11 +144,11 @@ function demo(){const G=1024**3,M=1024**2;useReport({schemaVersion:1,source:"Dé
  ]},true);}
 function panelHeader(title,detail){const r=node("div","items-head");add(r,node("h3","",title),node("span","section-note",detail));return r;}
 function categories(){
- const list=[["media","Captures & vidéos","▧","blue"],["cache","Caches & journaux","◎","purple"],["residuals","Installations","▤","teal"]];
+ const list=[["media","Captures & vidéos","▧","blue"],["cache","Caches & journaux","◎","purple"],["residuals","Apps & fichiers","▤","teal"]];
  const cards=node("div","card-grid");
  list.forEach(([key,title,icon,color])=>{
   const b=node("button","summary-card focusable");b.type="button";
-  add(b,node("span","card-icon "+color,icon),node("span","card-title",title),node("strong","card-metric",bytes(key==="cache"?numberFor("cache")+numberFor("logs"):numberFor(key))),node("span","card-caption",state.items.length?"Éléments détectés · inspecter":"En attente d'un rapport"));
+  add(b,node("span","card-icon "+color,icon),node("span","card-title",title),node("strong","card-metric",bytes(key==="cache"?numberFor("cache")+numberFor("logs"):key==="residuals"?numberFor("residuals")+numberFor("other"):numberFor(key))),node("span","card-caption",state.items.length?"Éléments détectés · inspecter":"En attente d'un rapport"));
   b.addEventListener("click",()=>go(key));cards.append(b);
  });return cards;
 }
@@ -285,10 +340,31 @@ function exportOfficialPlan(){
  announce("Plan de vérification exporté ; aucun fichier supprimé.");
 }
 
+function toolsPage(root){
+ root.append(setTitle("Outils de stockage","Des contrôles réunis dans une seule application, sans service externe ni collecte distante."));
+ const grid=node("div","tools-grid");
+ const choices=[
+  ["Inventaire général","Captures, système et apps inconnues · métadonnées",()=>scanNow()],
+  ["Gros fichiers","Toutes les apps, ressources et autres fichiers ≥ 50 Mio",()=>{go("residuals");setMediaMode("over50");}],
+  ["Fichiers anciens","Dernière modification ≥ 90 jours · ne prouve pas l’inutilité",()=>{go("residuals");setMediaMode("old");}],
+  ["Captures et vidéos","Photos, clips, recherche, tri et revue",()=>go("media")],
+  ["Doublons exacts","Comparaison des images sur demande · lecture bornée du contenu",()=>{go("media");}],
+  ["Journaux et caches système","Bases, WAL/SHM et caches protégés",()=>go("cache")],
+  ["Apps et plugins","Catalogue générique, données et ressources protégées",()=>go("residuals")],
+  ["Démarrage et autoload","Diagnostic explicite des références connues · lecture de configurations",()=>go("residuals")],
+  ["Carte des captures","Occupation par jeu et format",()=>go("storage")],
+  ["Volumes","Capacité disponible des montages visibles, sans double total",()=>go("storage")],
+  ["Couverture","Chemins absents, inaccessibles et limites de parcours",()=>go("overview")],
+  ["Retour au système officiel","Contrôles et checklist manuelle",()=>go("official")]
+ ];
+ for(const [title,detail,action] of choices){const b=button("","tool-card",action);add(b,node("strong","",title),node("span","",detail));if(title==="Inventaire général")b.disabled=!state.backend||state.scanning;grid.append(b);}
+ root.append(grid);
+ root.append(notice("Fonctions non activées","Désinstallation, mises à jour d’applications, purge des caches, suppression de captures, sauvegarde/restauration et nettoyage automatique nécessitent une validation PS5 spécifique. Aucun antivirus ni gestionnaire de processus n’est fourni. Les fonctions mail, cloud et instantanés du Mac n’ont pas d’équivalent intégré ici."));
+}
 function overview(root){
- root.append(setTitle("Prenez soin de votre PS5.","Une vision claire de votre stockage, des captures volumineuses aux fichiers résiduels. Rien n'est supprimé sans vérification."));
+ root.append(setTitle("Prenez soin de votre PS5.","Explorez les captures, journaux, caches et applications. Cette version analyse le stockage en lecture seule."));
  const hero=node("section","hero");const c=node("div","hero-copy");
- add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une console propre. L'esprit tranquille."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre sélection, sans risque pour la console.":state.backend?"Le scanner local est disponible. Lancez un inventaire en lecture seule de vos captures et fichiers etaHEN.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
+ add(c,node("span","eyebrow","SMART SCAN · READ ONLY"),node("h2","",state.items.length?"Votre analyse est prête.":"Une vision claire de votre stockage."),node("p","",state.items.length?"Parcourez les éléments identifiés et préparez votre revue. Aucun fichier n’est modifié.":state.backend?"Le scanner local est disponible : captures, journaux système, caches et applications, au-delà d’etaHEN. Seules les métadonnées sont inventoriées.":"Chargez un rapport du scanner pour découvrir l'espace occupé. Vous pouvez aussi explorer une démonstration."));
  const actions=node("div","hero-buttons");
  if(state.backend){
   const smart=button(state.smartBusy?"Bilan en cours…":"Analyse intelligente  ✧","primary",smartCareNow);
@@ -299,6 +375,7 @@ function overview(root){
  }else{
   add(actions,button("Importer un rapport  ↗","primary",()=>$("#report-input").click()),button(state.items.length?"Voir les éléments":"Explorer la démo","secondary",()=>state.items.length?go("media"):demo()));
  }
+ if(state.items.length)actions.append(button("Exporter l’inventaire JSON","secondary",exportInventory));
  c.append(actions);add(hero,c,add(node("div","hero-orb"),node("span","orb-shape","✧")));root.append(hero);
  if(state.smartBusy){
   const progress=node("section","data-panel smart-care-panel");
@@ -316,6 +393,7 @@ function overview(root){
       node("p","muted",state.scanStats.visited.toLocaleString("fr-FR")+" entrées parcourues · "+state.scanStats.items.toLocaleString("fr-FR")+" fichiers répertoriés. Une analyse partielle ne garantit pas l'absence d'autres fichiers."));
   root.append(summary);
  }
+ if(state.coverage.length)root.append(coveragePanel());
  if(state.warnings.length){const w=node("section","data-panel");add(w,panelHeader("Messages de l'analyse","Informations"),...state.warnings.map(s=>node("p","muted",s)));root.append(w);}
 }
 function quickToolsPanel(){
@@ -323,10 +401,10 @@ function quickToolsPanel(){
  add(panel,panelHeader("Accès rapides","Fonctions utilisables à la manette"));
  const tools=node("div","quick-tools");
  const choices=[
-  ["Captures volumineuses",()=>{state.mediaMode="large";go("media");}],
-  ["Captures anciennes",()=>{state.mediaMode="old";go("media");}],
-  ["Fichiers de même taille",()=>{state.mediaMode="size";go("media");}],
-  ["Homebrews et etaHEN",()=>go("residuals")],
+  ["Captures volumineuses",()=>{go("media");setMediaMode("large");}],
+  ["Captures anciennes",()=>{go("media");setMediaMode("old");}],
+  ["Fichiers de même taille",()=>{go("media");setMediaMode("size");}],
+  ["Applications et plugins",()=>go("residuals")],
   ["Carte de stockage",()=>go("storage")],
   ["Retour au système officiel",()=>go("official")]
  ];
@@ -347,9 +425,9 @@ function smartCarePanel(summary){
   ["Captures de 50 Mio et plus",summary.largeFiles],
   ["Éléments homebrew recensés",summary.homebrewEntries],
   ["Captures modifiées il y a ≥90 j",summary.oldFiles],
-  ["Groupes identiques vérifiés",summary.exactGroups],
-  ["Copies supplémentaires à examiner",bytes(summary.verifiedCopyBytes)],
-  ["Références autoload à examiner",summary.suspiciousAutoloads],
+  ["Groupes identiques vérifiés",summary.checks.duplicates===null?"Sur demande":summary.exactGroups],
+  ["Copies supplémentaires à examiner",summary.checks.duplicates===null?"Sur demande":bytes(summary.verifiedCopyBytes)],
+  ["Références autoload à examiner",summary.checks.autoload===null?"Sur demande":summary.suspiciousAutoloads],
  ];
  for(const [label,value] of fields)add(metrics,add(node("div","smart-metric"),
   node("span","",label),node("strong","",String(value))));
@@ -361,7 +439,7 @@ function smartCarePanel(summary){
   ["autoload","Autoload / etaHEN"],["homebrew","Installations homebrew"]
  ]){
   add(steps,add(node("div","smart-check"),
-   node("span","",label),node("strong",summary.checks[key]?"Examiné":"Indisponible")));
+   node("span","",label),node("strong","",summary.checks[key]===null?"Sur demande":summary.checks[key]?"Examiné":"Indisponible")));
  }
  panel.append(steps);
  panel.append(node("p","filter-warning","Seuls les fichiers accessibles et autorisés sont examinés. Aucun de ces volumes n'est un calcul d'espace réellement libéré. Les vérifications partielles ne prouvent pas l'absence d'autres fichiers."));
@@ -383,9 +461,7 @@ async function smartCareNow(){
   const stages=[
    ["Montages du stockage",getVolumes],
    ["Chemins d'accès",runPreflight],
-   ["Diagnostic etaHEN",diagnoseNow],
-   ["Installations et plugins protégés",getHomebrew],
-   ["Doublons octet à octet (bornés)",checkDuplicates]
+   ["Installations et plugins protégés",getHomebrew]
   ];
   for(const [stage,fn] of stages){
    if(revision!==state.reportRevision)throw Error("Un autre rapport a remplacé l'analyse.");
@@ -436,7 +512,7 @@ async function runPreflight(){
   if(raw.length>16384)throw Error("Réponse trop volumineuse");
   const data=JSON.parse(raw);
   if(data.schemaVersion!==1||data.scope!=="known-paths-only"||data.mode!=="read-only"||
-     !Array.isArray(data.entries)||data.entries.length>20)throw Error("Diagnostic non conforme");
+     !Array.isArray(data.entries)||data.entries.length>64)throw Error("Diagnostic non conforme");
   state.preflight={entries:data.entries.map(x=>({
    path:typeof x.path==="string"?x.path.slice(0,120):"(inconnu)",
    status:typeof x.status==="string"?x.status.slice(0,40):"unknown"
@@ -475,11 +551,16 @@ function mediaMatches(item,options){
     !item.titleId.toLocaleLowerCase("fr").includes(query))return false;
  return true;
 }
+function categoryItems(items,tab,options={}){
+ return items.filter(item=>{
+  const matches=tab==="cache"?["cache","logs"].includes(item.category):
+    tab==="residuals"?["residuals","other"].includes(item.category):
+    ["overview","storage"].includes(tab)||item.category===tab;
+  return matches&&(tab==="media"||genericMatches(item,options));
+ });
+}
 function filtered(){
- const items=state.items.filter(x=>{
-  if(state.tab==="cache")return ["cache","logs"].includes(x.category);
-  if(state.tab==="storage"||state.tab==="overview")return true;
-  if(x.category!==state.tab)return false;
+ const items=categoryItems(state.items,state.tab,{query:state.mediaQuery,mode:state.mediaMode}).filter(x=>{
   if(state.tab==="media"){
    if(!mediaMatches(x,{kind:state.mediaKind,query:state.mediaQuery}))return false;
    if(state.mediaTitle!=="all"&&x.titleId!==state.mediaTitle)return false;
@@ -490,7 +571,7 @@ function filtered(){
   }
   return true;
  });
- if(state.tab==="media")items.sort((a,b)=>compareMedia(a,b,state.mediaSort));
+ items.sort((a,b)=>compareMedia(a,b,state.mediaSort));
  return items;
 }
 function cycleMediaSort(){
@@ -557,8 +638,8 @@ function row(x){const selected=state.selected.has(x.id);const protectedItem=x.ri
  }
  return el;}
 function filesPage(root){
- const title=labels[state.tab];const explain={media:"Retrouvez les photos, captures automatiques et clips vidéo. Sélection manuelle avant tout nettoyage.",cache:"Journaux diagnostiques et caches accessibles. Les caches système non identifiés restent exclus.",residuals:"Inspection des anciennes installations et configurations résiduelles : aucun élément n'est présumé inutile."};
- root.append(setTitle(title,explain[state.tab]));if(state.tab==="media")root.append(mediaToolbar());const section=node("section","data-panel");
+ const title=labels[state.tab];const explain={media:"Retrouvez les photos, captures automatiques et clips vidéo. Sélection manuelle avant tout nettoyage.",cache:"Journaux diagnostiques et caches accessibles. Les caches système non identifiés restent exclus.",residuals:"Programmes, ressources, configurations et fichiers inconnus. Découverte indépendante de votre liste d’apps ; aucun élément n’est présumé inutile."};
+ root.append(setTitle(title,explain[state.tab]));if(state.tab==="media")root.append(mediaToolbar());else root.append(genericToolbar());const section=node("section","data-panel");
  const items=filtered();const pageCount=Math.max(1,Math.ceil(items.length/state.pageSize));state.page=Math.min(state.page,pageCount-1);
  const from=state.page*state.pageSize;const slice=items.slice(from,from+state.pageSize);
  add(section,panelHeader("Éléments répertoriés",items.length+" élément(s)"),items.length?add(node("div","item-list"),...slice.map(row)):add(node("div","empty"),node("div","empty-glyph","◇"),node("p","","Aucun élément analysé dans cette catégorie.")));
@@ -711,7 +792,7 @@ function homebrewPanel(){
   for(const item of state.homebrew.items){
    const line=node("div","homebrew-item");
    add(line,node("strong","",item.path),node("span","",bytes(item.nominalBytes)+" nominaux · "+item.files+" fichiers"));
-   line.append(node("small","",item.kind==="plugin"?"Plugin etaHEN · protégé":"Homebrew · protégé"));
+   line.append(node("small","",({plugin:"Plugin",homebrew:"Homebrew","app-data":"Données d’app",installed:"Installation"}[item.kind]||"Application")+" · protégé"));
    list.append(line);
   }
   if(!state.homebrew.items.length)list.append(node("p","muted","Aucun dossier ou fichier identifiable dans les chemins connus."));
@@ -720,7 +801,7 @@ function homebrewPanel(){
    "Inventaire PARTIEL : chemins indisponibles ou limites de parcours atteintes.":
    "Analyse terminée dans les seuls chemins candidats. La présence d'un dossier ne prouve ni une installation valide ni un résidu inutile."));
  }
- panel.append(notice("Aucune désinstallation possible ici","Les dossiers /data/homebrew et /data/etaHEN/plugins peuvent contenir des applications ou plugins actifs. La taille correspond seulement aux fichiers visibles et ne mesure pas l'espace réellement récupérable."));
+ panel.append(notice("Aucune désinstallation possible ici","Découverte générique dans /data, /user/app et les homebrews USB/étendus (slots 0 à 7). Les groupes peuvent être imbriqués : ne pas additionner leurs tailles. Les données personnelles connues sont exclues du parcours. Aucune taille n’est un gain récupérable."));
  return panel;
 }
 async function getHomebrew(){
@@ -732,12 +813,12 @@ async function getHomebrew(){
   const raw=await resp.text();if(raw.length>256*1024)throw Error("Réponse trop volumineuse");
   const data=JSON.parse(raw);
   if(data.schemaVersion!==1||data.scope!=="protected-homebrew-metadata"||data.mode!=="read-only"||
-     !Array.isArray(data.items)||data.items.length>64)throw Error("Format non reconnu");
+     !Array.isArray(data.items)||data.items.length>256)throw Error("Format non reconnu");
   state.homebrew={partial:data.partial===true,items:data.items.map(v=>({
     path:typeof v.path==="string"?v.path.slice(0,2048):"(inconnu)",
     files:Number.isSafeInteger(v.files)&&v.files>=0?v.files:0,
     nominalBytes:Number.isSafeInteger(v.nominalBytes)&&v.nominalBytes>=0?v.nominalBytes:0,
-    kind:v.kind==="plugin"?"plugin":"homebrew",
+    kind:["plugin","homebrew","app-data","installed"].includes(v.kind)?v.kind:"app-data",
   }))};
  }catch(error){announce("Inventaire homebrew impossible : "+error.message);}
  finally{state.homebrewBusy=false;render();}
@@ -951,13 +1032,13 @@ function changePage(delta){
  if(target===state.page){announce(target===0?"Première page":"Dernière page");return;}
  state.page=target;render();document.querySelector(".file-item:not(:disabled), .pager button:not(:disabled)")?.focus();
 }
-function go(tab){if(!(tab in labels))return;state.page=0;const fromCard=document.activeElement?.classList.contains("summary-card");state.tab=tab;render();const nextFocus=fromCard?document.querySelector(".file-item:not(:disabled), .review-bar .primary"):document.querySelector(`[data-tab="${tab}"]`);nextFocus?.focus({preventScroll:true});}
+function go(tab){if(!(tab in labels))return;state.page=0;state.mediaMode="all";state.mediaQuery="";const fromCard=document.activeElement?.classList.contains("summary-card");state.tab=tab;render();const nextFocus=fromCard?document.querySelector(".file-item:not(:disabled), .review-bar .primary"):document.querySelector(`[data-tab="${tab}"]`);nextFocus?.focus({preventScroll:true});}
 function render(preserveFocus=false){
  const before=preserveFocus&&document.activeElement?.classList.contains("file-item")?Array.from(document.querySelectorAll(".file-item")).indexOf(document.activeElement):-1;
  const content=$("#content");content.replaceChildren();content.className="main-wrap";
  document.querySelectorAll("[data-tab]").forEach(b=>{const active=b.dataset.tab===state.tab;b.classList.toggle("active",active);b.setAttribute("aria-current",active?"page":"false");});
  $("#breadcrumb").textContent=labels[state.tab];$("#source-label").textContent=state.source==="none"?(state.backend?"Scanner local connecté":"Aucun scan chargé"):state.demo?"Données fictives":"Rapport : "+state.source;
- if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else if(state.tab==="official")officialPage(content);else filesPage(content);
+ if(state.tab==="overview")overview(content);else if(state.tab==="storage")storage(content);else if(state.tab==="official")officialPage(content);else if(state.tab==="tools")toolsPage(content);else filesPage(content);
  if(before>=0){const item=document.querySelectorAll(".file-item")[before];if(item)item.focus({preventScroll:true});}
 }
 if(typeof document!=="undefined")document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.tab)));
@@ -1083,6 +1164,6 @@ if(typeof document!=="undefined"){
 // Node-only exports for behavioral regression tests; never available through
 // the embedded browser's ordinary script-tag execution.
 if(typeof module!=="undefined"&&module.exports){
- module.exports={safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,officialPlan,RETURN_STEPS,OFFICIAL_ROUTES};
+ module.exports={categoryItems,inventoryExport,safeCoverage,genericMatches,safeItems,compareMedia,mediaOld,buildSmartSummary,captureLensGroups,mediaMatches,assessOfficial,officialPlan,RETURN_STEPS,OFFICIAL_ROUTES};
 }
 

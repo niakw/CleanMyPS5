@@ -39,8 +39,8 @@ static void startup_notification(void){}
 
 #if defined(PS5) && defined(CMP5_AUTO_BROWSER)
 // Uses the browser launch API demonstrated in ps5-payload-dev/sdk/samples/browser.
-// Deliberately optional: opening WebKit automatically may conflict with a
-// running WebKit-based payload loader. The original server-only ELF is unchanged.
+// One payload embeds the service and UI. Browser launch remains unverified
+// on hardware and may conflict with a running WebKit-based loader.
 int sceUserServiceInitialize(void*);
 int sceUserServiceTerminate(void);
 int sceSystemServiceLaunchWebBrowser(const char *uri,void*);

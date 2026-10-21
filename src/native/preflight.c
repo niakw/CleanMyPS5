@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "preflight.h"
+#include "scan_rules.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -8,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define PREFLIGHT_JSON_MAX 4096u
+#define PREFLIGHT_JSON_MAX 16384u
 #define PREFLIGHT_PATH_MAX 256u
 static const char*dir_status(const char*root,const char*relative){
  if(!root||!relative||strlen(relative)>=PREFLIGHT_PATH_MAX)return "unknown";
@@ -41,9 +42,6 @@ char *cmp5_preflight(const char*root,size_t*out_len){
  if(!out_len||!root)return NULL;
  static const char*paths[]={
   "user/av_contents",
-  "user/av_contents/photo/NPXS40087",
-  "user/av_contents/video/NPXS40087",
-  "data",
   "data/etaHEN",
   "data/ps5_autoloader",
   "data/pldmgr",
@@ -63,11 +61,13 @@ char *cmp5_preflight(const char*root,size_t*out_len){
   "{\"schemaVersion\":1,\"mode\":\"read-only\",\"scope\":\"known-paths-only\","
   "\"entries\":[");
  if(n<0||(size_t)n>=PREFLIGHT_JSON_MAX){free(out);return NULL;}length=(size_t)n;
- for(size_t i=0;i<sizeof(paths)/sizeof(paths[0]);i++){
-  const char*status=dir_status(root,paths[i]);
+ size_t known=sizeof(paths)/sizeof(paths[0]), rules=sizeof(cmp5_roots)/sizeof(*cmp5_roots);
+ for(size_t i=0;i<known+rules;i++){
+  const char *path=i<known?paths[i]:cmp5_roots[i-known].path;
+  const char*status=dir_status(root,path);
   n=snprintf(out+length,PREFLIGHT_JSON_MAX-length,
    "%s{\"path\":\"/%s\",\"status\":\"%s\"}",
-   i?",":"",paths[i],status);
+   i?",":"",path,status);
   if(n<0||(size_t)n>=PREFLIGHT_JSON_MAX-length){free(out);return NULL;}
   length+=(size_t)n;
  }

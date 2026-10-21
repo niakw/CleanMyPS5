@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
-  <title>CleanMyPS5 — Nettoyage intelligent</title>
+  <title>CleanMyPS5 — Analyse du stockage</title>
   <link rel="stylesheet" href="./styles.css">
   <script src="./app.js" defer></script>
 </head>
@@ -21,9 +21,10 @@
         <button class="nav-item focusable active" data-tab="overview"><span class="nav-icon">◈</span> Vue d'ensemble</button>
         <button class="nav-item focusable" data-tab="media"><span class="nav-icon">▧</span> Captures & vidéos</button>
         <button class="nav-item focusable" data-tab="cache"><span class="nav-icon">◎</span> Caches & journaux</button>
-        <button class="nav-item focusable" data-tab="residuals"><span class="nav-icon">▤</span> Installations</button>
+        <button class="nav-item focusable" data-tab="residuals"><span class="nav-icon">▤</span> Apps & fichiers</button>
         <button class="nav-item focusable" data-tab="storage"><span class="nav-icon">◫</span> Stockage</button>
         <button class="nav-item focusable" data-tab="official"><span class="nav-icon">↺</span> Return to Live</button>
+        <button class="nav-item focusable" data-tab="tools"><span class="nav-icon">✧</span> Outils</button>
       </nav>
       <div class="sidebar-bottom"><div class="shield-icon">✓</div><div><strong>Protection active</strong><small>Lecture seule · aucune suppression</small></div></div>
     </aside>
@@ -32,7 +33,7 @@
         <div class="breadcrumb"><span>UTILITAIRES</span><span class="chevron">›</span><strong id="breadcrumb">Vue d'ensemble</strong></div>
         <div class="header-actions">
           <span class="console-state"><span class="status-dot"></span><span id="source-label">Aucun scan chargé</span></span>
-          <span class="build-tag">PREVIEW</span>
+          <span class="build-tag">ANALYSE 0.10</span>
         </div>
       </header>
       <main id="content" tabindex="-1" aria-live="polite"></main>
