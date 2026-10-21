@@ -46,7 +46,7 @@ jobs:
       - name: Run JS validation on macOS
         run: node tests/test_ui.js
   ps5-payload:
-    needs: [host, sanitizer, macos-host]
+    needs: [host, sanitizer]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
