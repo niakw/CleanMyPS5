@@ -62,8 +62,8 @@ with tempfile.TemporaryDirectory() as temp:
    stalled.sendall((f"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n").encode())
    time.sleep(.08)
    started=time.monotonic()
-   with urlopen(base+"/api/status",timeout=2) as r:other=json.load(r)
-   assert other["app"]=="CleanMyPS5"
+   with urlopen(base+"/api/status",timeout=2) as r:second_status=json.load(r)
+   assert second_status["app"]=="CleanMyPS5"
    assert time.monotonic()-started<2
   finally:stalled.close()
   assert status["version"]==(Path(__file__).resolve().parents[1]/"VERSION").read_text().strip()
