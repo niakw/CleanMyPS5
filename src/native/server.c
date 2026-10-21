@@ -290,8 +290,13 @@ int main(int argc,char**argv){
  if(strcmp(address,"127.0.0.1")!=0){fprintf(stderr,"Network access disabled until paired/authenticated access is implemented\n");return 2;}
  struct in_addr ip;if(inet_pton(AF_INET,address,&ip)!=1)return 2;
  signal(SIGPIPE,SIG_IGN);
- signal(SIGTERM,shutdown_signal);
- signal(SIGINT,shutdown_signal);
+ struct sigaction stop_action;
+ memset(&stop_action,0,sizeof(stop_action));
+ stop_action.sa_handler=shutdown_signal;
+ sigemptyset(&stop_action.sa_mask);
+ stop_action.sa_flags=0; // No SA_RESTART: break out of blocking accept().
+ sigaction(SIGTERM,&stop_action,NULL);
+ sigaction(SIGINT,&stop_action,NULL);
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return 1;
  int opt=1;setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
  struct sockaddr_in bindaddr;memset(&bindaddr,0,sizeof(bindaddr));
