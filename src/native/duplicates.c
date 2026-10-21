@@ -19,7 +19,7 @@
 #define IO_CAP (128u*1024u*1024u)
 #define JSON_CAP (512u*1024u)
 #define MAX_MONOTONIC_NS (6000000000ULL)
-typedef struct {char path[PATH_CAP];off_t size;int paired;} Item;
+typedef struct {char path[PATH_CAP];off_t size;dev_t device;ino_t inode;time_t modified;int paired;} Item;
 typedef struct {Item items[ITEM_CAP];size_t count,visits;int partial;uint64_t deadline;} Scan;
 static uint64_t now_ns(void){
  struct timespec ts;
@@ -42,11 +42,10 @@ static int ends(const char*name,const char*ext){
 static int is_image(const char *name){
  return ends(name,".png")||ends(name,".jpg")||ends(name,".jpeg")||ends(name,".jxr");
 }
-static void walk(Scan*s,const char*dir,int depth){
- if(s->partial)return;
- struct stat st;
- if(lstat(dir,&st)||!S_ISDIR(st.st_mode)){s->partial=1;return;}
- DIR*d=opendir(dir);if(!d){s->partial=1;return;}
+// Hold directory FDs throughout traversal; reject symlinks at every component.
+static void walk(Scan*s,int fd,const char*dir,int depth){
+ if(s->partial){close(fd);return;}
+ DIR*d=fdopendir(fd);if(!d){close(fd);s->partial=1;return;}
  struct dirent*entry;
  while((entry=readdir(d))!=NULL){
   if(strcmp(entry->d_name,".")==0||strcmp(entry->d_name,"..")==0)continue;
@@ -54,20 +53,50 @@ static void walk(Scan*s,const char*dir,int depth){
   if((s->visits&63u)==0&&expired(s)){s->partial=1;break;}
   char path[PATH_CAP];
   if(!join(path,sizeof(path),dir,entry->d_name)){s->partial=1;continue;}
-  struct stat st2;if(lstat(path,&st2)){s->partial=1;continue;}
-  if(S_ISLNK(st2.st_mode))continue;
-  if(S_ISDIR(st2.st_mode)){
-   if(depth<DEPTH_CAP)walk(s,path,depth+1);
-   else s->partial=1;
-  }else if(S_ISREG(st2.st_mode)&&is_image(path)&&st2.st_size>0&&st2.st_size<=(off_t)FILE_CAP){
+  struct stat st;
+  if(fstatat(dirfd(d),entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){s->partial=1;continue;}
+  if(S_ISLNK(st.st_mode))continue;
+  if(S_ISDIR(st.st_mode)){
+   if(depth<DEPTH_CAP){
+    int child=openat(dirfd(d),entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    if(child<0)s->partial=1;
+    else walk(s,child,path,depth+1);
+   }else s->partial=1;
+  }else if(S_ISREG(st.st_mode)&&is_image(path)&&st.st_size>0&&st.st_size<=(off_t)FILE_CAP){
    if(s->count>=ITEM_CAP){s->partial=1;break;}
    Item *i=&s->items[s->count++];
    memcpy(i->path,path,strlen(path)+1);
-   i->size=st2.st_size;
+   i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;i->modified=st.st_mtime;
   }
   if(s->partial)break;
  }
  closedir(d);
+}
+// Open only within the capture namespace; verify that the file is the one
+// snapshotted during enumeration, not a replacement after the scan.
+static int open_snapshot(const char*root,const Item*i){
+ size_t rootlen=strlen(root);
+ if(strncmp(i->path,root,rootlen)!=0)return -1;
+ const char*rel=i->path+rootlen;
+ if(rootlen&&root[rootlen-1]!='/'){if(*rel!='/')return -1;rel++;}
+ static const char prefix[]="user/av_contents/photo/NPXS40087/";
+ if(strncmp(rel,prefix,sizeof(prefix)-1)!=0||!rel[sizeof(prefix)-1]||strlen(rel)>=PATH_CAP)return -1;
+ for(const char*p=rel;*p;p++)if(*p=='\\'||(p>rel&&*p=='/'&&p[-1]=='/'))return -1;
+ char copy[PATH_CAP];memcpy(copy,rel,strlen(rel)+1);
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(fd<0)return -1;
+ char*save=NULL,*part=strtok_r(copy,"/",&save);
+ while(part){
+  if(part[0]=='.'){close(fd);return -1;}
+  char*next=strtok_r(NULL,"/",&save);
+  int child=openat(fd,part,next?(O_RDONLY|O_DIRECTORY|O_NOFOLLOW):(O_RDONLY|O_NOFOLLOW|O_NONBLOCK));
+  close(fd);if(child<0)return -1;fd=child;part=next;
+ }
+ struct stat st;
+ if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_size!=i->size||
+    st.st_dev!=i->device||st.st_ino!=i->inode||st.st_mtime!=i->modified){
+  close(fd);return -1;
+ }
+ return fd;
 }
 static int cmp_items(const void*a,const void*b){
  const Item*x=(const Item*)a,*y=(const Item*)b;
@@ -82,10 +111,10 @@ static ssize_t read_full(int fd,unsigned char*buf,size_t count){
  }return (ssize_t)got;
 }
 // 1 = byte-identical, 0 = different, -1 = inconclusive. Adds actual transferred bytes to budget.
-static int compare(const Item*a,const Item*b,size_t *budget,const Scan*s){
- int x=open(a->path,O_RDONLY|O_NOFOLLOW),y=-1;
+static int compare(const char*root,const Item*a,const Item*b,size_t *budget,const Scan*s){
+ int x=open_snapshot(root,a),y=-1;
  if(x<0)return -1;
- y=open(b->path,O_RDONLY|O_NOFOLLOW);
+ y=open_snapshot(root,b);
  if(y<0){close(x);return -1;}
  struct stat sa,sb;
  if(fstat(x,&sa)||fstat(y,&sb)||!S_ISREG(sa.st_mode)||!S_ISREG(sb.st_mode)||
@@ -103,7 +132,9 @@ static int compare(const Item*a,const Item*b,size_t *budget,const Scan*s){
  struct stat afterA,afterB;
  if(fstat(x,&afterA)||fstat(y,&afterB)||
     sa.st_size!=afterA.st_size||sb.st_size!=afterB.st_size||
-    sa.st_mtime!=afterA.st_mtime||sb.st_mtime!=afterB.st_mtime)result=-1;
+    sa.st_mtime!=afterA.st_mtime||sb.st_mtime!=afterB.st_mtime||
+    sa.st_ino!=afterA.st_ino||sb.st_ino!=afterB.st_ino||
+    sa.st_dev!=afterA.st_dev||sb.st_dev!=afterB.st_dev)result=-1;
  close(x);close(y);return result;
 }
 static void add(Json*b,const char*str){
@@ -127,15 +158,19 @@ char *cmp5_duplicates(const char*root,size_t*length){
  Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
  uint64_t started=now_ns();
  if(started && started<=UINT64_MAX-MAX_MONOTONIC_NS)s->deadline=started+MAX_MONOTONIC_NS;
- // Verify every fixed parent is a directory, not a symlink.
- char dir[PATH_CAP],step[PATH_CAP];snprintf(dir,sizeof(dir),"%s",root);
+ // Open the known parent components relative to anchored directory handles.
+ char dir[PATH_CAP],step[PATH_CAP];size_t rootlen=strlen(root);
+ int fd=-1,valid=rootlen<sizeof(dir);
+ if(valid){memcpy(dir,root,rootlen+1);fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);valid=fd>=0;}
  const char*parts[]={"user","av_contents","photo","NPXS40087"};
- int valid=1;
- for(size_t k=0;k<4;k++){
-  if(!join(step,sizeof(step),dir,parts[k])||lstat(step,&st)||!S_ISDIR(st.st_mode)){valid=0;break;}
-  memcpy(dir,step,strlen(step)+1);
+ for(size_t k=0;valid&&k<4;k++){
+  if(!join(step,sizeof(step),dir,parts[k])){valid=0;break;}
+  int child=openat(fd,parts[k],O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(child<0){valid=0;break;}
+  close(fd);fd=child;memcpy(dir,step,strlen(step)+1);
  }
- if(valid)walk(s,dir,0);else s->partial=1;
+ if(valid)walk(s,fd,dir,0);
+ else{if(fd>=0)close(fd);s->partial=1;}
  qsort(s->items,s->count,sizeof(Item),cmp_items);
  Json out={0};out.data=(char*)calloc(1,JSON_CAP);
  if(!out.data){free(s);return NULL;}
@@ -148,7 +183,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
   for(size_t j=i+1;j<s->count&&s->items[j].size==s->items[i].size;j++){
    if(s->items[j].paired)continue;
    if(budget>=IO_CAP||expired(s)){s->partial=1;break;}
-   int result=compare(&s->items[i],&s->items[j],&budget,s);
+   int result=compare(root,&s->items[i],&s->items[j],&budget,s);
    if(result==1){matches[nm++]=j;s->items[j].paired=1;}
    else if(result<0)s->partial=1;
   }

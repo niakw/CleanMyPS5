@@ -148,6 +148,7 @@ with tempfile.TemporaryDirectory() as temp:
   assert dup["groups"][0]["bytesEach"]==35
   assert dup["filesConsidered"]==3
   assert dup["partial"] is False
+  assert all("directory_link" not in p and "/data/" not in p for group in dup["groups"] for p in group["paths"])
   found={x["path"]:x for x in diag["entries"]}
   assert found["/data/ps5_autoloader/autoload.txt"]["status"]=="etaHEN-reference"
   assert found["/data/pldmgr/autoload.txt"]["status"]=="no-reference"
