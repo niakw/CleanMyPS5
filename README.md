@@ -31,7 +31,7 @@ Les groupes du catalogue d’applications peuvent être imbriqués. Ne pas addit
 
 ## Application native et démarrage
 
-`make native-app` utilise une chaîne de compilation communautaire épinglée, génère `dist/native/PPSA99784.zip` (dossier d'application `PPSA99784/`, `eboot.bin`, `sce_sys/`, `sce_module/`) et `dist/native/cleanmyps5-helper.elf`, payload silencieux qui fournit le backend local **sans ouvrir de navigateur**. La CI publie ces deux fichiers comme artefact de build.
+`make native-app` utilise une chaîne de compilation communautaire épinglée, génère `dist/native/PPSA99784.zip` (dossier d'application `PPSA99784/`, `eboot.bin`, `sce_sys/`, `sce_module/`) et `dist/native/cleanmyps5-helper.elf`, payload silencieux qui fournit le backend local **sans ouvrir de navigateur**. La CI publie ces deux fichiers **et `dist/native/manifest.json`** comme artefact de build. Ce manifeste SHA-256 identifie les deux livrables, la révision de la chaîne de compilation et précise que le firmware 13.60 et les opérations d'effacement ne sont pas validés.
 
 La copie de `PPSA99784/` dans `/data/homebrew/` nécessite un gestionnaire de titres homebrew qui sait enregistrer les applications ; cela n'est **pas** un PKG Sony signé ni une installation automatique. Le helper se lance séparément avec un chargeur de payloads compatible.
 
