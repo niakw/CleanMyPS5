@@ -5,6 +5,10 @@
 | Interface TV / DualSense | Oui | Syntaxe JS | Oui | **À faire** | Non |
 | Autodiagnostic répertoires | 15 chemins candidats prédéfinis | Fixture | Oui | **À faire** | Non |
 | Scanner captures et etaHEN | Oui | Fixture | Oui | **À faire** | Non |
+| Smart Care coordonné (lecture seule) | Oui, cinq familles de contrôles | Tests JS + scanner | Oui | **À faire** | Non |
+| Recherche et filtres médias | Oui (type, jeu, nom, date, taille) | Tests JS | Oui | **À faire** | Non |
+| Carte de l'espace par jeu | Oui, sur captures connues | Tests JS | Oui | **À faire** | Non |
+| Catalogue homebrews et plugins | Oui, borné/protégé | Fixture | Oui | **À faire** | Non |
 | Prévisualisation JPG/PNG | Oui | HTTP et garde chemins | Oui | **À faire** | Non |
 | Streaming MP4/WebM | Oui | Plages et plafonds | Oui | **À faire** | Non |
 | Doublons vérifiés par octets | Borné | Comparaison et budget | Oui | **À faire** | Non |

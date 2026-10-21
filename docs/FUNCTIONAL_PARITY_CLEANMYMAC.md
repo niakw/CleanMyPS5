@@ -27,6 +27,15 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | My Clutter : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
 | My Clutter : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
 | My Clutter : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
+| Cleanup : fichiers temporaires d'applications | ❌ | Inventaire homebrew disponible, mais pas de définition sûre de cache/résidu temporaire |
+| My Clutter : téléchargements | — | Les dossiers navigateur Mac ne sont pas transposables ; détecter seulement des téléchargements PS5 réellement attestés |
+| Applications : permissions des applications | ❌ | Aucun registre de permissions des homebrews vérifié sur FW 13.60 |
+| Applications : éléments lancés au démarrage | 🟡 | Diagnostique certains fichiers autoload mais pas un inventaire exhaustif des processus actifs |
+| Cloud Cleanup : iCloud/Drive/Dropbox | — | Aucune intégration cloud macOS sur console ; ne pas modifier les sauvegardes PS Plus |
+| AI Clutter : modèles et caches IA | — | Non applicable de manière générale ; nécessite des fournisseurs homebrew particuliers |
+| Informations santé/alertes de disque | 🟡 | Mesures statvfs manuelles, sans notification de seuil ni preuve d'accès au SSD complet |
+| Outils rapides : hub personnel | ❌ | Navigation par rubriques ; pas encore de vue de raccourcis favoris |
+| Résultats après nettoyage / journal | ❌ | Aucun effacement actuellement, donc aucun rapport post-opération ni vérification d'espace libéré |
 | My Clutter : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
 | Space Lens : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |

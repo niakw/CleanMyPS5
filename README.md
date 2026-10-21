@@ -61,6 +61,10 @@ The CI uploads both experimental ELF variants **only after** host integration te
 
 ## Sources and safety
 
-[Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
+[Functional comparison with CleanMyMac](docs/FUNCTIONAL_PARITY_CLEANMYMAC.md) · [Architecture and supported paths](docs/ARCHITECTURE.md) · [DualSense UX specification](docs/UX.md) · [PS5 13.60 test checklist](docs/VALIDATION_PS5_13_60.md) · [Delivery and validation matrix](docs/ROADMAP.md)
 
 Licensed GPL-3.0. Files, capture metadata, saves and etaHEN configurations are never silently considered disposable.
+
+## Honest scope
+
+The program is an **exploratory, read-only PS5 cleaner prototype**, not a finished CCleaner/CleanMyMac replacement. The current release does not delete screenshots, uninstall apps, repair failed PKG installs, delete caches, compact storage, or restore backups. Follow the [feature parity audit](docs/FUNCTIONAL_PARITY_CLEANMYMAC.md) before interpreting a scan result as safe to remove. The PS5 payloads remain unverified on firmware 13.60.
