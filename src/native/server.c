@@ -297,6 +297,16 @@ static void handle(int fd,const char*root,int port){
     cmp5_version,target);
   if(n<0||(size_t)n>=sizeof(status)){plain(fd,500,"Version metadata unavailable");return;}
   reply(fd,200,"application/json; charset=utf-8",status,(size_t)n);
+ }else if(strcmp(path,"/api/capabilities")==0){
+  // Feature handshake only. Neither title registration nor runtime privileges
+  // are implied by being able to reach the helper.
+  static const char capabilities[]=
+   "{\"schemaVersion\":1,\"service\":\"CleanMyPS5-helper\",\"protocol\":2,"
+   "\"transport\":\"loopback\",\"mode\":\"read-only\","
+   "\"permissionScope\":\"runtime-dependent\","
+   "\"features\":{\"preflight\":true,\"overview\":true,\"delete\":false,"
+   "\"quarantine\":false,\"privilegeEscalation\":false}}";
+  reply(fd,200,"application/json; charset=utf-8",capabilities,sizeof(capabilities)-1);
  }else if(strcmp(path,"/api/homebrew")==0){
   size_t length=0;char*json=cmp5_homebrew(root,&length);
   if(!json){plain(fd,500,"Homebrew inventory unavailable");return;}
