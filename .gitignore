@@ -4,3 +4,18 @@
 __pycache__/
 .DS_Store
 /dist/
+
+# Local credentials, reports and console dumps must never be committed
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+*.pkg
+*.ffpkg
+*.ffpfsc
+.deps/
+local-console/
+reports-private/
