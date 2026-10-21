@@ -23,6 +23,9 @@ with tempfile.TemporaryDirectory() as temp:
  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
  (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
  (clip/"another.webm").write_bytes(bytes.fromhex("1a45dfa3")+b"W"*128)
+ with (clip/"long.mp4").open("wb") as f:
+  f.write(b"\x00\x00\x00\x14ftypisom")
+  f.truncate(3*1024*1024+33)
  (eta/"debug.log").write_text("LOG")
  (eta/"config.ini").write_text("toolbox_auto_start = 1\nPRIVATE_TOKEN=not-for-web")
  loader=root/"data/ps5_autoloader"
@@ -62,12 +65,12 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as err:assert err.code==403,err.code
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
+  assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
   assert entries["image.png"]["previewPath"]=="/user/av_contents/photo/NPXS40087/GAME/image.png"
   assert isinstance(entries["image.png"]["modifiedAt"],int)
-  assert report["stats"]["items"]==8
+  assert report["stats"]["items"]==9
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
@@ -105,6 +108,17 @@ with tempfile.TemporaryDirectory() as temp:
   webm="/api/video?file="+quote("/user/av_contents/video/NPXS40087/GAME/another.webm",safe="")
   with urlopen(Request(base+webm,headers={"Range":"bytes=0-3"}),timeout=3) as r:
    assert r.headers.get_content_type()=="video/webm" and r.read()==bytes.fromhex("1a45dfa3")
+  # A 3 MiB clip must never be served in a single response.
+  longvideo="/api/video?file="+quote("/user/av_contents/video/NPXS40087/GAME/long.mp4",safe="")
+  with urlopen(Request(base+longvideo,headers={"Range":"bytes=0-"}),timeout=5) as r:
+   assert r.status==206
+   assert int(r.headers["Content-Length"])==1024*1024
+   assert r.headers["Content-Range"].startswith("bytes 0-1048575/")
+   assert len(r.read())==1024*1024
+  with urlopen(Request(base+longvideo,headers={"Range":"bytes=-33"}),timeout=5) as r:
+   assert len(r.read())==33
+  try:urlopen(base+longvideo,timeout=3);raise AssertionError("Full-video GET was accepted")
+  except HTTPError as err:assert err.code==416
   for bad in ("bytes=999-","bytes=0-1,5-7","bytes=-0","bytes=99999999999999999999999-"):
    try:urlopen(Request(base+video,headers={"Range":bad}),timeout=3);raise AssertionError("Invalid Range: "+bad)
    except HTTPError as e:assert e.code==416
