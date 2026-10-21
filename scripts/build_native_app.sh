@@ -36,10 +36,16 @@ make -C "$tmp/native-toolchain" init \
   TITLE_ID="$title" APP_NAME=CleanMyPS5 APP_CATEGORY=game
 make -C "$tmp/native-toolchain" app
 
+# Keep privileged filesystem inspection in the separately launched payload,
+# never in the installed title's sandbox, and never open WebKit.
+PS5_PAYLOAD_SDK="$tmp/native-toolchain/.deps/native/ps5-payload-sdk" \
+  make -C "$project" ps5-helper
+
 python3 "$project/scripts/check_native_bundle.py" \
   "$tmp/native-toolchain/dist/$title" "$title"
 
 mkdir -p "$project/dist/native"
+cp "$project/cleanmyps5-helper.elf" "$project/dist/native/cleanmyps5-helper.elf"
 python3 - "$tmp/native-toolchain/dist/$title" "$project/dist/native/$title.zip" <<'PY'
 from pathlib import Path
 import sys
