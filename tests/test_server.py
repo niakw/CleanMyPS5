@@ -8,6 +8,7 @@ import time
 from urllib.request import urlopen,Request
 from urllib.error import HTTPError
 import socket
+from urllib.parse import quote
 with tempfile.TemporaryDirectory() as temp:
  root=Path(temp)
  image=root/"user/av_contents/photo/NPXS40087/GAME"
@@ -15,9 +16,9 @@ with tempfile.TemporaryDirectory() as temp:
  eta=root/"data/etaHEN"
  other=root/"data/prosperoeden"
  for d in (image,clip,eta,other):d.mkdir(parents=True)
- (image/"image.png").write_bytes(b"A"*35)
+ (image/"image.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"sidecar.dat").write_text("metadata")
- (image/"same.jpg").write_bytes(b"A"*35)
+ (image/"same.jpg").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
  (clip/"clip.MP4").write_bytes(b"B"*150)
  (eta/"debug.log").write_text("LOG")
@@ -55,11 +56,31 @@ with tempfile.TemporaryDirectory() as temp:
   assert set(entries)=={"image.png","same.jpg","same-size-but-different.jpg","clip.MP4","debug.log","config.ini"},entries
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
+  assert entries["image.png"]["previewPath"]=="/user/av_contents/photo/NPXS40087/GAME/image.png"
   assert isinstance(entries["image.png"]["modifiedAt"],int)
   assert report["stats"]["items"]==6
   assert report["stats"]["visited"]>=6
   assert report["stats"]["partial"] is False
   assert entries["config.ini"]["risk"]=="protected"
+  # Exact read-only capture previews: no traversal, etaHEN config, other roots or symlinks.
+  preview="/api/media?file="+quote(entries["image.png"]["previewPath"],safe="")
+  with urlopen(base+preview,timeout=3) as r:
+   assert r.headers.get_content_type()=="image/png"
+   assert r.read()==(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
+  forbidden=[
+   "/data/etaHEN/config.ini",
+   "/user/av_contents/video/NPXS40087/GAME/clip.MP4",
+   "/user/av_contents/photo/NPXS40087/GAME/link.png",
+   "/user/av_contents/photo/NPXS40087/GAME/directory_link/save.bin",
+   "/user/av_contents/photo/NPXS40087/GAME/sidecar.dat",
+   "/user/av_contents/photo/NPXS40087/GAME/../GAME/image.png",
+   "/user/av_contents/photo/NPXS40087/GAME/same-size-but-different.jpg",
+   "/user/av_contents/photo/NPXS40087/GAME/%2e%2e/image.png",
+  ]
+  for forbidden_path in forbidden:
+   url=base+"/api/media?file="+quote(forbidden_path,safe="")
+   try:urlopen(url,timeout=3);raise AssertionError("Preview unexpectedly exposed: "+forbidden_path)
+   except HTTPError as ex:assert ex.code in (400,404,413),ex.code
   for route in ("/","/app.js","/styles.css"):
    with urlopen(base+route,timeout=3) as r:assert r.status==200 and len(r.read())>100
   try:urlopen(Request(base+"/api/report",method="POST"),timeout=3);raise AssertionError("write method allowed")

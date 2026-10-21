@@ -71,6 +71,14 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  add(&s->b,",\"risk\":");quote(&s->b,risk);
  add(&s->b,",\"reason\":");quote(&s->b,reason);
  if(strcmp(category,"media")==0){
+   // URI is always canonical root-relative, not a host mount/FTP path.
+   const char*prefix="/user/av_contents/";
+   const char*canonical=NULL;
+   for(const char*cursor=path;(cursor=strstr(cursor,prefix))!=NULL;cursor++)
+      canonical=cursor;
+   if(canonical){add(&s->b,",\"previewPath\":");quote(&s->b,canonical);}
+ }
+ if(strcmp(category,"media")==0){
    const char*mark=strstr(path,"/NPXS40087/");
    if(mark){
      mark+=strlen("/NPXS40087/");

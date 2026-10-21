@@ -2,6 +2,7 @@
 #include "inventory.h"
 #include "diagnostics.h"
 #include "duplicates.h"
+#include "media.h"
 #include "assets.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -42,11 +43,57 @@ static void reply(int fd,int code,const char*type,const void*body,size_t size){
  if(send_all(fd,header,(size_t)n)&&size)send_all(fd,body,size);
 }
 static void plain(int fd,int code,const char*text){reply(fd,code,"text/plain; charset=utf-8",text,strlen(text));}
+static int hex_digit(char c){
+ if(c>='0'&&c<='9')return c-'0';
+ if(c>='a'&&c<='f')return c-'a'+10;
+ if(c>='A'&&c<='F')return c-'A'+10;
+ return -1;
+}
+static int decode_file_path(const char *input,char *out,size_t cap){
+ size_t i=0;
+ if(!input||!input[0])return 0;
+ for(const char *p=input;*p;p++){
+  unsigned char c=(unsigned char)*p;
+  if(c=='%'){
+   if(!p[1]||!p[2])return 0;
+   int h=hex_digit(p[1]),l=hex_digit(p[2]);
+   if(h<0||l<0)return 0;
+   c=(unsigned char)((h<<4)|l);p+=2;
+  }else if(c=='&'||c=='#'||c=='?')return 0;
+  if(c<32||c>=127||c=='%'||c=='\\')return 0;
+  if(i+1>=cap)return 0;
+  out[i++]=(char)c;
+ }
+ out[i]=0;return i>0;
+}
+static void media_response(int client,const char *root,const char*encoded){
+ char relative[2049];
+ if(!decode_file_path(encoded,relative,sizeof(relative))){plain(client,400,"Invalid preview path");return;}
+ int file=-1;size_t size=0;const char*mime=NULL;
+ int status=cmp5_open_preview(root,relative,&file,&size,&mime);
+ if(status!=200){plain(client,status,status==413?"Image too large":"Image unavailable");return;}
+ char head[768];
+ int n=snprintf(head,sizeof(head),
+    "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
+    "Connection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"
+    "Referrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'\r\n\r\n",
+    mime,size);
+ if(n>0&&(size_t)n<sizeof(head)&&send_all(client,head,(size_t)n)){
+  unsigned char buf[32768];size_t remaining=size;
+  while(remaining){
+   size_t want=remaining<sizeof(buf)?remaining:sizeof(buf);
+   ssize_t got=read(file,buf,want);
+   if(got<=0||!send_all(client,buf,(size_t)got))break;
+   remaining-=(size_t)got;
+  }
+ }
+ close(file);
+}
 static void handle(int fd,const char*root){
  struct timeval t={3,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));
  char req[4096];ssize_t len=recv(fd,req,sizeof(req)-1,0);if(len<=0)return;req[len]=0;
- char method[12],path[256],proto[16];
- if(sscanf(req,"%11s %255s %15s",method,path,proto)!=3){plain(fd,400,"Bad request");return;}
+ char method[12],path[3072],proto[16];
+ if(sscanf(req,"%11s %3071s %15s",method,path,proto)!=3){plain(fd,400,"Bad request");return;}
  if(strcmp(method,"GET")!=0){plain(fd,405,"GET only");return;}
  if(strncmp(proto,"HTTP/1.",7)!=0){plain(fd,400,"Bad HTTP version");return;}
  if(strcmp(path,"/")==0||strcmp(path,"/index.html")==0)
@@ -55,7 +102,9 @@ static void handle(int fd,const char*root){
   reply(fd,200,"text/css; charset=utf-8",cmp5_styles,cmp5_styles_len);
  else if(strcmp(path,"/app.js")==0)
   reply(fd,200,"text/javascript; charset=utf-8",cmp5_script,cmp5_script_len);
- else if(strcmp(path,"/api/status")==0){
+ else if(strncmp(path,"/api/media?file=",16)==0){
+  media_response(fd,root,path+16);
+ }else if(strcmp(path,"/api/status")==0){
   #ifdef PS5
   static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"ps5\",\"api\":1}";
 #else
