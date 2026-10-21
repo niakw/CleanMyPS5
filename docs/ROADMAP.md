@@ -3,6 +3,7 @@
 | Sous-système | Implémenté | Tests hôte | ELF compilé | Test FW 13.60 | Écritures |
 |---|---|---|---|---|---|
 | Interface TV / DualSense | Oui | Syntaxe JS | Oui | **À faire** | Non |
+| Autodiagnostic répertoires | 8 chemins prédéfinis | Fixture | Oui | **À faire** | Non |
 | Scanner captures et etaHEN | Oui | Fixture | Oui | **À faire** | Non |
 | Prévisualisation JPG/PNG | Oui | HTTP et garde chemins | Oui | **À faire** | Non |
 | Streaming MP4/WebM | Oui | Plages et plafonds | Oui | **À faire** | Non |

@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -77,12 +77,75 @@ function overview(root){
  c.append(actions);add(hero,c,add(node("div","hero-orb"),node("span","orb-shape","✧")));root.append(hero);
  root.append(add(node("div","section-header"),node("h3","","Les espaces à explorer"),node("span","section-note",state.demo?"Données de démonstration":state.items.length?"Données du rapport":"Aucune mesure pour l'instant")));root.append(categories());
  const panel=node("section","data-panel");add(panel,panelHeader("Sécurité avant tout","Suppression désactivée"),notice("Un rapport n'est pas une preuve qu'un fichier est inutile.","Captures personnelles, sauvegardes, dossiers d'applications et données système restent protégés tant qu'aucune règle de nettoyage n'est validée."));root.append(panel);
+ if(state.backend)root.append(preflightPanel());
  if(state.scanStats){const summary=node("section","data-panel");
   add(summary,panelHeader("Couverture de l'analyse",state.scanStats.partial?"Analyse partielle":"Inventaire réalisé"),
       node("p","muted",state.scanStats.visited.toLocaleString("fr-FR")+" entrées parcourues · "+state.scanStats.items.toLocaleString("fr-FR")+" fichiers répertoriés. Une analyse partielle ne garantit pas l'absence d'autres fichiers."));
   root.append(summary);
  }
  if(state.warnings.length){const w=node("section","data-panel");add(w,panelHeader("Messages de l'analyse","Informations"),...state.warnings.map(s=>node("p","muted",s)));root.append(w);}
+}
+function preflightPanel(){
+ const panel=node("section","data-panel");
+ add(panel,panelHeader("Diagnostic de l'environnement","Sans accéder aux fichiers personnels"));
+ const actions=node("div","hero-buttons");
+ const check=button(state.preflightBusy?"Vérification…":state.preflight?"Relancer les contrôles":"Vérifier les répertoires PS5","primary",runPreflight);
+ check.disabled=state.preflightBusy;
+ actions.append(check);
+ if(state.preflight)actions.append(button("Exporter le diagnostic JSON","secondary",exportPreflight));
+ panel.append(actions);
+ if(state.preflight){
+  const list=node("div","preflight-list");
+  const labels={
+   accessible:"Accessible",absent:"Absent / non monté",denied:"Accès refusé",
+   symlink:"Lien symbolique (exclu)","not-directory":"Type inattendu",
+   "root-unavailable":"Racine inaccessible",unknown:"État non déterminé"
+  };
+  const counters=new Map();
+  for(const item of state.preflight.entries){
+   const line=node("div","preflight-line");
+   add(line,node("strong","",item.path),node("span","",labels[item.status]||labels.unknown));
+   list.append(line);counters.set(item.status,(counters.get(item.status)||0)+1);
+  }
+  panel.append(list);
+  panel.append(node("p","filter-warning","Seulement "+state.preflight.entries.length+" emplacements prédéfinis. Des dossiers absents peuvent être normaux. Ce contrôle ne prouve ni la compatibilité WebKit, ni le bon fonctionnement des API système."));
+ }
+ return panel;
+}
+async function runPreflight(){
+ if(!state.backend||state.preflightBusy)return;
+ state.preflightBusy=true;render();
+ try{
+  const response=await fetch("/api/preflight",{cache:"no-store"});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const raw=await response.text();
+  if(raw.length>16384)throw Error("Réponse trop volumineuse");
+  const data=JSON.parse(raw);
+  if(data.schemaVersion!==1||data.scope!=="known-paths-only"||data.mode!=="read-only"||
+     !Array.isArray(data.entries)||data.entries.length>20)throw Error("Diagnostic non conforme");
+  state.preflight={entries:data.entries.map(x=>({
+   path:typeof x.path==="string"?x.path.slice(0,120):"(inconnu)",
+   status:typeof x.status==="string"?x.status.slice(0,40):"unknown"
+  }))};
+ }catch(error){announce("Diagnostic impossible : "+error.message);}
+ finally{state.preflightBusy=false;render();}
+}
+function exportPreflight(){
+ if(!state.preflight)return;
+ if(typeof Blob==="undefined"||!URL?.createObjectURL){
+  announce("Export non pris en charge par ce navigateur.");return;
+ }
+ const report={
+  schemaVersion:1,kind:"non-destructive-preflight",
+  collectedAt:new Date().toISOString(),
+  target:state.target,entries:state.preflight.entries,
+  note:"Lecture seule. L'absence d'un chemin n'indique pas un problème de firmware."
+ };
+ const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:"application/json"}));
+ const a=document.createElement("a");a.href=url;a.download="cleanmyps5-preflight.json";
+ document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1500);
+ announce("Diagnostic exporté (aucun contenu de fichier).");
 }
 function mediaTitles(){const arr=[...new Set(state.items.filter(x=>x.category==="media"&&x.titleId).map(x=>x.titleId))];return arr.sort();}
 function filtered(){return state.items.filter(x=>{

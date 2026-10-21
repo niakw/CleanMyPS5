@@ -155,6 +155,16 @@ with tempfile.TemporaryDirectory() as temp:
   assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
   assert "PRIVATE_TOKEN" not in json.dumps(diag)
+  with urlopen(base+"/api/preflight",timeout=3) as r:preflight=json.load(r)
+  assert preflight["schemaVersion"]==1
+  assert preflight["scope"]=="known-paths-only"
+  assert preflight["mode"]=="read-only"
+  checks={x["path"]:x["status"] for x in preflight["entries"]}
+  assert checks["/user/av_contents/photo/NPXS40087"]=="accessible"
+  assert checks["/user/av_contents/video/NPXS40087"]=="accessible"
+  assert checks["/data/etaHEN"]=="accessible"
+  assert checks["/mnt/usb7/ps5_autoloader"]=="absent"
+  assert "PRIVATE_TOKEN" not in json.dumps(preflight)
   with urlopen(base+"/api/volumes",timeout=3) as r:volumes=json.load(r)
   assert volumes["scope"]=="mounts-not-total-ssd"
   bypath={v["path"]:v for v in volumes["volumes"]}
