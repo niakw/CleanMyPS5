@@ -1,0 +1,31 @@
+name: Build installable PS5 native title (unverified hardware)
+on:
+  push:
+    branches: [main]
+    paths:
+      - native/**
+      - scripts/build_native_app.sh
+      - scripts/check_native_bundle.py
+      - scripts/make_native_icon.py
+      - .github/workflows/native.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clang-18 lld-18 clang-format-18 make python3 python3-venv git unzip zip curl wget pkg-config
+      - name: Build genuine native eboot title and verify metadata
+        run: bash scripts/build_native_app.sh
+      - name: Publish a single ID-named installation archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPSA99784-native-title-unverified-on-13-60
+          path: dist/native/PPSA99784.zip
+          if-no-files-found: error
