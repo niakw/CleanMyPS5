@@ -163,6 +163,9 @@ with tempfile.TemporaryDirectory() as temp:
   assert all("directory_link" not in r["path"] for r in report["items"])
  finally:
   p.terminate()
-  try:p.wait(timeout=3)
-  except subprocess.TimeoutExpired:p.kill();p.wait()
+  try:
+   code=p.wait(timeout=3)
+   assert code==0,("Shutdown must be graceful",code,p.stderr.read().decode(errors="replace"))
+  except subprocess.TimeoutExpired:
+   p.kill();p.wait();raise AssertionError("Server failed to stop after SIGTERM")
 print("Native read-only HTTP integration: PASS")

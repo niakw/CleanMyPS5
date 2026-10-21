@@ -18,7 +18,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 - Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
 - No claim of SSD-wide free space: counts are for **enumerated items only**.
 - The demo is fictitious and clearly marked as such.
-- Native service listens on `127.0.0.1:8877` only: no network exposure or authentication assumptions.
+- Native service listens on `127.0.0.1:8877` only: no network exposure or authentication assumptions. SIGINT/SIGTERM close the listener gracefully; the program never installs persistent ShellUI entries.
 
 ## Host development
 

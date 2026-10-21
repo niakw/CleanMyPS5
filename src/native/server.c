@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <signal.h>
+static volatile sig_atomic_t cmp5_shutdown=0;
+static void shutdown_signal(int signo){(void)signo;cmp5_shutdown=1;}
 #include <strings.h>
 #include <limits.h>
 #include <stdint.h>
@@ -288,6 +290,8 @@ int main(int argc,char**argv){
  if(strcmp(address,"127.0.0.1")!=0){fprintf(stderr,"Network access disabled until paired/authenticated access is implemented\n");return 2;}
  struct in_addr ip;if(inet_pton(AF_INET,address,&ip)!=1)return 2;
  signal(SIGPIPE,SIG_IGN);
+ signal(SIGTERM,shutdown_signal);
+ signal(SIGINT,shutdown_signal);
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return 1;
  int opt=1;setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
  struct sockaddr_in bindaddr;memset(&bindaddr,0,sizeof(bindaddr));
@@ -295,6 +299,14 @@ int main(int argc,char**argv){
  if(bind(fd,(struct sockaddr*)&bindaddr,sizeof(bindaddr))!=0||listen(fd,16)!=0){perror("bind/listen");close(fd);return 1;}
  printf("CleanMyPS5 http://%s:%d/ (read-only)\n",address,port);fflush(stdout);
  startup_notification();
- for(;;){int client=accept(fd,NULL,NULL);if(client<0){if(errno==EINTR)continue;break;}handle(client,root,port);close(client);}
- close(fd);return 0;
+ while(!cmp5_shutdown){
+  int client=accept(fd,NULL,NULL);
+  if(client<0){
+   if(errno==EINTR&&!cmp5_shutdown)continue;
+   if(cmp5_shutdown)break;
+   perror("accept");break;
+  }
+  handle(client,root,port);close(client);
+ }
+ close(fd);puts("CleanMyPS5 stopped, listener closed.");return 0;
 }
