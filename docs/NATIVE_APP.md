@@ -12,6 +12,7 @@ Ce découplage est intentionnel : l'installabilité d'un titre ne lui confère p
 
 - `dist/native/PPSA99784.zip` : archive contenant uniquement le dossier `PPSA99784/` et ses fichiers installables dans un environnement qui enregistre les titres homebrew.
 - `dist/native/cleanmyps5-helper.elf` : moteur d'inspection à lancer avec un chargeur ELF approprié ; ne lance pas le navigateur.
+- `dist/native/manifest.json` : version du contrat, identifiant du titre, révision épinglée et empreintes SHA-256 exactes des deux fichiers. Permet de détecter un package ou helper modifié/incompatible avant transfert.
 - `cleanmyps5.elf` : ancienne variante navigateur conservée tant que les fonctionnalités de l'interface native ne sont pas équivalentes.
 
 À partir du dépôt, `make native-app` génère les deux premiers fichiers. Le script télécharge dans un dossier temporaire un outil de compilation natif **épinglé sur un commit précis**, remplace le code et l'icône de démonstration, compile le titre, compile le helper séparément et vérifie les fichiers produits. Aucune dépendance, image personnelle ou configuration réseau n'est introduite dans les sources suivies par Git.
