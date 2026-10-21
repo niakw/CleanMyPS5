@@ -1,7 +1,7 @@
 PYTHON ?= python3
 CC = cc
 PS5_CC = $(PS5_PAYLOAD_SDK)/bin/prospero-clang
-CFLAGS = -O2 -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic
+CFLAGS = -O2 -std=c11 -Wall -Wextra -Wpedantic
 ASSETS = build/generated/assets.h
 NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c
 all: server

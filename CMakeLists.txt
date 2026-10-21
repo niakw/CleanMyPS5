@@ -14,7 +14,6 @@ add_custom_command(
 )
 add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c ${ASSETS})
 target_include_directories(cleanmyps5-server PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
-target_compile_definitions(cleanmyps5-server PRIVATE _DEFAULT_SOURCE)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
  target_compile_options(cleanmyps5-server PRIVATE -Wall -Wextra -Wpedantic)
 endif()

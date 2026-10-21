@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #define PATH_CAP 2048
 #define ITEM_CAP 128
@@ -17,8 +18,17 @@
 #define FILE_CAP (32u*1024u*1024u)
 #define IO_CAP (128u*1024u*1024u)
 #define JSON_CAP (512u*1024u)
+#define MAX_MONOTONIC_NS (6000000000ULL)
 typedef struct {char path[PATH_CAP];off_t size;int paired;} Item;
-typedef struct {Item items[ITEM_CAP];size_t count,visits;int partial;} Scan;
+typedef struct {Item items[ITEM_CAP];size_t count,visits;int partial;uint64_t deadline;} Scan;
+static uint64_t now_ns(void){
+ struct timespec ts;
+ if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0||ts.tv_sec<0)return 0;
+ return (uint64_t)ts.tv_sec*1000000000ULL+(uint64_t)ts.tv_nsec;
+}
+static int expired(const Scan*s){
+ uint64_t now=now_ns();return s->deadline && now && now>s->deadline;
+}
 typedef struct {char *data;size_t len;int error;} Json;
 static int join(char*out,size_t cap,const char*dir,const char*base){
  size_t n=strlen(dir);int r=snprintf(out,cap,"%s%s%s",dir,n&&dir[n-1]=='/'?"":"/",base);
@@ -41,6 +51,7 @@ static void walk(Scan*s,const char*dir,int depth){
  while((entry=readdir(d))!=NULL){
   if(strcmp(entry->d_name,".")==0||strcmp(entry->d_name,"..")==0)continue;
   if(++s->visits>VISIT_CAP){s->partial=1;break;}
+  if((s->visits&63u)==0&&expired(s)){s->partial=1;break;}
   char path[PATH_CAP];
   if(!join(path,sizeof(path),dir,entry->d_name)){s->partial=1;continue;}
   struct stat st2;if(lstat(path,&st2)){s->partial=1;continue;}
@@ -71,7 +82,7 @@ static ssize_t read_full(int fd,unsigned char*buf,size_t count){
  }return (ssize_t)got;
 }
 // 1 = byte-identical, 0 = different, -1 = inconclusive. Adds actual transferred bytes to budget.
-static int compare(const Item*a,const Item*b,size_t *budget){
+static int compare(const Item*a,const Item*b,size_t *budget,const Scan*s){
  int x=open(a->path,O_RDONLY|O_NOFOLLOW),y=-1;
  if(x<0)return -1;
  y=open(b->path,O_RDONLY|O_NOFOLLOW);
@@ -82,7 +93,7 @@ static int compare(const Item*a,const Item*b,size_t *budget){
  unsigned char p[32768],q[32768];off_t rest=a->size;int result=1;
  while(rest>0){
   size_t n=rest<(off_t)sizeof(p)?(size_t)rest:sizeof(p);
-  if(*budget+n*2>IO_CAP){result=-1;break;}
+  if(*budget+n*2>IO_CAP||expired(s)){result=-1;break;}
   ssize_t ax=read_full(x,p,n),by=read_full(y,q,n);
   if(ax!=(ssize_t)n||by!=(ssize_t)n){result=-1;break;}
   *budget+=n*2;
@@ -114,6 +125,8 @@ char *cmp5_duplicates(const char*root,size_t*length){
  if(length)*length=0;if(!root||!length)return NULL;
  struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
  Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
+ uint64_t started=now_ns();
+ if(started && started<=UINT64_MAX-MAX_MONOTONIC_NS)s->deadline=started+MAX_MONOTONIC_NS;
  // Verify every fixed parent is a directory, not a symlink.
  char dir[PATH_CAP],step[PATH_CAP];snprintf(dir,sizeof(dir),"%s",root);
  const char*parts[]={"user","av_contents","photo","NPXS40087"};
@@ -129,12 +142,13 @@ char *cmp5_duplicates(const char*root,size_t*length){
  add(&out,"{\"schemaVersion\":1,\"mode\":\"read-only\",\"algorithm\":\"byte-compare\",\"groups\":[");
  size_t budget=0;int groups=0;
  for(size_t i=0;i<s->count;i++){
+  if(expired(s)){s->partial=1;break;}
   if(s->items[i].paired)continue;
   size_t matches[ITEM_CAP],nm=1;matches[0]=i;
   for(size_t j=i+1;j<s->count&&s->items[j].size==s->items[i].size;j++){
    if(s->items[j].paired)continue;
-   if(budget>=IO_CAP){s->partial=1;break;}
-   int result=compare(&s->items[i],&s->items[j],&budget);
+   if(budget>=IO_CAP||expired(s)){s->partial=1;break;}
+   int result=compare(&s->items[i],&s->items[j],&budget,s);
    if(result==1){matches[nm++]=j;s->items[j].paired=1;}
    else if(result<0)s->partial=1;
   }
@@ -148,7 +162,7 @@ char *cmp5_duplicates(const char*root,size_t*length){
  }
  char stats[256];
  snprintf(stats,sizeof(stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
-  "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728},"
+  "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
   s->count,s->visits,budget,s->partial?"true":"false");
  add(&out,stats);free(s);
