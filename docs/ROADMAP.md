@@ -30,3 +30,7 @@
 **P4 — caches / PKG** : analyse de fournisseurs dédiés avec droits, chemins et API vérifiés. Ne jamais traiter un plugin actif, un jeu, une sauvegarde ou une base système comme un déchet.
 
 P0 et P1 sont bloqués sans PS5 13.60 accessible ; compilation ELF et sanitizers ne sont pas des validations de runtime console.
+
+## Qualité de livraison
+
+La compilation ELF dépend dorénavant de la validation des tests natifs et des sanitizers. L'artefact fourni est accompagné de son SHA-256 et du numéro de version issu du dépôt. CodeQL examine les sources C et JavaScript via un workflow dédié ; la réussite de CodeQL n'est pas une preuve de bon fonctionnement sur la PS5.

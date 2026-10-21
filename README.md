@@ -52,7 +52,7 @@ make ps5
 
 The native payload defaults to filesystem namespace `/` and **loopback only**, with URL `http://127.0.0.1:8877/`. Reaching it from a PS5 user interface requires an accessible browser/deeplink, to be verified on device. No launcher icon is installed automatically and no existing applications are touched. Loading a payload has the normal risks of an exploited console.
 
-The CI may cross-compile a candidate ELF, but this **does not** prove PS5 runtime compatibility. Do not replace an existing payload or install an untested binary expecting production behavior.
+The CI uploads the ELF **only after** host integration tests and ASan/UBSan pass. The artifact also includes `cleanmyps5.elf.sha256` and `VERSION` for traceability. CodeQL scans the native C and JavaScript sources separately. A compiled ELF still **does not** prove PS5 runtime compatibility. Do not replace an existing payload or install an untested binary expecting production behavior.
 
 ## Sources and safety
 

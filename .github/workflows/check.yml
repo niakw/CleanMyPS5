@@ -32,6 +32,7 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
   ps5-payload:
+    needs: [host, sanitizer]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -46,10 +47,16 @@ jobs:
         run: make ps5
         env:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
+      - name: Verify payload artifact and generate checksum
+        run: |
+          test -s cleanmyps5.elf
+          file cleanmyps5.elf
+          sha256sum cleanmyps5.elf > cleanmyps5.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: cleanmyps5-ps5-elf-untested
           path: |
             cleanmyps5.elf
+            cleanmyps5.elf.sha256
             VERSION
           if-no-files-found: error
