@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -273,6 +273,24 @@ function storage(root){
  const track=node("div","storage-track");Object.entries(categoryColors).forEach(([cat,color])=>{const n=node("span");n.style.width=(total()?numberFor(cat)/total()*100:0)+"%";n.style.background=color;track.append(n);});s.append(track);
  const legend=node("div","legend");Object.entries(categoryLabels).forEach(([cat,label])=>{if(numberFor(cat)){const labelEl=node("span");const b=node("b");b.style.background=categoryColors[cat];add(labelEl,b,document.createTextNode(label+" · "+bytes(numberFor(cat))));legend.append(labelEl);}});s.append(legend);
  root.append(s);
+ const mountPanel=node("section","data-panel");
+ add(mountPanel,panelHeader("Volumes montés","Mesures indépendantes"));
+ if(state.backend){
+  const btn=button(state.volumeBusy?"Mesure en cours…":state.volumes?"Actualiser":"Mesurer l'espace disponible","primary",getVolumes);
+  btn.disabled=state.volumeBusy;mountPanel.append(btn);
+ }else mountPanel.append(node("p","muted","Le calcul de l'espace disponible nécessite le service natif local."));
+ if(state.volumes){
+  const list=node("div","volume-list");
+  for(const v of state.volumes){
+   const row=node("div","volume-row");
+   add(row,node("strong","",v.path),node("span","",v.status==="ok"?"Disponible : "+bytes(v.availableBytes)+" / "+bytes(v.totalBytes):"Mesure indisponible"));
+   if(v.sharedWith)row.append(node("small","", "Même système de fichiers que "+v.sharedWith+" — ne pas additionner"));
+   list.append(row);
+  }
+  mountPanel.append(list);
+ }
+ mountPanel.append(node("p","filter-warning","Mesures statvfs de montages visibles, pas nécessairement de tout le SSD PS5. Deux chemins peuvent partager un même volume."));
+ root.append(mountPanel);
  const grouped=new Map();
  for(const item of state.items)if(item.category==="media"){
   const title=item.titleId||"Jeu inconnu";grouped.set(title,(grouped.get(title)||0)+item.bytes);
@@ -283,6 +301,25 @@ function storage(root){
    const r=add(node("div","game-size-row"),node("span","",title),node("strong","",bytes(amount)));list.append(r);
   }perGame.append(list);root.append(perGame);}
  root.append(add(node("div","data-panel"),panelHeader("Interprétation","Important"),notice("Stockage PS5 ≠ vue FTP /data","Un volume de 64 Go exposé par un montage /data ne représente pas forcément le SSD système. CleanMyPS5 n'affiche aucune capacité globale non vérifiée.")));
+}
+async function getVolumes(){
+ if(!state.backend||state.volumeBusy)return;
+ state.volumeBusy=true;render();
+ try{
+  const resp=await fetch("/api/volumes",{cache:"no-store"});
+  if(!resp.ok)throw Error("Service indisponible ("+resp.status+")");
+  const raw=await resp.text();if(raw.length>16384)throw Error("Rapport invalide");
+  const data=JSON.parse(raw);
+  if(data.schemaVersion!==1||data.scope!=="mounts-not-total-ssd"||!Array.isArray(data.volumes)||data.volumes.length>8)throw Error("Format incompatible");
+  state.volumes=data.volumes.map(v=>({
+   path:typeof v.path==="string"?v.path.slice(0,100):"(inconnu)",
+   status:v.status==="ok"?"ok":"unavailable",
+   totalBytes:Number.isSafeInteger(v.totalBytes)?v.totalBytes:0,
+   availableBytes:Number.isSafeInteger(v.availableBytes)?v.availableBytes:0,
+   sharedWith:typeof v.sharedWith==="string"?v.sharedWith.slice(0,100):null
+  }));
+ }catch(error){announce("Mesure impossible : "+error.message);}
+ finally{state.volumeBusy=false;render();}
 }
 function review(){
  const selected=state.items.filter(x=>state.selected.has(x.id));if(!selected.length){announce("Sélectionne d'abord un ou plusieurs éléments.");return;}

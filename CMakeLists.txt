@@ -12,7 +12,7 @@ add_custom_command(
          ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
  VERBATIM
 )
-add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c ${ASSETS})
+add_executable(cleanmyps5-server src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c ${ASSETS})
 target_include_directories(cleanmyps5-server PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(cleanmyps5-server PRIVATE _DEFAULT_SOURCE)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")

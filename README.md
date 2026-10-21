@@ -13,6 +13,7 @@ A controller-first PS5 storage analysis and maintenance project, with an origina
 - Opt-in **exact duplicate comparison**: checks a capped sample of screenshots byte for byte (128 images, max 32 MiB/image, max 128 MiB read). Not a whole-console exhaustive search and never deletes files.
 - Opt-in **etaHEN diagnostic**: inspect known `/data/ps5_autoloader`, `/data/pldmgr`, USB autoloads and `/data/etaHEN/config.ini` without exposing file contents. Neither missing configs nor references conclusively prove runtime status.
 - File modification timestamps and bounded scan coverage/partial warnings.
+- On-demand read-only `statvfs` measurements for two known mount paths, each reported separately and flagged if sharing one filesystem (not the whole PS5 SSD).
 - Scan is limited to capture folders and explicitly classified etaHEN files. No system-wide recursive scan.
 - No claim of SSD-wide free space: counts are for **enumerated items only**.
 - The demo is fictitious and clearly marked as such.

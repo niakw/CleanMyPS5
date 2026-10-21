@@ -107,6 +107,13 @@ with tempfile.TemporaryDirectory() as temp:
   assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
   assert "PRIVATE_TOKEN" not in json.dumps(diag)
+  with urlopen(base+"/api/volumes",timeout=3) as r:volumes=json.load(r)
+  assert volumes["scope"]=="mounts-not-total-ssd"
+  bypath={v["path"]:v for v in volumes["volumes"]}
+  assert set(bypath)=={"/user/av_contents","/data"}
+  assert all(v["status"]=="ok" for v in bypath.values())
+  assert all(v["totalBytes"]>=v["freeBytes"]>=v["availableBytes"]>=0 for v in bypath.values())
+  assert bypath["/data"]["sharedWith"]=="/user/av_contents"
   assert all("directory_link" not in r["path"] for r in report["items"])
  finally:
   p.terminate()
