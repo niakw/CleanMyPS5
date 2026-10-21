@@ -47,12 +47,15 @@ Requires the official community [PS5 Payload SDK](https://github.com/ps5-payload
 
 ```sh
 make ps5
-# produces cleanmyps5.elf; not verified on a physical PS5 yet
+# server only: cleanmyps5.elf
+make ps5-browser
+# experimental server + browser launch: cleanmyps5-browser.elf
+# neither variant has been verified on physical PS5 13.60 yet
 ```
 
-The native payload defaults to filesystem namespace `/` and **loopback only**, with URL `http://127.0.0.1:8877/`. Reaching it from a PS5 user interface requires an accessible browser/deeplink, to be verified on device. No launcher icon is installed automatically and no existing applications are touched. Loading a payload has the normal risks of an exploited console.
+The native payload defaults to filesystem namespace `/` and **loopback only**, with URL `http://127.0.0.1:8877/`. The optional `cleanmyps5-browser.elf` uses `sceUserServiceInitialize` and `sceSystemServiceLaunchWebBrowser` from the community SDK sample to attempt opening that URL after the service starts; failure does not stop the local server. **Do not use both payload variants together**. Opening the browser may conflict with WebKit autoloaders; the original ELF remains server-only. Reaching it from a PS5 user interface requires an accessible browser/deeplink, to be verified on device. No launcher icon is installed automatically and no existing applications are touched. Loading a payload has the normal risks of an exploited console.
 
-The CI uploads the ELF **only after** host integration tests and ASan/UBSan pass. The artifact also includes `cleanmyps5.elf.sha256` and `VERSION` for traceability. CodeQL scans the native C and JavaScript sources separately. A compiled ELF still **does not** prove PS5 runtime compatibility. Do not replace an existing payload or install an untested binary expecting production behavior.
+The CI uploads both experimental ELF variants **only after** host integration tests and ASan/UBSan pass. The artifact also includes `cleanmyps5.elf.sha256` and `VERSION` for traceability. CodeQL scans the native C and JavaScript sources separately. A compiled ELF still **does not** prove PS5 runtime compatibility. Do not replace an existing payload or install an untested binary expecting production behavior.
 
 ## Sources and safety
 

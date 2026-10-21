@@ -35,6 +35,34 @@ static void startup_notification(void){
 #else
 static void startup_notification(void){}
 #endif
+
+#if defined(PS5) && defined(CMP5_AUTO_BROWSER)
+// Uses the browser launch API demonstrated in ps5-payload-dev/sdk/samples/browser.
+// Deliberately optional: opening WebKit automatically may conflict with a
+// running WebKit-based payload loader. The original server-only ELF is unchanged.
+int sceUserServiceInitialize(void*);
+int sceUserServiceTerminate(void);
+int sceSystemServiceLaunchWebBrowser(const char *uri,void*);
+static int cmp5_user_service_initialized=0;
+static void cmp5_open_browser(void){
+ int initialized=sceUserServiceInitialize(0);
+ if(initialized!=0){
+  fprintf(stderr,"CleanMyPS5: user service initialization failed (%d); server remains active\n",initialized);
+  return;
+ }
+ cmp5_user_service_initialized=1;
+ int result=sceSystemServiceLaunchWebBrowser("http://127.0.0.1:8877/",0);
+ if(result!=0)fprintf(stderr,"CleanMyPS5: browser launch failed (%d); open localhost manually\n",result);
+}
+static void cmp5_close_user_service(void){
+ if(cmp5_user_service_initialized){
+  sceUserServiceTerminate();cmp5_user_service_initialized=0;
+ }
+}
+#else
+static void cmp5_open_browser(void){}
+static void cmp5_close_user_service(void){}
+#endif
 static int send_all(int fd,const void*data,size_t n){
  const char*p=(const char*)data;
  while(n){
@@ -362,6 +390,7 @@ int main(int argc,char**argv){
  if(bind(fd,(struct sockaddr*)&bindaddr,sizeof(bindaddr))!=0||listen(fd,16)!=0){perror("bind/listen");close(fd);return 1;}
  printf("CleanMyPS5 http://%s:%d/ (read-only)\n",address,port);fflush(stdout);
  startup_notification();
+ cmp5_open_browser();
  while(!cmp5_shutdown){
   int client=accept(fd,NULL,NULL);
   if(client<0){
@@ -379,5 +408,6 @@ int main(int argc,char**argv){
  pthread_mutex_lock(&worker_mutex);
  while(worker_count>0)pthread_cond_wait(&worker_idle,&worker_mutex);
  pthread_mutex_unlock(&worker_mutex);
+ cmp5_close_user_service();
  puts("CleanMyPS5 stopped, listener closed.");return 0;
 }

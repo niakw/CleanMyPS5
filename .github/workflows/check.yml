@@ -46,19 +46,21 @@ jobs:
           sudo unzip -q /tmp/ps5-payload-sdk.zip -d /opt
           test -x /opt/ps5-payload-sdk/bin/prospero-clang
       - name: Cross-compile PS5 ELF (no on-console claim)
-        run: make ps5
+        run: make ps5 ps5-browser
         env:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
       - name: Verify payload artifact and generate checksum
         run: |
           test -s cleanmyps5.elf
-          file cleanmyps5.elf
-          sha256sum cleanmyps5.elf > cleanmyps5.elf.sha256
+          test -s cleanmyps5-browser.elf
+          file cleanmyps5.elf cleanmyps5-browser.elf
+          sha256sum cleanmyps5.elf cleanmyps5-browser.elf > cleanmyps5.elf.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: cleanmyps5-ps5-elf-untested
           path: |
             cleanmyps5.elf
+            cleanmyps5-browser.elf
             cleanmyps5.elf.sha256
             VERSION
           if-no-files-found: error

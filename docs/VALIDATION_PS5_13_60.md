@@ -31,3 +31,7 @@ La version actuelle reste en lecture seule.
 ### Diagnostic USB
 
 Le preflight examine à présent les répertoires autoloader candidats de `/mnt/usb0` à `/mnt/usb7` en lecture seule. La présence ou l'absence d'un montage n'établit pas à elle seule si le chargeur de payload est actif ; les vrais chemins doivent être confirmés sur la console 13.60.
+
+## Variante expérimentale navigateur
+
+Le projet produit désormais **deux ELF**. `cleanmyps5.elf` est inchangé (serveur loopback seul). `cleanmyps5-browser.elf` tente d'ouvrir `http://127.0.0.1:8877/` via les APIs de navigateur utilisées par l'exemple officiel du PS5 Payload SDK. Ne charger **qu'un seul** des deux. Tester la variante serveur seul avant de tenter la variante navigateur, car elle peut entrer en conflit avec un WebKit Autoloader déjà lancé. Consigner séparément les résultats d'initialisation de UserService, d'ouverture du navigateur et de navigation DualSense ; aucune installation persistante n'est effectuée.
