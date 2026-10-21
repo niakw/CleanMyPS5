@@ -3,7 +3,7 @@
 const labels={overview:"Vue d'ensemble",media:"Captures & vidéos",cache:"Caches & journaux",residuals:"Installations",storage:"Stockage"};
 const categoryLabels={media:"Captures & vidéos",cache:"Caches",logs:"Journaux",residuals:"Résidus",other:"Autres"};
 const categoryColors={media:"#67baff",cache:"#b28dff",logs:"#68d9be",residuals:"#f1b86f",other:"#8192b8"};
-const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false};
+const state={tab:"overview",items:[],selected:new Set(),source:"none",scannedAt:null,warnings:[],demo:false,backend:false,scanning:false,target:"host",page:0,pageSize:36,mediaMode:"all",mediaTitle:"all",scanStats:null,diagnostics:null,diagnosing:false,duplicates:null,checkingDuplicates:false,liveReport:false,preview:null,previousFocus:null,volumes:null,volumeBusy:false,reviewOpen:false,preflight:null,preflightBusy:false,reportRevision:0};
 const $=s=>document.querySelector(s);
 function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
 function add(parent,...children){children.forEach(x=>parent.append(x));return parent;}
@@ -32,12 +32,13 @@ function safeItems(report){
 }
 function useReport(report,isDemo=false,live=false){
   const items=safeItems(report).sort((a,b)=>b.bytes-a.bytes);
+  state.reportRevision++;
   const sizes=new Map();
   for(const item of items)if(item.category==="media"&&item.bytes>0)sizes.set(item.bytes,(sizes.get(item.bytes)||0)+1);
   for(const item of items)item.possibleTwin=item.category==="media"&&item.bytes>0&&(sizes.get(item.bytes)||0)>1;
   state.items=items;state.selected.clear();state.page=0;state.mediaMode="all";state.mediaTitle="all";state.demo=isDemo;state.liveReport=!!live&&!isDemo;
   // A previous exact match must never survive a refreshed/imported inventory.
-  state.duplicates=null;state.diagnostics=null;state.volumes=null;
+  state.duplicates=null;state.diagnostics=null;state.volumes=null;state.preflight=null;
   state.scanStats=report.stats&&typeof report.stats==="object"?{visited:Number(report.stats.visited)||0,items:Number(report.stats.items)||0,partial:report.stats.partial===true}:null;
   state.source=isDemo?"Démonstration (fictive)":String(report.source||"Rapport importé").slice(0,60);
   state.scannedAt=typeof report.scannedAt==="string"?report.scannedAt:null;
@@ -265,7 +266,9 @@ function closePreview(){
  if(former?.isConnected)former.focus({preventScroll:true});
 }
 function prepareDupGroup(group){
- if(!state.liveReport||!state.backend||!group||!Array.isArray(group.paths))return;
+ if(!state.liveReport||!state.backend||!group||!state.duplicates||
+    state.duplicates.revision!==state.reportRevision||
+    !state.duplicates.groups.includes(group)||!Array.isArray(group.paths))return;
  const byPath=new Map(state.items.filter(x=>x.category==="media"&&x.risk!=="protected").map(x=>[x.path,x]));
  // Keep the first file as an anchor; copies are flagged for human inspection,
  // not for deletion. The retained anchor is arbitrary and not a quality choice.
@@ -315,7 +318,8 @@ function duplicatesPanel(){
  return panel;
 }
 async function checkDuplicates(){
- if(!state.backend||state.checkingDuplicates)return;
+ if(!state.backend||state.checkingDuplicates||!state.liveReport)return;
+ const revision=state.reportRevision;
  state.checkingDuplicates=true;render();
  try{
   const resp=await fetch("/api/duplicates",{cache:"no-store"});
@@ -328,7 +332,8 @@ async function checkDuplicates(){
    bytesEach:Number.isSafeInteger(g.bytesEach)&&g.bytesEach>=0?g.bytesEach:0,
    paths:Array.isArray(g.paths)?g.paths.slice(0,128).map(p=>String(p).slice(0,2048)):[]
   })).filter(g=>g.paths.length>=2);
-  state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,comparedBytes:Number(data.comparedBytes)||0,partial:data.partial===true};
+  if(revision===state.reportRevision&&state.liveReport)
+   state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,comparedBytes:Number(data.comparedBytes)||0,partial:data.partial===true,revision};
  }catch(e){announce("Comparaison impossible : "+e.message);}
  finally{state.checkingDuplicates=false;render();}
 }
@@ -608,6 +613,7 @@ async function findNativeServer(){
 }
 async function scanNow(){
  if(!state.backend||state.scanning)return;
+ const revision=state.reportRevision;
  state.scanning=true;render();
  try{
   const response=await fetch("/api/report",{cache:"no-store"});
@@ -616,8 +622,8 @@ async function scanNow(){
   if(!type.includes("application/json"))throw Error("Réponse non JSON");
   const raw=await response.text();
   if(raw.length>8*1024*1024)throw Error("Rapport trop volumineux");
-  useReport(JSON.parse(raw),false,true);
- }catch(error){announce("Analyse impossible : "+error.message);}
+  if(revision===state.reportRevision)useReport(JSON.parse(raw),false,true);
+ }catch(error){if(revision===state.reportRevision)announce("Analyse impossible : "+error.message);}
  finally{state.scanning=false;render();}
 }
 render();requestAnimationFrame(gamepadLoop);

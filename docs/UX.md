@@ -74,3 +74,7 @@ The etaHEN diagnostic now provides a context-dependent suggested next check, but
 ## Reclaimable vs reviewed bytes
 
 The UI distinguishes **inventoried bytes** (occupied by known files), **additional copies verified identical** (review candidates only), and **bytes actually freed** (always zero until a real, tested transaction is implemented). This avoids claiming savings from metadata, originals, or protected data.
+
+## Invalidation des analyses en cours
+
+Un import ou un nouveau scan incrémente un identifiant de révision du rapport. Les réponses des vérifications de doublons en cours et des scans plus anciens ne sont plus appliquées si une nouvelle source a été chargée entre-temps. La préparation des copies exige une correspondance avec le groupe exact de la révision affichée. Les diagnostics et statistiques précédents sont effacés lorsque la source change.
