@@ -1,5 +1,7 @@
 # CleanMyPS5 — validation et priorités
 
+**État natif :** dossier de titre `PPSA99784/` compilé avec `eboot.bin`, icône, runtime et écran DualSense. Un helper ELF **séparé** expose les données en lecture seule sur loopback. Compilation CI réussie ; pas de validation physique sur FW 13.60 ni de nettoyage activé. Le tableau ci-dessous décrit majoritairement l'ancien moteur de lecture WebKit/ELF, pas la parité de l'interface native.
+
 | Sous-système | Implémenté | Tests hôte | ELF compilé | Test FW 13.60 | Écritures |
 |---|---|---|---|---|---|
 | Interface TV / DualSense | Oui | Syntaxe JS | Oui | **À faire** | Non |
@@ -23,7 +25,7 @@
 
 ## Portes restantes
 
-**P0 — UI réellement accessible** : démarrer l'ELF sur PS5, confirmer la notification, l'URL loopback et le parcours manette. L'ELF n'est pas une app installée dans le menu. Si WebKit ne permet pas cet accès, concevoir un lanceur optionnel proprement désinstallable ou un frontend homebrew autonome, sans installer de raccourci silencieusement.
+**P0 — Titre natif et helper réellement accessibles** : installer et lancer le dossier `PPSA99784/` via un gestionnaire de titres compatible, vérifier la manette, les pages, les sondes natives et la connexion loopback au helper ELF. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.
 
 **P1 — données réellement fiables** : confirmer les chemins FW 13.60, Title IDs, bases multimédias, capacités des montages, plugins et autoloaders réels.
 
@@ -39,7 +41,7 @@ P0 et P1 sont bloqués sans PS5 13.60 accessible ; compilation ELF et sanitizers
 
 La compilation ELF dépend dorénavant de la validation des tests natifs et des sanitizers. L'artefact fourni est accompagné de son SHA-256 et du numéro de version issu du dépôt. CodeQL examine les sources C et JavaScript via un workflow dédié ; la réussite de CodeQL n'est pas une preuve de bon fonctionnement sur la PS5.
 
-Le jalon P0 propose aussi une variante séparée `cleanmyps5-browser.elf`, utilisant l'API de lancement du navigateur documentée par l'exemple du SDK. Elle reste **expérimentale** jusqu'au test matériel et ne change pas la variante serveur seul.
+L'ancien payload WebKit reste une solution transitoire. La livraison cible est le **titre natif** ; le helper doit pour l'instant être démarré séparément par l'environnement jailbreaké. Ne pas présenter l'archive comme un PKG Sony ni un nettoyeur terminé.
 
 ## Développement après audit outil générique
 
