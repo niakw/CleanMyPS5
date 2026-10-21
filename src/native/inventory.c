@@ -3,6 +3,8 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,43 +104,63 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  add(&s->b,"}");
  s->items++;
 }
-static void walk(Scan*s,const char*path,const char*kind,int depth){
- if(s->stopped||s->b.fail)return;
- struct stat st;if(lstat(path,&st)||!S_ISDIR(st.st_mode)){warn(s,"Repertoire inaccessible",path);return;}
- DIR*d=opendir(path);if(!d){warn(s,"Acces refuse",path);return;}
+// Enumerate via an anchored directory fd. A symlink swap in an ancestor
+// cannot cause traversal into an unrelated homebrew, title or OS tree.
+static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
+ if(s->stopped||s->b.fail){close(fd);return;}
+ DIR*d=fdopendir(fd);
+ if(!d){warn(s,"Acces refuse",path);close(fd);return;}
  struct dirent*e;
  while((e=readdir(d))!=NULL){
   if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0)continue;
   if(++s->visits>VISIT_CAP){s->stopped=1;warn(s,"Limite de parcours atteinte",path);break;}
-  // Check the monotonic deadline every 64 entries to bound CPU/metadata I/O overhead.
   if(s->deadline && (s->visits&63u)==0u){
    uint64_t now=monotonic_ns();
    if(now && now>s->deadline){
     s->stopped=1;warn(s,"Analyse partielle : limite de 5 secondes atteinte",path);break;
    }
   }
-  char child[PATH_CAP];if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
-  struct stat st2;if(lstat(child,&st2))continue;
-  if(S_ISLNK(st2.st_mode))continue;
-  if(S_ISDIR(st2.st_mode)){
-   if(depth<DEPTH_CAP)walk(s,child,kind,depth+1);
-   else warn(s,"Profondeur maximale atteinte",child);
-  }else if(S_ISREG(st2.st_mode))file(s,child,&st2,kind);
+  char child[PATH_CAP];
+  if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
+  struct stat st;
+  if(fstatat(dirfd(d),e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+   warn(s,"Entree inaccessible",child);continue;
+  }
+  if(S_ISLNK(st.st_mode))continue;
+  if(S_ISDIR(st.st_mode)){
+   if(depth<DEPTH_CAP){
+    int next=openat(dirfd(d),e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    if(next<0)warn(s,"Dossier inaccessible",child);
+    else walk(s,next,child,kind,depth+1);
+   }else warn(s,"Profondeur maximale atteinte",child);
+  }else if(S_ISREG(st.st_mode))file(s,child,&st,kind);
   if(s->stopped||s->b.fail)break;
  }
  closedir(d);
 }
 static void root_scan(Scan*s,const char*root,const char*rel,const char*kind){
- char copy[PATH_CAP],prefix[PATH_CAP],next[PATH_CAP],full[PATH_CAP];
- if(!join(full,sizeof(full),root,rel))return;
- snprintf(prefix,sizeof(prefix),"%s",root);snprintf(copy,sizeof(copy),"%s",rel);
- char*save=0;
- for(char*part=strtok_r(copy,"/",&save);part;part=strtok_r(NULL,"/",&save)){
-  if(!join(next,sizeof(next),prefix,part)){warn(s,"Racine trop longue",rel);return;}
-  struct stat st;if(lstat(next,&st)||!S_ISDIR(st.st_mode)){warn(s,"Racine absente ou symbolique",rel);return;}
-  memcpy(prefix,next,strlen(next)+1);
+ char copy[PATH_CAP],path[PATH_CAP],next[PATH_CAP];
+ if(strlen(root)>=sizeof(path)||strlen(rel)>=sizeof(copy)){
+  warn(s,"Racine trop longue",rel);return;
  }
- walk(s,full,kind,0);
+ memcpy(path,root,strlen(root)+1);
+ memcpy(copy,rel,strlen(rel)+1);
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0){warn(s,"Racine du scan inaccessible",rel);return;}
+ char*save=NULL;
+ for(char*part=strtok_r(copy,"/",&save);part;part=strtok_r(NULL,"/",&save)){
+  if(!join(next,sizeof(next),path,part)){
+   warn(s,"Racine trop longue",rel);close(fd);return;
+  }
+  int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(child<0){
+   warn(s,"Racine absente, symbolique ou inaccessible",rel);
+   close(fd);return;
+  }
+  close(fd);fd=child;
+  memcpy(path,next,strlen(next)+1);
+ }
+ walk(s,fd,path,kind,0);
 }
 char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;if(!root||!len)return NULL;

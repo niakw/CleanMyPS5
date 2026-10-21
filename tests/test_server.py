@@ -163,6 +163,7 @@ with tempfile.TemporaryDirectory() as temp:
   assert all(v["totalBytes"]>=v["freeBytes"]>=v["availableBytes"]>=0 for v in bypath.values())
   assert bypath["/data"]["sharedWith"]=="/user/av_contents"
   assert all("directory_link" not in r["path"] for r in report["items"])
+  assert all("/data/prosperoeden/" not in r["path"] for r in report["items"])
  finally:
   p.terminate()
   try:
