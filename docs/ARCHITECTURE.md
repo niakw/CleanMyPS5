@@ -10,6 +10,7 @@ Le serveur du helper écoute en loopback sur le port 8877, avec quatre travaille
 |---|---|
 | `/api/status` | Version, hôte/cible PS5 et mode lecture seule |
 | `/api/report` | Inventaire générique des métadonnées, règles et couverture |
+| `/api/overview` | Résumé agrégé sans chemins de fichiers, catégories et couverture, toujours en lecture seule |
 | `/api/homebrew` | Catalogue borné et protégé des installations et données d’apps |
 | `/api/preflight` | Accessibilité de 26 chemins candidats prédéfinis |
 | `/api/volumes` | Mesures de deux montages connus, sans total SSD |
