@@ -1,6 +1,6 @@
-// CleanMyPS5 native dashboard prototype (GPL-3.0-or-later).
-// Uses the independently built VideoOut renderer of the pinned native toolchain.
-// Designed to run as a PS5 title, never by opening a web browser.
+// CleanMyPS5 native dashboard (GPL-3.0-or-later).
+// Real PS5 title: reads app-visible paths locally, without opening a browser.
+// Advanced diagnostics require the separately privileged, read-only helper.
 #include "demo_renderer.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -19,6 +19,8 @@ extern "C" {
  int sceNetRecv(int,void*,std::size_t,int);
  int sceNetSetsockopt(int,int,int,const void*,std::uint32_t);
  int sceNetSocketClose(int);
+ int open(const char*,int,...);
+ int close(int);
 }
 
 namespace {
@@ -44,15 +46,35 @@ struct NetSockaddrIn {
 };
 static_assert(sizeof(NetSockaddrIn)==16);
 
-constexpr std::uint32_t up=0x10,down=0x40,cross=0x4000,circle=0x2000;
-int controller=-1,selected=0;
-std::uint32_t previous=0;
-enum class Link { unchecked, ok, offline, invalid };
-Link state=Link::unchecked;
-unsigned available=0,denied=0,absent=0;
-constexpr int row_count=4;
 using Color=ps5::demo::Color;
+constexpr std::uint32_t up=0x10,down=0x40,cross=0x4000,circle=0x2000;
+constexpr int row_count=4;
+enum class Screen { menu, analyze, access, cleanup, official };
+enum class Link { unchecked, ok, offline };
+const char* const local_paths[]={
+ "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
+};
+const char* const local_names[]={
+ "APP INSTALLEE", "STOCKAGE APP", "STOCKAGE HOMEBREW", "GALERIE PS5"
+};
+int controller=-1,selected=0;
+Screen screen=Screen::menu;
+std::uint32_t previous=0;
+Link engine=Link::unchecked;
+unsigned available=0,denied=0,absent=0;
+bool local_checked=false;
+bool local_readable[4]{};
 
+void probe_local() noexcept {
+ // The native title does not inherit the permissions of the payload/FTP server.
+ // Open only for reading. Never create, modify, or unlink a filesystem entry.
+ for(std::size_t i=0;i<4;i++){
+  const int fd=open(local_paths[i],0);
+  local_readable[i]=fd>=0;
+  if(fd>=0)(void)close(fd);
+ }
+ local_checked=true;
+}
 bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
  const char*start=std::strstr(text,name);
  if(!start)return false;
@@ -70,7 +92,6 @@ bool get_preflight() noexcept {
  int socket=sceNetSocket("cleanmyps5_ui",2,1,6);
  if(socket<0)return false;
  constexpr int timeout_us=350000;
- // Official sceNet socket timeout options as used by the community SDK.
  (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
  (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
  const NetSockaddrIn local{16,2,static_cast<std::uint16_t>((8877u<<8)|(8877u>>8)),0x0100007f,0,{0}};
@@ -79,15 +100,13 @@ bool get_preflight() noexcept {
   "GET /api/preflight HTTP/1.1\r\n"
   "Host: 127.0.0.1:8877\r\n"
   "Connection: close\r\n\r\n";
- if(ok) {
+ if(ok){
   const int sent=sceNetSend(socket,request,sizeof(request)-1,0);
   ok=sent==static_cast<int>(sizeof(request)-1);
  }
- // Fixed maximum: the backend preflight contract cannot exceed 16 KiB.
- // Bounded stack allocation and no filesystem writes from the native UI.
  char response[18432]{};
  std::size_t received=0;
- while(ok && received<sizeof(response)-1) {
+ while(ok && received<sizeof(response)-1){
   const int got=sceNetRecv(socket,response+received,sizeof(response)-received-1,0);
   if(got<0){ok=false;break;}
   if(got==0)break;
@@ -101,9 +120,16 @@ bool get_preflight() noexcept {
  if(!json)return false;
  json+=4;
  if(!std::strstr(json,"\"scope\":\"known-paths-only\""))return false;
- return scan_field(json,"\"accessible\":",&available)
-   && scan_field(json,"\"denied\":",&denied)
-   && scan_field(json,"\"absent\":",&absent);
+ unsigned a=0,d=0,b=0;
+ if(!scan_field(json,"\"accessible\":",&a)||
+    !scan_field(json,"\"denied\":",&d)||
+    !scan_field(json,"\"absent\":",&b))return false;
+ available=a;denied=d;absent=b;
+ return true;
+}
+void run_environment_check() noexcept {
+ probe_local();
+ engine=get_preflight()?Link::ok:Link::offline;
 }
 void poll_pad() noexcept {
  if(controller<0)return;
@@ -114,42 +140,107 @@ void poll_pad() noexcept {
   const std::uint32_t buttons=samples[i].connected!=0?samples[i].buttons:0;
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
-  if(pressed&up)selected=(selected+row_count-1)%row_count;
-  if(pressed&down)selected=(selected+1)%row_count;
-  if(pressed&circle)selected=0;
-  if((pressed&cross)&&selected==0){
-   state=get_preflight()?Link::ok:Link::offline;
+  if(pressed&circle){screen=Screen::menu;continue;}
+  if(screen==Screen::menu){
+   if(pressed&up)selected=(selected+row_count-1)%row_count;
+   if(pressed&down)selected=(selected+1)%row_count;
+   if(pressed&cross){
+    screen=selected==0?Screen::analyze:selected==1?Screen::access:
+      selected==2?Screen::cleanup:Screen::official;
+    if(screen==Screen::analyze)run_environment_check();
+    if(screen==Screen::access)probe_local();
+   }
+  }else if(pressed&cross){
+   if(screen==Screen::analyze)run_environment_check();
+   if(screen==Screen::access)probe_local();
   }
  }
 }
-void scene(ps5::demo::Canvas&canvas) noexcept {
- poll_pad();
+void header(ps5::demo::Canvas&canvas,const char*subtitle) noexcept {
  canvas.clear(Color::background);
  canvas.rectangle(0,0,1920,12,Color::cyan);
- canvas.rectangle(72,110,1776,130,Color::panel);
- canvas.text(112,146,"CLEANMYPS5",9,Color::white);
- canvas.text(116,286,"STORAGE MAINTENANCE",4,Color::cyan);
+ canvas.rectangle(72,90,1776,135,Color::panel);
+ canvas.text(112,130,"CLEANMYPS5",9,Color::white);
+ canvas.text(115,255,subtitle,5,Color::cyan);
+}
+void panel(ps5::demo::Canvas&canvas,unsigned y,const char*name,const char*detail,
+           Color tone=Color::white) noexcept {
+ canvas.rectangle(95,y,1730,116,Color::panel);
+ canvas.text(135,y+20,name,5,tone);
+ canvas.text(930,y+26,detail,3,Color::white);
+}
+void footer(ps5::demo::Canvas&canvas,const char*message) noexcept {
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,977,message,4,Color::white);
+}
+void show_menu(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*items[row_count]={
-   "SMART ANALYSIS", "STORAGE ACCESS", "CLEANUP", "RETURN TO LIVE"
+  "ANALYSE", "ACCES AU STOCKAGE", "NETTOYAGE", "RETOUR OFFICIEL"
+ };
+ static constexpr const char*detail[row_count]={
+  "ETAT DU MOTEUR", "DROITS REELS", "PROTECTION ACTIVE", "CONTROLES LOCAUX"
  };
  for(int i=0;i<row_count;i++){
-  unsigned top=360+static_cast<unsigned>(i)*142;
-  canvas.rectangle(100,top,1700,112,i==selected?Color::cyan:Color::panel);
-  canvas.rectangle(109,top+9,1682,94,Color::background);
-  canvas.text(145,top+29,items[i],5,i==selected?Color::cyan:Color::white);
+  const unsigned top=350+static_cast<unsigned>(i)*142;
+  canvas.rectangle(95,top,1730,116,i==selected?Color::cyan:Color::panel);
+  canvas.rectangle(104,top+9,1712,98,Color::background);
+  canvas.text(145,top+30,items[i],5,i==selected?Color::cyan:Color::white);
+  canvas.text(1000,top+37,detail[i],3,Color::white);
  }
- canvas.rectangle(100,935,1700,100,Color::panel);
- if(state==Link::ok){
-  char result[120]{};
-  (void)std::snprintf(result,sizeof(result),"OPEN %u  DENIED %u  ABSENT %u",available,denied,absent);
-  canvas.text(130,958,result,4,Color::white);
- }else if(state==Link::offline){
-  canvas.text(130,958,"ENGINE OFFLINE OR NETWORK RESTRICTED",4,Color::yellow);
+ footer(canvas,"X OUVRIR    HAUT / BAS NAVIGUER");
+}
+void show_analyze(ps5::demo::Canvas&canvas) noexcept {
+ if(engine==Link::ok){
+  char result[112]{};
+  (void)std::snprintf(result,sizeof(result),"ACCESSIBLES %u  REFUSES %u  ABSENTS %u",
+                       available,denied,absent);
+  panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
  }else{
-  canvas.text(130,958,"X SCAN  UP DOWN NAVIGATE  CIRCLE BACK",4,Color::white);
+  panel(canvas,366,"MOTEUR NON DISPONIBLE","AUCUN RAPPORT GLOBAL",Color::yellow);
  }
- if(selected==2)canvas.text(920,811,"NO DELETION UNTIL VERIFIED",3,Color::yellow);
- if(selected==1)canvas.text(920,811,"SANDBOX RIGHTS MAY DIFFER",3,Color::yellow);
+ panel(canvas,515,"ANALYSE LOCALE",local_checked?
+  "VERIFICATION DANS LE SANDBOX":"NON EXECUTEE");
+ panel(canvas,664,"LIMITES DE COUVERTURE",
+  "ACCES APP DIFFERENT DU PAYLOAD",Color::yellow);
+ panel(canvas,813,"SECURITE","AUCUNE SUPPRESSION EFFECTUEE");
+ footer(canvas,"X RECONTROLER    CERCLE RETOUR");
+}
+void show_access(ps5::demo::Canvas&canvas) noexcept {
+ for(std::size_t i=0;i<4;i++){
+  panel(canvas,353+static_cast<unsigned>(i)*144,local_names[i],
+    !local_checked?"NON TESTE":local_readable[i]?"OUVERT EN LECTURE":
+    "INACCESSIBLE OU ABSENT",local_checked&&local_readable[i]?Color::cyan:Color::yellow);
+ }
+ footer(canvas,"X VERIFIER A NOUVEAU    CERCLE RETOUR");
+}
+void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
+ panel(canvas,355,"NETTOYAGE DES CAPTURES","NON ACTIVE",Color::yellow);
+ panel(canvas,503,"NETTOYAGE DES CACHES","NON ACTIVE",Color::yellow);
+ panel(canvas,651,"SUPPRESSION DES DOUBLONS","NON ACTIVE",Color::yellow);
+ panel(canvas,799,"PRECONDITION","ACCES, SAUVEGARDE, VALIDATION");
+ footer(canvas,"PAS D'EFFACEMENT SANS CONTROLE   CERCLE RETOUR");
+}
+void show_official(ps5::demo::Canvas&canvas) noexcept {
+ panel(canvas,355,"REVOIR LES HOMEBREWS","VERIFIER MANUELLEMENT");
+ panel(canvas,503,"SAUVEGARDER SES DONNEES","AVANT UNE MISE A JOUR");
+ panel(canvas,651,"PARAMETRES OFFICIELS","UTILISER LA CONSOLE");
+ panel(canvas,799,"SERVICES EN LIGNE","AUCUNE GARANTIE ANTI-BAN",Color::yellow);
+ footer(canvas,"AUCUNE MODIFICATION DU SYSTEME   CERCLE RETOUR");
+}
+void scene(ps5::demo::Canvas&canvas) noexcept {
+ poll_pad();
+ const char*subtitle=screen==Screen::menu?"MAINTENANCE PS5":
+   screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":
+   screen==Screen::access?"PERMISSIONS DU TITRE":
+   screen==Screen::cleanup?"NETTOYAGE PROTEGE":"RETOUR AU SYSTEME OFFICIEL";
+ header(canvas,subtitle);
+ switch(screen){
+  case Screen::menu:show_menu(canvas);break;
+  case Screen::analyze:show_analyze(canvas);break;
+  case Screen::access:show_access(canvas);break;
+  case Screen::cleanup:show_cleanup(canvas);break;
+  case Screen::official:show_official(canvas);break;
+ }
 }
 }
 
