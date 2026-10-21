@@ -18,10 +18,10 @@ with tempfile.TemporaryDirectory() as temp:
  for d in (image,clip,eta,other):d.mkdir(parents=True)
  (image/"image.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"sidecar.dat").write_text("metadata")
- (image/"same.jpg").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
+ (image/"same.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  # A hardlink is another directory entry for the same physical bytes:
  # it must NOT increase independently recoverable duplicate space.
- (image/"hardlink.jpg").hardlink_to(image/"image.png")
+ (image/"hardlink.png").hardlink_to(image/"image.png")
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
  (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
@@ -113,10 +113,10 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as err:assert err.code==403,err.code
   with urlopen(base+"/api/report",timeout=3) as r:report=json.load(r)
   entries={Path(e["path"]).name:e for e in report["items"]}
-  required={"sidecar.dat","same.jpg","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini","autoload.txt","assets.bin","plugin-note.txt"}
+  required={"sidecar.dat","same.png","same-size-but-different.jpg","clip.MP4","long.mp4","another.webm","not-a-real-video.mp4","debug.log","config.ini","autoload.txt","assets.bin","plugin-note.txt"}
   assert required<=set(entries),entries
-  assert len(set(entries)&{"image.png","hardlink.jpg"})==1,entries
-  capture=entries.get("image.png",entries.get("hardlink.jpg"))
+  assert len(set(entries)&{"image.png","hardlink.png"})==1,entries
+  capture=entries.get("image.png",entries.get("hardlink.png"))
   assert entries["clip.MP4"]["bytes"]==150
   assert entries["clip.MP4"]["titleId"]=="GAME"
   assert capture["previewPath"].startswith("/user/av_contents/photo/NPXS40087/GAME/")
@@ -195,8 +195,8 @@ with tempfile.TemporaryDirectory() as temp:
   assert len(dup["groups"])==1,dup
   match={Path(p).name for p in dup["groups"][0]["paths"]}
   # Which path becomes the group representative depends on directory order.
-  # The independently stored copy is same.jpg; the image/hardlink inode appears once.
-  assert len(match)==2 and "same.jpg" in match and bool(match&{"image.png","hardlink.jpg"}),match
+  # The independently stored copy is same.png; the image/hardlink inode appears once.
+  assert len(match)==2 and "same.png" in match and bool(match&{"image.png","hardlink.png"}),match
   assert dup["hardlinksSkipped"]==1
   assert dup["groups"][0]["bytesEach"]==35
   assert dup["filesConsidered"]==3
