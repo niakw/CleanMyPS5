@@ -25,7 +25,9 @@ function safeItems(report){
       titleId:typeof v.titleId==="string"&&/^[A-Za-z0-9_]{1,24}$/.test(v.titleId)?v.titleId:"",
       modifiedAt:Number.isSafeInteger(v.modifiedAt)&&v.modifiedAt>0&&v.modifiedAt<4102444800?v.modifiedAt:0,
       possibleTwin:false,previewPath:typeof v.previewPath==="string"&&
-        /^\/user\/av_contents\/photo\/NPXS40087\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:""};
+        /^\/user\/av_contents\/photo\/NPXS40087\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
+      videoPath:typeof v.previewPath==="string"&&
+        /^\/user\/av_contents\/video\/NPXS40087\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:""};
   });
 }
 function useReport(report,isDemo=false,live=false){
@@ -121,9 +123,9 @@ function row(x){const selected=state.selected.has(x.id);const protectedItem=x.ri
  const info=add(node("span","file-meta"),node("span","file-name",x.path.split("/").pop()||x.path),node("span","file-desc",x.path+" · "+detail));
  const right=add(node("span",""),node("span","file-size",bytes(x.bytes)),node("span","risk"+(protectedItem?" protected":""),protectedItem?"PROTÉGÉ":x.risk==="review"?"À VÉRIFIER":"EXAMINÉ"));
  add(el,box,info,right);el.addEventListener("click",()=>{if(state.selected.has(x.id))state.selected.delete(x.id);else state.selected.add(x.id);render(true);});
- if(state.liveReport&&state.backend&&x.category==="media"&&x.previewPath){
+ if(state.liveReport&&state.backend&&x.category==="media"&&(x.previewPath||x.videoPath)){
    const wrapper=node("div","file-entry");wrapper.append(el);
-   const view=button("Voir la capture  ↗","secondary preview-action",()=>openPreview(x));
+   const view=button(x.videoPath?"Lire la vidéo  ▶":"Voir la capture  ↗","secondary preview-action",()=>openPreview(x));
    view.setAttribute("aria-label","Prévisualiser "+(x.path.split("/").pop()||"la capture"));
    wrapper.append(view);return wrapper;
  }
@@ -147,7 +149,7 @@ function filesPage(root){
  root.append(notice("Mode sécurisé","Toutes les sélections restent locales au navigateur. Aucune API d'effacement ni modification de fichiers n'est implémentée."));
 }
 function openPreview(item){
- if(!state.backend||!state.liveReport||!item.previewPath)return;
+ if(!state.backend||!state.liveReport||!(item.previewPath||item.videoPath))return;
  state.previousFocus=document.activeElement;
  state.preview=item;
  const shade=node("div","preview-shade");
@@ -161,20 +163,38 @@ function openPreview(item){
  const close=button("✕  Fermer","secondary preview-close",closePreview);
  close.id="preview-close";
  add(header,detail,close);panel.append(header);
- const image=document.createElement("img");
- image.alt="Capture locale : "+(item.path.split("/").pop()||"image");
- image.decoding="async";image.className="preview-image";
- image.src="/api/media?file="+encodeURIComponent(item.previewPath);
- image.addEventListener("error",()=>{
-  image.replaceWith(node("div","preview-error","Cette image ne peut pas être ouverte (format non pris en charge ou fichier inaccessible)."));
- });
- panel.append(image);
- panel.append(node("p","filter-warning","Prévisualisation locale en lecture seule. Aucun fichier n'est modifié ni exporté."));
+ if(item.videoPath){
+  const video=document.createElement("video");
+  video.className="preview-video";video.id="preview-video";
+  video.controls=true;video.preload="metadata";video.playsInline=true;
+  video.src="/api/video?file="+encodeURIComponent(item.videoPath);
+  video.addEventListener("error",()=>announce("Ce clip n'a pas pu être décodé sur ce navigateur."));
+  panel.append(video);
+  const controls=node("div","preview-video-controls");
+  const play=button("▶ Lire / Pause","secondary",()=>{
+    if(video.paused){const p=video.play();if(p?.catch)p.catch(()=>announce("La lecture vidéo est indisponible."));}
+    else video.pause();
+  });play.id="preview-play";
+  const backward=button("− 10 s","secondary",()=>{if(Number.isFinite(video.duration))video.currentTime=Math.max(0,video.currentTime-10);});
+  const forward=button("+ 10 s","secondary",()=>{if(Number.isFinite(video.duration))video.currentTime=Math.min(video.duration,video.currentTime+10);});
+  add(controls,play,backward,forward);panel.append(controls);
+ }else{
+  const image=document.createElement("img");
+  image.alt="Capture locale : "+(item.path.split("/").pop()||"image");
+  image.decoding="async";image.className="preview-image";
+  image.src="/api/media?file="+encodeURIComponent(item.previewPath);
+  image.addEventListener("error",()=>{
+   image.replaceWith(node("div","preview-error","Cette image ne peut pas être ouverte (format non pris en charge ou fichier inaccessible)."));
+  });
+  panel.append(image);
+ }
+ panel.append(node("p","filter-warning","Lecture locale en mémoire uniquement. Aucun fichier n'est modifié ni exporté. Le décodage vidéo dépend du navigateur PS5."));
  shade.append(panel);document.body.append(shade);
  close.focus({preventScroll:true});
 }
 function closePreview(){
  const modal=document.querySelector("#preview-overlay");if(!modal)return;
+ const video=modal.querySelector("video");if(video){video.pause();video.removeAttribute("src");video.load();}
  modal.remove();state.preview=null;
  const former=state.previousFocus;state.previousFocus=null;
  if(former?.isConnected)former.focus({preventScroll:true});
@@ -418,7 +438,15 @@ document.addEventListener("keydown",e=>{
  }
  if(state.preview){
   if(["Escape","Backspace"].includes(e.key)){e.preventDefault();closePreview();}
-  else if(e.key==="Tab"){e.preventDefault();document.querySelector("#preview-close")?.focus();}
+  else if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){
+   e.preventDefault();move(e.key.slice(5).toLowerCase());
+  }else if(e.key==="Tab"){
+   const controls=[...document.querySelectorAll("#preview-overlay .focusable:not(:disabled)")];
+   if(controls.length){
+    const current=controls.indexOf(document.activeElement);
+    e.preventDefault();controls[(current+(e.shiftKey?-1:1)+controls.length)%controls.length].focus();
+   }
+  }
   return;
  }
  if(e.target.matches("input,textarea"))return;
@@ -441,7 +469,13 @@ function gamepadLoop(){
   previousButtons=pressed;requestAnimationFrame(gamepadLoop);return;
  }
  if(state.preview){
-  if(edge(0)||edge(1))closePreview();
+  if(edge(1))closePreview();
+  else if(edge(0)){
+   const focused=document.activeElement;
+   if(focused?.classList.contains("focusable"))focused.click();
+  }
+  if(edge(12))move("up");if(edge(13))move("down");
+  if(edge(14))move("left");if(edge(15))move("right");
   previousButtons=pressed;requestAnimationFrame(gamepadLoop);return;
  }
  if(edge(0)){const el=document.activeElement?.matches(".focusable")?document.activeElement:targets()[0];el?.click();}

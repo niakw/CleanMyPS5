@@ -58,3 +58,9 @@ Le navigateur PS5 et sa prise en charge Gamepad devront être vérifiés physiqu
 The action **Examiner ma sélection** now opens a distinct dialog listing selected files and their occupied size, with explicit notice that none are verified to be useless. There is no delete button. Users may download a **review-only JSON manifest** on browsers that support downloads; this is a client-side file operation and does not modify PS5 files. A 500-entry cap prevents accidental massive exports.
 
 Circle closes the review panel and restores the previously selected control. Gamepad focus is constrained to modal actions.
+
+## Preview vidéo par plages (v0.5)
+
+Les vidéos MP4/WebM sont affichées dans la modale avec contrôles accessibles à la manette : croix sur le bouton Lecture/Pause, commandes ±10 secondes, rond pour revenir. Lecture progressive strictement bornée à un morceau d'1 Mio maximum par requête ; aucun téléchargement complet, aucune conversion sur SSD, aucune miniature écrite.
+
+La présence d'un conteneur MP4 ou WebM valide ne garantit pas que le navigateur PS5 puisse décoder le codec vidéo embarqué. Cette étape nécessite une validation physique du firmware et de WebKit.
