@@ -2,7 +2,7 @@
 
 A controller-first PS5 storage analysis and maintenance project, with an original UI inspired by the clarity of CleanMyMac.
 
-## Status (v0.2 preview)
+## Status (development preview — see `VERSION`)
 
 **The dashboard now talks directly to a read-only native C HTTP scanner.** A PS5 Payload SDK build target exists, but an ELF has not yet been executed or verified on a real PS5 13.60.
 

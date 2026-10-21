@@ -523,7 +523,16 @@ async function findNativeServer(){
   const response=await fetch("/api/status",{cache:"no-store"});
   if(!response.ok)return;
   const status=await response.json();
-  if(status.app==="CleanMyPS5"&&status.mode==="read-only"&&status.api===1){state.backend=true;state.target=status.target==="ps5"?"ps5":"host";render();}
+  if(status.app==="CleanMyPS5"&&status.mode==="read-only"&&status.api===1){
+   state.backend=true;state.target=status.target==="ps5"?"ps5":"host";
+   if(typeof status.version==="string"&&/^[0-9A-Za-z.-]{1,32}$/.test(status.version)){
+    const badge=document.querySelector(".build-tag");
+    if(badge)badge.textContent="PREVIEW "+status.version;
+    const footer=document.querySelector(".footer-end");
+    if(footer)footer.textContent="CleanMyPS5 • "+status.version+" • lecture seule";
+   }
+   render();
+  }
  }catch(_error){/* Static preview: importing JSON remains available. */}
 }
 async function scanNow(){

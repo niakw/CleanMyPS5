@@ -5,7 +5,7 @@ CFLAGS = -O2 -std=c11 -Wall -Wextra -Wpedantic
 ASSETS = build/generated/assets.h
 NATIVE = src/native/server.c src/native/inventory.c src/native/diagnostics.c src/native/duplicates.c src/native/media.c src/native/volumes.c src/native/video.c
 all: server
-$(ASSETS): scripts/embed_assets.py web/index.html web/styles.css web/app.js
+$(ASSETS): VERSION scripts/embed_assets.py web/index.html web/styles.css web/app.js
 	$(PYTHON) scripts/embed_assets.py $(ASSETS) web/index.html web/styles.css web/app.js
 server: $(ASSETS) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/video.h
 	$(CC) $(CFLAGS) -Isrc/native -Ibuild/generated $(NATIVE) -o build/cleanmyps5-server

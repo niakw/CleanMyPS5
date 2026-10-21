@@ -8,7 +8,7 @@ add_custom_command(
  OUTPUT ${ASSETS}
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${ASSETS}
          ${CMAKE_SOURCE_DIR}/web/index.html ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
- DEPENDS ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${CMAKE_SOURCE_DIR}/web/index.html
+ DEPENDS ${CMAKE_SOURCE_DIR}/VERSION ${CMAKE_SOURCE_DIR}/scripts/embed_assets.py ${CMAKE_SOURCE_DIR}/web/index.html
          ${CMAKE_SOURCE_DIR}/web/styles.css ${CMAKE_SOURCE_DIR}/web/app.js
  VERBATIM
 )

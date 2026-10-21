@@ -250,11 +250,16 @@ static void handle(int fd,const char*root,int port){
   media_response(fd,root,path+16);
  }else if(strcmp(path,"/api/status")==0){
   #ifdef PS5
-  static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"ps5\",\"api\":1}";
+  const char*target="ps5";
 #else
-  static const char status[]="{\"app\":\"CleanMyPS5\",\"version\":\"0.2\",\"mode\":\"read-only\",\"target\":\"host\",\"api\":1}";
+  const char*target="host";
 #endif
-  reply(fd,200,"application/json; charset=utf-8",status,sizeof(status)-1);
+  char status[192];
+  int n=snprintf(status,sizeof(status),
+    "{\"app\":\"CleanMyPS5\",\"version\":\"%s\",\"mode\":\"read-only\",\"target\":\"%s\",\"api\":1}",
+    cmp5_version,target);
+  if(n<0||(size_t)n>=sizeof(status)){plain(fd,500,"Version metadata unavailable");return;}
+  reply(fd,200,"application/json; charset=utf-8",status,(size_t)n);
  }else if(strcmp(path,"/api/volumes")==0){
   size_t size=0;char*json=cmp5_volumes(root,&size);
   if(!json){plain(fd,500,"Mount metrics unavailable");return;}

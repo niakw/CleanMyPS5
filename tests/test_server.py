@@ -56,6 +56,7 @@ with tempfile.TemporaryDirectory() as temp:
   else:raise AssertionError("server failed to start")
   assert status["mode"]=="read-only"
   assert status["target"]=="host"
+  assert status["version"]==(Path(__file__).resolve().parents[1]/"VERSION").read_text().strip()
   # Reject DNS-rebinding Host values and cross-site browser origins.
   for headers in ({"Host":"unexpected.example:1234"},
                   {"Origin":"https://malicious.invalid"},

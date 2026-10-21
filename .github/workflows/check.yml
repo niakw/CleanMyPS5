@@ -49,5 +49,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: cleanmyps5-ps5-elf-untested
-          path: cleanmyps5.elf
+          path: |
+            cleanmyps5.elf
+            VERSION
           if-no-files-found: error
