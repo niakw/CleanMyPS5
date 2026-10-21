@@ -8,6 +8,7 @@ Controller-first PS5 storage maintenance, with a strict boundary between **disco
 
 - Offline-friendly static dashboard in \`web/\`, designed for TV readability, DualSense/gamepad and mouse.
 - Import of a versioned JSON inventory; optional **explicit** fictional demo, never shown as real PS5 measurements.
+- Host-compiled C++17 read-only inventory, hard-limited to selected roots and file types with fixture tests and CI.
 - Category detail, opt-in selection, protected items disabled, and selection totals.
 - **No delete endpoint, no write permissions, no automatic system cleanups.**
 
@@ -73,7 +74,7 @@ Source references: https://github.com/AmineWallah/ProsperoGallery , https://gith
 
 ### Next milestones
 
-1. SDK-based native read-only provider, native payload + local web server/PS5 entry.
+1. Port the C++ host scanner to the PS5 Payload SDK; add native payload + local web server/PS5 entry. Do not assume std::filesystem support without toolchain validation.
 2. Verify captures path, etaHEN ownership, SSD capacity measurement against **real FW 13.60**.
 3. Add rich per-file preview and duplicate detection with bounded hashing, with export before deletion.
 4. Transactional, opt-in cleanup only after tests on fixtures + real PS5 confirmation.

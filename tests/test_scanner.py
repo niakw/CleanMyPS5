@@ -33,4 +33,13 @@ with tempfile.TemporaryDirectory() as t:
     assert (eta/"config.ini").read_text()=="protected"
     assert all(x["risk"]!="safe" for x in data["items"])
     assert subprocess.run([sys.argv[1],"--root",str(root/"absent")],capture_output=True).returncode==2
+    # Symlinked ancestors must never escape the selected scan namespace.
+    alias=root/"alias"
+    alias.mkdir()
+    try:
+        (alias/"user").symlink_to(root/"user",target_is_directory=True)
+        cross=subprocess.run([sys.argv[1],"--root",str(alias)],text=True,capture_output=True,check=True)
+        assert json.loads(cross.stdout)["items"]==[]
+    except OSError:
+        pass
 print("Scanner read-only fixture: OK")

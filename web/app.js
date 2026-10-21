@@ -20,7 +20,7 @@ function safeItems(report){
   return report.items.map((v,i)=>{
     if(!v||typeof v!=="object"||typeof v.path!=="string"||v.path.length>2048||typeof v.bytes!=="number"||!Number.isSafeInteger(v.bytes)||v.bytes<0)throw Error("Entrée invalide à la ligne "+(i+1));
     const id=String(v.id??i);if(ids.has(id))throw Error("Identifiant en double");ids.add(id);
-    return {id,path:v.path,bytes:v.bytes,category:Object.hasOwn(categoryLabels,v.category)?v.category:"other",risk:["review","safe","protected"].includes(v.risk)?v.risk:"protected",reason:String(v.reason||"Analyse locale, aucune suppression automatique.").slice(0,400)};
+    return {id,path:v.path,bytes:v.bytes,category:Object.prototype.hasOwnProperty.call(categoryLabels,v.category)?v.category:"other",risk:["review","safe","protected"].includes(v.risk)?v.risk:"protected",reason:String(v.reason||"Analyse locale, aucune suppression automatique.").slice(0,400)};
   });
 }
 function useReport(report,isDemo=false){
@@ -31,7 +31,7 @@ function useReport(report,isDemo=false){
   render();announce(isDemo?"Mode démonstration : valeurs fictives":"Rapport importé en lecture seule");
 }
 function demo(){const G=1024**3,M=1024**2;useReport({schemaVersion:1,source:"Démo",scannedAt:new Date().toISOString(),warnings:["Exemple fictif : aucun espace réel de la console n'a été mesuré."],items:[
- {id:"d1",category:"media",path:"/user/av_contents/video/NPXS40087/EXEMPLE/clip.mp4",bytes:5.6*G|0,risk:"review",reason:"Vidéo personnelle : vérifier avant toute suppression."},
+ {id:"d1",category:"media",path:"/user/av_contents/video/NPXS40087/EXEMPLE/clip.mp4",bytes:Math.round(5.6*G),risk:"review",reason:"Vidéo personnelle : vérifier avant toute suppression."},
  {id:"d2",category:"media",path:"/user/av_contents/photo/NPXS40087/EXEMPLE/capture.png",bytes:85*M,risk:"review",reason:"Capture d'écran personnelle."},
  {id:"d3",category:"logs",path:"/data/etaHEN/debug.log",bytes:23*M,risk:"review",reason:"Journal diagnostic : archive recommandée."},
  {id:"d4",category:"residuals",path:"/data/etaHEN/config.ini",bytes:12*1024,risk:"protected",reason:"Configuration etaHEN : ce n'est pas un résidu avéré."},

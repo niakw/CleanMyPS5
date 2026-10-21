@@ -20,6 +20,15 @@ std::string lower(std::string v){std::transform(v.begin(),v.end(),v.begin(),[](u
 class Scanner{
   fs::path root;std::vector<File> files;std::vector<std::string> warnings;std::size_t visited=0;
   void walk(const std::string& sub,const std::string& kind){
+    // Guard against links in *intermediate* components, not just final dir.
+    fs::path partial=root;
+    for(const auto& component:fs::path(sub)){
+      partial/=component;std::error_code linkec;
+      const auto linkst=fs::symlink_status(partial,linkec);
+      if(linkec||fs::is_symlink(linkst)){
+        warnings.push_back(sub+" : chemin intermédiaire non accessible ou symbolique");return;
+      }
+    }
     const fs::path dir=root/sub;std::error_code ec;auto st=fs::symlink_status(dir,ec);
     if(ec||!fs::is_directory(st)||fs::is_symlink(st)){warnings.push_back(sub+" : absent/inaccessible ou lien symbolique (chemin non confirmé)");return;}
     fs::recursive_directory_iterator it(dir,fs::directory_options::skip_permission_denied,ec),end;
