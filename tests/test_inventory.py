@@ -44,6 +44,11 @@ with tempfile.TemporaryDirectory() as temporary:
     def snapshot():
         return {path:(hashlib.sha256((root/path).read_bytes()).hexdigest(),(root/path).stat().st_mtime_ns)
                 for path in fixtures}
+    # Sparse fixture: metadata tests avoid allocating or reading large media contents.
+    large_capture=root/'user/av_contents/photo/NPXS99999/OTHER/large-old.jpg'
+    with large_capture.open('wb') as stream:
+        stream.truncate(51*1024*1024)
+    os.utime(large_capture,(1600000000,1600000000))
     before = snapshot()
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0))
@@ -67,6 +72,13 @@ with tempfile.TemporaryDirectory() as temporary:
         assert overview['mode']=='metadata-only'
         assert overview['cleanupValidated'] is False
         assert overview['scope']=='bounded-known-roots'
+        assert overview['review']['largeMedia']==1
+        assert overview['review']['oldMedia']>=1
+        assert overview['review']['oldLargeMedia']==1
+        assert overview['review']['largeMediaNominalBytes']==51*1024*1024
+        assert overview['review']['validatedForDeletion'] is False
+        assert overview['review']['minLargeBytes']==50*1024*1024
+        assert overview['review']['oldDays']==90
         assert overview['files']==report['stats']['items']
         assert overview['visited']==report['stats']['visited']
         assert overview['partial']==report['stats']['partial']
@@ -115,6 +127,7 @@ with tempfile.TemporaryDirectory() as temporary:
         capped=get('/api/report')
         capped_overview=get('/api/overview')
         assert capped_overview['partial'] is True
+        assert capped_overview['review']['validatedForDeletion'] is False
         assert capped_overview['coverage']['partial']>=1
         assert capped_overview['files']==capped['stats']['items']
         assert capped_overview['nominalBytes']==sum(x['bytes'] for x in capped['items'])
