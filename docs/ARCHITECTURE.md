@@ -100,3 +100,7 @@ Source references: https://github.com/AmineWallah/ProsperoGallery , https://gith
 ### Validation de l'interface
 
 En complément de `node --check`, la CI exécute des tests comportementaux Node pour la normalisation des rapports JSON, la détection d'identifiants en doublon, les risques protégés, les chemins média et les trois méthodes de tri. L'application côté navigateur n'expose pas les exports Node.
+
+### Audit homebrews / plugins
+
+`GET /api/homebrew` est une inspection **purement metadata** des répertoires connus `data/homebrew` et `data/etaHEN/plugins`, via `openat` / `fstatat` sans suivre les liens symboliques. Au plus 64 éléments directs sont listés, 5000 entrées visitées, profondeur 5 et échéance douce de 3 secondes. Les tailles nominales des fichiers visibles ne sont ni une mesure de blocs occupés ni une estimation de l'espace récupérable. Tous les dossiers et plugins sont marqués `protected` ; aucun orphelin n'est déduit sans croisement avec les registres et processus actifs. Si l'un des emplacements est inaccessible, l'autre est néanmoins vérifié.

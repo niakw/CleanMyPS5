@@ -48,7 +48,7 @@ const summary=buildSmartSummary({
         {category:"residuals",bytes:100,modifiedAt:0,risk:"protected"}],
  liveReport:true,scanStats:{partial:false},
  duplicates:{groups:[{bytesEach:1000,paths:["a","b","c"]}],partial:false},
- preflight:{entries:[]},volumes:[],diagnostics:{entries:[{status:"enabled"}]},
+ preflight:{entries:[]},volumes:[],diagnostics:{entries:[{status:"enabled"}]},homebrew:{partial:false,items:[{path:"/data/homebrew/HB_DEMO"}]},
 },snapshotNow);
 assert.equal(summary.mediaFiles,2);
 assert.equal(summary.largeFiles,1);
@@ -57,6 +57,7 @@ assert.equal(summary.verifiedCopyBytes,2000);
 assert.equal(summary.suspiciousAutoloads,1);
 assert.equal(summary.logFiles,1);
 assert.equal(summary.protectedFiles,1);
+assert.equal(summary.homebrewEntries,1);
 assert.equal(summary.partial,false);
 assert.equal(buildSmartSummary({items:[]},snapshotNow).partial,true);
 

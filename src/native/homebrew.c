@@ -134,7 +134,7 @@ char*cmp5_homebrew(const char*root,size_t*length){
  if(now&&now<=UINT64_MAX-TIME_CAP_NS)a->deadline=now+TIME_CAP_NS;
  add(&a->out,"{\"schemaVersion\":1,\"mode\":\"read-only\",\"scope\":\"protected-homebrew-metadata\",\"items\":[");
  audit_root(a,root,"data/homebrew","homebrew");
- if(!a->partial)audit_root(a,root,"data/etaHEN/plugins","plugin");
+ if(!over(a))audit_root(a,root,"data/etaHEN/plugins","plugin");
  char finish[350];
  snprintf(finish,sizeof(finish),
   "],\"visited\":%zu,\"partial\":%s,\"limits\":{\"maxEntries\":64,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale et inventaire partiel. Aucune installation n'est declaree orpheline ou supprimable.\"}",
