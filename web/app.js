@@ -27,7 +27,8 @@ function safeItems(report){
       possibleTwin:false,previewPath:typeof v.previewPath==="string"&&
         /^\/user\/av_contents\/photo\/NPXS40087\/.+\.(png|jpe?g)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
       videoPath:typeof v.previewPath==="string"&&
-        /^\/user\/av_contents\/video\/NPXS40087\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:""};
+        /^\/user\/av_contents\/video\/NPXS40087\/.+\.(mp4|webm)$/i.test(v.previewPath)&&v.previewPath.length<2048?v.previewPath:"",
+      sortName:path.split("/").pop().toLocaleLowerCase("fr")};
   });
 }
 function useReport(report,isDemo=false,live=false){
@@ -165,7 +166,7 @@ function filtered(){
   const mode=state.mediaSort;
   items.sort((a,b)=>{
    if(mode==="date")return (b.modifiedAt-a.modifiedAt)||(b.bytes-a.bytes)||a.path.localeCompare(b.path);
-   if(mode==="name")return a.path.split("/").pop().localeCompare(b.path.split("/").pop(),"fr")||(b.bytes-a.bytes);
+   if(mode==="name")return a.sortName.localeCompare(b.sortName,"fr")||(b.bytes-a.bytes);
    return (b.bytes-a.bytes)||a.path.localeCompare(b.path);
   });
  }
@@ -302,10 +303,12 @@ function prepareDupGroup(group){
 function duplicatesPanel(){
  const panel=node("section","data-panel");
  add(panel,panelHeader("Doublons vérifiés","Comparaison octet par octet"));
- if(state.backend){
+ if(state.backend && state.liveReport){
   const b=button(state.checkingDuplicates?"Comparaison en cours…":state.duplicates?"Relancer la vérification":"Comparer le contenu des captures","primary",checkDuplicates);
   b.disabled=state.checkingDuplicates;panel.append(b);
- }else panel.append(node("p","muted","Pour vérifier des doublons, ouvre le tableau de bord avec le service natif. L'import JSON n'autorise pas la lecture des fichiers."));
+ }else panel.append(node("p","muted",state.backend?
+   "Pour comparer les captures réelles, lance d'abord « Analyser ma PS5 » ou « Analyser le dossier ». Un rapport importé reste en lecture seule sans accès aux fichiers.":
+   "Pour vérifier des doublons, ouvre le tableau de bord avec le service natif. L'import JSON n'autorise pas la lecture des fichiers."));
  if(state.duplicates){
   const data=state.duplicates;
   const n=data.groups.length;const label=n?"Groupes identiques confirmés : "+n:"Aucune paire confirmée dans l'échantillon analysé.";

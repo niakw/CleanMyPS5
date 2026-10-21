@@ -82,3 +82,5 @@ Un import ou un nouveau scan incrémente un identifiant de révision du rapport.
 ## Tri des captures
 
 Le bouton de tri passe successivement par taille décroissante, date de dernière modification décroissante et nom de fichier croissant. Les éléments sans métadonnées temporelles se retrouvent en bas en mode Date. Le changement de tri réinitialise la pagination sans modifier la sélection de revue.
+
+Le bouton de comparaison est uniquement affiché lorsqu'un inventaire local natif a été chargé. Il est remplacé par un message explicatif lorsqu'on consulte un rapport importé, afin d'éviter un contrôle inactif. Les noms de fichiers normalisés pour le tri alphabétique sont précalculés une seule fois à l'import du rapport.
