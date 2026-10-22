@@ -19,7 +19,31 @@
 #define IO_CAP (128u*1024u*1024u)
 #define JSON_CAP (512u*1024u)
 #define MAX_MONOTONIC_NS (6000000000ULL)
-typedef struct {char path[PATH_CAP];off_t size;dev_t device;ino_t inode;time_t modified;int paired;} Item;
+typedef struct {
+ char path[PATH_CAP];
+ off_t size;
+ dev_t device;
+ ino_t inode;
+ time_t modified;
+ struct stat snapshot; /* Nanosecond timestamps, link count and mode. */
+ int paired;
+} Item;
+/* Whole-second mtime and inode/size alone do not detect in-place rewrites,
+ * hardlink changes or replacements during a long byte comparison. */
+static int same_snapshot(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ const int nanos=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+   a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nanos=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+   a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nanos&&S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
+   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime&&a->st_nlink==b->st_nlink&&
+   a->st_mode==b->st_mode;
+}
 typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped;int partial;uint64_t deadline;
  Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static uint64_t now_ns(void){
@@ -80,7 +104,8 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
     if(s->count>=ITEM_CAP){s->partial=1;break;}
     Item *i=&s->items[s->count++];
     memcpy(i->path,path,strlen(path)+1);
-    i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;i->modified=st.st_mtime;
+    i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;
+    i->modified=st.st_mtime;i->snapshot=st;
    }
   }
   if(s->partial)break;
@@ -102,12 +127,19 @@ static int open_snapshot(int root_fd,const Item*i){
   if(part[0]=='.'){close(fd);return -1;}
   char*next=strtok_r(NULL,"/",&save);
   int child=openat(fd,part,next?(O_RDONLY|O_DIRECTORY|O_NOFOLLOW):(O_RDONLY|O_NOFOLLOW|O_NONBLOCK));
-  close(fd);if(child<0)return -1;fd=child;part=next;
- }
- struct stat st;
- if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_size!=i->size||
-    st.st_dev!=i->device||st.st_ino!=i->inode||st.st_mtime!=i->modified){
-  close(fd);return -1;
+  if(child<0){close(fd);return -1;}
+  if(!next){
+   /* Verify both the opened file and its current directory entry, so a
+    * renamed/replaced leaf does not validate an orphaned descriptor. */
+   struct stat opened,named;
+   const int stable=fstat(child,&opened)==0&&
+     fstatat(fd,part,&named,AT_SYMLINK_NOFOLLOW)==0&&
+     same_snapshot(&i->snapshot,&opened)&&
+     same_snapshot(&i->snapshot,&named);
+   close(fd);
+   if(!stable){close(child);return -1;}
+  }else close(fd);
+  fd=child;part=next;
  }
  return fd;
 }
@@ -130,8 +162,9 @@ static int compare(int root_fd,const Item*a,const Item*b,size_t *budget,const Sc
  y=open_snapshot(root_fd,b);
  if(y<0){close(x);return -1;}
  struct stat sa,sb;
- if(fstat(x,&sa)||fstat(y,&sb)||!S_ISREG(sa.st_mode)||!S_ISREG(sb.st_mode)||
-    sa.st_size!=a->size||sb.st_size!=b->size){close(x);close(y);return -1;}
+ if(fstat(x,&sa)||fstat(y,&sb)||
+    !same_snapshot(&a->snapshot,&sa)||
+    !same_snapshot(&b->snapshot,&sb)){close(x);close(y);return -1;}
  unsigned char p[32768],q[32768];off_t rest=a->size;int result=1;
  while(rest>0){
   size_t n=rest<(off_t)sizeof(p)?(size_t)rest:sizeof(p);
@@ -144,10 +177,8 @@ static int compare(int root_fd,const Item*a,const Item*b,size_t *budget,const Sc
  }
  struct stat afterA,afterB;
  if(fstat(x,&afterA)||fstat(y,&afterB)||
-    sa.st_size!=afterA.st_size||sb.st_size!=afterB.st_size||
-    sa.st_mtime!=afterA.st_mtime||sb.st_mtime!=afterB.st_mtime||
-    sa.st_ino!=afterA.st_ino||sb.st_ino!=afterB.st_ino||
-    sa.st_dev!=afterA.st_dev||sb.st_dev!=afterB.st_dev)result=-1;
+    !same_snapshot(&sa,&afterA)||!same_snapshot(&sb,&afterB))
+    result=-1;
  close(x);close(y);return result;
 }
 static void add(Json*b,const char*str){

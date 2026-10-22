@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /* Inject a namespace replacement exactly after opening the root descriptor.
@@ -23,8 +24,24 @@ static int race_open(const char *path,int flags,...){
  }
  return fd;
 }
+static char mutation_target[4096];
+static int mutate_during_read=0;
+static ssize_t race_read(int fd,void*buffer,size_t count){
+ ssize_t got=read(fd,buffer,count);
+ if(got>0&&mutate_during_read){
+  struct stat st;
+  if(stat(mutation_target,&st)!=0||
+     chmod(mutation_target,(st.st_mode&07777)^S_IXUSR)!=0){
+   perror("fixture metadata mutation");exit(10);
+  }
+  mutate_during_read=0;
+ }
+ return got;
+}
 #define open race_open
+#define read race_read
 #include "../src/native/duplicates.c"
+#undef read
 #undef open
 
 static int cancel_now(void*context){
@@ -55,5 +72,21 @@ int main(int argc,char **argv){
  int valid=interrupted.partial==1u&&interrupted.exact_groups==0u&&
    strstr(partial,"\"partial\":true")!=NULL;
  free(partial);
- return valid?0:9;
+ if(!valid)return 9;
+ /* Deterministic TOCTOU: alter permissions/ctime after a full-sized read
+  * while the comparator is open. Size, inode and whole-second mtime remain
+  * unchanged, but the result must be PARTIAL, with no exact duplicate. */
+ int n=snprintf(mutation_target,sizeof(mutation_target),
+   "%s/user/av_contents/photo/NPXS99999/GAME/a.png",test_backup);
+ if(n<=0||(size_t)n>=sizeof(mutation_target))return 11;
+ mutate_during_read=1;
+ Cmp5DuplicateStats raced={0};
+ size_t raced_size=0;
+ char*unsafe=cmp5_duplicates_with_stats(test_backup,&raced_size,&raced);
+ if(!unsafe)return 12;
+ const int rejected=!mutate_during_read&&raced.partial==1u&&
+   raced.exact_groups==0u&&raced.matching_files==0u&&
+   strstr(unsafe,"\"partial\":true")!=NULL;
+ free(unsafe);
+ return rejected?0:13;
 }
