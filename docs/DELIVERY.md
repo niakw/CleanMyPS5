@@ -20,6 +20,7 @@
 | Inventaire captures, journaux, caches, homebrews, installations | Scanner borné en lecture seule **embarqué dans le titre natif** ; bilan agrégé, catalogue paginé de 10 000 médias maximum par scan, filtrable images/vidéos, jeu, âge, taille, avec tris taille/date/nom, couverture limitée aux droits du sandbox ; helper facultatif |
 | Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | Catalogue paginé natif (images/vidéos, jeu, âge, taille, tri) et checklist manuelle en huit étapes ; recherche libre, aperçus de contenu, doublons et export avancés encore dans l'ancien frontend WebKit |
 | Pré-analyse nettoyage native | Comptage des captures de 50 Mio et plus / anciennes de 90 jours par mtime, sans chemins transmis ni suppression permise |
+| Doublons exacts natifs | Analyse explicite via Triangle dans Nettoyage, images seulement, 128 fichiers/32 Mio, budget de 128 Mio de lectures ; statistiques agrégées et aucune écriture ni estimation de gain garanti |
 | Effacement captures, caches, doublons ou résidus | **Désactivé**, aucun mécanisme d'effacement validé |
 | Restauration, quarantaine, synchronisation base multimédia | Non implémentés |
 | Espace récupérable | **Non calculé** : les tailles affichées sont nominales, pas des promesses de gain |
