@@ -20,7 +20,7 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
  const Cmp5MediaCandidate *candidate,size_t *length){
  if(length)*length=0;
  if(!root||!candidate||!length||candidate->media_type!=1u||
-    candidate->bytes==0||candidate->bytes>CMP5_PREVIEW_FILE_CAP)return NULL;
+    candidate->bytes==0)return NULL;
  static const char prefix[]="/user/av_contents/photo/";
  const char*path=candidate->preview_path;
  size_t n=0;
@@ -32,7 +32,8 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
  const int jxr=strcasecmp(extension,".jxr")==0;
  const int png=strcasecmp(extension,".png")==0;
  const int jpeg=strcasecmp(extension,".jpg")==0||strcasecmp(extension,".jpeg")==0;
- if(!jxr&&!png&&!jpeg)return NULL;
+ if(!jxr&&!png&&!jpeg||
+    candidate->bytes>(jxr?512ULL*1024ULL*1024ULL:CMP5_PREVIEW_FILE_CAP))return NULL;
  char copy[PATH_LIMIT];
  memcpy(copy,path+1,n);copy[n-1]=0;
  // Reject noncanonical paths *before* tokenizing; strtok_r collapses //.
