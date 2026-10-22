@@ -965,7 +965,7 @@ void show_games(ps5::demo::Canvas&canvas) noexcept {
   canvas.rectangle(95,y,1730,116,focus?Color::cyan:Color::panel);
   canvas.rectangle(103,y+8,1714,100,Color::background);
   char display[43]{};
-  (void)std::snprintf(display,sizeof(display),"%.36s",
+  (void)std::snprintf(display,sizeof(display),"%.29s",
     game.name[0]?game.name:game.id);
   canvas.text(145,y+30,display,4,focus?Color::cyan:Color::white);
   char info[100]{};
@@ -1002,11 +1002,13 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
  }
  const auto&item=media_review.entries[detail_index];
  panel(canvas,355,"NOM AFFICHE (ABREGE)",item.label);
- char title[110]{};
- (void)std::snprintf(title,sizeof(title),"%.42s  (%.20s)",
-    item.game_name[0]?item.game_name:"NOM INCONNU",
-    item.title_id[0]?item.title_id:"ID INCONNU");
- panel(canvas,503,"JEU ET IDENTIFIANT",title,Color::cyan);
+ canvas.rectangle(95,503,1730,116,Color::panel);
+ canvas.text(135,532,"JEU",5,Color::cyan);
+ char game_title[55]{};
+ (void)std::snprintf(game_title,sizeof(game_title),"%.46s",
+   item.game_name[0]?item.game_name:"NOM INCONNU");
+ canvas.text(790,516,game_title,3,Color::white);
+ canvas.text(790,558,item.title_id[0]?item.title_id:"ID INCONNU",3,Color::cyan);
  char details[120]{};
  const std::time_t now=std::time(nullptr);
  const bool dated=now>0&&item.modified_at>0&&item.modified_at<=now;
