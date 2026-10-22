@@ -194,6 +194,7 @@ bool homebrew_checked=false;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
+ char name[56]{};
  unsigned count=0;
  std::uint64_t bytes=0;
 };
@@ -215,6 +216,8 @@ void rebuild_games() noexcept {
    game_count++;
   }
   auto&game=games[index];
+  if(!game.name[0]&&item.game_name[0])
+   (void)std::snprintf(game.name,sizeof(game.name),"%s",item.game_name);
   game.count++;
   game.bytes=(UINT64_MAX-game.bytes<item.bytes)?UINT64_MAX:game.bytes+item.bytes;
  }
@@ -961,7 +964,10 @@ void show_games(ps5::demo::Canvas&canvas) noexcept {
   const bool focus=at==game_selection;
   canvas.rectangle(95,y,1730,116,focus?Color::cyan:Color::panel);
   canvas.rectangle(103,y+8,1714,100,Color::background);
-  canvas.text(145,y+30,game.id,5,focus?Color::cyan:Color::white);
+  char display[43]{};
+  (void)std::snprintf(display,sizeof(display),"%.36s",
+    game.name[0]?game.name:game.id);
+  canvas.text(145,y+30,display,4,focus?Color::cyan:Color::white);
   char info[100]{};
   (void)std::snprintf(info,sizeof(info),"%u MEDIAS  %llu MIO NOMINAUX",
     game.count,static_cast<unsigned long long>(game.bytes/1048576ULL));
@@ -996,8 +1002,11 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
  }
  const auto&item=media_review.entries[detail_index];
  panel(canvas,355,"NOM AFFICHE (ABREGE)",item.label);
- panel(canvas,503,"IDENTIFIANT DU JEU",
-       item.title_id[0]?item.title_id:"NON IDENTIFIE",Color::cyan);
+ char title[110]{};
+ (void)std::snprintf(title,sizeof(title),"%.42s  (%.20s)",
+    item.game_name[0]?item.game_name:"NOM INCONNU",
+    item.title_id[0]?item.title_id:"ID INCONNU");
+ panel(canvas,503,"JEU ET IDENTIFIANT",title,Color::cyan);
  char details[120]{};
  const std::time_t now=std::time(nullptr);
  const bool dated=now>0&&item.modified_at>0&&item.modified_at<=now;
