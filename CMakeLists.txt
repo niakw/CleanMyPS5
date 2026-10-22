@@ -37,3 +37,8 @@ add_test(NAME duplicates_root_race COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_
 add_executable(cmp5-native-review-tests tests/test_native_review.c src/native/inventory.c ${RULES})
 target_include_directories(cmp5-native-review-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_test(NAME native_review_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_review.py $<TARGET_FILE:cmp5-native-review-tests>)
+
+# The same protected homebrew scanner is linked into the installed native title.
+add_executable(cmp5-native-homebrew-tests tests/test_native_homebrew.c src/native/homebrew.c ${RULES})
+target_include_directories(cmp5-native-homebrew-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py $<TARGET_FILE:cmp5-native-homebrew-tests>)
