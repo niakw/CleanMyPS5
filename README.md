@@ -1,8 +1,8 @@
 # CleanMyPS5
 
-Le projet comporte désormais **une interface native PS5 expérimentale**, distincte du moteur C d'analyse et de son ancien frontend WebKit. Les deux processus communiquent par l'interface locale `127.0.0.1:8877`. Version du moteur : voir `VERSION`.
+Le projet comporte désormais **une interface native PS5 expérimentale** qui compile le scanner générique de métadonnées dans `eboot.bin`. Le helper ELF reste **optionnel** pour la couverture plus large que pourrait permettre son propre contexte de privilèges, via `127.0.0.1:8877`. L'ancien frontend WebKit existe encore pendant le portage. Version : voir `VERSION`.
 
-Le frontend natif utilise VideoOut et la manette et se compile comme un véritable titre homebrew `PPSA99784` (`eboot.bin`, métadonnées et icône). La compilation et les vérifications sur hôte sont réalisées, **mais aucune validation sur une PS5 13.60 n'est encore établie**. L'interface native n'a pas encore la parité fonctionnelle avec la version navigateur.
+Le frontend natif utilise VideoOut et la manette et se compile comme un véritable titre homebrew `PPSA99784` (`eboot.bin`, métadonnées et icône). Son scan n'interrompt plus l'affichage : il est déclenché sur un worker séparé et offre une revue manuelle des 12 captures les plus volumineuses visibles dans le sandbox. La compilation et les vérifications sur hôte sont réalisées, **mais aucune validation sur une PS5 13.60 n'est encore établie**. L'interface native n'a pas encore la parité fonctionnelle avec la version navigateur.
 
 Le moteur est toujours **en lecture seule** : aucune suppression, désinstallation, purge, réparation, écriture système ou changement de configuration n'est actuellement autorisé. La détection de permissions n'accorde pas de privilèges et ne démontre pas qu'un effacement serait sûr.
 
@@ -31,9 +31,9 @@ Les groupes du catalogue d’applications peuvent être imbriqués. Ne pas addit
 
 ## Application native et démarrage
 
-`make native-app` utilise une chaîne de compilation communautaire épinglée, génère `dist/native/PPSA99784.zip` (dossier d'application `PPSA99784/`, `eboot.bin`, `sce_sys/`, `sce_module/`) et `dist/native/cleanmyps5-helper.elf`, payload silencieux qui fournit le backend local **sans ouvrir de navigateur**. La CI publie ces deux fichiers **et `dist/native/manifest.json`** comme artefact de build. Ce manifeste SHA-256 identifie les deux livrables, la révision de la chaîne de compilation et précise que le firmware 13.60 et les opérations d'effacement ne sont pas validés.
+`make native-app` utilise une chaîne de compilation communautaire épinglée, génère `dist/native/PPSA99784.zip` (dossier d'application `PPSA99784/`, `eboot.bin`, `sce_sys/`, `sce_module/`) et `dist/native/cleanmyps5-helper.elf`, payload silencieux qui fournit le backend local **sans ouvrir de navigateur**. La CI publie l'archive native, le helper, `manifest.json` et un **package homebrew expérimental `PPSA99784.ffpkg`**. Le manifeste SHA-256 couvre chaque fichier produit et précise que le firmware 13.60 et les opérations d'effacement ne sont pas validés.
 
-La copie de `PPSA99784/` dans `/data/homebrew/` nécessite un gestionnaire de titres homebrew qui sait enregistrer les applications ; cela n'est **pas** un PKG Sony signé ni une installation automatique. Le helper se lance séparément avec un chargeur de payloads compatible.
+Le `.ffpkg` est destiné aux gestionnaires de homebrews capables d'installer le format UFS2 ; il n'est **pas** un PKG officiel signé et reste non vérifié sur FW 13.60. Le format dossier ZIP reste possible avec un gestionnaire enregistrant les titres. Le scanner natif **ne nécessite pas de lancer le helper** ; son champ d'analyse est limité par les droits effectifs du titre. Le helper se lance séparément avec un chargeur de payloads compatible.
 
 L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le frontend WebKit et le payload intégré. Il est conservé le temps de porter les autres fonctionnalités vers l'application native. Ne pas confondre le prototype natif avec une version finale de nettoyage.
 
