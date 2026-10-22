@@ -40,9 +40,15 @@ typedef struct {
  Cmp5RecoveryState state;
  uint32_t published_parts;
  uint32_t staged_parts;
+ uint32_t unexpected_entries; /* namespace collisions or surplus capsules */
  int marker_present;
 } Cmp5RecoveryReport;
 int cmp5_inspect_group_recovery(const char *private_workspace,
+ const char *group_id,Cmp5RecoveryReport *report);
+/* Identical read-only audit for a different private restore directory.
+ * VERIFIED checks raw restored objects against the RESTORED marker, not the
+ * backup capsules. It does not update or validate the PS5 album database. */
+int cmp5_inspect_restored_group_recovery(const char *restore_workspace,
  const char *group_id,Cmp5RecoveryReport *report);
 #ifdef __cplusplus
 }
