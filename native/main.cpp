@@ -107,12 +107,49 @@ LocalAccess open_error(int value) noexcept {
  if(value==EACCES||value==EPERM)return LocalAccess::denied;
  return LocalAccess::unavailable;
 }
+/* Open each directory component relative to the PREVIOUS verified
+ * descriptor. O_NOFOLLOW on a complete path protects only its last element;
+ * a symlink in an intermediate directory would otherwise redirect a probe.
+ * This method is read-only, works with the title sandbox permissions, and
+ * intentionally rejects ambiguous "." and ".." path components. */
+int open_probe_target(const char*path,bool file) noexcept {
+ if(!path||path[0]!='/'){errno=EINVAL;return -1;}
+ std::size_t length=0;
+ while(length<256u&&path[length])++length;
+ if(length<2u||length==256u||path[length-1]=='/'){
+  errno=EINVAL;return -1;
+ }
+ int fd=open("/",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return -1;
+ const char*cursor=path+1;
+ while(*cursor){
+  const char*end=std::strchr(cursor,'/');
+  const std::size_t part_length=end?
+    static_cast<std::size_t>(end-cursor):std::strlen(cursor);
+  if(part_length==0u||part_length>127u||
+     (part_length==1u&&cursor[0]=='.')||
+     (part_length==2u&&cursor[0]=='.'&&cursor[1]=='.')){
+   (void)close(fd);errno=EINVAL;return -1;
+  }
+  char component[128]{};
+  std::memcpy(component,cursor,part_length);
+  const int flags=O_RDONLY|O_NOFOLLOW|
+    (!end&&file?O_NONBLOCK:O_DIRECTORY);
+  const int next=openat(fd,component,flags);
+  const int error=errno;
+  (void)close(fd);
+  if(next<0){errno=error;return -1;}
+  fd=next;
+  if(!end)break;
+  cursor=end+1;
+ }
+ return fd;
+}
 LocalProbe probe_path(const char*path,bool file) noexcept {
  LocalProbe result{};
  if(!path||cancellation_hook(nullptr))return result;
- // One O_NOFOLLOW open anchors both the capacity query and enumeration.
- const int fd=open(path,O_RDONLY|O_NOFOLLOW|
-   (file?O_NONBLOCK:O_DIRECTORY));
+ // One final anchored descriptor for BOTH fstatvfs and the enumeration.
+ const int fd=open_probe_target(path,file);
  if(fd<0){result.status=open_error(errno);return result;}
  if(file){
   struct stat st{};
