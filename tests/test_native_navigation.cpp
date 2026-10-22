@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <thread>
+#include <unistd.h>
 
 namespace {
 std::uint32_t injected_buttons=0;
@@ -168,6 +169,32 @@ namespace ps5::demo {
 }
 
 int main(){
+ // The native sampler must never follow filesystem aliases or mistake a
+ // missing directory for an empty one. This fixture is host-only.
+ char folder[]="/tmp/cmp5-probe-XXXXXX";
+ char*dir=mkdtemp(folder);
+ assert(dir);
+ char media[256]{},alias[256]{},file_alias[256]{},missing[256]{};
+ (void)std::snprintf(media,sizeof(media),"%s/fixture.txt",dir);
+ (void)std::snprintf(alias,sizeof(alias),"%s-link",dir);
+ (void)std::snprintf(file_alias,sizeof(file_alias),"%s-file-link",dir);
+ (void)std::snprintf(missing,sizeof(missing),"%s-missing",dir);
+ FILE*fixture=std::fopen(media,"wb");assert(fixture);
+ assert(std::fputs("synthetic fixture",fixture)>=0);
+ assert(std::fclose(fixture)==0);
+ LocalProbe sample=probe_path(dir,false);
+ assert(sample.status==LocalAccess::listable);
+ assert(sample.entries==1&&!sample.truncated&&!sample.io_error);
+ assert(sample.volume_known&&sample.total_bytes>=sample.available_bytes);
+ assert(probe_path(media,true).status==LocalAccess::opened);
+ assert(probe_path(missing,false).status==LocalAccess::missing);
+ assert(symlink(dir,alias)==0);
+ sample=probe_path(alias,false);
+ assert(sample.status!=LocalAccess::listable&&!sample.volume_known);
+ assert(symlink(media,file_alias)==0);
+ assert(probe_path(file_alias,true).status!=LocalAccess::opened);
+ assert(unlink(file_alias)==0&&unlink(alias)==0);
+ assert(unlink(media)==0&&rmdir(dir)==0);
  controller=1;
  ps5::demo::Canvas canvas;
  assert(screen==Screen::menu);
