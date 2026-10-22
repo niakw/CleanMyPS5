@@ -25,8 +25,21 @@ static uint32_t be32(const uint8_t*p){
 static uint64_t be64(const uint8_t*p){
  return ((uint64_t)be32(p)<<32)|(uint64_t)be32(p+4);
 }
+static int same_snapshot_stat(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ const int nsec=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+    a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nsec=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+    a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nsec&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+    a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+    a->st_ctime==b->st_ctime&&a->st_nlink==b->st_nlink&&
+    a->st_mode==b->st_mode;
+}
 static int same_file(const struct stat*st,const Cmp5MediaCandidate*c){
- return S_ISREG(st->st_mode)&&st->st_size>0&&
+ return S_ISREG(st->st_mode)&&st->st_nlink==1&&st->st_size>0&&
     (uint64_t)st->st_size==c->bytes&&
     (uint64_t)st->st_dev==c->snapshot_device&&
     (uint64_t)st->st_ino==c->snapshot_inode&&
@@ -144,29 +157,35 @@ int cmp5_probe_video_snapshot(const char*root,const Cmp5MediaCandidate*c,
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0)return 0;
  char*save=NULL;
- int file_fd=-1;
+ int file_fd=-1,parent_fd=-1;
+ const char*leaf=NULL;
  for(char*part=strtok_r(relative,"/",&save);part;){
   if(part[0]=='.'||strchr(part,'\\')){close(fd);return 0;}
   char*next=strtok_r(NULL,"/",&save);
   const int child=openat(fd,part,O_RDONLY|O_NOFOLLOW|
                         (next?O_DIRECTORY:O_NONBLOCK));
-  close(fd);
+  if(next||child<0)close(fd);
   if(child<0)return 0;
+  if(!next){parent_fd=fd;leaf=part;file_fd=child;}
   fd=child;
-  if(!next)file_fd=child;
   part=next;
  }
  if(file_fd<0){close(fd);return 0;}
  struct stat before,after;
- if(fstat(file_fd,&before)!=0||!same_file(&before,c)){close(fd);return 0;}
+ if(fstat(file_fd,&before)!=0||!same_file(&before,c)){
+  close(parent_fd);close(fd);return 0;
+ }
  Mp4 p={0};
  p.fd=fd;p.cancel=cancel;p.context=context;
  Cmp5VideoMetadata webm_result={0};
  int parsed=mp4?boxes(&p,0,c->bytes,0):
    cmp5_parse_webm_metadata_fd(fd,c->bytes,&webm_result,cancel,context);
+ struct stat named_again;
  int stable=fstat(fd,&after)==0&&same_file(&after,c)&&
-      before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
-      before.st_mtime==after.st_mtime&&before.st_size==after.st_size;
+      same_snapshot_stat(&before,&after)&&
+      fstatat(parent_fd,leaf,&named_again,AT_SYMLINK_NOFOLLOW)==0&&
+      same_snapshot_stat(&before,&named_again);
+ close(parent_fd);
  close(fd);
  if(!parsed||!stable||(mp4&&
     (!p.found_movie||!p.found_duration||!p.found_video))||

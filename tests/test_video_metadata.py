@@ -46,6 +46,13 @@ with tempfile.TemporaryDirectory() as scratch:
             args.append(str(expected_ms))
         subprocess.run(args,cwd=root,check=True,timeout=15)
     run(fixture,relative,"valid")
+    # Multiple hardlinks make a file's ownership ambiguous; refuse a
+    # successful metadata reading, even though we never modify the file.
+    alias=gallery/"shared_sample.mp4"
+    alias.hardlink_to(fixture)
+    run(fixture,relative,"invalid")
+    alias.unlink()
+    run(fixture,relative,"valid")
     # Paths are never user-controlled APIs; test fail-closed anyway.
     run(fixture,relative.replace("/video/","/photo/"),"invalid")
     run(fixture,relative.replace("/NPXS00000/","//NPXS00000/"),"invalid")
@@ -93,6 +100,10 @@ with tempfile.TemporaryDirectory() as scratch:
     webm=gallery/"sample.webm"
     webm.write_bytes(header+ebml("18538067",cluster+info+tracks))
     run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","valid")
+    webm_alias=gallery/"shared_sample.webm"
+    webm_alias.hardlink_to(webm)
+    run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","invalid")
+    webm_alias.unlink()
     longer=gallery/"long_video.webm"
     long_info=ebml("1549A966",
         ebml("2AD7B1",(1000000).to_bytes(3,"big"))+
