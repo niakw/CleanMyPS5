@@ -1,10 +1,10 @@
 #ifndef CMP5_VERIFIED_GROUP_H
 #define CMP5_VERIFIED_GROUP_H
 #include "verified_backup.h"
+#include "capture_companions.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define CMP5_GROUP_MAX 4u
 /* A logical transaction: commit marker published only AFTER all private
  * component backup capsules pass SHA-256 verification. No PS5 gallery writes. */
 typedef struct {
@@ -12,12 +12,6 @@ typedef struct {
  uint64_t bytes;
  uint8_t manifest_sha256[32];
 } Cmp5GroupReceipt;
-/* Read-only companion discovery from the exact snapshotted capture directory.
- * Refuses symlinks, incomplete directory scans, ambiguous stems or >4 variants.
- * Caller-provided primary is never modified. Not an approval for PS5 deletion. */
-int cmp5_plan_capture_group(const char *root,const Cmp5MediaCandidate *primary,
- Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t *count,
- Cmp5CancelCheck cancel,void *context);
 int cmp5_backup_group(const char *root,const Cmp5MediaCandidate *parts,
  uint32_t count,const char *private_workspace,const char *group_id,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
