@@ -153,6 +153,10 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
 // cannot cause traversal into an unrelated homebrew, title or OS tree.
 static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
  if(s->stopped||s->b.fail||s->rootPartial){close(fd);return;}
+ // Keep the directory descriptor supplied by the caller for anchored
+ // openat/fstatat. The native-title toolchain does not export dirfd().
+ // fdopendir takes ownership and closedir closes the same descriptor.
+ const int anchored_fd=fd;
  DIR*d=fdopendir(fd);
  if(!d){s->rootPartial=1;warn(s,"Acces refuse",path);close(fd);return;}
  struct dirent*e;
@@ -169,7 +173,7 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
   char child[PATH_CAP];
   if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
   struct stat st;
-  if(fstatat(dirfd(d),e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
    s->rootPartial=1;warn(s,"Entree inaccessible",child);continue;
   }
   if(S_ISLNK(st.st_mode)){s->links++;continue;}
@@ -179,7 +183,7 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
   if(S_ISDIR(st.st_mode)){
    if(!strcmp(kind,"runtime")){s->excluded++;continue;}
    if(depth<DEPTH_CAP){
-    int next=openat(dirfd(d),e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    int next=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
     if(next<0){s->rootPartial=1;warn(s,"Dossier inaccessible",child);}
     else walk(s,next,child,kind,depth+1);
    }else {s->rootPartial=1;warn(s,"Profondeur maximale atteinte",child);}
