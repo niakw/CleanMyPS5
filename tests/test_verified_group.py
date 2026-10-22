@@ -18,6 +18,16 @@ with tempfile.TemporaryDirectory() as scratch:
     }
     for name,data in contents.items():
         (gallery/name).write_bytes(data)
+    # 2-GiB sparse video: metadata-only inspection must work without
+    # allocating disk blocks, reading video bytes or permitting a backup.
+    video=root/"user/av_contents/video/NPXS00000/GAME123"
+    video.mkdir(parents=True)
+    large_video=video/"BIG_001.mp4"
+    large_size=2*1024*1024*1024+17
+    with large_video.open("wb") as handle:
+        handle.truncate(large_size)
+    large_sidecar=video/"BIG_001.dat"
+    large_sidecar.write_bytes(b"VIDEO-METADATA")
     backup=root/"private-backups"
     restore=root/"private-restores"
     backup.mkdir(mode=0o700)
@@ -32,9 +42,12 @@ with tempfile.TemporaryDirectory() as scratch:
           "src/native/sha256.c","-o",str(binary)
         ],cwd=repo,check=True,timeout=40)
     args=[str(binary),str(root),*(str(gallery/name) for name in contents),
-          str(backup),str(restore)]
+          str(backup),str(restore),str(large_video),str(large_sidecar)]
     result=subprocess.run(args,cwd=repo,check=True,capture_output=True,text=True,timeout=35)
     assert "multi-file capture group" in result.stdout
+    assert large_video.stat().st_size==large_size
+    assert large_sidecar.read_bytes()==b"VIDEO-METADATA"
+    assert not (backup/"BIGBACKUP__COMMIT").exists()
     for i,(_,data) in enumerate(contents.items(),1):
         dest=restore/f"ALBUM__{i}"
         if i==2:  # Intentionally corrupted AFTER the successful full restore.
