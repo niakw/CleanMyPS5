@@ -42,6 +42,16 @@ make -C "$tmp/native-toolchain" init \
   TITLE_ID="$title" APP_NAME=CleanMyPS5 APP_CATEGORY=game
 make -C "$tmp/native-toolchain" app
 
+# Optional native-title package for compatible homebrew installers.
+# This is NOT a retail-signed PKG; hardware support remains unverified.
+if [[ ${CMP5_BUILD_FFPKG:-0} == 1 ]]; then
+  command -v dotnet >/dev/null || {
+    echo 'Optional homebrew FFPKG requires .NET SDK 8+' >&2; exit 2;
+  }
+  make -C "$tmp/native-toolchain" ffpkg
+  test -s "$tmp/native-toolchain/dist/$title.ffpkg"
+fi
+
 # Keep privileged filesystem inspection in the separately launched payload,
 # never in the installed title's sandbox, and never open WebKit.
 PS5_PAYLOAD_SDK="$tmp/native-toolchain/.deps/native/ps5-payload-sdk" \
@@ -52,6 +62,9 @@ python3 "$project/scripts/check_native_bundle.py" \
 
 mkdir -p "$project/dist/native"
 cp "$project/cleanmyps5-helper.elf" "$project/dist/native/cleanmyps5-helper.elf"
+if [[ ${CMP5_BUILD_FFPKG:-0} == 1 ]]; then
+  cp "$tmp/native-toolchain/dist/$title.ffpkg" "$project/dist/native/$title.ffpkg"
+fi
 python3 - "$tmp/native-toolchain/dist/$title" "$project/dist/native/$title.zip" <<'PY'
 from pathlib import Path
 import sys
