@@ -1,5 +1,7 @@
 # Livraison actuelle — CleanMyPS5
 
+**Statut de clôture vérifiable :** voir [diagnostic natif et cinq conditions bloquantes](RELEASE_STATUS.md). Un titre compilé n'est pas une application validée sur PS5 13.60.
+
 ## Deux livrables réellement distincts
 
 **Titre PS5 natif expérimental :** l'archive `dist/native/PPSA99784.zip` contient un dossier de titre avec `eboot.bin`, `sce_sys/param.json`, une icône originale et le runtime requis. La compilation de ce format, ses métadonnées et ses tests hôte passent en CI. Ce n'est pas un PKG retail et **son fonctionnement sur PS5 13.60 reste non validé**.
@@ -14,16 +16,16 @@
 
 | Fonction | État vérifié |
 |---|---|
-| Interface native VideoOut, quatre écrans, manette | Code présent, compilation native CI réussie ; test DualSense sur console requis |
+| Interface native VideoOut, manette, 17 vues synthétiques | Code présent, navigation et mise en page testées sur hôte, compilation native CI réussie ; aucune capture d'exécution matérielle ni validation DualSense sur console |
 | Sonde native de chemins applicatifs et des emplacements /data, /user | Ouverture **lecture seule**, indication accessible / inaccessible ou absent ; les codes d'erreur ne sont pas encore différenciés côté titre |
 | Diagnostic détaillé de montages et permissions | Disponible dans le helper, sous réserve de sa visibilité filesystem |
 | Inventaire captures, journaux, caches, homebrews, installations | Scanner borné en lecture seule **embarqué dans le titre natif** ; bilan agrégé, catalogue paginé de 10 000 médias maximum par scan, filtrable images/vidéos, jeu, âge, taille, avec tris taille/date/nom, couverture limitée aux droits du sandbox ; helper facultatif |
-| Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | Catalogue paginé natif (images/vidéos, jeu, âge, taille, tri) et checklist manuelle en huit étapes ; recherche libre, aperçus de contenu, doublons et export avancés encore dans l'ancien frontend WebKit |
+| Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | Interface native : filtres, recherche via Options, aperçus JPG/PNG bornés, diagnostic MP4/WebM, doublons exacts bornés, bilan autoload et checklist en huit étapes. Export avancé et certaines fonctions de la version WebKit ne sont pas encore portés ; l'exécution réelle sur PS5 reste non vérifiée |
 | Pré-analyse nettoyage native | Comptage des captures de 50 Mio et plus / anciennes de 90 jours par mtime, sans chemins transmis ni suppression permise |
 | Homebrews et plugins natifs | Depuis Accès au stockage, Carré lance un scan borné en lecture seule et affiche les quatre compteurs protégés ; pas de désinstallation ni d'orphelin déclaré, résultats partiels signalés |
 | Doublons exacts natifs | Analyse explicite via Triangle dans Nettoyage, images seulement, 128 fichiers/32 Mio, budget de 128 Mio de lectures ; statistiques agrégées et aucune écriture ni estimation de gain garanti |
 | Effacement captures, caches, doublons ou résidus | **Désactivé**, aucun mécanisme d'effacement validé |
-| Restauration, quarantaine, synchronisation base multimédia | Non implémentés |
+| Restauration, quarantaine, synchronisation base multimédia | Prototype SHA-256 de sauvegarde/restauration uniquement en tests hôte privés ; aucune restauration Galerie PS5 ni quarantaine native intégrée |
 | Espace récupérable | **Non calculé** : les tailles affichées sont nominales, pas des promesses de gain |
 
 ## Frontière de permission
