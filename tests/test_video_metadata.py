@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory() as scratch:
     header=ebml("1A45DFA3",ebml("4282",b"webm"))
     info=ebml("1549A966",
         ebml("2AD7B1",(1000000).to_bytes(3,"big"))+
-        ebml("4489",struct.pack(">d",95.2)))
+        ebml("4489",struct.pack(">d",95200.0)))
     track=ebml("AE",ebml("E0",
         ebml("B0",(1920).to_bytes(2,"big"))+
         ebml("BA",(1080).to_bytes(2,"big"))))
