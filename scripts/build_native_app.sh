@@ -32,6 +32,7 @@ cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
 python3 "$project/scripts/enable_interactive_videoout.py" "$tmp/native-toolchain/src/demo_renderer.cpp"
 python3 "$project/scripts/enable_native_preview_blit.py"   "$tmp/native-toolchain/src/demo_renderer.hpp" "$tmp/native-toolchain/src/demo_renderer.cpp"
 cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
+cp "$project/native/overview_protocol.hpp" "$tmp/native-toolchain/src/overview_protocol.hpp"
 # The read-only metadata scanner is compiled INTO the native title.
 # It inherits title permissions; it never escalates them or installs a daemon.
 cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"
