@@ -89,12 +89,6 @@ with tempfile.TemporaryDirectory() as work:
     written = json.loads(report_path.read_text(encoding="utf-8"))
     assert written == inspect(source)
     assert "private" not in json.dumps(written).lower()
-    subprocess.run(
-        [sys.executable, str(REPO / "scripts/release_readiness.py"),
-         str(root / "missing.json"), str(report_path)],
-        check=False, timeout=20,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    ).check_returncode if False else None
     missing = subprocess.run(
         [sys.executable, str(REPO / "scripts/release_readiness.py"),
          str(root / "missing.json"), str(report_path)],
