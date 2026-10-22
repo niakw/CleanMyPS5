@@ -107,6 +107,13 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  const char*slash=strrchr(path,'/');
  const char*extension=strrchr(path,'.');
  if(!slash||!extension||extension<=slash+1||extension[1]==0)return 0;
+ /* A caller-controlled media_type must match the selected file extension.
+  * Never infer a valid capture from an incorrectly typed .dat or unknown file. */
+ const int valid_primary=primary->media_type==1?
+  (!strcasecmp(extension,".jxr")||!strcasecmp(extension,".jpg")||
+   !strcasecmp(extension,".jpeg")||!strcasecmp(extension,".png")):
+  (!strcasecmp(extension,".mp4")||!strcasecmp(extension,".webm"));
+ if(!valid_primary)return 0;
  size_t stem_length=(size_t)(extension-(slash+1));
  if(stem_length>96u)return 0;
  for(size_t i=0;i<n;i++)
