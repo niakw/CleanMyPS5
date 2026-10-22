@@ -13,6 +13,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 static int always_cancel(void*context){(void)context;return 1;}
+static int cancel_mid_copy(void*context){
+ unsigned*count=(unsigned*)context;
+ return ++(*count)>3u;
+}
 int main(int argc,char**argv){
  if(argc<5)return 2;
  const char*root=argv[1],*original=argv[2],*backup=argv[3],*restore=argv[4];
@@ -26,6 +30,14 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_media(root,&media,backup,"ONE",&a,always_cancel,NULL));
  assert(!cmp5_verify_backup(backup,"ONE",&a,NULL,NULL));
  assert(!cmp5_backup_media(root,&media,backup,"BAD/NAME",&a,NULL,NULL));
+ unsigned checks=0;
+ assert(!cmp5_backup_media(root,&media,backup,"ABORTED",&a,cancel_mid_copy,&checks));
+ assert(checks>3u);
+ char alias[512]{};
+ (void)snprintf(alias,sizeof(alias),"%s.link",original);
+ assert(link(original,alias)==0); // Test hardlinks are rejected, never unlinked.
+ assert(!cmp5_backup_media(root,&media,backup,"HARDLINK",&a,NULL,NULL));
+ assert(unlink(alias)==0);
  assert(cmp5_backup_media(root,&media,backup,"ONE",&a,NULL,NULL));
  assert(a.published&&a.bytes==media.bytes);
  assert(cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
