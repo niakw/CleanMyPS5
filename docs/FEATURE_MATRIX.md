@@ -46,7 +46,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Protection : confidentialité | 🟡 | Serveur en loopback, origine HTTP contrôlée, pas d'écriture ; pas d'audit des autorisations payloads |
 | Mesures santé système | 🟡 | Volumes statvfs et prédiagnostic, pas de télémétrie température/CPU/GPU ou SMART validée |
 | Actions rapides 'Accès rapides' | 🟡 | Navigation par cinq sections ; pas de lanceur d'outils centralisé |
-| Sauvegarde / quarantaine / restauration | 🟡 | **Prototype hôte non embarqué** : copie privée avec SHA-256, vérification et restauration vers un second espace privé, testé avec annulation/corruption/collision. **Aucune quarantaine, restauration de Galerie, modification système ou suppression PS5** ; voir [contrat de sauvegarde](VERIFIED_BACKUP.md) |
+| Sauvegarde / quarantaine / restauration | 🟡 | **Prototype hôte non embarqué** : copie privée SHA-256, groupes logiquement validés JXR/JPG/DAT (2 à 4 éléments de même base), puis restauration vérifiée dans un second dossier privé ; tests d'annulation, collision, corruption et marqueurs de commit. **Aucune quarantaine, restauration de Galerie, modification système ou suppression PS5** ; voir [contrat de sauvegarde](VERIFIED_BACKUP.md) |
 | Suppression sélective / vérification | ❌ | Pas de point d'écriture, pas de confirmation double, pas de contrôle base multimédia |
 | Contrôle manette TV | 🟡 | Navigation DualSense native (quatre écrans) et interface navigateur historique ; compilation vérifiée, matériel 13.60 non testé |
 | Installation dans l'accueil PS5 | 🟡 | Titre homebrew natif `PPSA99784/` compilé avec `eboot.bin` et icône. Enregistrement dans le Shell par gestionnaire compatible et lancement réel sur 13.60 à vérifier |
