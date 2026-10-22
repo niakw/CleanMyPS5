@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <cerrno>
 #include <sys/statvfs.h>
+#include <sys/stat.h>
 #include <atomic>
 #include <pthread.h>
 #include <cstdlib>
@@ -107,8 +108,17 @@ LocalProbe probe_path(const char*path,bool file) noexcept {
  LocalProbe result{};
  if(!path||cancellation_hook(nullptr))return result;
  // One O_NOFOLLOW open anchors both the capacity query and enumeration.
- const int fd=open(path,O_RDONLY|O_NOFOLLOW|(file?0:O_DIRECTORY));
+ const int fd=open(path,O_RDONLY|O_NOFOLLOW|
+   (file?O_NONBLOCK:O_DIRECTORY));
  if(fd<0){result.status=open_error(errno);return result;}
+ if(file){
+  struct stat st{};
+  if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)){
+   (void)close(fd);
+   result.status=LocalAccess::unavailable;
+   return result;
+  }
+ }
  struct statvfs volume{};
  if(fstatvfs(fd,&volume)==0){
   const std::uint64_t block=volume.f_frsize?volume.f_frsize:volume.f_bsize;
@@ -865,7 +875,7 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
     summary_files,static_cast<unsigned long long>(summary_bytes/1048576ULL),
     summary_partial?"  PARTIEL":"");
   panel(canvas,664,scan_source==ScanSource::native_title?
-    "BILAN NATIF DU TITRE":"BILAN DU MOTEUR",detail,Color::cyan);
+    "BILAN NATIF DU TITRE":"BILAN HELPER (AGREGATS)",detail,Color::cyan);
   (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u",
     summary_media,summary_cache,summary_logs);
   panel(canvas,813,"CATEGORIES VUES",detail);
@@ -980,7 +990,8 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,503,"CAPTURES ANCIENNES",result,Color::cyan);
   (void)std::snprintf(result,sizeof(result),"%llu MIO NOMINAUX  %u ANCIENNES ET GROSSES",
     static_cast<unsigned long long>(summary_large_bytes/1048576ULL),summary_old_large);
-  panel(canvas,651,"ESPACE A EXAMINER",result,Color::yellow);
+  panel(canvas,651,scan_source==ScanSource::helper?
+    "ESPACE A EXAMINER (HELPER)":"ESPACE A EXAMINER",result,Color::yellow);
  }else{
   panel(canvas,355,"CAPTURES VOLUMINEUSES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
@@ -999,12 +1010,17 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  }
  panel(canvas,799,"REVUE ET DOUBLONS",selected_msg,Color::yellow);
  canvas.rectangle(95,950,1730,96,Color::panel);
- canvas.text(125,963,"CARRE CATALOGUE  TRIANGLE DOUBLONS  X REANALYSER",3,Color::white);
+ char native_catalog[110]{};
+ (void)std::snprintf(native_catalog,sizeof(native_catalog),
+   "CARRE CATALOGUE (%u NATIFS)   TRIANGLE DOUBLONS   X SCAN",media_review.count);
+ canvas.text(125,963,native_catalog,3,Color::white);
  canvas.text(125,1005,"CERCLE RETOUR   LECTURE SEULE   AUCUNE SUPPRESSION",3,Color::cyan);
 }
 void show_review(ps5::demo::Canvas&canvas) noexcept {
  if(!media_review.count){
-  panel(canvas,367,"CAPTURES NON VISIBLES","ACCES LIMITE OU AUCUNE CAPTURE",Color::yellow);
+  panel(canvas,367,"CAPTURES NON VISIBLES",scan_source==ScanSource::helper?
+    "HELPER: TOTAUX SEULS, AUCUN DETAIL NATIF":"ACCES LIMITE OU AUCUNE CAPTURE",
+    Color::yellow);
   footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
   return;
  }
