@@ -23,6 +23,9 @@ test "$(git -C "$tmp/native-toolchain" rev-parse HEAD)" = "$pin" || {
 # Overlay only CleanMyPS5-authored UI. The external toolchain stays in a
 # temporary directory; its source/history/branding never enter this repo.
 cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
+# The pinned starter draws one frame and sleeps forever. Enable actual
+# double-buffered redraws before compiling the installed controller UI.
+python3 "$project/scripts/enable_interactive_videoout.py"   "$tmp/native-toolchain/src/demo_renderer.cpp"
 cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
 # The read-only metadata scanner is compiled INTO the native title.
 # It inherits title permissions; it never escalates them or installs a daemon.
@@ -37,7 +40,7 @@ rm -f -- "$tmp/native-toolchain/sce_sys/pic0.dds" \
             "$tmp/native-toolchain/sce_sys/pic1.dds" \
             "$tmp/native-toolchain/sce_sys/snd0.at9"
 rm -f -- "$tmp/native-toolchain/assets/banner.txt"
-printf '%s\n' "CleanMyPS5 native UI - backend remains external and read only." \
+printf '%s\n' "CleanMyPS5 native UI - live double-buffered rendering, internal read-only scanner." \
   > "$tmp/native-toolchain/assets/native-readme.txt"
 
 make -C "$tmp/native-toolchain" init \
