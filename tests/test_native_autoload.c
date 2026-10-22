@@ -26,11 +26,11 @@ int main(void){
  (void)snprintf(pldmgr,sizeof(pldmgr),"%s/pldmgr",data);make_dir(pldmgr);
  (void)snprintf(eta,sizeof(eta),"%s/etaHEN",data);make_dir(eta);
  (void)snprintf(path,sizeof(path),"%s/autoload.txt",base);
- write_fixture(path,"# not active\\netaHEN.elf\\n");
+ write_fixture(path,"# not active\netaHEN.elf\n");
  (void)snprintf(path,sizeof(path),"%s/autoload.txt",pldmgr);
- write_fixture(path,"# only a comment\\n");
+ write_fixture(path,"# only a comment\n");
  (void)snprintf(path,sizeof(path),"%s/config.ini",eta);
- write_fixture(path,"toolbox_auto_start = 1\\nPRIVATE=NEVER_EXPORT\\n");
+ write_fixture(path,"toolbox_auto_start = 1\nPRIVATE=NEVER_EXPORT\n");
  (void)snprintf(usb,sizeof(usb),"%s/mnt",root);make_dir(usb);
  char mount[512];(void)snprintf(mount,sizeof(mount),"%s/usb0",usb);make_dir(mount);
  (void)snprintf(path,sizeof(path),"%s/ps5_autoloader",mount);
