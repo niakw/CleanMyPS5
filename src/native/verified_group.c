@@ -285,9 +285,8 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  return ok;
 }
 
-/* Recovery audit deliberately knows only the fixed private names emitted
- * by our writer. It never follows symlinks, opens gallery media, or mutates
- * workspace contents. A report is an observation, not a cleanup plan. */
+/* Recovery audits inspect only a private, pre-existing 0700 workspace.
+ * No PS5 gallery file is opened for write or modified by these routines. */
 static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
  struct stat st;*present=0;
  if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
@@ -297,7 +296,50 @@ static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
     (uint64_t)st.st_size>MAX_TOTAL+64u)*unsafe=1;
  return 1;
 }
-int cmp5_inspect_group_recovery(const char*workspace,const char*id,
+/* Reject unknown files within a group namespace, e.g. ALBUM__5,
+ * .ALBUM__5.part, a foreign commit marker or an undeclared sidecar.
+ * Checking only the four expected names would silently ignore them. */
+static int expected_recovery_name(const char*name,const char*id,int restored){
+ char candidate[48],stage[64];
+ for(unsigned i=0;i<CMP5_GROUP_MAX+1u;i++){
+  if(i==CMP5_GROUP_MAX)marker_name(candidate,id,restored);
+  else member_name(candidate,id,i);
+  if(strcmp(name,candidate)==0)return 1;
+  (void)snprintf(stage,sizeof(stage),".%s.part",candidate);
+  if(strcmp(name,stage)==0)return 1;
+ }
+ return 0;
+}
+static int inspect_namespace(int dir,const char*id,int restored,
+ uint32_t*unexpected){
+ *unexpected=0;
+ const size_t length=strlen(id);
+ int duplicate=dup(dir);
+ if(duplicate<0)return 0;
+ DIR*scan=fdopendir(duplicate);
+ if(!scan){close(duplicate);return 0;}
+ int ok=1;
+ unsigned visited=0;
+ for(;;){
+  errno=0;
+  struct dirent*entry=readdir(scan);
+  if(!entry){if(errno!=0)ok=0;break;}
+  if(++visited>4096u){ok=0;break;}
+  const char*name=entry->d_name;
+  const int ordinary=strncmp(name,id,length)==0&&
+    name[length]=='_'&&name[length+1]=='_';
+  const int staged=name[0]=='.'&&
+    strncmp(name+1,id,length)==0&&
+    name[length+1]=='_'&&name[length+2]=='_';
+  if((ordinary||staged)&&!expected_recovery_name(name,id,restored)){
+   if(*unexpected==UINT32_MAX){ok=0;break;}
+   (*unexpected)++;
+  }
+ }
+ closedir(scan);
+ return ok;
+}
+static int inspect_recovery(const char*workspace,const char*id,int restored,
  Cmp5RecoveryReport*report){
  if(!report)return 0;
  memset(report,0,sizeof(*report));
@@ -307,7 +349,7 @@ int cmp5_inspect_group_recovery(const char*workspace,const char*id,
  Cmp5RecoveryReport result={0};
  int unsafe=0,present=0,ok=1;
  char name[48],stage[64];
- marker_name(name,id,0);
+ marker_name(name,id,restored);
  ok=recovery_entry(dir,name,&present,&unsafe);
  result.marker_present=present;
  if(ok){
@@ -324,20 +366,31 @@ int cmp5_inspect_group_recovery(const char*workspace,const char*id,
   ok=recovery_entry(dir,stage,&present,&unsafe);
   result.staged_parts+=(uint32_t)present;
  }
+ if(ok)ok=inspect_namespace(dir,id,restored,&result.unexpected_entries);
  close(dir);
  if(!ok)return 0;
- if(unsafe)result.state=CMP5_RECOVERY_INVALID;
+ if(unsafe||result.unexpected_entries)result.state=CMP5_RECOVERY_INVALID;
  else if(result.marker_present){
   Cmp5GroupReceipt verified={0};
-  /* A valid manifest alone is not enough: leftover stages or surplus
-   * capsules make recovery ambiguous even if the original set hashes OK. */
-  const int complete=cmp5_verify_group(workspace,id,&verified,NULL,NULL);
+  /* The commit marker and EVERY member must pass digest validation.
+   * Staged and surplus files invalidate even an otherwise valid receipt. */
+  const int complete=restored?
+    cmp5_verify_restored_group(workspace,id,&verified,NULL,NULL):
+    cmp5_verify_group(workspace,id,&verified,NULL,NULL);
   result.state=complete&&result.staged_parts==0u&&
-   result.published_parts==verified.count?
-    CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
+    result.published_parts==verified.count?
+     CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
  }else if(result.published_parts||result.staged_parts)
   result.state=CMP5_RECOVERY_INCOMPLETE;
  else result.state=CMP5_RECOVERY_EMPTY;
  *report=result;
  return 1;
+}
+int cmp5_inspect_group_recovery(const char*workspace,const char*id,
+ Cmp5RecoveryReport*report){
+ return inspect_recovery(workspace,id,0,report);
+}
+int cmp5_inspect_restored_group_recovery(const char*workspace,const char*id,
+ Cmp5RecoveryReport*report){
+ return inspect_recovery(workspace,id,1,report);
 }
