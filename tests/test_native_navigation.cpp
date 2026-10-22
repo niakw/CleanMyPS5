@@ -67,6 +67,7 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  review->entries[0].media_type=1;
  std::strcpy(review->entries[1].label,"VIDEO DEUX");
  std::strcpy(review->entries[1].title_id,"GAME456");
+ std::strcpy(review->entries[1].game_name,"Example Game");
  review->entries[1].bytes=10ULL*1024*1024;
  review->entries[1].media_type=2;
  return out;
