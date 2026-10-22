@@ -126,7 +126,14 @@ int cmp5_inspect_capture_companions(const char*,const Cmp5MediaCandidate*primary
  Cmp5CompanionReport*report,Cmp5CancelCheck cancel,void*context){
  if(!report)return 0;
  *report=Cmp5CompanionReport{};
- if(!primary||cancel(context)||!primary->preview_path[0])return 0;
+ if(!primary||cancel(context)||!primary->preview_path[0]){
+  report->failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
+  return 0;
+ }
+ if(primary->preview_path[0]=='!'){
+  report->failure=CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT;
+  return 0;
+ }
  if(primary->media_type==1u){
   report->state=CMP5_COMPANIONS_MULTIPLE;
   report->files=2u;report->media=1u;report->sidecars=1u;
@@ -443,6 +450,15 @@ int main(){
  scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
+ media_review.entries[detail_index].preview_path[0]='!';
+ press(square);
+ assert(screen==Screen::companions);
+ finish_scan();
+ assert(!companion_checked&&!companion_summary.files);
+ assert(companion_summary.failure==CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::detail);
  media_review.entries[detail_index].preview_path[0]=saved;
  press(circle);
  assert(screen==Screen::review);
@@ -656,11 +672,17 @@ int main(){
   rebuild_marked_totals();rebuild_games();
   detail_index=0;
   save(Screen::detail,"06-details");
-  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_MULTIPLE,2u,1u,1u,30ULL*1024*1024+256u};
+  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_MULTIPLE,CMP5_COMPANION_FAILURE_NONE,
+    2u,1u,1u,30ULL*1024*1024+256u};
   companion_checked=true;
   save(Screen::companions,"06b-companions");
-  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_SINGLE,1u,1u,0u,10ULL*1024*1024};
+  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_SINGLE,CMP5_COMPANION_FAILURE_NONE,
+    1u,1u,0u,10ULL*1024*1024};
   save(Screen::companions,"06c-single-capture");
+  companion_summary=Cmp5CompanionReport{};
+  companion_summary.failure=CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT;
+  companion_checked=false;
+  save(Screen::companions,"06d-companion-limit");
   companion_summary=Cmp5CompanionReport{};
   companion_checked=false;
   save(Screen::official,"07-official");
