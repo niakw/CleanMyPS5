@@ -32,7 +32,9 @@ on:
       - scripts/enable_interactive_videoout.py
       - tests/test_interactive_videoout.py
       - scripts/native_release_manifest.py
+      - scripts/release_readiness.py
       - tests/test_native_release_manifest.py
+      - tests/test_release_readiness.py
       - scripts/check_native_bundle.py
       - scripts/make_native_icon.py
       - .github/workflows/native.yml
@@ -88,6 +90,11 @@ jobs:
         run: |
           bash scripts/build_native_app.sh
           test -s dist/native/PPSA99784.ffpkg
+      - name: Write evidence-restricted release readiness report
+        run: |
+          python3 tests/test_release_readiness.py
+          python3 scripts/release_readiness.py dist/native/manifest.json dist/native/release-readiness.json
+          test -s dist/native/release-readiness.json
       - name: Publish a single ID-named installation archive
         uses: actions/upload-artifact@v4
         with:
@@ -97,6 +104,7 @@ jobs:
             dist/native/PPSA99784.ffpkg
             dist/native/cleanmyps5-helper.elf
             dist/native/manifest.json
+            dist/native/release-readiness.json
           if-no-files-found: error
       - name: Publish host-only native UI previews
         uses: actions/upload-artifact@v4
