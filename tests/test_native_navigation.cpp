@@ -283,6 +283,13 @@ int main(){
  assert(review_selection==1);
  press(square);
  assert(screen==Screen::detail && detail_index==1);
+ press(triangle);
+ assert(marked_count==2);
+ assert(marked_images==1&&marked_videos==1);
+ assert(marked_nominal_bytes==40ULL*1024*1024);
+ press(triangle);
+ assert(marked_count==1&&marked_nominal_bytes==30ULL*1024*1024);
+ assert(marked_images==1&&marked_videos==0);
  press(cross);
  assert(screen==Screen::video_info);
  finish_scan();
