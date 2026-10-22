@@ -190,6 +190,22 @@ bool video_info_ready=false;
 unsigned photo_zoom=100; // 100%, 135%, 170% display-only scaling
 bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
+std::uint64_t marked_nominal_bytes=0;
+unsigned marked_images=0,marked_videos=0;
+/* Selection is a review plan, NEVER a permission to delete media. */
+void rebuild_marked_totals() noexcept {
+ marked_count=marked_images=marked_videos=0;
+ marked_nominal_bytes=0;
+ for(unsigned i=0;i<media_review.count&&i<CMP5_REVIEW_CAP;i++){
+  if(!marked_for_review[i])continue;
+  marked_count++;
+  if(media_review.entries[i].media_type==1u)marked_images++;
+  if(media_review.entries[i].media_type==2u)marked_videos++;
+  const auto size=media_review.entries[i].bytes;
+  marked_nominal_bytes=(UINT64_MAX-marked_nominal_bytes<size)?
+   UINT64_MAX:marked_nominal_bytes+size;
+ }
+}
 Cmp5DuplicateStats duplicate_stats{};
 bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
@@ -384,7 +400,8 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
 void run_overview() noexcept {
  // Any new scan invalidates entry indices and the duplicate snapshot.
  std::memset(marked_for_review,0,sizeof(marked_for_review));
- marked_count=0;
+ marked_count=marked_images=marked_videos=0;
+ marked_nominal_bytes=0;
  duplicate_stats=Cmp5DuplicateStats{};
  duplicates_checked=false;
  // The same limited scanner is linked inside eboot.bin. It has only
@@ -635,8 +652,7 @@ void poll_pad() noexcept {
    if((pressed&triangle)&&detail_index<media_review.count){
     bool&item=marked_for_review[detail_index];
     item=!item;
-    if(item)marked_count++;
-    else if(marked_count)marked_count--;
+     rebuild_marked_totals();
    }
    continue;
   }
@@ -914,11 +930,13 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  char selected_msg[130]{};
  if(duplicates_checked){
   (void)std::snprintf(selected_msg,sizeof(selected_msg),
-    "%u MARQUES  %u GROUPES EXACTS%s",marked_count,
-    duplicate_stats.exact_groups,duplicate_stats.partial?"  PARTIEL":"");
+    "%u MARQUES  %llu MIO NOMINAUX  %u GROUPES%s",marked_count,
+     static_cast<unsigned long long>(marked_nominal_bytes/1048576ULL),
+     duplicate_stats.exact_groups,duplicate_stats.partial?"  PARTIEL":"");
  }else{
   (void)std::snprintf(selected_msg,sizeof(selected_msg),
-    "%u MARQUES   TRIANGLE POUR DOUBLONS",marked_count);
+    "%u MARQUES  %llu MIO NOMINAUX  TRIANGLE: DOUBLONS",marked_count,
+     static_cast<unsigned long long>(marked_nominal_bytes/1048576ULL));
  }
  panel(canvas,799,"REVUE ET DOUBLONS",selected_msg,Color::yellow);
  canvas.rectangle(95,950,1730,96,Color::panel);
@@ -959,8 +977,9 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
   (void)std::snprintf(label,sizeof(label),"%.30s",item.label);
   canvas.text(620,top+31,label,3,Color::white);
   char stats[78]{};
-  (void)std::snprintf(stats,sizeof(stats),"%s  %llu MIO",
-    item.media_type==2u?"VIDEO":"IMAGE",
+  (void)std::snprintf(stats,sizeof(stats),"%s%s  %llu MIO",
+     marked_for_review[review_order[index]]?"MARQUE ":"",
+     item.media_type==2u?"VIDEO":"IMAGE",
     static_cast<unsigned long long>(item.bytes/1048576ULL));
   canvas.text(1320,top+36,stats,3,Color::cyan);
  }
