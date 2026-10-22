@@ -54,7 +54,23 @@ with tempfile.TemporaryDirectory() as scratch:
     malformed=gallery/"broken.mp4"
     malformed.write_bytes(ftyp+struct.pack(">I4s",0xffffffff,b"moov")+b"junk")
     run(malformed,"/user/av_contents/video/NPXS00000/GAME123/broken.mp4","invalid")
+    # Untrusted MP4: reject truncated, enormous, looping and excessive atoms.
+    bad_payloads={
+        "truncated_ftyp":b"ftyp",
+        "oversized_moov":ftyp+struct.pack(">I4s",0xffffffff,b"moov")+b"x"*12,
+        "extended_overflow":ftyp+struct.pack(">I4sQ",1,b"moov",2**63-1),
+        "tiny_atom":ftyp+struct.pack(">I4s",4,b"moov"),
+        "unclosed_trak":ftyp+atom("moov",struct.pack(">I4s",2000,b"trak")+b"short"),
+        "missing_mvhd":ftyp+atom("moov",atom("trak",tkhd())),
+        "no_timescale":ftyp+atom("moov",atom("mvhd",bytes(100))+atom("trak",tkhd())),
+        "bad_dimensions":ftyp+atom("moov",mvhd()+atom("trak",atom("tkhd",bytes(84)))),
+        "too_many_boxes":ftyp+atom("moov",atom("free",b"")*500+mvhd()+atom("trak",tkhd())),
+    }
+    for name,payload in bad_payloads.items():
+        broken=gallery/f"{name}.mp4"
+        broken.write_bytes(payload)
+        run(broken,f"/user/av_contents/video/NPXS00000/GAME123/{name}.mp4","invalid")
     webm=gallery/"sample.webm"
     webm.write_bytes(b"\x1aE\xdf\xa3"+b"\0"*64)
     run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","invalid")
-print("MP4 bounded metadata fixture: PASS")
+print("MP4 bounded metadata and corrupt-box fixture: PASS")
