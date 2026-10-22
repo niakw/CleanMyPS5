@@ -50,6 +50,7 @@ rm -f -- "$tmp/native-toolchain/sce_sys/pic0.dds" \
 rm -f -- "$tmp/native-toolchain/assets/banner.txt"
 printf '%s\n' "CleanMyPS5 native UI - live double-buffered rendering, internal read-only scanner." \
   > "$tmp/native-toolchain/assets/native-readme.txt"
+cp "$project/THIRD_PARTY_NOTICES.md" "$tmp/native-toolchain/assets/THIRD_PARTY_NOTICES.md"
 
 make -C "$tmp/native-toolchain" init \
   TITLE_ID="$title" APP_NAME=CleanMyPS5 APP_CATEGORY=game
