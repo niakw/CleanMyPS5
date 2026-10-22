@@ -36,13 +36,18 @@ with tempfile.TemporaryDirectory() as scratch:
     assert "multi-file capture group" in result.stdout
     for i,(_,data) in enumerate(contents.items(),1):
         dest=restore/f"ALBUM__{i}"
-        assert dest.read_bytes()==data
-        assert hashlib.sha256(dest.read_bytes()).hexdigest()==hashlib.sha256(data).hexdigest()
+        if i==2:  # Intentionally corrupted AFTER the successful full restore.
+            assert dest.read_bytes()!=data
+        else:
+            assert dest.read_bytes()==data
+            assert hashlib.sha256(dest.read_bytes()).hexdigest()==hashlib.sha256(data).hexdigest()
     assert (backup/"ALBUM__COMMIT").stat().st_size==256
     assert (restore/"ALBUM__RESTORED").stat().st_size==256
     assert not (backup/"SINGLE__COMMIT").exists()
     assert not (backup/"MIXED__COMMIT").exists()
     assert not (backup/"ALIAS__COMMIT").exists()
+    assert not (backup/"ABORTED__COMMIT").exists()
+    assert not (restore/"ANOTHER__RESTORED").exists()
     assert not list(backup.glob("*.part"))
     assert not list(restore.glob("*.part"))
     assert not (backup/"BAD").exists()
