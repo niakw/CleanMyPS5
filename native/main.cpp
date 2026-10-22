@@ -529,10 +529,12 @@ void run_companion_check() noexcept {
  if((primary.media_type!=1u&&primary.media_type!=2u)||
     !primary.preview_path[0]||cancellation_hook(nullptr))return;
  Cmp5CompanionReport observed{};
- if(cmp5_inspect_capture_companions("/", &primary,&observed,
-     cancellation_hook,nullptr)!=0&&!cancellation_hook(nullptr)){
+ const bool success=cmp5_inspect_capture_companions("/", &primary,&observed,
+     cancellation_hook,nullptr)!=0;
+ /* Expose only a privacy-safe reason code on failure; all counts stay zero. */
+ if(!cancellation_hook(nullptr)){
   companion_summary=observed;
-  companion_checked=true;
+  companion_checked=success;
  }
 }
 void run_homebrew_check() noexcept {
@@ -1241,9 +1243,16 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  if(task_cancelled()||task_failed()||!companion_checked){
-  panel(canvas,360,"INSPECTION NON FIABLE",
-    task_cancelled()?"ANALYSE ANNULEE":"ACCES, IDENTITE OU DOSSIER NON VERIFIABLE",
-    Color::yellow);
+  const char*reason="ACCES OU IDENTITE NON VERIFIABLE";
+  if(task_cancelled()||companion_summary.failure==CMP5_COMPANION_FAILURE_CANCELLED)
+   reason="INSPECTION ANNULEE";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT)
+   reason="LIMITE DE 1024 ENTREES DU DOSSIER";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_AMBIGUOUS)
+   reason="VARIANTE INCONNUE OU FICHIER SUSPECT";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_CHANGED)
+   reason="FICHIER OU DOSSIER MODIFIE PENDANT LE SCAN";
+  panel(canvas,360,"INSPECTION NON FIABLE",reason,Color::yellow);
   panel(canvas,510,"SECURITE","AUCUNE DECISION DE NETTOYAGE POSSIBLE",Color::yellow);
   footer(canvas,"CERCLE DETAIL  AUCUN NETTOYAGE AUTORISE");
   return;
