@@ -15,7 +15,8 @@ int main(int argc,char**argv){
  const int cancel=argc==3&&strcmp(argv[2],"cancel")==0;
  const int longpath=argc==3&&strcmp(argv[2],"longpath")==0;
  const int empty=argc==3&&strcmp(argv[2],"empty")==0;
- const unsigned expected=argc==3&&!cancel&&!longpath&&!empty?
+ const int no_gallery=argc==3&&strcmp(argv[2],"no-gallery")==0;
+ const unsigned expected=argc==3&&!cancel&&!longpath&&!empty&&!no_gallery?
    (unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
@@ -47,6 +48,26 @@ int main(int argc,char**argv){
   assert(strstr(detailed,"\"partial\":true"));
   free(detailed);
   puts("Native media review: all roots absent means partial, never empty-complete");
+  return 0;
+ }
+ if(no_gallery){
+  /* The data root is successfully scanned, but NO photo/video root is.
+   * A green application-directory scan does not prove zero PS5 captures. */
+  assert(review.count==0u&&review.media_scanned==0u);
+  assert(review.partial==1u);
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"complete\":1"));
+  assert(strstr(json,"\"absent\":"));
+  assert(!strstr(json,"\"validatedForDeletion\":true"));
+  free(json);
+  size_t details_len=0;
+  char*details=cmp5_report(argv[1],&details_len);
+  assert(details&&details_len>100);
+  assert(strstr(details,"\"partial\":true"));
+  assert(strstr(details,"\"id\":\"homebrew-data\""));
+  assert(strstr(details,"\"status\":\"complete\""));
+  free(details);
+  puts("Native media review: readable app root cannot mask missing Gallery");
   return 0;
  }
  if(longpath){
