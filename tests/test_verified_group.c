@@ -52,9 +52,10 @@ static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  strcpy(c->preview_path,relative);
 }
 int main(int argc,char**argv){
- if(argc!=7)return 2;
+ if(argc!=9)return 2;
  const char*root=argv[1],*jxr=argv[2],*jpg=argv[3],*dat=argv[4];
  const char*private=argv[5],*restored=argv[6];
+ const char*big_video=argv[7],*big_sidecar=argv[8];
  const char*folder="/user/av_contents/photo/NPXS00000/GAME123/REC_001";
  Cmp5MediaCandidate media[3];
  char relative[256];
@@ -101,6 +102,32 @@ int main(int argc,char**argv){
  strcpy(malformed[1].preview_path,
    "/user/av_contents/photo/NPXS00000/GAME123/REC_001.JPG");
  assert(cmp5_validate_capture_group(malformed,3));
+ /* Large recordings are safe to INSPECT without reading their contents,
+  * but remain outside the capped host backup contract. */
+ Cmp5MediaCandidate large[2];
+ snapshot(&large[0],big_video,
+   "/user/av_contents/video/NPXS00000/GAME123/BIG_001.mp4",2u);
+ snapshot(&large[1],big_sidecar,
+   "/user/av_contents/video/NPXS00000/GAME123/BIG_001.dat",3u);
+ assert(large[0].bytes>512ULL*1024ULL*1024ULL);
+ assert(!cmp5_validate_capture_group(large,2));
+ Cmp5CompanionReport large_report={0};
+ assert(cmp5_inspect_capture_companions(root,&large[0],&large_report,NULL,NULL));
+ assert(large_report.state==CMP5_COMPANIONS_MULTIPLE&&
+        large_report.files==2u&&large_report.media==1u&&
+        large_report.sidecars==1u&&
+        large_report.nominal_bytes==large[0].bytes+large[1].bytes);
+ Cmp5MediaCandidate too_big_group[CMP5_GROUP_MAX]={{0}};
+ uint32_t too_big_count=42u;
+ assert(!cmp5_plan_capture_group(root,&large[0],too_big_group,
+         &too_big_count,NULL,NULL));
+ assert(too_big_count==0u);
+ for(unsigned i=0;i<CMP5_GROUP_MAX;i++)
+  assert(!too_big_group[i].bytes&&!too_big_group[i].preview_path[0]);
+ Cmp5GroupReceipt oversized_receipt={0};
+ assert(!cmp5_backup_group(root,large,2,private,"BIGBACKUP",
+                           &oversized_receipt,NULL,NULL));
+ assert(!oversized_receipt.count&&!oversized_receipt.bytes);
  Cmp5GroupReceipt a={0},b={0};
  Cmp5MediaCandidate found[CMP5_GROUP_MAX];
  uint32_t found_count=0;
