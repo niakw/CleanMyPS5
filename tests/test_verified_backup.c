@@ -33,6 +33,7 @@ int main(int argc,char**argv){
  assert(chmod(backup,0755)==0);
  assert(!cmp5_backup_media(root,&media,backup,"PUBLIC",&a,NULL,NULL));
  assert(chmod(backup,0700)==0);
+ if(argc>=7)assert(!cmp5_backup_media(root,&media,argv[6],"ALIAS_DIR",&a,NULL,NULL));
  const uint64_t correct_size=media.bytes;
  media.bytes=(uint64_t)CMP5_BACKUP_LIMIT+1u;
  assert(!cmp5_backup_media(root,&media,backup,"TOO_LARGE",&a,NULL,NULL));
@@ -49,6 +50,11 @@ int main(int argc,char**argv){
  assert(a.published&&a.bytes==media.bytes);
  assert(cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
  assert(b.bytes==a.bytes&&!memcmp(a.sha256,b.sha256,32));
+ char symlink_path[512];
+ (void)snprintf(symlink_path,sizeof(symlink_path),"%s/SYMLINK",backup);
+ assert(symlink("ONE",symlink_path)==0);
+ assert(!cmp5_verify_backup(backup,"SYMLINK",&b,NULL,NULL));
+ assert(unlink(symlink_path)==0);
  assert(!cmp5_backup_media(root,&media,backup,"ONE",&b,NULL,NULL));
  assert(!cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,always_cancel,NULL));
  assert(cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,NULL,NULL));
@@ -61,7 +67,7 @@ int main(int argc,char**argv){
  assert(memcmp(a.sha256,digest,32)==0);
  for(unsigned i=0;i<32;i++)printf("%02x",digest[i]);
  puts("");
- if(argc==6){
+ if(argc>=6){
    snprintf(path,sizeof(path),"%s/%s",backup,"ONE");
    f=fopen(path,"r+b");assert(f);assert(fseek(f,67,SEEK_SET)==0);
    int c=fgetc(f);assert(c>=0);assert(fseek(f,67,SEEK_SET)==0);
