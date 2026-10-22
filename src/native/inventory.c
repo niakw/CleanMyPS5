@@ -22,6 +22,7 @@
 #define SCAN_MAX_NANOSECONDS 5000000000ULL
 typedef struct {char *p;size_t len,cap;int fail;} Buffer;
 typedef struct {dev_t dev; ino_t ino;} Identity;
+typedef struct {char title_id[24];char game_name[56];} GalleryTitle;
 typedef struct {const char *id;char path[PATH_CAP];const char *status;size_t items,visits;unsigned long long bytes;} Coverage;
 typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,summary_only;char warnings[32][256];size_t nw;uint64_t deadline;
  Identity seen[VISIT_CAP];uint32_t seenSlots[SEEN_HASH_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;
@@ -30,6 +31,8 @@ typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,sum
  unsigned long long largeMediaBytes;
  time_t scanEpoch;
  Cmp5MediaReview *review;
+ GalleryTitle gallery_titles[128];
+ unsigned gallery_title_count,sidecar_reads;
  Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
@@ -103,6 +106,80 @@ static void warn(Scan*s,const char*message,const char*path){
  if(s->nw>=32)return;
  snprintf(s->warnings[s->nw++],256,"%s : %.170s",message,path);
 }
+/* PS5 13.60 gallery sidecars (.dat) store the game display name at 0x44.
+ * The name is untrusted local metadata: read at most 160 bytes through
+ * the already anchored parent fd, filter to Canvas-safe ASCII, strip the
+ * trailing _YYYYMMDDHHMMSS suffix, never expose paths or log its contents.
+ */
+static void gallery_title_id(const char*path,const char*kind,char out[24]){
+ out[0]=0;
+ const char*needle=!strcmp(kind,"video")?"/video/":"/photo/";
+ const char*mark=strstr(path,needle);
+ if(!mark)return;
+ mark+=7;
+ if(!strncmp(mark,"NPXS",4)){
+  const char*slash=strchr(mark,'/');
+  if(!slash)return;
+  mark=slash+1;
+ }
+ size_t n=0;
+ while(mark[n]&&mark[n]!='/'&&n<23u){
+  const unsigned char v=(unsigned char)mark[n];
+  if(v>='a'&&v<='z')out[n]=(char)(v-32);
+  else if((v>='A'&&v<='Z')||(v>='0'&&v<='9'))out[n]=(char)v;
+  else {out[0]=0;return;}
+  n++;
+ }
+ if(!n||mark[n]!='/'){out[0]=0;return;}
+ out[n]=0;
+}
+static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
+ const char*path,const char*kind,const struct stat*expected){
+ if(!s->review||s->sidecar_reads>=128||!ext(basename,".dat"))return;
+ char id[24];
+ gallery_title_id(path,kind,id);
+ if(!id[0])return;
+ for(unsigned i=0;i<s->gallery_title_count;i++)
+  if(!strcmp(s->gallery_titles[i].title_id,id))return;
+ if(s->gallery_title_count>=128)return;
+ s->sidecar_reads++;
+ const int fd=openat(parentfd,basename,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(fd<0)return;
+ struct stat st;
+ if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||
+    st.st_dev!=expected->st_dev||st.st_ino!=expected->st_ino||
+    st.st_size<0x45||st.st_size>65536){
+  close(fd);return;
+ }
+ unsigned char raw[161]={0};
+ if(lseek(fd,0x44,SEEK_SET)<0){close(fd);return;}
+ const ssize_t got=read(fd,raw,160);
+ close(fd);
+ if(got<=0||raw[0]==0)return;
+ // The last fourteen digits after an underscore identify the capture time.
+ size_t len=0;
+ while(len<(size_t)got&&raw[len]&&len<160)len++;
+ if(len>15&&raw[len-15]=='_'){
+  int timestamp=1;
+  for(size_t k=len-14;k<len;k++)if(raw[k]<'0'||raw[k]>'9')timestamp=0;
+  if(timestamp)len-=15;
+ }
+ char safe[56]={0};size_t n=0;
+ for(size_t i=0;i<len&&n<sizeof(safe)-1;i++){
+  const unsigned char ch=raw[i];
+  if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||
+     (ch>='0'&&ch<='9')||ch==' '||ch=='-'||ch=='\''||
+     ch=='.'||ch=='&'||ch==':')safe[n++]=(char)ch;
+  else if(n&&safe[n-1]!=' ')safe[n++]=' ';
+ }
+ while(n&&safe[n-1]==' ')n--;
+ if(!n)return;
+ safe[n]=0;
+ GalleryTitle*t=&s->gallery_titles[s->gallery_title_count++];
+ memcpy(t->title_id,id,strlen(id)+1);
+ memcpy(t->game_name,safe,n+1);
+}
+
 /* Keep just a fixed top-N of media metadata in the current scan.
  * No files are opened or modified; no directory paths reach the UI.
  */
@@ -134,23 +211,7 @@ static void capture_review(Scan*s,const char*path,const struct stat*info,const c
  while(n&&c.label[n-1]==' ')--n;
  c.label[n]=0;
  if(!n)memcpy(c.label,"CAPTURE",8);
- const char*mark=strstr(path,c.media_type==2?"/video/":"/photo/");
- if(mark){
-  mark+=7;
-  if(!strncmp(mark,"NPXS",4)){
-   const char*slash=strchr(mark,'/');
-   if(slash)mark=slash+1;
-  }
-  size_t t=0;
-  while(mark[t]&&mark[t]!='/'&&t<sizeof(c.title_id)-1){
-   unsigned char v=(unsigned char)mark[t];
-   if(v>='a'&&v<='z')c.title_id[t]=(char)(v-32);
-   else if((v>='A'&&v<='Z')||(v>='0'&&v<='9'))c.title_id[t]=(char)v;
-   else break;
-   t++;
-  }
-  if(mark[t]!='/')c.title_id[0]=0;
- }
+ gallery_title_id(path,kind,c.title_id);
  if(r->count<CMP5_REVIEW_CAP)r->entries[r->count++]=c;
 }
 static int cmp_media_largest(const void*a,const void*b){
@@ -278,7 +339,12 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
     if(next<0){s->rootPartial=1;warn(s,"Dossier inaccessible",child);}
     else walk(s,next,child,kind,depth+1);
    }else {s->rootPartial=1;warn(s,"Profondeur maximale atteinte",child);}
-  }else if(S_ISREG(st.st_mode))file(s,child,&st,kind);
+  }else if(S_ISREG(st.st_mode)){
+   if(s->summary_only&&(!strcmp(kind,"photo")||!strcmp(kind,"video"))&&
+      ext(e->d_name,".dat"))
+    read_gallery_sidecar(s,anchored_fd,e->d_name,child,kind,&st);
+   file(s,child,&st,kind);
+  }
   if(s->stopped||s->b.fail||s->rootPartial)break;
  }
  closedir(d);
@@ -406,6 +472,16 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
  }
  if(review){
   review->partial=(s->stopped||s->partial||review->media_scanned>review->count)?1u:0u;
+  for(unsigned i=0;i<review->count;i++){
+   Cmp5MediaCandidate*item=&review->entries[i];
+   for(unsigned j=0;j<s->gallery_title_count;j++){
+    if(!strcmp(item->title_id,s->gallery_titles[j].title_id)){
+     memcpy(item->game_name,s->gallery_titles[j].game_name,
+       strlen(s->gallery_titles[j].game_name)+1);
+     break;
+    }
+   }
+  }
   qsort(review->entries,review->count,sizeof(review->entries[0]),cmp_media_largest);
  }
  free(s);
