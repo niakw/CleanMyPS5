@@ -19,6 +19,7 @@ typedef struct {
  int64_t modified_at;
  uint32_t media_type; /* 1=image, 2=video */
  char title_id[24];
+ char game_name[56]; /* sanitized optional title from a captured .dat sidecar */
  char label[48];
  /* Internal-only local snapshot locator, never serialized in reports or UI text.
   * Empty means preview unavailable. Validate inode/size/mtime after open. */
