@@ -68,6 +68,7 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  std::strcpy(review->entries[1].label,"VIDEO DEUX");
  std::strcpy(review->entries[1].title_id,"GAME456");
  std::strcpy(review->entries[1].game_name,"Example Game");
+ std::strcpy(review->entries[1].preview_path,"/user/av_contents/video/NPXS00000/GAME456/video.mp4");
  review->entries[1].bytes=10ULL*1024*1024;
  review->entries[1].media_type=2;
  return out;
@@ -104,6 +105,14 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
   Cmp5DuplicateStats*stats,Cmp5CancelCheck cancel,void*context){
  if(cancel(context))return nullptr;
  return cmp5_duplicates_with_stats(root,len,stats);
+}
+int cmp5_probe_video_snapshot(const char*,const Cmp5MediaCandidate*c,
+ Cmp5VideoMetadata*out,Cmp5CancelCheck cancelled,void*context){
+ *out=Cmp5VideoMetadata{};
+ if((cancelled&&cancelled(context))||c->media_type!=2u)return 0;
+ out->duration_ms=95200;out->width=1920;out->height=1080;
+ out->boxes_visited=6;
+ return 1;
 }
 uint8_t *cmp5_read_photo_snapshot(const char*,const Cmp5MediaCandidate*c,size_t*size){
  if(!c||!c->preview_path[0])return nullptr;
@@ -267,6 +276,20 @@ int main(){
  scene(canvas);
  press(circle);
  assert(screen==Screen::review);
+ press(down);
+ assert(review_selection==1);
+ press(square);
+ assert(screen==Screen::detail && detail_index==1);
+ press(cross);
+ assert(screen==Screen::video_info);
+ finish_scan();
+ assert(video_info_ready);
+ assert(video_info.duration_ms==95200&&video_info.width==1920&&video_info.height==1080);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::detail);
+ press(circle);
+ assert(screen==Screen::review);
  scene(canvas);
  press(circle);
  assert(screen==Screen::cleanup);
@@ -368,6 +391,9 @@ int main(){
   save(Screen::apps,"09-apps");
   photo_ready=true;
   save(Screen::photo,"10-photo");
+  video_info_ready=true;
+  video_info=Cmp5VideoMetadata{95200,1920,1080,6};
+  save(Screen::video_info,"11-video-info");
  }
  return 0;
 }
