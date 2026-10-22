@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -53,6 +54,12 @@ static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*ou
  size_t n=0;while(n<sizeof(c->preview_path)&&path[n])n++;
  if(n>=sizeof(c->preview_path)||n<=strlen(prefix)||
     memcmp(path,prefix,strlen(prefix))!=0)return -1;
+ const char *ext=strrchr(path,'.');
+ if(!ext)return -1;
+ if(c->media_type==1){
+  if(strcasecmp(ext,".jpg")&&strcasecmp(ext,".jpeg")&&
+     strcasecmp(ext,".png")&&strcasecmp(ext,".jxr"))return -1;
+ }else if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return -1;
  for(size_t i=0;i<n;i++)if(path[i]=='\\'||(i&&path[i]=='/'&&path[i-1]=='/'))return -1;
  if(path[n-1]=='/')return -1;
  char segments[sizeof(c->preview_path)];
