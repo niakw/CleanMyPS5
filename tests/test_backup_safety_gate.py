@@ -34,6 +34,12 @@ for forbidden in ("verified_backup.h", "verified_group.h", "O_WRONLY", "O_RDWR",
                   "O_CREAT", "O_TRUNC", "unlinkat(", "renameat(", "linkat(",
                   "fwrite(", "fopen(", "remove(", "rmdir("):
     assert forbidden not in companion, f"Unsafe companion planner: {forbidden}"
+# The title is allowed to COUNT arbitrarily large video metadata, but the
+# host backup planner/validator must retain the independent 512-MiB cap.
+assert "1u,UINT64_MAX" in companion, "Read-only large capture inspection disabled"
+assert "2u,MAX_TOTAL" in companion, "Host backup planner size cap relaxed"
+assert "validate_capture_group_limit(parts,count,MAX_TOTAL)" in companion, \
+    "Host group validator size cap relaxed"
 assert "cmp5_plan_capture_group(" in companion
 assert "cmp5_capture_companions.c" in builder
 assert "verified_group.c" not in builder
