@@ -53,7 +53,7 @@ int sceNetSocketClose(int){return 0;}
 
 char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*review){
  // Synthetic fixed result: the native title can work without any helper.
- const char*response=R"({"schemaVersion":1,"scope":"bounded-known-roots","cleanupValidated":false,"files":2,"visited":4,"nominalBytes":40000000,"partial":true,"categories":{"media":2,"logs":0,"cache":0,"residuals":0,"other":0},"review":{"largeMedia":0,"oldMedia":2,"oldLargeMedia":0,"largeMediaNominalBytes":0,"validatedForDeletion":false}})";
+ const char*response=R"({"schemaVersion":1,"mode":"metadata-only","scope":"bounded-known-roots","cleanupValidated":false,"files":2,"visited":4,"nominalBytes":40000000,"partial":true,"categories":{"media":2,"logs":0,"cache":0,"residuals":0,"other":0},"review":{"largeMedia":0,"oldMedia":2,"oldLargeMedia":0,"largeMediaNominalBytes":0,"validatedForDeletion":false}})";
  *len=std::strlen(response);
  char*out=(char*)std::malloc(*len+1);
  assert(out);
@@ -508,7 +508,7 @@ int main(){
  assert(summary_status==Summary::ok&&media_review.count==2);
  // A helper must not override the trusted native summary when a "files"
  // number appears only in an unrelated nested JSON object.
- const char nested_spoof[]=R"({"schemaVersion":1,"scope":"bounded-known-roots",)"
+ const char nested_spoof[]=R"({"schemaVersion":1,"mode":"metadata-only","scope":"bounded-known-roots",)"
    R"("cleanupValidated":false,"nominalBytes":40,"partial":false,)"
    R"("categories":{"media":2,"logs":0,"cache":0,"files":2},)"
    R"("review":{"largeMedia":0,"oldMedia":0,"oldLargeMedia":0,)"
