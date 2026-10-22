@@ -12,6 +12,12 @@ typedef struct {
  uint64_t bytes;
  uint8_t manifest_sha256[32];
 } Cmp5GroupReceipt;
+/* Read-only companion discovery from the exact snapshotted capture directory.
+ * Refuses symlinks, incomplete directory scans, ambiguous stems or >4 variants.
+ * Caller-provided primary is never modified. Not an approval for PS5 deletion. */
+int cmp5_plan_capture_group(const char *root,const Cmp5MediaCandidate *primary,
+ Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t *count,
+ Cmp5CancelCheck cancel,void *context);
 int cmp5_backup_group(const char *root,const Cmp5MediaCandidate *parts,
  uint32_t count,const char *private_workspace,const char *group_id,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
