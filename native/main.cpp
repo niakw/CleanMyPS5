@@ -14,6 +14,7 @@
 #include <atomic>
 #include <pthread.h>
 #include <cstdlib>
+#include <ctime>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -55,7 +56,9 @@ struct NetSockaddrIn {
 static_assert(sizeof(NetSockaddrIn)==16);
 
 using Color=ps5::demo::Color;
-constexpr std::uint32_t up=0x10,down=0x40,cross=0x4000,circle=0x2000,square=0x8000;
+constexpr std::uint32_t up=0x10,down=0x40,left=0x80,right=0x20,
+  cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
+  l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
 enum class Screen { menu, analyze, access, cleanup, review, official };
 enum class Link { unchecked, ok, offline };
@@ -151,7 +154,52 @@ unsigned summary_large=0,summary_old=0,summary_old_large=0;
 std::uint64_t summary_bytes=0,summary_large_bytes=0;
 bool summary_partial=false;
 Cmp5MediaReview media_review{};
+enum class MediaType : unsigned { all, image, video };
+enum class MediaSort : unsigned { size, recent, name };
+MediaType review_type=MediaType::all;
+MediaSort review_sort=MediaSort::size;
+bool review_older=false,review_large=false;
+char review_game[24]{};
+std::uint32_t review_order[CMP5_REVIEW_CAP]{};
+unsigned review_visible=0;
 unsigned review_selection=0;
+
+int compare_media_indices(const void*a,const void*b) noexcept {
+ const auto x=*static_cast<const std::uint32_t*>(a);
+ const auto y=*static_cast<const std::uint32_t*>(b);
+ const auto&one=media_review.entries[x];
+ const auto&two=media_review.entries[y];
+ int comparison=0;
+ if(review_sort==MediaSort::size){
+  if(one.bytes!=two.bytes)comparison=one.bytes>two.bytes?-1:1;
+ }else if(review_sort==MediaSort::recent){
+  if(one.modified_at!=two.modified_at)
+   comparison=one.modified_at>two.modified_at?-1:1;
+ }else{
+  comparison=std::strcmp(one.label,two.label);
+ }
+ if(comparison)return comparison;
+ if(one.bytes!=two.bytes)return one.bytes>two.bytes?-1:1;
+ return x<y?-1:x>y?1:0;
+}
+void rebuild_review_index() noexcept {
+ review_visible=0;
+ const auto now=std::time(nullptr);
+ const bool valid_clock=now>90*86400;
+ const auto cutoff=valid_clock?now-90*86400:0;
+ for(unsigned i=0;i<media_review.count;i++){
+  const auto&entry=media_review.entries[i];
+  if(review_type==MediaType::image&&entry.media_type!=1u)continue;
+  if(review_type==MediaType::video&&entry.media_type!=2u)continue;
+  if(review_game[0]&&std::strcmp(review_game,entry.title_id)!=0)continue;
+  if(review_large&&entry.bytes<50ULL*1024*1024)continue;
+  if(review_older&&(!valid_clock||entry.modified_at<=0||entry.modified_at>cutoff))continue;
+  review_order[review_visible++]=i;
+ }
+ std::qsort(review_order,review_visible,sizeof(review_order[0]),compare_media_indices);
+ if(review_selection>=review_visible)review_selection=review_visible?review_visible-1:0;
+}
+
 unsigned official_selection=0;
 bool official_checked[8]{}; // Session-only self-checks; no filesystem changes.
 
@@ -333,9 +381,35 @@ void poll_pad() noexcept {
   if(pressed&circle){screen=screen==Screen::review?Screen::cleanup:Screen::menu;continue;}
   if(task_busy())continue;
   if(screen==Screen::review){
-   if(media_review.count){
-    if(pressed&up)review_selection=(review_selection+media_review.count-1)%media_review.count;
-    if(pressed&down)review_selection=(review_selection+1)%media_review.count;
+   if(pressed&l1||pressed&r1){
+    const unsigned step=(pressed&r1)?1u:2u;
+    review_type=static_cast<MediaType>((static_cast<unsigned>(review_type)+step)%3u);
+    review_selection=0;
+    rebuild_review_index();
+   }
+   if(pressed&triangle){
+    review_sort=static_cast<MediaSort>((static_cast<unsigned>(review_sort)+1u)%3u);
+    review_selection=0;
+    rebuild_review_index();
+   }
+   if(pressed&l2){review_older=!review_older;review_selection=0;rebuild_review_index();}
+   if(pressed&r2){review_large=!review_large;review_selection=0;rebuild_review_index();}
+   if(pressed&cross){
+    if(review_visible){
+     const auto&entry=media_review.entries[review_order[review_selection]];
+     if(std::strcmp(review_game,entry.title_id)==0)review_game[0]=0;
+     else (void)std::snprintf(review_game,sizeof(review_game),"%s",entry.title_id);
+     review_selection=0;rebuild_review_index();
+    }else if(review_game[0]){
+     review_game[0]=0;review_selection=0;rebuild_review_index();
+    }
+   }
+   if(review_visible){
+    if(pressed&up)review_selection=(review_selection+review_visible-1)%review_visible;
+    if(pressed&down)review_selection=(review_selection+1)%review_visible;
+    if(pressed&left)review_selection=review_selection>4?review_selection-4:0;
+    if(pressed&right)review_selection=(review_selection+4<review_visible)?
+      review_selection+4:review_visible-1;
    }
    continue;
   }
@@ -346,7 +420,9 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::cleanup&&(pressed&square)){
-   if(media_review.count){review_selection=0;screen=Screen::review;}
+   if(media_review.count){
+    review_selection=0;rebuild_review_index();screen=Screen::review;
+   }
    continue;
   }
   if(screen==Screen::menu){
@@ -523,7 +599,7 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  }
  panel(canvas,799,"PROTECTION","AUCUN FICHIER DECLARE SUPPRIMABLE",Color::yellow);
  footer(canvas,media_review.count?
-  "CARRE VOIR CAPTURES  X REANALYSER  CERCLE RETOUR":
+  "CARRE CATALOGUE  X REANALYSER  CERCLE RETOUR":
   "X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
 }
 void show_review(ps5::demo::Canvas&canvas) noexcept {
@@ -532,15 +608,24 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
   return;
  }
- char title[100]{};
- (void)std::snprintf(title,sizeof(title),"%u ELEMENTS VUS  %s",
-  media_review.media_scanned,media_review.partial?"SCAN PARTIEL":"SCANS LIMITES");
- canvas.text(112,302,title,3,Color::yellow);
+ char title[150]{};
+ const char*type=review_type==MediaType::image?"IMAGES":
+   review_type==MediaType::video?"VIDEOS":"TOUS";
+ const char*sort=review_sort==MediaSort::recent?"DATE":
+   review_sort==MediaSort::name?"NOM":"TAILLE";
+ (void)std::snprintf(title,sizeof(title),"%u / %u MEDIAS  %s  TRI %s%s",
+  review_visible,media_review.media_scanned,type,sort,
+  media_review.partial?"  PARTIEL":"");
+ canvas.text(112,283,title,3,Color::yellow);
+ if(review_game[0])canvas.text(1110,283,review_game,3,Color::cyan);
+ if(!review_visible){
+  panel(canvas,501,"AUCUN RESULTAT","MODIFIER LES FILTRES",Color::yellow);
+ }
  const unsigned page=review_selection/4u;
  for(unsigned slot=0;slot<4;slot++){
   const unsigned index=page*4u+slot;
-  if(index>=media_review.count)break;
-  const auto&item=media_review.entries[index];
+  if(index>=review_visible)break;
+  const auto&item=media_review.entries[review_order[index]];
   const unsigned top=358+slot*142u;
   const bool selected_item=index==review_selection;
   canvas.rectangle(95,top,1730,116,selected_item?Color::cyan:Color::panel);
@@ -556,7 +641,9 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
     static_cast<unsigned long long>(item.bytes/1048576ULL));
   canvas.text(1320,top+36,stats,3,Color::cyan);
  }
- footer(canvas,"HAUT BAS NAVIGUER  CERCLE RETOUR  LECTURE SEULE");
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X FILTRE JEU  L2 AGE  R2 50 MIO",3,Color::white);
+ canvas.text(125,1005,"HAUT BAS SELECTION  GAUCHE DROITE PAGES  CERCLE RETOUR",3,Color::cyan);
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
