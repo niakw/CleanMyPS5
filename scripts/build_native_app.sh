@@ -20,6 +20,10 @@ test "$(git -C "$tmp/native-toolchain" rev-parse HEAD)" = "$pin" || {
   echo 'Pinned native build revision mismatch' >&2; exit 1;
 }
 
+# Upstream occasionally returns HTML/empty content for zlib.net downloads.
+# Preserve the EXACT pinned digest; fall back only to www.zlib.net.
+python3 "$project/scripts/enable_verified_zlib_mirrors.py"   "$tmp/native-toolchain/tools/setup-native-dependencies.sh"
+
 # Overlay only CleanMyPS5-authored UI. The external toolchain stays in a
 # temporary directory; its source/history/branding never enter this repo.
 cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
