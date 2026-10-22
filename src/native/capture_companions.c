@@ -32,11 +32,16 @@ static int validate_capture_group_limit(const Cmp5MediaCandidate*,uint32_t,uint6
  * suspicious or unreadable file refuses the entire plan (fail closed). */
 static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
- Cmp5CancelCheck cancel,void*context,uint32_t minimum,uint64_t max_total){
+ Cmp5CancelCheck cancel,void*context,uint32_t minimum,uint64_t max_total,
+ Cmp5CompanionFailure*failure){
  if(count)*count=0;
+ if(failure)*failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
  if(!root||!primary||!out||!count||
-    (primary->media_type!=1&&primary->media_type!=2)||
-    cancelled(cancel,context))return 0;
+    (primary->media_type!=1&&primary->media_type!=2))return 0;
+ if(cancelled(cancel,context)){
+  if(failure)*failure=CMP5_COMPANION_FAILURE_CANCELLED;
+  return 0;
+ }
  const char*path=primary->preview_path;
  const char*prefix=primary->media_type==1?
   "/user/av_contents/photo/":"/user/av_contents/video/";
@@ -73,12 +78,15 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   close(fd);if(child<0)return 0;fd=child;
  }
  struct stat selected;
- if(fstatat(fd,slash+1,&selected,AT_SYMLINK_NOFOLLOW)!=0||
-    !S_ISREG(selected.st_mode)||selected.st_nlink!=1||
+ if(fstatat(fd,slash+1,&selected,AT_SYMLINK_NOFOLLOW)!=0){
+  close(fd);return 0;
+ }
+ if(!S_ISREG(selected.st_mode)||selected.st_nlink!=1||
     selected.st_size<=0||(uint64_t)selected.st_size!=primary->bytes||
     (uint64_t)selected.st_dev!=primary->snapshot_device||
     (uint64_t)selected.st_ino!=primary->snapshot_inode||
     (selected.st_mtime>0?(int64_t)selected.st_mtime:0)!=primary->modified_at){
+  if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
   close(fd);return 0;
  }
  const int anchored_fd=fd;
@@ -93,7 +101,14 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  for(;;){
   errno=0;entry=readdir(dir);
   if(!entry){if(errno!=0)invalid=1;break;}
-  if(cancelled(cancel,context)||++visits>1024u){invalid=1;break;}
+  if(cancelled(cancel,context)){
+   if(failure)*failure=CMP5_COMPANION_FAILURE_CANCELLED;
+   invalid=1;break;
+  }
+  if(++visits>1024u){
+   if(failure)*failure=CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT;
+   invalid=1;break;
+  }
   const char*name=entry->d_name;
   if(name[0]=='.')continue;
   if(strncmp(name,stem,stem_length)!=0||name[stem_length]!='.')continue;
@@ -105,15 +120,24 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
       !strcasecmp(ext,".jpeg")||!strcasecmp(ext,".png")))type=1;
   else if(primary->media_type==2&&
      (!strcasecmp(ext,".mp4")||!strcasecmp(ext,".webm")))type=2;
-  else {invalid=1;break;} /* Unknown matching sidecar: cannot claim complete. */
+  else {
+   if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   invalid=1;break;
+  } /* Unknown matching sidecar: cannot claim complete. */
   struct stat st;
   if(fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW)!=0||
      !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||
      (type==3&&st.st_size>65536)||
      gathered>=CMP5_GROUP_MAX||
-     (uint64_t)st.st_size>max_total-total){invalid=1;break;}
+     (uint64_t)st.st_size>max_total-total){
+   if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   invalid=1;break;
+  }
   size_t filename_length=strlen(name);
-  if(parent_len+filename_length>=sizeof(out[0].preview_path)){invalid=1;break;}
+  if(parent_len+filename_length>=sizeof(out[0].preview_path)){
+   if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   invalid=1;break;
+  }
   Cmp5MediaCandidate*item=&out[gathered];
   memset(item,0,sizeof(*item));
   memcpy(item->preview_path,path,parent_len+1u);
@@ -131,15 +155,27 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  /* Detect changes within a single enumeration, not only source/backup time. */
  struct stat parent_after,check;
  if(fstat(anchored_fd,&parent_after)!=0||
-    !same_file(&parent_before,&parent_after))invalid=1;
+    !same_file(&parent_before,&parent_after)){
+  if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
+  invalid=1;
+ }
  for(uint32_t i=0;!invalid&&i<gathered;i++){
   const char*leaf=strrchr(out[i].preview_path,'/');
   if(!leaf||fstatat(anchored_fd,leaf+1,&check,AT_SYMLINK_NOFOLLOW)!=0||
-     !same_file(&scanned[i],&check)||check.st_nlink!=1)invalid=1;
+     !same_file(&scanned[i],&check)||check.st_nlink!=1){
+   if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
+   invalid=1;
+  }
  }
  closedir(dir);
  if(invalid||!found_primary||gathered<minimum||
-    (gathered>1u&&!validate_capture_group_limit(out,gathered,max_total)))return 0;
+    (gathered>1u&&!validate_capture_group_limit(out,gathered,max_total))){
+  if(failure&&!*failure)*failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
+  if(failure&&*failure==CMP5_COMPANION_FAILURE_UNAVAILABLE&&
+     (!found_primary||gathered>1u))
+   *failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+  return 0;
+ }
  /* A stable order is mandatory for group IDs and restore audit. */
  for(unsigned i=1;i<gathered;i++){
   Cmp5MediaCandidate tmp=out[i];unsigned j=i;
@@ -155,7 +191,8 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
 int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
  Cmp5CancelCheck cancel,void*context){
- const int ok=scan_capture_group(root,primary,out,count,cancel,context,2u,MAX_TOTAL);
+ const int ok=scan_capture_group(root,primary,out,count,cancel,context,
+   2u,MAX_TOTAL,NULL);
  if(!ok&&out){
   /* Enumeration may have copied private locators into output before a
    * late race, symlink or ambiguous companion invalidated the group. */
@@ -174,8 +211,9 @@ int cmp5_inspect_capture_companions(const char*root,
  uint32_t count=0;
  /* Pure metadata: 64-bit addition is checked, and no file body is read.
   * Large video recordings must not inherit the 512-MiB backup limit. */
+ Cmp5CompanionFailure failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
  const int found=scan_capture_group(root,primary,parts,&count,cancel,context,
-    1u,UINT64_MAX);
+    1u,UINT64_MAX,&failure);
  Cmp5CompanionReport result={0};
  if(found&&!cancelled(cancel,context)&&count>=1u&&count<=CMP5_GROUP_MAX){
   result.files=count;
@@ -186,6 +224,9 @@ int cmp5_inspect_capture_companions(const char*root,
    result.nominal_bytes+=parts[i].bytes; /* scanner enforces no uint64 overflow */
   }
   *report=result;
+ }else{
+  report->failure=cancelled(cancel,context)?
+    CMP5_COMPANION_FAILURE_CANCELLED:failure;
  }
  /* No private paths persist in the returned report or native UI. */
  memset(parts,0,sizeof(parts));
