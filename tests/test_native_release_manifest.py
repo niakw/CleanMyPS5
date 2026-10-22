@@ -63,4 +63,24 @@ with tempfile.TemporaryDirectory() as root:
         except ValueError:
             pass
 
+    # Optional native UFS2 homebrew installation package is checked separately.
+    package(folder)
+    pkg=folder/f"{title}.ffpkg"
+    with pkg.open("wb") as stream:
+        stream.seek(0x1055C)
+        stream.write(bytes.fromhex("19015419"))
+    module.write(folder,title,pin)
+    module.check(folder,title,pin)
+    with (folder/"manifest.json").open() as stream:
+        assert len(json.load(stream)["files"])==3
+    with pkg.open("r+b") as stream:
+        stream.seek(0x1055C)
+        stream.write(b"BAD!")
+    try:
+        module.check(folder,title,pin)
+        raise AssertionError("Corrupted UFS2 package was accepted")
+    except ValueError:
+        pass
+    pkg.unlink()
+
 print("Native release integrity and zip path validation: PASS")
