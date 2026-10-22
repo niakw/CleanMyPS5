@@ -1048,7 +1048,7 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
    marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
    marked_for_review[detail_index]?Color::cyan:Color::yellow);
  footer(canvas,item.media_type==2u?
-  "X INFORMATIONS MP4  TRIANGLE MARQUER  CERCLE RETOUR":
+  "X INFOS MP4/WEBM  TRIANGLE MARQUER  CERCLE RETOUR":
   "X PREVISUALISER PHOTO  TRIANGLE MARQUER  CERCLE RETOUR");
 }
 void show_photo(ps5::demo::Canvas&canvas) noexcept {
@@ -1083,15 +1083,15 @@ void show_photo(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_video_info(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
-  panel(canvas,361,"VIDEO","LECTURE DES METADONNEES MP4",Color::cyan);
+  panel(canvas,361,"VIDEO","LECTURE DES METADONNEES MP4/WEBM",Color::cyan);
   footer(canvas,"CERCLE ANNULER  AUCUN DECODAGE VIDEO");
   return;
  }
  if(task_cancelled()||task_failed()||!video_info_ready){
   panel(canvas,361,"VIDEO NON ANALYSABLE",
-   "MP4 ABSENT, MODIFIE, PROTEGE OU FORMAT NON PRIS EN CHARGE",
+   "MP4/WEBM INACCESSIBLE, MODIFIE OU NON COMPATIBLE",
    Color::yellow);
-  panel(canvas,510,"WEBM / HDR / LECTURE VIDEO","NON ENCORE PRIS EN CHARGE");
+  panel(canvas,510,"LECTURE VIDEO / HDR","NON ENCORE PRIS EN CHARGE");
   footer(canvas,"CERCLE RETOUR  AUCUNE MODIFICATION");
   return;
  }
@@ -1104,7 +1104,7 @@ void show_video_info(ps5::demo::Canvas&canvas) noexcept {
    video_info.width,video_info.height);
  panel(canvas,355,"DUREE MP4",length,Color::cyan);
  panel(canvas,503,"RESOLUTION",geometry,Color::cyan);
- panel(canvas,651,"DIAGNOSTIC","INDEX MP4 EN LECTURE SEULE");
+ panel(canvas,651,"DIAGNOSTIC","INDEX MP4/WEBM EN LECTURE SEULE");
  panel(canvas,799,"LECTURE VIDEO","NON DISPONIBLE POUR LE MOMENT",Color::yellow);
  footer(canvas,"CERCLE RETOUR  AUCUN DECODAGE  AUCUNE ECRITURE");
 }
