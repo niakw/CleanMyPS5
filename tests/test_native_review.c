@@ -53,6 +53,7 @@ int main(int argc,char**argv){
   const Cmp5MediaCandidate*c=&review.entries[i];
   assert(c->bytes==sizes[i]);
   assert(strcmp(c->title_id,"GAME123")==0);
+  assert(strcmp(c->game_name,"Astro's Playroom")==0);
   assert(!strchr(c->label,'/'));
   assert(!strchr(c->label,'\\'));
   for(const unsigned char*p=(const unsigned char*)c->label;*p;p++)
