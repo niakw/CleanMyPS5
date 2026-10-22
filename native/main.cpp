@@ -56,11 +56,11 @@ struct NetSockaddrIn {
 static_assert(sizeof(NetSockaddrIn)==16);
 
 using Color=ps5::demo::Color;
-constexpr std::uint32_t up=0x10,down=0x40,left=0x80,right=0x20,
+constexpr std::uint32_t options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, cleanup, review, detail, official };
+enum class Screen { menu, analyze, access, cleanup, review, search, detail, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -160,6 +160,11 @@ MediaType review_type=MediaType::all;
 MediaSort review_sort=MediaSort::size;
 bool review_older=false,review_large=false;
 char review_game[24]{};
+char review_query[21]{}; // Session-only uppercase ASCII. No console OS keyboard.
+unsigned keyboard_position=0;
+constexpr unsigned keyboard_columns=6;
+constexpr unsigned keyboard_rows=6;
+constexpr char keyboard_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 std::uint32_t review_order[CMP5_REVIEW_CAP]{};
 unsigned review_visible=0;
 unsigned review_selection=0;
@@ -193,6 +198,9 @@ void rebuild_review_index() noexcept {
   if(review_type==MediaType::image&&entry.media_type!=1u)continue;
   if(review_type==MediaType::video&&entry.media_type!=2u)continue;
   if(review_game[0]&&std::strcmp(review_game,entry.title_id)!=0)continue;
+  if(review_query[0]&&
+     !std::strstr(entry.label,review_query)&&
+     !std::strstr(entry.title_id,review_query))continue;
   if(review_large&&entry.bytes<50ULL*1024*1024)continue;
   if(review_older&&(!valid_clock||entry.modified_at<=0||entry.modified_at>cutoff))continue;
   review_order[review_visible++]=i;
@@ -380,13 +388,39 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
-   screen=screen==Screen::detail?Screen::review:
+   screen=(screen==Screen::detail||screen==Screen::search)?Screen::review:
      screen==Screen::review?Screen::cleanup:Screen::menu;
    continue;
   }
   if(task_busy())continue;
+  if(screen==Screen::search){
+   if(pressed&left)keyboard_position=(keyboard_position+35u)%36u;
+   if(pressed&right)keyboard_position=(keyboard_position+1u)%36u;
+   if(pressed&up)keyboard_position=(keyboard_position+30u)%36u;
+   if(pressed&down)keyboard_position=(keyboard_position+6u)%36u;
+   if(pressed&cross){
+    const std::size_t length=std::strlen(review_query);
+    if(length<sizeof(review_query)-1u){
+     review_query[length]=keyboard_chars[keyboard_position];
+     review_query[length+1u]=0;
+     review_selection=0;
+     rebuild_review_index();
+    }
+   }
+   if(pressed&triangle){
+    const std::size_t length=std::strlen(review_query);
+    if(length){review_query[length-1u]=0;review_selection=0;rebuild_review_index();}
+   }
+   if(pressed&square){
+    if(review_query[0]){
+     review_query[0]=0;review_selection=0;rebuild_review_index();
+    }
+   }
+   continue;
+  }
   if(screen==Screen::detail)continue;
   if(screen==Screen::review){
+   if(pressed&options){screen=Screen::search;continue;}
    if(pressed&square&&review_visible){
     detail_index=review_order[review_selection];
     screen=Screen::detail;
@@ -653,8 +687,27 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(1320,top+36,stats,3,Color::cyan);
  }
  canvas.rectangle(95,950,1730,96,Color::panel);
- canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X FILTRE JEU  L2 AGE  R2 50 MIO",3,Color::white);
- canvas.text(125,1005,"HAUT BAS  GAUCHE DROITE PAGES  CARRE DETAILS  CERCLE RETOUR",3,Color::cyan);
+ canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X JEU  L2 AGE  R2 50 MIO",3,Color::white);
+ canvas.text(125,1005,"OPTIONS RECHERCHE  CARRE DETAILS  HAUT BAS  CERCLE",3,Color::cyan);
+}
+void show_search(ps5::demo::Canvas&canvas) noexcept {
+ char query[95]{};
+ (void)std::snprintf(query,sizeof(query),"%s%s",
+   review_query[0]?review_query:"RECHERCHER NOM OU JEU",review_query[0]?" _":"");
+ panel(canvas,312,"RECHERCHE LOCALE",query,Color::cyan);
+ char counter[95]{};
+ (void)std::snprintf(counter,sizeof(counter),"%u RESULTATS DANS LE CATALOGUE",
+   review_visible);
+ canvas.text(125,445,counter,4,Color::yellow);
+ for(unsigned i=0;i<36u;i++){
+  const unsigned row=i/keyboard_columns,col=i%keyboard_columns;
+  const unsigned x=170+col*260u,y=515+row*66u;
+  const bool focused=i==keyboard_position;
+  canvas.rectangle(x,y,205,54,focused?Color::cyan:Color::panel);
+  char glyph[2]{keyboard_chars[i],0};
+  canvas.text(x+78,y+7,glyph,5,focused?Color::background:Color::white);
+ }
+ footer(canvas,"X AJOUTER  TRIANGLE EFFACER  CARRE VIDER  CERCLE RETOUR");
 }
 void show_detail(ps5::demo::Canvas&canvas) noexcept {
  if(detail_index>=media_review.count){
@@ -715,6 +768,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::access?"PERMISSIONS DU TITRE":
    screen==Screen::cleanup?"NETTOYAGE PROTEGE":
    screen==Screen::review?"CATALOGUE DES CAPTURES":
+   screen==Screen::search?"RECHERCHE DES CAPTURES":
    screen==Screen::detail?"DETAIL DE LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
@@ -723,6 +777,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::access:show_access(canvas);break;
   case Screen::cleanup:show_cleanup(canvas);break;
   case Screen::review:show_review(canvas);break;
+  case Screen::search:show_search(canvas);break;
   case Screen::detail:show_detail(canvas);break;
   case Screen::official:show_official(canvas);break;
  }
