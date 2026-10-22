@@ -27,7 +27,8 @@ with tempfile.TemporaryDirectory() as scratch:
         subprocess.run([
           "cc","-std=c11","-O1","-Wall","-Wextra","-Wpedantic","-Werror",
           "-Isrc/native","tests/test_verified_group.c",
-          "src/native/verified_group.c","src/native/verified_backup.c",
+          "src/native/verified_group.c","src/native/capture_companions.c",
+          "src/native/verified_backup.c",
           "src/native/sha256.c","-o",str(binary)
         ],cwd=repo,check=True,timeout=40)
     args=[str(binary),str(root),*(str(gallery/name) for name in contents),
