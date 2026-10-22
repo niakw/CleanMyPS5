@@ -246,6 +246,11 @@ int main(int argc,char**argv){
  Cmp5RecoveryPairReport pair={0};
  assert(!cmp5_inspect_backup_restore_pair(private,"ALBUM",private,
    "ALBUM",&pair)); /* Same actual directory cannot be a restore. */
+ char alias_workspace[512];
+ const int alias_length=snprintf(alias_workspace,sizeof(alias_workspace),"%s/.",private);
+ assert(alias_length>0&&(size_t)alias_length<sizeof(alias_workspace));
+ assert(!cmp5_inspect_backup_restore_pair(private,"ALBUM",alias_workspace,
+   "ALBUM",&pair)); /* Different spelling, identical directory inode. */
  assert(!cmp5_inspect_backup_restore_pair(private,"BAD/ID",restored,
    "ALBUM",&pair));
  assert(cmp5_inspect_backup_restore_pair(private,"ALBUM",restored,
