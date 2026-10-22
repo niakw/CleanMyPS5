@@ -2,6 +2,9 @@
 #define CMP5_INVENTORY_H
 #include <stddef.h>
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define CMP5_REVIEW_CAP 12u
 /* Fixed, read-only metadata shortlist. Labels are ASCII display strings, not
  * paths or filesystem handles. No candidate is authorized for deletion. */
@@ -24,4 +27,7 @@ char *cmp5_report(const char *root, size_t *len);
 char *cmp5_overview(const char *root, size_t *len);
 /* Same bounded scan, optionally returns the 12 largest media labels. */
 char *cmp5_overview_with_review(const char *root, size_t *len, Cmp5MediaReview *review);
+#ifdef __cplusplus
+}
+#endif
 #endif
