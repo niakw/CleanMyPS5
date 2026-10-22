@@ -84,6 +84,15 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_group(root,media,3,private,"BAD/ID",&b,NULL,NULL));
  assert(!cmp5_backup_group(root,media,1,private,"SINGLE",&b,NULL,NULL));
  Cmp5MediaCandidate invalid=media[0];
+ /* Reject snapshots whose claimed media type does not match their suffix. */
+ invalid.media_type=2;
+ assert(!cmp5_plan_capture_group(root,&invalid,found,&found_count,NULL,NULL));
+ assert(found_count==0);
+ invalid=media[2];
+ invalid.media_type=1;
+ assert(!cmp5_plan_capture_group(root,&invalid,found,&found_count,NULL,NULL));
+ assert(found_count==0);
+ invalid=media[0];
  invalid.snapshot_inode++;
  assert(!cmp5_plan_capture_group(root,&invalid,found,&found_count,NULL,NULL));
  assert(found_count==0);
