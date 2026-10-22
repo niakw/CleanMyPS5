@@ -27,6 +27,9 @@ static int race_open(const char *path,int flags,...){
 #include "../src/native/duplicates.c"
 #undef open
 
+static int cancel_now(void*context){
+ (void)context;return 1;
+}
 int main(int argc,char **argv){
  if(argc!=4)return 2;
  test_root=argv[1];test_backup=argv[2];test_replacement=argv[3];
@@ -40,5 +43,17 @@ int main(int argc,char **argv){
  }
  if(!swapped||root_opens!=1){free(json);return 5;}
  int success=fwrite(json,1,length,stdout)==length;
- free(json);return success?0:6;
+ free(json);
+ if(!success)return 6;
+ // New cancellable API must preserve the anchored-root invariant while
+ // refusing to present an interrupted comparison as complete.
+ Cmp5DuplicateStats interrupted={0};
+ size_t interrupted_size=0;
+ char*partial=cmp5_duplicates_with_stats_cancel(test_backup,&interrupted_size,
+   &interrupted,cancel_now,NULL);
+ if(!partial)return 8;
+ int valid=interrupted.partial==1u&&interrupted.exact_groups==0u&&
+   strstr(partial,"\"partial\":true")!=NULL;
+ free(partial);
+ return valid?0:9;
 }
