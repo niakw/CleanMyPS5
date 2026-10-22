@@ -1038,7 +1038,14 @@ void show_photo(ps5::demo::Canvas&canvas) noexcept {
  const unsigned dest_y=615u-draw_h/2u;
  canvas.blit(dest_x,dest_y,draw_w,draw_h,
    decoded_photo.pixels,src_w,src_h);
- footer(canvas,"L1 R1 PHOTO  L2 R2 ZOOM  CERCLE RETOUR  LECTURE SEULE");
+ const char*origin=detail_index<media_review.count?
+   std::strrchr(media_review.entries[detail_index].preview_path,'.'):nullptr;
+ const bool hdr_twin=origin&&(origin[1]=='j'||origin[1]=='J')&&
+   (origin[2]=='x'||origin[2]=='X')&&(origin[3]=='r'||origin[3]=='R')&&
+   origin[4]==0;
+ footer(canvas,hdr_twin?
+  "JXR: VERSION SDR JPG ASSOCIEE  L1 R1 PHOTO  CERCLE RETOUR":
+  "L1 R1 PHOTO  L2 R2 ZOOM  CERCLE RETOUR  LECTURE SEULE");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
