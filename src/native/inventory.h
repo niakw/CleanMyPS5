@@ -11,7 +11,7 @@ extern "C" {
 typedef int (*Cmp5CancelCheck)(void *context);
 #endif
 #define CMP5_REVIEW_CAP 10000u
-/* Bounded native media catalog (up to 10,000 scanned media, approx. 1 MiB).
+/* Bounded native media catalog (up to 10,000 scanned media, approx. 4 MiB).
  * Display labels are ASCII, not paths or filesystem handles. No element is
  * validated for deletion; this is read-only and never scans beyond limits. */
 typedef struct {
