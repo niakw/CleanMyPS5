@@ -14,6 +14,23 @@ static int stop_during_copy(void*context){
  unsigned *calls=(unsigned*)context;
  return ++(*calls)>10u;
 }
+/* Called once before opening the selected gallery file, and again after
+ * its initial fstat but before reading directory entries. Rewrite in place
+ * on the second callback to exercise the metadata TOCTOU guard. */
+typedef struct {const char*path;unsigned calls;int rewritten;} PrimaryMutation;
+static int rewrite_primary_during_scan(void*context){
+ PrimaryMutation*state=(PrimaryMutation*)context;
+ if(++state->calls==1u){
+  usleep(10000); /* Different nanosecond timestamps on host filesystems. */
+ }else if(state->calls==2u){
+  FILE*f=fopen(state->path,"r+b");
+  if(!f)return 1;
+  const int written=fputc('Z',f);
+  state->rewritten=(written=='Z'&&fclose(f)==0);
+  if(!state->rewritten)return 1;
+ }
+ return 0;
+}
 typedef struct {char late[512];unsigned calls;int created;} ScanMutation;
 static int add_unrelated_during_scan(void*context){
  ScanMutation*state=(ScanMutation*)context;
@@ -197,6 +214,32 @@ int main(int argc,char**argv){
  assert(observed.state==CMP5_COMPANIONS_SINGLE);
  assert(observed.files==1u&&observed.media==1u&&observed.sidecars==0u);
  assert(observed.nominal_bytes==lone.bytes);
+ /* Hidden same-stem companion files must not be silently skipped, even
+  * though unrelated dotfiles remain ignored. */
+ char hidden_sidecar[512];
+ const int hidden_length=snprintf(hidden_sidecar,sizeof(hidden_sidecar),
+   "%.*s/.SOLO.dat",(int)(slash-jxr),jxr);
+ assert(hidden_length>0&&(size_t)hidden_length<sizeof(hidden_sidecar));
+ FILE*hidden=fopen(hidden_sidecar,"wb");assert(hidden);
+ assert(fputs("INCOMPLETE_SIDECAR",hidden)>=0&&fclose(hidden)==0);
+ assert(!cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&
+        observed.failure==CMP5_COMPANION_FAILURE_AMBIGUOUS);
+ assert(unlink(hidden_sidecar)==0);
+ assert(cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_SINGLE);
+ /* In-place rewrite after initial fstat, before enumeration: reject a
+  * same-inode/same-size primary whose nanosecond ctime/mtime changes. */
+ PrimaryMutation rewritten={single_path,0u,0};
+ assert(!cmp5_inspect_capture_companions(root,&lone,&observed,
+        rewrite_primary_during_scan,&rewritten));
+ assert(rewritten.rewritten&&rewritten.calls>=2u);
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&
+        observed.failure==CMP5_COMPANION_FAILURE_CHANGED);
+ snapshot(&lone,single_path,
+   "/user/av_contents/photo/NPXS00000/GAME123/SOLO.jpg",1u);
+ assert(cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_SINGLE);
  Cmp5MediaCandidate invalid_lone=lone;
  invalid_lone.snapshot_inode++;
  assert(!cmp5_inspect_capture_companions(root,&invalid_lone,&observed,NULL,NULL));
