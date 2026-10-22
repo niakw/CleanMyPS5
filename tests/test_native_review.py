@@ -23,6 +23,12 @@ with tempfile.TemporaryDirectory() as scratch:
         with file.open("wb") as stream:
             stream.truncate(length)
         os.utime(file,(1600000000,1600000000))
+    # PS5 13.60 capture .dat stores the game name starting at offset 0x44.
+    (photos/"capture_meta.dat").write_bytes(
+        b"\x00"*0x44+b"Astro's Playroom_20261022105000\x00"
+    )
+    # Never follow a local metadata symlink, even to a plausible file.
+    (videos/"alias.dat").symlink_to(photos/"capture_meta.dat")
     (photos/"duplicate.jpg").hardlink_to(photos/"other.jpg")
     try:
         (photos/"injected.png").symlink_to("/data/secrets")
