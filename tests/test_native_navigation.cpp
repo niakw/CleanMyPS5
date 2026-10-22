@@ -268,11 +268,14 @@ int main(){
  assert(marked_count==0);
  press(triangle);
  assert(marked_count==1);
+ assert(marked_images==1&&marked_videos==0);
+ assert(marked_nominal_bytes==30ULL*1024*1024);
  assert(marked_for_review[detail_index]);
  press(triangle);
- assert(marked_count==0);
+ assert(marked_count==0&&marked_nominal_bytes==0);
+ assert(marked_images==0&&marked_videos==0);
  press(triangle);
- assert(marked_count==1);
+ assert(marked_count==1&&marked_nominal_bytes==30ULL*1024*1024);
  scene(canvas);
  press(circle);
  assert(screen==Screen::review);
@@ -294,6 +297,8 @@ int main(){
  press(circle);
  assert(screen==Screen::cleanup);
  assert(marked_count==1);
+ assert(marked_nominal_bytes==30ULL*1024*1024);
+ assert(marked_images==1&&marked_videos==0);
  press(triangle);
  finish_scan();
  assert(duplicates_checked && duplicate_stats.exact_groups==1);
@@ -303,6 +308,7 @@ int main(){
  press(cross); // A fresh scan invalidates selected entries and duplicate snapshot.
  finish_scan();
  assert(marked_count==0 && !marked_for_review[0] && !marked_for_review[1]);
+ assert(marked_nominal_bytes==0&&marked_images==0&&marked_videos==0);
  assert(!duplicates_checked && duplicate_stats.exact_groups==0);
  press(circle);
  assert(screen==Screen::menu);
