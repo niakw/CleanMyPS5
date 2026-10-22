@@ -109,7 +109,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   a->visited++;
   if(over(a)){a->partial=1;break;}
   struct stat st;
-  if(fstatat(dirfd(d),e->d_name,&st,AT_SYMLINK_NOFOLLOW)){a->partial=1;continue;}
+  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){a->partial=1;continue;}
   if(S_ISLNK(st.st_mode)||(!S_ISREG(st.st_mode)&&!S_ISDIR(st.st_mode)))continue;
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
@@ -122,7 +122,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   uint64_t bytes=0;size_t files=0;int partial=0;
   if(S_ISREG(st.st_mode)){if(st.st_size>=0)bytes=(uint64_t)st.st_size;files=1;}
   else{
-   int child=openat(dirfd(d),e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+   int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0)partial=1;
    else count_tree(a,child,0,&bytes,&files,&partial);
   }
