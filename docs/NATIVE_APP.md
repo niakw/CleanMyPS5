@@ -38,7 +38,7 @@ Le développement ciblé est le firmware **13.60**, pour lequel l'archive doit e
 | Interface VideoOut et navigation DualSense | Implémentées | À faire |
 | Prédiagnostic via helper local `/api/preflight` | Implémenté ; sondes de chemins natifs distinctes en lecture seule | À faire |
 | Signalement d'accès refusé / absence / accès apparent | Implémenté côté moteur | À faire |
-| Analyse des captures / caches dans le frontend natif | Scanner natif borné, résumé par catégorie et catalogue paginé jusqu'à 10 000 médias visibles (scanner borné, couverture partielle possible) ; aperçu de contenu et parcours exhaustif hors limites toujours absents | À faire |
+| Analyse des captures / caches dans le frontend natif | Scanner natif borné, résumé par catégorie et catalogue paginé jusqu'à 10 000 médias visibles (scanner borné, couverture partielle possible) ; aperçus locaux JPG/PNG, voire JPG compagnon d'un JXR, accessibles sur les fichiers autorisés ; décodage vidéo et exhaustivité au-delà des limites absents | À faire |
 | Galerie, aperçu, doublons et filtres avancés dans le frontend natif | Catalogue natif avec navigation paginée, filtres média, jeu, 90 jours, 50 Mio et tri taille/date/nom ; recherche embarquée en ASCII et regroupement par Title ID disponibles ; aperçu des contenus, noms originaux intégraux et doublons non portés | À faire |
 | Élévation native avec réponse vérifiée | Non intégrée | — |
 | Suppression de captures par API cohérente avec la galerie | Non ; seule la pré-analyse agrégée des captures anciennes/volumineuses existe dans l'interface native | — |
