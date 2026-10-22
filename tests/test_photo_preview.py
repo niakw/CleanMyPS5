@@ -28,7 +28,35 @@ with tempfile.TemporaryDirectory() as td:
         subprocess.run([str(binary),str(folder),str(path),
             f"/user/av_contents/photo/NPXS00000/GAME123/sample.{ext}"],
             cwd=root,check=True,timeout=15)
-    # Links in the original photo namespace must not escape via openat.
+    # JPEG XR files may have a separate SDR JPEG twin, confirmed by public
+    # PS5 13.60 gallery implementation. No JXR decoding or file writes occur.
+    companion=folder/"test_jxr_companion"
+    subprocess.run([
+        "cc","-std=c11","-O1","-Wall","-Wextra","-Wpedantic",
+        "-Isrc/native","tests/test_jxr_companion.c",
+        "src/native/media_preview.c","-o",str(companion)
+    ],cwd=root,check=True,timeout=60)
+    original=native/"hdr_frame.jxr"
+    original.write_bytes(bytes(range(128)))  # Deliberately not JPEG data
+    twin=native/"hdr_frame.jpg"
+    source.save(twin,format="JPEG")
+    jxr_rel="/user/av_contents/photo/NPXS00000/GAME123/hdr_frame.jxr"
+    def verify(path: str,expected: str) -> None:
+        subprocess.run([str(companion),str(folder),str(original),path,expected],
+                       cwd=root,check=True,timeout=15)
+    verify(jxr_rel,"valid")
+    twin.unlink()
+    verify(jxr_rel,"invalid")
+    outside=folder/"not_a_gallery_capture.jpg"
+    source.save(outside,format="JPEG")
+    twin.symlink_to(outside)
+    verify(jxr_rel,"invalid")
+    twin.unlink()
+    source.save(twin,format="JPEG")
+    verify("/user/av_contents/photo//NPXS00000/GAME123/hdr_frame.jxr","invalid")
+    verify("/user/av_contents/photo/../../data/private.jxr","invalid")
+    # A changed original (new snapshot on the console) cannot be trusted.
+    # We test the reader's rejection of noncanonical traversal and companions.
     link=native/"linked.png"
-    link.symlink_to(folder/"data/private.png")
-print("JPEG/PNG native preview decoder and sandbox snapshot fixtures: PASS")
+    link.symlink_to(outside)
+print("JPEG/PNG and JXR-with-SDR-twin secure preview fixtures: PASS")
