@@ -3,6 +3,7 @@
 // Advanced diagnostics require the separately privileged, read-only helper.
 #include "demo_renderer.hpp"
 #include "loopback_protocol.hpp"
+#include "overview_protocol.hpp"
 #include "inventory.h"
 #include "duplicates.h"
 #include "homebrew.h"
@@ -407,31 +408,22 @@ bool get_preflight() noexcept {
  return true;
 }
 bool accept_overview(const char*json,ScanSource source) noexcept {
- if(!json||!std::strstr(json,"\"scope\":\"bounded-known-roots\"")||
-    !std::strstr(json,"\"cleanupValidated\":false")||
-    !std::strstr(json,"\"validatedForDeletion\":false"))return false;
- unsigned files=0,media=0,cache=0,logs=0,large=0,old=0,oldLarge=0;
- std::uint64_t bytes=0,largeBytes=0;
- if(!scan_field(json,"\"files\":",&files)||
-    !scan_u64(json,"\"nominalBytes\":",&bytes)||
-    !scan_field(json,"\"media\":",&media)||
-    !scan_field(json,"\"cache\":",&cache)||
-    !scan_field(json,"\"logs\":",&logs)||
-    !scan_field(json,"\"largeMedia\":",&large)||
-    !scan_field(json,"\"oldMedia\":",&old)||
-    !scan_field(json,"\"oldLargeMedia\":",&oldLarge)||
-    !scan_u64(json,"\"largeMediaNominalBytes\":",&largeBytes)||
-    large>media||old>media||oldLarge>large||oldLarge>old)return false;
- summary_files=files;
- summary_media=media;
- summary_cache=cache;
- summary_logs=logs;
- summary_bytes=bytes;
- summary_large=large;
- summary_old=old;
- summary_old_large=oldLarge;
- summary_large_bytes=largeBytes;
- summary_partial=std::strstr(json,"\"partial\":true")!=nullptr;
+ if(!json)return false;
+ cmp5_native::Overview parsed{};
+ // Reject malformed or duplicated JSON keys instead of matching a fragment
+ // that could occur within an unrelated nested object or quoted value.
+ if(!cmp5_native::parse_overview(json,std::strlen(json),&parsed))return false;
+ // Publish all fields only after one coherent, validated snapshot.
+ summary_files=parsed.files;
+ summary_media=parsed.media;
+ summary_cache=parsed.cache;
+ summary_logs=parsed.logs;
+ summary_bytes=parsed.bytes;
+ summary_large=parsed.large;
+ summary_old=parsed.old;
+ summary_old_large=parsed.old_large;
+ summary_large_bytes=parsed.large_bytes;
+ summary_partial=parsed.partial;
  summary_status=Summary::ok;
  scan_source=source;
  return true;
