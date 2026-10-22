@@ -418,8 +418,12 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   (void)std::snprintf(result,sizeof(result),"ACCESSIBLES %u  REFUSES %u  ABSENTS %u",
                        available,denied,absent);
   panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
+ }else if(summary_status==Summary::ok){
+  panel(canvas,366,"SCAN NATIF DU TITRE",
+    summary_partial?"COUVERTURE LIMITEE AUX DROITS":"ANALYSE LOCALE DISPONIBLE",
+    summary_partial?Color::yellow:Color::cyan);
  }else{
-  panel(canvas,366,"MOTEUR NON DISPONIBLE","ABSENT OU VERSION INCOMPATIBLE",Color::yellow);
+  panel(canvas,366,"ANALYSE NON DISPONIBLE","DROITS OU MOTEUR LIMITES",Color::yellow);
  }
  char local_result[96]{};
  unsigned listable=0,sampled=0;
@@ -447,7 +451,7 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,813,"CATEGORIES VUES",detail);
  }else{
   panel(canvas,664,"BILAN DU STOCKAGE",
-    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"ANALYSE INDISPONIBLE",
+    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"COUVERTURE INDISPONIBLE",
     Color::yellow);
   panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
  }
