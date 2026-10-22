@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory() as tmp:
     module.patch(path)
     s=path.read_text()
     assert "https://www.zlib.net/fossils/zlib-$zlib_version.tar.gz" in s
+    assert "https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz" in s
     assert 'wget -q --tries=2 --timeout=25 "$url"' in s
     assert 'sha256sum --check --strict >/dev/null 2>&1' in s
     assert s.index('sha256sum --check --strict >/dev/null 2>&1') < s.index('mv "$zlib_archive.download"')
