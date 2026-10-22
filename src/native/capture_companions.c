@@ -189,34 +189,71 @@ int cmp5_inspect_capture_companions(const char*root,
  return result.state!=CMP5_COMPANIONS_UNVERIFIABLE;
 }
 
+/* Validate each standalone candidate BEFORE using string searches. A snapshot
+ * has a fixed-size char array that may be corrupt and lack its final NUL.
+ * strrchr/strcmp on such an array before checking termination can read beyond
+ * the object (including through the host-only backup entrypoint). */
+static int valid_group_component(const Cmp5MediaCandidate*c,
+ const char**extension,size_t*stem_offset){
+ if(!c||!extension||!stem_offset)return 0;
+ const char*path=c->preview_path;
+ size_t length=0;
+ while(length<sizeof(c->preview_path)&&path[length])length++;
+ if(length==0||length==sizeof(c->preview_path))return 0;
+ static const char photo[]="/user/av_contents/photo/";
+ static const char video[]="/user/av_contents/video/";
+ const int is_photo=length>sizeof(photo)-1u&&
+   memcmp(path,photo,sizeof(photo)-1u)==0;
+ const int is_video=length>sizeof(video)-1u&&
+   memcmp(path,video,sizeof(video)-1u)==0;
+ if(!is_photo&&!is_video)return 0;
+ /* The native planner rejects dot components and path aliases. The backup
+  * validator must be equally strict for caller-supplied snapshot arrays. */
+ for(size_t i=0;i<length;i++){
+  if(path[i]=='\\'||(path[i]=='/'&&
+     (path[i+1]=='/'||path[i+1]=='.')))return 0;
+ }
+ const char*slash=strrchr(path,'/');
+ const char*dot=strrchr(path,'.');
+ if(!slash||!dot||dot<=slash+1||dot[1]==0||
+    dot-(slash+1)>96)return 0;
+ const char*ext=dot;
+ if(c->media_type==3u){
+  if(strcasecmp(ext,".dat")||c->bytes>65536u)return 0;
+ }else if(c->media_type==1u&&is_photo){
+  if(strcasecmp(ext,".jxr")&&strcasecmp(ext,".jpg")&&
+     strcasecmp(ext,".jpeg")&&strcasecmp(ext,".png"))return 0;
+ }else if(c->media_type==2u&&is_video){
+  if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return 0;
+ }else return 0;
+ *extension=ext;
+ *stem_offset=(size_t)(dot-path);
+ return 1;
+}
+
 int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
  if(!parts||count<2||count>CMP5_GROUP_MAX)return 0;
+ const char*first_ext=NULL;
+ size_t stem=0;
+ if(!valid_group_component(&parts[0],&first_ext,&stem))return 0;
  const char*first=parts[0].preview_path;
- const char*dot=strrchr(first,'.');
- const char*slash=strrchr(first,'/');
- if(!dot||!slash||dot<=slash+1)return 0;
- size_t stem=(size_t)(dot-first);
- if(stem>246u)return 0;
  uint64_t sum=0;
  unsigned media=0,sidecars=0;
  for(unsigned i=0;i<count;i++){
   const Cmp5MediaCandidate*c=&parts[i];
-  const char*path=c->preview_path;
-  size_t n=0;
-  while(n<sizeof(c->preview_path)&&path[n])n++;
-  const char*ext=strrchr(path,'.');
-  if(n==0||n>=sizeof(c->preview_path)||!ext||
-     (size_t)(ext-path)!=stem||memcmp(first,path,stem)!=0||
-     c->bytes==0||c->bytes>MAX_TOTAL-sum)return 0;
-  if(c->media_type!=1&&c->media_type!=2&&c->media_type!=3)return 0;
-  if(c->media_type==3){
-   if(strcasecmp(ext,".dat")||c->bytes>65536u)return 0;
-   sidecars++;
-  }else media++;
+  const char*ext=NULL;
+  size_t current_stem=0;
+  if(!valid_group_component(c,&ext,&current_stem)||
+     current_stem!=stem||memcmp(first,c->preview_path,stem)!=0||
+     !c->bytes||c->bytes>MAX_TOTAL-sum)return 0;
+  if(c->media_type==3u)sidecars++;
+  else media++;
   for(unsigned j=0;j<i;j++){
-   const char*prior_ext=strrchr(parts[j].preview_path,'.');
-   if((prior_ext&&strcasecmp(prior_ext,ext)==0)||
-      !strcmp(parts[j].preview_path,path)||
+   const char*prior_ext=NULL;
+   size_t prior_stem=0;
+   /* Earlier entries have already been validated and are terminated. */
+   if(!valid_group_component(&parts[j],&prior_ext,&prior_stem)||
+      strcasecmp(prior_ext,ext)==0||
       (parts[j].snapshot_inode==c->snapshot_inode&&
        parts[j].snapshot_device==c->snapshot_device))return 0;
   }
