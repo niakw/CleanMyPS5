@@ -6,6 +6,8 @@
 #include "inventory.h"
 #include "duplicates.h"
 #include "homebrew.h"
+#include "media_preview.h"
+#include "preview_decode.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -62,7 +64,7 @@ constexpr std::uint32_t l3=0x2,options=0x8,up=0x10,down=0x40,left=0x80,right=0x2
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, official };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -180,6 +182,8 @@ std::uint32_t review_order[CMP5_REVIEW_CAP]{};
 unsigned review_visible=0;
 unsigned review_selection=0;
 unsigned detail_index=0;
+Cmp5PreviewImage decoded_photo{};
+bool photo_ready=false;
 bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
 Cmp5DuplicateStats duplicate_stats{};
@@ -421,6 +425,20 @@ void run_duplicate_check() noexcept {
   duplicates_checked=!cancellation_hook(nullptr);
  }
 }
+void run_photo_preview() noexcept {
+ cmp5_release_preview(&decoded_photo);
+ photo_ready=false;
+ if(detail_index>=media_review.count)return;
+ const auto&entry=media_review.entries[detail_index];
+ if(entry.media_type!=1u||!entry.preview_path[0])return;
+ size_t content_length=0;
+ uint8_t*data=cmp5_read_photo_snapshot("/",&entry,&content_length);
+ if(!data)return;
+ if(!cancellation_hook(nullptr))
+  photo_ready=cmp5_decode_preview(data,content_length,&decoded_photo)!=0;
+ std::free(data);
+ if(cancellation_hook(nullptr)){cmp5_release_preview(&decoded_photo);photo_ready=false;}
+}
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
  homebrew_checked=false;
@@ -433,7 +451,7 @@ void run_homebrew_check() noexcept {
   homebrew_checked=!cancellation_hook(nullptr);
  }
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, photo };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -444,6 +462,7 @@ void* background_task(void*) noexcept {
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
   case Task::homebrew: run_homebrew_check(); break;
+  case Task::photo: run_photo_preview(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -462,6 +481,10 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::homebrew){
    homebrew_stats=Cmp5HomebrewStats{};
    homebrew_checked=false;
+  }
+  if(task_kind==Task::photo){
+   cmp5_release_preview(&decoded_photo);
+   photo_ready=false;
   }
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
@@ -502,7 +525,8 @@ void poll_pad() noexcept {
   previous=buttons;
   if(pressed&circle){
    if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
-   screen=(screen==Screen::detail||screen==Screen::search||
+   screen=screen==Screen::photo?Screen::detail:
+     (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::apps?Screen::access:
      screen==Screen::review?Screen::cleanup:Screen::menu;
@@ -554,7 +578,16 @@ void poll_pad() noexcept {
    }
    continue;
   }
+  if(screen==Screen::photo)continue;
   if(screen==Screen::detail){
+   if((pressed&cross)&&detail_index<media_review.count){
+    const auto&item=media_review.entries[detail_index];
+    if(item.media_type==1u&&item.preview_path[0]){
+     screen=Screen::photo;
+     (void)begin_task(Task::photo);
+    }
+    continue;
+   }
    if((pressed&triangle)&&detail_index<media_review.count){
     bool&item=marked_for_review[detail_index];
     item=!item;
@@ -962,7 +995,28 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,799,"SELECTION",
    marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
    marked_for_review[detail_index]?Color::cyan:Color::yellow);
- footer(canvas,"TRIANGLE MARQUER  CERCLE RETOUR  AUCUNE SUPPRESSION");
+ footer(canvas,"X PREVISUALISER PHOTO  TRIANGLE MARQUER  CERCLE RETOUR");
+}
+void show_photo(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,501,"CHARGEMENT PHOTO","DECODAGE LOCAL EN COURS",Color::cyan);
+  footer(canvas,"CERCLE ANNULER  AUCUNE ECRITURE");
+  return;
+ }
+ if(task_cancelled()||task_failed()||!photo_ready||
+    !decoded_photo.pixels||!decoded_photo.width||!decoded_photo.height){
+  panel(canvas,501,"APERCU INDISPONIBLE",
+    task_cancelled()?"LECTURE ANNULEE":"FORMAT OU ACCES NON COMPATIBLE",Color::yellow);
+  footer(canvas,"CERCLE RETOUR  AUCUNE ECRITURE");
+  return;
+ }
+ canvas.rectangle(220,315,1480,600,Color::panel);
+ const unsigned src_w=decoded_photo.width,src_h=decoded_photo.height;
+ const unsigned dest_x=960u-src_w/2u;
+ const unsigned dest_y=615u-src_h/2u;
+ canvas.blit(dest_x,dest_y,src_w,src_h,
+   decoded_photo.pixels,src_w,src_h);
+ footer(canvas,"APERCU JPG OU PNG  CERCLE RETOUR  LECTURE SEULE");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
@@ -999,7 +1053,8 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::review?"CATALOGUE DES CAPTURES":
    screen==Screen::search?"RECHERCHE DES CAPTURES":
    screen==Screen::games?"CAPTURES PAR JEU":
-   screen==Screen::detail?"DETAIL DE LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::detail?"DETAIL DE LA CAPTURE":
+   screen==Screen::photo?"APERCU PHOTO":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
@@ -1011,6 +1066,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::search:show_search(canvas);break;
   case Screen::games:show_games(canvas);break;
   case Screen::detail:show_detail(canvas);break;
+  case Screen::photo:show_photo(canvas);break;
   case Screen::official:show_official(canvas);break;
  }
 }
