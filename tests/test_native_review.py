@@ -40,6 +40,20 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root)],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "Media review:" in result.stdout
+    # 10 nested 219-byte directory names are valid on normal host filesystems
+    # but exceed the inventory scanner's 2,048-byte internal path budget.
+    # Previously this quietly returned a false "complete" result.
+    deep=photos
+    levels=[]
+    for i in range(10):
+        deep=deep/("LONG_"+str(i).zfill(2)+"_"+"x"*210)
+        deep.mkdir()
+        levels.append(deep)
+    overlong=subprocess.run([sys.argv[1],str(root),"longpath"],
+                            check=True,text=True,capture_output=True,timeout=20)
+    assert "overlong path reports incomplete coverage" in overlong.stdout
+    for folder in reversed(levels):
+        folder.rmdir()
     # Regression: media number now follows scan cap, not the former top-12.
     for i in range(60):
         file=photos / f"capture_{i:03d}.jpg"
