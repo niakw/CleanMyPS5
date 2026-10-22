@@ -430,3 +430,55 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  if(ok)ok=cmp5_verify_restored_group(target,id,r,cancel,ctx);
  return ok;
 }
+
+/* Recovery audit deliberately knows only the fixed private names emitted
+ * by our writer. It never follows symlinks, opens gallery media, or mutates
+ * workspace contents. A report is an observation, not a cleanup plan. */
+static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
+ struct stat st;*present=0;
+ if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
+  return errno==ENOENT;
+ *present=1;
+ if(!S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<0||
+    (uint64_t)st.st_size>MAX_TOTAL+64u)*unsafe=1;
+ return 1;
+}
+int cmp5_inspect_group_recovery(const char*workspace,const char*id,
+ Cmp5RecoveryReport*report){
+ if(!report)return 0;
+ memset(report,0,sizeof(*report));
+ if(!valid_id(id))return 0;
+ int dir=safe_dir(workspace);
+ if(dir<0)return 0;
+ Cmp5RecoveryReport result={0};
+ int unsafe=0,present=0,ok=1;
+ char name[48],stage[64];
+ marker_name(name,id,0);
+ ok=recovery_entry(dir,name,&present,&unsafe);
+ result.marker_present=present;
+ if(ok){
+  (void)snprintf(stage,sizeof(stage),".%s.part",name);
+  ok=recovery_entry(dir,stage,&present,&unsafe);
+  result.staged_parts+=(uint32_t)present;
+ }
+ for(unsigned i=0;ok&&i<CMP5_GROUP_MAX;i++){
+  member_name(name,id,i);
+  ok=recovery_entry(dir,name,&present,&unsafe);
+  result.published_parts+=(uint32_t)present;
+  if(!ok)break;
+  (void)snprintf(stage,sizeof(stage),".%s.part",name);
+  ok=recovery_entry(dir,stage,&present,&unsafe);
+  result.staged_parts+=(uint32_t)present;
+ }
+ close(dir);
+ if(!ok)return 0;
+ if(unsafe)result.state=CMP5_RECOVERY_INVALID;
+ else if(result.marker_present){
+  result.state=cmp5_verify_group(workspace,id,NULL,NULL,NULL)?
+   CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
+ }else if(result.published_parts||result.staged_parts)
+  result.state=CMP5_RECOVERY_INCOMPLETE;
+ else result.state=CMP5_RECOVERY_EMPTY;
+ *report=result;
+ return 1;
+}
