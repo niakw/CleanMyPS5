@@ -47,3 +47,15 @@ add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOUR
 # Does not require ffmpeg, a PS5 or user media.
 add_test(NAME native_video_metadata_fixture
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_video_metadata.py)
+
+# Verified media backup: host-only until PS5 album-index consistency is proven.
+# Never links into the installed title; no source deletion is implemented.
+add_executable(cmp5-verified-backup-tests
+ tests/test_verified_backup.c src/native/verified_backup.c src/native/sha256.c)
+target_include_directories(cmp5-verified-backup-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-verified-backup-tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME verified_backup_fixture
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_backup.py
+ $<TARGET_FILE:cmp5-verified-backup-tests>)
