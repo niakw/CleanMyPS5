@@ -19,7 +19,8 @@
 #define DEPTH_CAP 5
 #define TIME_CAP_NS 3000000000ULL
 typedef struct {char*data;size_t len;int bad;} Writer;
-typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;} Audit;
+typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
+ Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;} Audit;
 static uint64_t now_ns(void){
  struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t)||t.tv_sec<0)return 0;
  return (uint64_t)t.tv_sec*1000000000ULL+(uint64_t)t.tv_nsec;
@@ -44,6 +45,7 @@ static int join(char*out,size_t cap,const char*parent,const char*name){
  return m>=0&&(size_t)m<cap;
 }
 static int over(Audit*a){
+ if(a->cancel && a->cancel(a->context)){a->partial=1;return 1;}
  if(a->visited>=TOTAL_CAP){a->partial=1;return 1;}
  uint64_t n=now_ns();
  if(a->deadline&&n&&n>a->deadline){a->partial=1;return 1;}
@@ -51,6 +53,7 @@ static int over(Audit*a){
 }
 static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*partial){
  if(over(a)){*partial=1;close(fd);return;}
+ const int anchored_fd=fd;
  DIR*d=fdopendir(fd);
  if(!d){close(fd);*partial=1;return;}
  struct dirent*e;
@@ -59,7 +62,7 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*p
   a->visited++;
   if(over(a)){*partial=1;break;}
   struct stat st;
-  if(fstatat(dirfd(d),e->d_name,&st,AT_SYMLINK_NOFOLLOW)){*partial=1;continue;}
+  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){*partial=1;continue;}
   if(S_ISLNK(st.st_mode))continue;
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
@@ -75,7 +78,7 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*p
    }
   }else if(S_ISDIR(st.st_mode)){
    if(depth>=DEPTH_CAP){*partial=1;continue;}
-   int child=openat(dirfd(d),e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+   int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0){*partial=1;continue;}
    count_tree(a,child,depth+1,size,files,partial);
   }
@@ -98,6 +101,7 @@ static int open_dir(const char*root,const char*relative){
 }
 static void audit_root(Audit*a,const char*root,const char*relative,const char*kind){
  int fd=open_dir(root,relative);if(fd<0){if(errno!=ENOENT)a->partial=1;return;}
+ const int anchored_fd=fd;
  DIR*d=fdopendir(fd);if(!d){close(fd);a->partial=1;return;}
  struct dirent*e;
  while((e=readdir(d))){
@@ -122,6 +126,16 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    if(child<0)partial=1;
    else count_tree(a,child,0,&bytes,&files,&partial);
   }
+  if(a->stats){
+   a->stats->entries++;
+   if(!strcmp(kind,"homebrew"))a->stats->homebrew++;
+   else if(!strcmp(kind,"plugin"))a->stats->plugins++;
+   else if(!strcmp(kind,"app-data"))a->stats->app_data++;
+   else if(!strcmp(kind,"installed"))a->stats->installed++;
+   if(UINT64_MAX-a->stats->nominal_bytes<bytes){
+    a->stats->nominal_bytes=UINT64_MAX;a->partial=1;
+   }else a->stats->nominal_bytes+=bytes;
+  }
   if(a->items++)add(&a->out,",");
   add(&a->out,"{\"path\":");char display[NAME_CAP+2];
   if(snprintf(display,sizeof(display),"/%s",relative_path)<0){a->partial=1;break;}
@@ -135,11 +149,14 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
  }
  closedir(d);
 }
-char*cmp5_homebrew(const char*root,size_t*length){
+char*cmp5_homebrew_with_stats(const char*root,size_t*length,
+ Cmp5HomebrewStats *stats,Cmp5CancelCheck cancel,void *context){
  if(length)*length=0;
  if(!root||!length)return NULL;
+ if(stats)memset(stats,0,sizeof(*stats));
  Audit*a=(Audit*)calloc(1,sizeof(Audit));
  if(!a)return NULL;
+ a->stats=stats;a->cancel=cancel;a->context=context;
  a->out.data=(char*)calloc(1,JSON_CAP);
  if(!a->out.data){free(a);return NULL;}
  uint64_t now=now_ns();
@@ -154,6 +171,8 @@ char*cmp5_homebrew(const char*root,size_t*length){
   snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);audit_root(a,root,path,"homebrew");
   snprintf(path,sizeof(path),"mnt/ext%d/user/app",slot);audit_root(a,root,path,"installed");
  }
+ if(over(a))a->partial=1;
+ if(stats)stats->partial=a->partial?1u:0u;
  char finish[350];
  snprintf(finish,sizeof(finish),
   "],\"visited\":%zu,\"partial\":%s,\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale et inventaire partiel. Aucune installation n'est declaree orpheline ou supprimable.\"}",
@@ -162,4 +181,8 @@ char*cmp5_homebrew(const char*root,size_t*length){
  char*result=a->out.data;
  if(a->out.bad){free(result);result=NULL;}else *length=a->out.len;
  free(a);return result;
+}
+
+char*cmp5_homebrew(const char*root,size_t*length){
+ return cmp5_homebrew_with_stats(root,length,NULL,NULL,NULL);
 }
