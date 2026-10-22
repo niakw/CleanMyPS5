@@ -78,9 +78,9 @@ int main(int argc,char**argv){
  (void)snprintf(file,sizeof(file),"%s/ALBUM__2",restored);
  FILE*f=fopen(file,"r+b");assert(f);
  assert(fseek(f,13,SEEK_SET)==0);
- int original=fgetc(f);assert(original>=0);
+ int old_byte=fgetc(f);assert(old_byte>=0);
  assert(fseek(f,13,SEEK_SET)==0);
- assert(fputc(original^0x20,f)>=0);
+ assert(fputc(old_byte^0x20,f)>=0);
  assert(fclose(f)==0);
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  (void)snprintf(file,sizeof(file),"%s/ALBUM__2",private);
