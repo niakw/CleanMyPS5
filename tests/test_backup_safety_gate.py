@@ -14,7 +14,8 @@ for token in ("verified_backup.h","verified_backup.c",
               "cmp5_backup_media(","cmp5_restore_backup(",
               "cmp5_backup_group(","cmp5_restore_group(",
               "cmp5_inspect_group_recovery(",
-              "cmp5_inspect_restored_group_recovery("):
+              "cmp5_inspect_restored_group_recovery(",
+              "cmp5_inspect_backup_restore_pair("):
     assert token not in native, f"Unvalidated native backup activation: {token}"
     assert token not in builder, f"Unvalidated title packaging: {token}"
     assert token not in server, f"Unvalidated helper endpoint: {token}"
@@ -38,6 +39,7 @@ assert "cmp5_capture_companions.c" in builder
 assert "verified_group.c" not in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
 assert "cmp5_backup_media(" in group and "cmp5_restore_backup(" in group
+assert "cmp5_inspect_backup_restore_pair(" in group
 assert "unlinkat" in group and "linkat" in group
 assert "renameat(" not in group and "rmdir(" not in group
 print("Backup engine safety gate: host-only, no gallery mutation, PASS")
