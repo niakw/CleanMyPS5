@@ -30,9 +30,9 @@ int cmp5_validate_capture_group(const Cmp5MediaCandidate*,uint32_t);
 /* Read-only companion planner. The root and every parent component are opened
  * with O_NOFOLLOW; fstatat does not follow companion symlinks. Any matching
  * suspicious or unreadable file refuses the entire plan (fail closed). */
-int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
+static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
- Cmp5CancelCheck cancel,void*context){
+ Cmp5CancelCheck cancel,void*context,uint32_t minimum){
  if(count)*count=0;
  if(!root||!primary||!out||!count||
     (primary->media_type!=1&&primary->media_type!=2)||
@@ -138,8 +138,8 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
      !same_file(&scanned[i],&check)||check.st_nlink!=1)invalid=1;
  }
  closedir(dir);
- if(invalid||!found_primary||gathered<2u||
-    !cmp5_validate_capture_group(out,gathered))return 0;
+ if(invalid||!found_primary||gathered<minimum||
+    (gathered>1u&&!cmp5_validate_capture_group(out,gathered)))return 0;
  /* A stable order is mandatory for group IDs and restore audit. */
  for(unsigned i=1;i<gathered;i++){
   Cmp5MediaCandidate tmp=out[i];unsigned j=i;
@@ -150,6 +150,37 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  }
  *count=gathered;
  return 1;
+}
+
+int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
+ Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
+ Cmp5CancelCheck cancel,void*context){
+ return scan_capture_group(root,primary,out,count,cancel,context,2u);
+}
+
+int cmp5_inspect_capture_companions(const char*root,
+ const Cmp5MediaCandidate*primary,Cmp5CompanionReport*report,
+ Cmp5CancelCheck cancel,void*context){
+ if(!report)return 0;
+ memset(report,0,sizeof(*report));
+ Cmp5MediaCandidate parts[CMP5_GROUP_MAX];
+ memset(parts,0,sizeof(parts));
+ uint32_t count=0;
+ const int found=scan_capture_group(root,primary,parts,&count,cancel,context,1u);
+ Cmp5CompanionReport result={0};
+ if(found&&!cancelled(cancel,context)&&count>=1u&&count<=CMP5_GROUP_MAX){
+  result.files=count;
+  result.state=count==1u?CMP5_COMPANIONS_SINGLE:CMP5_COMPANIONS_MULTIPLE;
+  for(uint32_t i=0;i<count;i++){
+   if(parts[i].media_type==3u)result.sidecars++;
+   else result.media++;
+   result.nominal_bytes+=parts[i].bytes; /* scanner enforces <=512 MiB */
+  }
+  *report=result;
+ }
+ /* No private paths persist in the returned report or native UI. */
+ memset(parts,0,sizeof(parts));
+ return result.state!=CMP5_COMPANIONS_UNVERIFIABLE;
 }
 
 int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
