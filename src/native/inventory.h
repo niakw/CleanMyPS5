@@ -20,6 +20,11 @@ typedef struct {
  uint32_t media_type; /* 1=image, 2=video */
  char title_id[24];
  char label[48];
+ /* Internal-only local snapshot locator, never serialized in reports or UI text.
+  * Empty means preview unavailable. Validate inode/size/mtime after open. */
+ char preview_path[256];
+ uint64_t snapshot_device;
+ uint64_t snapshot_inode;
 } Cmp5MediaCandidate;
 typedef struct {
  uint32_t count;
