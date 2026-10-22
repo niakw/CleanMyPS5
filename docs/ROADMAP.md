@@ -31,7 +31,7 @@
 
 **P2 — médias** : support JXR/HDR si décodeur licencié et testé, meilleures métadonnées par jeu/date, vitesse sur bibliothèques volumineuses, lecture vidéo avec codecs réels.
 
-**Progrès vers P3 (tests hôte uniquement) :** audit non destructif des groupes sauvegardés **et restaurés** dans des dossiers privés : distinction vide / interrompu / vérifié / invalide, validation SHA-256 intégrale, rejet de composants inconnus (`__5`, `.part` inattendus, marqueur étranger), détection d'une mutation du dossier durant le scan et tests de corruption d'un fichier restauré. Le contrôle de sécurité CI interdit toujours toute inclusion des fonctions de sauvegarde/reprise dans le titre natif ou le helper. Les problèmes d'index de Galerie, de restauration réelle et de privilèges PS5 restent bloquants.
+**Progrès vers P3 (tests hôte uniquement) :** audit non destructif des groupes sauvegardés **et restaurés** dans des dossiers privés : distinction vide / interrompu / vérifié / invalide, validation SHA-256 intégrale, rejet de composants inconnus (`__5`, `.part` inattendus, marqueur étranger), détection d'une mutation du dossier durant le scan, **corrélation SHA-256 d'une sauvegarde et de sa restauration privée avec refus des alias de dossier et des groupes de contenus différents**, et tests de corruption d'un fichier restauré. Le contrôle de sécurité CI interdit toujours toute inclusion des fonctions de sauvegarde/reprise dans le titre natif ou le helper. Les problèmes d'index de Galerie, de restauration réelle et de privilèges PS5 restent bloquants.
 
 **P3 — nettoyage sûr** : APIs de suppression tenant compte de la base multimédia, export / sauvegarde, contrôles d'identité et d'intégrité, confirmation sélective, validation de l'espace réellement libéré.
 
