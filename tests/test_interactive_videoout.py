@@ -14,7 +14,7 @@ spec.loader.exec_module(module)
 
 # Host synthetic fixture covers template patch fail-closed behavior, not GPU I/O.
 fixture='''
-// const std::size_t frame_bytes = 0x1000000;
+// constexpr std::size_t frame_bytes = 0x1000000;
 Canvas first{static_cast<std::uint32_t *>(mapped)};
 Canvas second{reinterpret_cast<std::uint32_t *>(second_frame)};
 if (sceVideoOutSubmitFlip(video, 0, 1, 1) < 0) {}
