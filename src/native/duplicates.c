@@ -20,13 +20,15 @@
 #define JSON_CAP (512u*1024u)
 #define MAX_MONOTONIC_NS (6000000000ULL)
 typedef struct {char path[PATH_CAP];off_t size;dev_t device;ino_t inode;time_t modified;int paired;} Item;
-typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped;int partial;uint64_t deadline;} Scan;
+typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped;int partial;uint64_t deadline;
+ Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static uint64_t now_ns(void){
  struct timespec ts;
  if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0||ts.tv_sec<0)return 0;
  return (uint64_t)ts.tv_sec*1000000000ULL+(uint64_t)ts.tv_nsec;
 }
 static int expired(const Scan*s){
+ if(s->should_cancel&&s->should_cancel(s->cancel_context))return 1;
  uint64_t now=now_ns();return s->deadline && now && now>s->deadline;
 }
 typedef struct {char *data;size_t len;int error;} Json;
@@ -44,11 +46,12 @@ static int is_image(const char *name){
 }
 // Hold directory FDs throughout traversal; reject symlinks at every component.
 static void walk(Scan*s,int fd,const char*dir,int depth){
- if(s->partial){close(fd);return;}
+ if(s->partial||expired(s)){s->partial=1;close(fd);return;}
  const int anchored_fd=fd; // fdopendir owns fd; dirfd is unavailable in native PS5 libc.
  DIR*d=fdopendir(fd);if(!d){close(fd);s->partial=1;return;}
  struct dirent*entry;
  while((entry=readdir(d))!=NULL){
+  if(expired(s)){s->partial=1;break;}
   if(strcmp(entry->d_name,".")==0||strcmp(entry->d_name,"..")==0)continue;
   if(++s->visits>VISIT_CAP){s->partial=1;break;}
   if((s->visits&63u)==0&&expired(s)){s->partial=1;break;}
@@ -162,7 +165,7 @@ static void quote(Json*b,const char*s){
  }
  add(b,"\"");
 }
-char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStats *stats){
+char *cmp5_duplicates_with_stats_cancel(const char*root,size_t*length,Cmp5DuplicateStats *stats,Cmp5CancelCheck should_cancel,void *context){
  if(stats)memset(stats,0,sizeof(*stats));
  if(length)*length=0;if(!root||!length)return NULL;
  // Open first, then inspect that descriptor. A pathname pre-check can race
@@ -173,6 +176,8 @@ char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStat
  if(fstat(root_fd,&st)||!S_ISDIR(st.st_mode)){close(root_fd);return NULL;}
  Scan*s=(Scan*)calloc(1,sizeof(Scan));
  if(!s){close(root_fd);return NULL;}
+ s->should_cancel=should_cancel;
+ s->cancel_context=context;
  uint64_t started=now_ns();
  if(started && started<=UINT64_MAX-MAX_MONOTONIC_NS)s->deadline=started+MAX_MONOTONIC_NS;
  // Open the known parent components relative to anchored directory handles.
@@ -223,6 +228,7 @@ char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStat
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
   s->count,s->visits,s->hardlinksSkipped,budget,s->partial?"true":"false");
  add(&out,report_stats);
+ if(expired(s))s->partial=1;
  if(stats){
   stats->files_considered=(uint32_t)s->count;
   stats->hardlinks_skipped=(uint32_t)s->hardlinksSkipped;
@@ -234,6 +240,9 @@ char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStat
  *length=out.len;return out.data;
 }
 
+char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStats *stats){
+ return cmp5_duplicates_with_stats_cancel(root,length,stats,NULL,NULL);
+}
 char *cmp5_duplicates(const char*root,size_t*length){
- return cmp5_duplicates_with_stats(root,length,NULL);
+ return cmp5_duplicates_with_stats_cancel(root,length,NULL,NULL,NULL);
 }
