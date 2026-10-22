@@ -31,6 +31,8 @@
 
 **P2 — médias** : support JXR/HDR si décodeur licencié et testé, meilleures métadonnées par jeu/date, vitesse sur bibliothèques volumineuses, lecture vidéo avec codecs réels.
 
+**Progrès vers P3 (tests hôte uniquement) :** audit non destructif des groupes privés complets, interrompus ou invalides, validation SHA-256 intégrale et détection d'une mutation du dossier durant le scan. Le contrôle de sécurité CI interdit toujours toute inclusion des fonctions de sauvegarde/reprise dans le titre natif ou le helper. Les problèmes d'index de Galerie, de restauration réelle et de privilèges PS5 restent bloquants.
+
 **P3 — nettoyage sûr** : APIs de suppression tenant compte de la base multimédia, export / sauvegarde, contrôles d'identité et d'intégrité, confirmation sélective, validation de l'espace réellement libéré.
 
 **P4 — caches / PKG** : analyse de fournisseurs dédiés avec droits, chemins et API vérifiés. Ne jamais traiter un plugin actif, un jeu, une sauvegarde ou une base système comme un déchet.
