@@ -60,7 +60,7 @@ constexpr std::uint32_t up=0x10,down=0x40,left=0x80,right=0x20,
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, cleanup, review, official };
+enum class Screen { menu, analyze, access, cleanup, review, detail, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -163,6 +163,7 @@ char review_game[24]{};
 std::uint32_t review_order[CMP5_REVIEW_CAP]{};
 unsigned review_visible=0;
 unsigned review_selection=0;
+unsigned detail_index=0;
 
 int compare_media_indices(const void*a,const void*b) noexcept {
  const auto x=*static_cast<const std::uint32_t*>(a);
@@ -378,9 +379,19 @@ void poll_pad() noexcept {
   const std::uint32_t buttons=samples[i].connected!=0?samples[i].buttons:0;
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
-  if(pressed&circle){screen=screen==Screen::review?Screen::cleanup:Screen::menu;continue;}
+  if(pressed&circle){
+   screen=screen==Screen::detail?Screen::review:
+     screen==Screen::review?Screen::cleanup:Screen::menu;
+   continue;
+  }
   if(task_busy())continue;
+  if(screen==Screen::detail)continue;
   if(screen==Screen::review){
+   if(pressed&square&&review_visible){
+    detail_index=review_order[review_selection];
+    screen=Screen::detail;
+    continue;
+   }
    if(pressed&l1||pressed&r1){
     const unsigned step=(pressed&r1)?1u:2u;
     review_type=static_cast<MediaType>((static_cast<unsigned>(review_type)+step)%3u);
@@ -643,7 +654,34 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
  }
  canvas.rectangle(95,950,1730,96,Color::panel);
  canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X FILTRE JEU  L2 AGE  R2 50 MIO",3,Color::white);
- canvas.text(125,1005,"HAUT BAS SELECTION  GAUCHE DROITE PAGES  CERCLE RETOUR",3,Color::cyan);
+ canvas.text(125,1005,"HAUT BAS  GAUCHE DROITE PAGES  CARRE DETAILS  CERCLE RETOUR",3,Color::cyan);
+}
+void show_detail(ps5::demo::Canvas&canvas) noexcept {
+ if(detail_index>=media_review.count){
+  panel(canvas,355,"DETAIL INDISPONIBLE","REVENIR AU CATALOGUE",Color::yellow);
+  footer(canvas,"CERCLE RETOUR");
+  return;
+ }
+ const auto&item=media_review.entries[detail_index];
+ panel(canvas,355,"NOM AFFICHE (ABREGE)",item.label);
+ panel(canvas,503,"IDENTIFIANT DU JEU",
+       item.title_id[0]?item.title_id:"NON IDENTIFIE",Color::cyan);
+ char details[120]{};
+ const std::time_t now=std::time(nullptr);
+ const bool dated=now>0&&item.modified_at>0&&item.modified_at<=now;
+ if(dated){
+  (void)std::snprintf(details,sizeof(details),"%s  %llu MIO  MODIFIE IL Y A %llu J",
+    item.media_type==2u?"VIDEO":"IMAGE",
+    static_cast<unsigned long long>(item.bytes/1048576ULL),
+    static_cast<unsigned long long>((now-item.modified_at)/86400));
+ }else{
+  (void)std::snprintf(details,sizeof(details),"%s  %llu MIO  DATE INCONNUE",
+    item.media_type==2u?"VIDEO":"IMAGE",
+    static_cast<unsigned long long>(item.bytes/1048576ULL));
+ }
+ panel(canvas,651,"METADONNEES",details);
+ panel(canvas,799,"STATUT","FICHIER NON VALIDE POUR SUPPRESSION",Color::yellow);
+ footer(canvas,"CERCLE RETOUR  LECTURE SEULE  AUCUNE SUPPRESSION");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
@@ -676,7 +714,8 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":
    screen==Screen::access?"PERMISSIONS DU TITRE":
    screen==Screen::cleanup?"NETTOYAGE PROTEGE":
-   screen==Screen::review?"CAPTURES A EXAMINER":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::review?"CATALOGUE DES CAPTURES":
+   screen==Screen::detail?"DETAIL DE LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
@@ -684,6 +723,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::access:show_access(canvas);break;
   case Screen::cleanup:show_cleanup(canvas);break;
   case Screen::review:show_review(canvas);break;
+  case Screen::detail:show_detail(canvas);break;
   case Screen::official:show_official(canvas);break;
  }
 }
