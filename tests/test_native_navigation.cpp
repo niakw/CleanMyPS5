@@ -61,6 +61,7 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  review->partial=1;
  std::strcpy(review->entries[0].label,"PHOTO UN");
  std::strcpy(review->entries[0].title_id,"GAME123");
+ std::strcpy(review->entries[0].game_name,"Astro's Playroom");
  std::strcpy(review->entries[0].preview_path,"/user/av_contents/photo/NPXS00000/GAME123/photo.jpg");
  review->entries[0].bytes=30ULL*1024*1024;
  review->entries[0].media_type=1;
