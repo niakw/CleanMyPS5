@@ -30,6 +30,10 @@ jobs:
         run: python3 scripts/audit_privacy.py --history
       - name: Audit reachable Git history (redacted, informational)
         run: python3 scripts/audit_history.py
+      - name: Simulate native DualSense navigation without console
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
+          /tmp/cmp5-native-navigation
       - name: Native archive integrity fixture
         run: python3 tests/test_native_release_manifest.py
       - name: JavaScript syntax
