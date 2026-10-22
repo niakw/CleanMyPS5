@@ -155,7 +155,13 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
 int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
  Cmp5CancelCheck cancel,void*context){
- return scan_capture_group(root,primary,out,count,cancel,context,2u);
+ const int ok=scan_capture_group(root,primary,out,count,cancel,context,2u);
+ if(!ok&&out){
+  /* Enumeration may have copied private locators into output before a
+   * late race, symlink or ambiguous companion invalidated the group. */
+  memset(out,0,sizeof(*out)*CMP5_GROUP_MAX);
+ }
+ return ok;
 }
 
 int cmp5_inspect_capture_companions(const char*root,
