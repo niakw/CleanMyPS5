@@ -16,6 +16,8 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/enable_interactive_videoout.py
+      - tests/test_interactive_videoout.py
       - scripts/native_release_manifest.py
       - tests/test_native_release_manifest.py
       - scripts/check_native_bundle.py
@@ -34,6 +36,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y clang-18 lld-18 clang-format-18 make python3 python3-venv python3-pil git unzip zip curl wget pkg-config
+      - name: Verify native VideoOut keeps presenting interactive frames
+        run: python3 tests/test_interactive_videoout.py
       - name: Run strict native response-framing regression
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol
