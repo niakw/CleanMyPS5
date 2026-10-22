@@ -67,6 +67,21 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  review->entries[1].media_type=2;
  return out;
 }
+char *cmp5_duplicates_with_stats(const char*,std::size_t*len,Cmp5DuplicateStats*stats){
+ // Synthetic duplicate groups only; never access the console.
+ const char json[]="{\"schemaVersion\":1,\"groups\":[]}";
+ *len=sizeof(json)-1;
+ char*out=(char*)std::malloc(sizeof(json));
+ assert(out);
+ std::memcpy(out,json,sizeof(json));
+ *stats=Cmp5DuplicateStats{};
+ stats->exact_groups=1;
+ stats->matching_files=2;
+ stats->files_considered=4;
+ stats->compared_bytes=2048;
+ stats->duplicate_nominal_bytes=1024;
+ return out;
+}
 }
 
 namespace ps5::demo {
@@ -181,9 +196,16 @@ int main(){
  press(circle);
  assert(screen==Screen::cleanup);
  assert(marked_count==1);
- press(cross); // A fresh scan must invalidate the old selected indices.
+ press(triangle);
+ finish_scan();
+ assert(duplicates_checked && duplicate_stats.exact_groups==1);
+ assert(duplicate_stats.matching_files==2);
+ assert(duplicate_stats.duplicate_nominal_bytes==1024);
+ scene(canvas);
+ press(cross); // A fresh scan invalidates selected entries and duplicate snapshot.
  finish_scan();
  assert(marked_count==0 && !marked_for_review[0] && !marked_for_review[1]);
+ assert(!duplicates_checked && duplicate_stats.exact_groups==0);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
