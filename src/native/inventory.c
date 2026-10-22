@@ -27,7 +27,8 @@ typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,sum
  size_t media,logs,caches,residuals,other;
  size_t largeMedia,oldMedia,oldLargeMedia;
  unsigned long long largeMediaBytes;
- time_t scanEpoch;} Scan;
+ time_t scanEpoch;
+ Cmp5MediaReview *review;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
  return 0;
@@ -79,6 +80,53 @@ static void warn(Scan*s,const char*message,const char*path){
  if(s->nw>=32)return;
  snprintf(s->warnings[s->nw++],256,"%s : %.170s",message,path);
 }
+/* Keep just a fixed top-N of media metadata in the current scan.
+ * No files are opened or modified; no directory paths reach the UI.
+ */
+static void capture_review(Scan*s,const char*path,const struct stat*info,const char*kind){
+ Cmp5MediaReview*r=s->review;
+ if(!r)return;
+ r->media_scanned++;
+ Cmp5MediaCandidate c={0};
+ c.bytes=(uint64_t)info->st_size;
+ c.modified_at=info->st_mtime>0?(int64_t)info->st_mtime:0;
+ c.media_type=!strcmp(kind,"video")?2u:1u;
+ const char *base=strrchr(path,'/');
+ base=base?base+1:path;
+ size_t n=0;
+ for(const unsigned char*p=(const unsigned char*)base;*p&&n<sizeof(c.label)-1;p++){
+  if(*p>='a'&&*p<='z')c.label[n++]=(char)(*p-32);
+  else if((*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9'))c.label[n++]=(char)*p;
+  else if(n&&c.label[n-1]!=' ')c.label[n++]=' ';
+ }
+ while(n&&c.label[n-1]==' ')--n;
+ c.label[n]=0;
+ if(!n)memcpy(c.label,"CAPTURE",8);
+ const char*mark=strstr(path,c.media_type==2?"/video/":"/photo/");
+ if(mark){
+  mark+=7;
+  if(!strncmp(mark,"NPXS",4)){
+   const char*slash=strchr(mark,'/');
+   if(slash)mark=slash+1;
+  }
+  size_t t=0;
+  while(mark[t]&&mark[t]!='/'&&t<sizeof(c.title_id)-1){
+   unsigned char v=(unsigned char)mark[t];
+   if(v>='a'&&v<='z')c.title_id[t]=(char)(v-32);
+   else if((v>='A'&&v<='Z')||(v>='0'&&v<='9'))c.title_id[t]=(char)v;
+   else break;
+   t++;
+  }
+  if(mark[t]!='/')c.title_id[0]=0;
+ }
+ unsigned insert=0;
+ while(insert<r->count&&r->entries[insert].bytes>=c.bytes)insert++;
+ if(insert>=CMP5_REVIEW_CAP)return;
+ if(r->count<CMP5_REVIEW_CAP)r->count++;
+ for(unsigned i=r->count-1;i>insert;i--)r->entries[i]=r->entries[i-1];
+ r->entries[insert]=c;
+}
+
 static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  if(s->stopped||s->b.fail||info->st_size<0)return;
  const off_t size=info->st_size;
@@ -108,6 +156,7 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  if(s->summary_only){
   if(!strcmp(category,"media")){
    s->media++;
+   capture_review(s,path,info,kind);
    const int large=(uint64_t)size>=50ULL*1024ULL*1024ULL;
    const int old=s->scanEpoch>90*86400 && info->st_mtime>0 &&
      info->st_mtime<=s->scanEpoch-90*86400;
@@ -257,13 +306,15 @@ char *cmp5_report(const char*root,size_t*len){
  * classification as the full report, but never serializes a file name.
  * Sizes are nominal; no space is implied to be safely recoverable.
  */
-char *cmp5_overview(const char *root,size_t *len){
+char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *review){
  if(len)*len=0;
  if(!root||!len)return NULL;
  struct stat st;
  if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
  Scan*s=(Scan*)calloc(1,sizeof(*s));if(!s)return NULL;
  s->summary_only=1;
+ s->review=review;
+ if(review)memset(review,0,sizeof(*review));
  s->scanEpoch=time(NULL);
  uint64_t now=monotonic_ns();
  if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
@@ -308,6 +359,11 @@ char *cmp5_overview(const char *root,size_t *len){
   if(n<0||(size_t)n>=1024){free(out);out=NULL;}
   else *len=(size_t)n;
  }
+ if(review)review->partial=(s->stopped||s->partial)?1u:0u;
  free(s);
  return out;
+}
+
+char *cmp5_overview(const char *root,size_t *len){
+ return cmp5_overview_with_review(root,len,NULL);
 }
