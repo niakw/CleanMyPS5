@@ -166,12 +166,24 @@ int main(){
  press(square);
  assert(screen==Screen::detail);
  assert(detail_index==review_order[review_selection]);
+ assert(marked_count==0);
+ press(triangle);
+ assert(marked_count==1);
+ assert(marked_for_review[detail_index]);
+ press(triangle);
+ assert(marked_count==0);
+ press(triangle);
+ assert(marked_count==1);
  scene(canvas);
  press(circle);
  assert(screen==Screen::review);
  scene(canvas);
  press(circle);
  assert(screen==Screen::cleanup);
+ assert(marked_count==1);
+ press(cross); // A fresh scan must invalidate the old selected indices.
+ finish_scan();
+ assert(marked_count==0 && !marked_for_review[0] && !marked_for_review[1]);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
