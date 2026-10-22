@@ -228,6 +228,24 @@ int main(int argc,char**argv){
  assert(unlink(hidden_sidecar)==0);
  assert(cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
  assert(observed.state==CMP5_COMPANIONS_SINGLE);
+ /* Third-party PS5 gallery implementations have observed .meta and .ext
+  * sidecars. They remain outside this prototype's restore contract; show
+  * a distinct unsupported-dependency status, never a false complete set. */
+ for(unsigned k=0;k<2u;k++){
+  const char*extension=k==0u?".meta":".ext";
+  char unsupported[512];
+  const int length=snprintf(unsupported,sizeof(unsupported),
+    "%.*s/SOLO%s",(int)(slash-jxr),jxr,extension);
+  assert(length>0&&(size_t)length<sizeof(unsupported));
+  FILE*sidecar=fopen(unsupported,"wb");assert(sidecar);
+  assert(fputs("REQUIRES_GALLERY_SUPPORT",sidecar)>=0&&fclose(sidecar)==0);
+  assert(!cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&
+    observed.failure==CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY);
+  assert(unlink(unsupported)==0);
+ }
+ assert(cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_SINGLE);
  /* In-place rewrite after initial fstat, before enumeration: reject a
   * same-inode/same-size primary whose nanosecond ctime/mtime changes. */
  PrimaryMutation rewritten={single_path,0u,0};
