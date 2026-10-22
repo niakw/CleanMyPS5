@@ -30,8 +30,14 @@ static int race_open(const char *path,int flags,...){
 int main(int argc,char **argv){
  if(argc!=4)return 2;
  test_root=argv[1];test_backup=argv[2];test_replacement=argv[3];
- size_t length=0;char *json=cmp5_duplicates(test_root,&length);
+ size_t length=0;Cmp5DuplicateStats stats={0};
+ char *json=cmp5_duplicates_with_stats(test_root,&length,&stats);
  if(!json)return 4;
+ if(stats.exact_groups!=1||stats.matching_files!=2||
+    stats.files_considered!=2||stats.hardlinks_skipped!=0||
+    stats.partial!=0||stats.duplicate_nominal_bytes!=sizeof("ORIGINAL CAPTURE")-1){
+  free(json);return 7;
+ }
  if(!swapped||root_opens!=1){free(json);return 5;}
  int success=fwrite(json,1,length,stdout)==length;
  free(json);return success?0:6;
