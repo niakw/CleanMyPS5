@@ -15,9 +15,22 @@ L'objectif est d'éprouver le contrat de sauvegarde avant une éventuelle opéra
 - La vérification refuse capsules tronquées, modifiées, malformées, changements de fichier ou échec de SHA-256. La restauration utilise la même empreinte, écrit un nouveau fichier privé et refuse l'écrasement d'un fichier existant.
 - Le test en C, lancé en CI sur Linux et macOS avec et sans sanitizers, compare l'empreinte à `hashlib.sha256`, vérifie la copie identique, le refus des liens physiques, l'annulation à mi-copie, le refus de collision, la restauration et la détection d'une capsule altérée.
 
+
+## Sauvegarde groupée hôte : transaction logique
+
+`src/native/verified_group.c` utilise les fonctions de sauvegarde individuelle sans les exposer à la console. Pour `REC_001.jxr`, `REC_001.jpg` et `REC_001.dat`, la sauvegarde génère des capsules anonymisées `ALBUM__1`, `ALBUM__2`, `ALBUM__3`, puis un marqueur `ALBUM__COMMIT` de 256 octets. Il contient les tailles et empreintes SHA-256, ainsi qu'un condensat de manifeste. Ce condensat détecte une corruption accidentelle mais **n'est pas une signature cryptographique contre un adversaire possédant le dossier privé**.
+
+Une interruption avant le dernier marqueur laisse éventuellement des capsules isolées ; elles ne constituent **pas** un groupe utilisable. Un deuxième lancement sur les mêmes identifiants refuse les collisions au lieu d'écraser les anciens composants. La restauration vers un autre dossier privé crée les fichiers `ALBUM__1` à `ALBUM__3`, vérifie chacun par SHA-256, puis publie `ALBUM__RESTORED`. Le système ne promet donc **ni restauration atomique du contenu en cas d'arrêt au milieu, ni récupération automatique des fichiers partiels** : il promet seulement qu'un marqueur de groupe complet ne soit créé qu'après vérification de chaque membre.
+
+```sh
+ctest --test-dir build -R 'verified_backup_fixture|verified_group_fixture' --output-on-failure
+```
+
+Les tests couvrent la corruption d'une capsule, la modification d'un fichier restauré, les interruptions, les identifiants interdits, les variantes sans média principal, les noms de base différents et les doublons d'extensions.
+
 ## Ce qui n'est pas encore prouvé
 
-Ce prototype ne restaure **pas** les captures dans `/user/av_contents`, ne répare aucune base d'index multimédia, ne sauvegarde pas encore de groupe atomique JXR/JPG/DAT/miniatures et n'assure pas la reprise automatique de fichiers temporaires après une panne de courant. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
+Ce prototype ne restaure **pas** les captures dans `/user/av_contents` et ne répare aucune base d'index multimédia. Il sait maintenant valider logiquement un groupe de **2 à 4 composants de même nom de base**, dont les versions JXR/JPG et un sidecar `.dat` d'au plus 64 Kio ; les miniatures PS5 dans d'autres répertoires ne sont pas encore associées. Un groupe n'est marqué complet qu'après validation SHA-256 de tous ses membres. Une restauration groupée n'écrit que dans un **second espace privé** et publie à son tour un marqueur une fois les composants revérifiés. Les composants partiels laissés par un arrêt brutal sont ignorés sans marqueur, mais **leur nettoyage et leur reprise automatique restent à développer**. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
 
 **Aucune suppression, aucune quarantaine du fichier original et aucune restauration système ne doivent être activées** avant la vérification des permissions du titre, des index multimédias, d'un protocole de sauvegarde multi-fichiers, des journaux de reprise et des tests réels sur le firmware ciblé.
 
