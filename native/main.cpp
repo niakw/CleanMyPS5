@@ -234,7 +234,9 @@ void rebuild_review_index() noexcept {
   const auto&entry=media_review.entries[i];
   if(review_type==MediaType::image&&entry.media_type!=1u)continue;
   if(review_type==MediaType::video&&entry.media_type!=2u)continue;
-  if(review_game[0]&&std::strcmp(review_game,entry.title_id)!=0)continue;
+  if(review_game[0]&&
+     ((std::strcmp(review_game,"INCONNU")==0)?
+       entry.title_id[0]!=0:std::strcmp(review_game,entry.title_id)!=0))continue;
   if(review_query[0]&&
      !std::strstr(entry.label,review_query)&&
      !std::strstr(entry.title_id,review_query))continue;
@@ -465,8 +467,7 @@ void poll_pad() noexcept {
       game_selection+4:game_count-1;
     if(pressed&cross){
      const char*id=games[game_selection].id;
-     if(std::strcmp(id,"INCONNU")==0)review_game[0]=0;
-     else (void)std::snprintf(review_game,sizeof(review_game),"%s",id);
+     (void)std::snprintf(review_game,sizeof(review_game),"%s",id);
      review_selection=0;rebuild_review_index();
      screen=Screen::review;continue;
     }
@@ -502,8 +503,9 @@ void poll_pad() noexcept {
    if(pressed&cross){
     if(review_visible){
      const auto&entry=media_review.entries[review_order[review_selection]];
-     if(std::strcmp(review_game,entry.title_id)==0)review_game[0]=0;
-     else (void)std::snprintf(review_game,sizeof(review_game),"%s",entry.title_id);
+     const char*id=entry.title_id[0]?entry.title_id:"INCONNU";
+     if(std::strcmp(review_game,id)==0)review_game[0]=0;
+     else (void)std::snprintf(review_game,sizeof(review_game),"%s",id);
      review_selection=0;rebuild_review_index();
     }else if(review_game[0]){
      review_game[0]=0;review_selection=0;rebuild_review_index();
