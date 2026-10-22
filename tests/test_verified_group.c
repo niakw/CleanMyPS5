@@ -197,6 +197,10 @@ int main(int argc,char**argv){
  char late_commit[512];
  (void)snprintf(late_commit,sizeof(late_commit),"%s/RACEADD__COMMIT",private);
  assert(access(late_commit,F_OK)!=0);
+ Cmp5RecoveryReport race_audit={0};
+ assert(cmp5_inspect_group_recovery(private,"RACEADD",&race_audit));
+ assert(race_audit.state==CMP5_RECOVERY_INCOMPLETE&&
+        race_audit.published_parts>=1u&&!race_audit.marker_present);
  assert(unlink(late.late_variant)==0);
  /* Original captures remain unchanged; a clean fresh ID can now commit. */
   assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
