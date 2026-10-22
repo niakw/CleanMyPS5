@@ -17,7 +17,7 @@
 | Fonction | État vérifié |
 |---|---|
 | Interface native VideoOut, manette, 17 vues synthétiques | Code présent, navigation et mise en page testées sur hôte, compilation native CI réussie ; aucune capture d'exécution matérielle ni validation DualSense sur console |
-| Sonde native de chemins applicatifs et des emplacements /data, /user | Ouverture **lecture seule**, indication accessible / inaccessible ou absent ; les codes d'erreur ne sont pas encore différenciés côté titre |
+| Sonde native de chemins applicatifs et des emplacements /data, /user | Ouverture **lecture seule**, états absents (ENOENT), refusés (EACCES/EPERM), inconnus et listables distingués dans le titre ; le bilan global marque toute sonde manquante/refusée/limitée comme **partielle**, sans garantie de privilèges PS5 |
 | Diagnostic détaillé de montages et permissions | Disponible dans le helper, sous réserve de sa visibilité filesystem |
 | Inventaire captures, journaux, caches, homebrews, installations | Scanner borné en lecture seule **embarqué dans le titre natif** ; bilan agrégé, catalogue paginé de 10 000 médias maximum par scan, filtrable images/vidéos, jeu, âge, taille, avec tris taille/date/nom, couverture limitée aux droits du sandbox ; helper facultatif |
 | Recherche, filtres, aperçus, doublons, export, Return to Live détaillé | Interface native : filtres, recherche via Options, aperçus JPG/PNG bornés, diagnostic MP4/WebM, doublons exacts bornés, bilan autoload et checklist en huit étapes. Export avancé et certaines fonctions de la version WebKit ne sont pas encore portés ; l'exécution réelle sur PS5 reste non vérifiée |
