@@ -2,7 +2,7 @@
 """Fail-closed mirror fallback for pinned zlib native dependency bootstrap.
 
 The upstream template is modified only within the temporary build checkout.
-Both URLs are official zlib.net domains, both must match the original SHA-256.
+All sources are upstream official release endpoints, and every byte must match the original pinned SHA-256.
 """
 from pathlib import Path
 import sys
@@ -14,9 +14,9 @@ ORIGINAL = '''    if [[ ! -f $zlib_archive ]]; then
     printf '%s  %s\\n' "$zlib_hash" "$zlib_archive" | sha256sum --check --strict >/dev/null'''
 
 REPLACEMENT = '''    if [[ ! -f $zlib_archive ]]; then
-        # Official mirrors only, pinned SHA-256 required *before* publication.
+        # Only official upstream assets, pinned SHA-256 required *before* publication.
         verified=false
-        for url in "$zlib_url" "https://www.zlib.net/fossils/zlib-$zlib_version.tar.gz"; do
+        for url in "$zlib_url" "https://www.zlib.net/fossils/zlib-$zlib_version.tar.gz" "https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"; do
             if wget -q --tries=2 --timeout=25 "$url" -O "$zlib_archive.download" &&
                printf '%s  %s\\n' "$zlib_hash" "$zlib_archive.download" |
                     sha256sum --check --strict >/dev/null 2>&1; then
@@ -27,7 +27,7 @@ REPLACEMENT = '''    if [[ ! -f $zlib_archive ]]; then
             rm -f -- "$zlib_archive.download"
         done
         if [[ $verified != true ]]; then
-            echo "Pinned zlib SHA-256 unavailable from both official mirrors" >&2
+            echo "Pinned zlib SHA-256 unavailable from all upstream release sources" >&2
             exit 1
         fi
     fi
