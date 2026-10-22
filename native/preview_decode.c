@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+/* The pinned native libc does not export glibc's __assert.
+ * The decoder's internal debug assertions are not an input-validation
+ * boundary; explicit dimensions and allocation checks below are. */
+#define STBI_ASSERT(condition) ((void)0)
 #define STBI_NO_STDIO
 #define STBI_NO_THREAD_LOCALS
 #define STBI_NO_SIMD
