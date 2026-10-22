@@ -51,4 +51,7 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root),"576"],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "all catalog entries retained" in result.stdout
+    cancelled=subprocess.run([sys.argv[1],str(root),"cancel"],
+                             check=True,text=True,capture_output=True,timeout=20)
+    assert "Metadata scan cancellation" in cancelled.stdout
 print("Native review bounded fixture: PASS")
