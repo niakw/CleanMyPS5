@@ -7,7 +7,8 @@
 #include <sys/stat.h>
 static int cancellation(void*ignored){(void)ignored;return 1;}
 int main(int argc,char**argv){
- if(argc!=5)return 2;
+ if(argc!=5&&argc!=6)return 2;
+ const unsigned long long expected_ms=argc==6?strtoull(argv[5],NULL,10):95200ULL;
  const char*root=argv[1],*absolute=argv[2],*relative=argv[3];
  const int expected=strcmp(argv[4],"valid")==0;
  struct stat st={0};
@@ -25,7 +26,7 @@ int main(int argc,char**argv){
  if(expected){
   assert(ok);
   assert(found.width==1920&&found.height==1080);
-  assert(found.duration_ms==95200ULL);
+  assert(found.duration_ms==expected_ms);
   assert(found.boxes_visited>=4&&found.boxes_visited<=384);
   // Even successful metadata must be invalidated by inode mismatch.
   c.snapshot_inode++;
