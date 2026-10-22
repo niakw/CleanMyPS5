@@ -14,7 +14,8 @@ int main(int argc,char**argv){
  if(argc!=2&&argc!=3)return 2;
  const int cancel=argc==3&&strcmp(argv[2],"cancel")==0;
  const int longpath=argc==3&&strcmp(argv[2],"longpath")==0;
- const unsigned expected=argc==3&&!cancel&&!longpath?
+ const int empty=argc==3&&strcmp(argv[2],"empty")==0;
+ const unsigned expected=argc==3&&!cancel&&!longpath&&!empty?
    (unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
@@ -34,6 +35,20 @@ int main(int argc,char**argv){
  }
  assert(json&&json_size>100);
  assert(strstr(json,"\"cleanupValidated\":false"));
+ if(empty){
+  assert(review.count==0u&&review.media_scanned==0u);
+  assert(review.partial==1u);
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"complete\":0"));
+  free(json);
+  size_t detailed_size=0;
+  char*detailed=cmp5_report(argv[1],&detailed_size);
+  assert(detailed&&detailed_size>100);
+  assert(strstr(detailed,"\"partial\":true"));
+  free(detailed);
+  puts("Native media review: all roots absent means partial, never empty-complete");
+  return 0;
+ }
  if(longpath){
   /* Scan order is unspecified: the long directory may be encountered
    * before some otherwise valid captures. Never assume a full count. */
