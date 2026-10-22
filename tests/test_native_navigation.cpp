@@ -11,6 +11,8 @@
 
 namespace {
 std::uint32_t injected_buttons=0;
+std::atomic<bool> stall_next_scan{false};
+std::atomic<bool> entered_stalled_scan{false};
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -67,6 +69,19 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  review->entries[1].media_type=2;
  return out;
 }
+char *cmp5_overview_with_review_cancel(const char*root,std::size_t*len,
+  Cmp5MediaReview*review,Cmp5CancelCheck cancel,void*context){
+ if(stall_next_scan.exchange(false)){
+  entered_stalled_scan.store(true);
+  // Synchronize cancellation across two real host threads.
+  for(unsigned i=0;i<500000;i++){
+   if(cancel(context))return nullptr;
+   std::this_thread::yield();
+  }
+ }
+ if(cancel(context))return nullptr;
+ return cmp5_overview_with_review(root,len,review);
+}
 char *cmp5_duplicates_with_stats(const char*,std::size_t*len,Cmp5DuplicateStats*stats){
  // Synthetic duplicate groups only; never access the console.
  const char json[]="{\"schemaVersion\":1,\"groups\":[]}";
@@ -81,6 +96,10 @@ char *cmp5_duplicates_with_stats(const char*,std::size_t*len,Cmp5DuplicateStats*
  stats->compared_bytes=2048;
  stats->duplicate_nominal_bytes=1024;
  return out;
+char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
+  Cmp5DuplicateStats*stats,Cmp5CancelCheck cancel,void*context){
+ if(cancel(context))return nullptr;
+ return cmp5_duplicates_with_stats(root,len,stats);
 }
 }
 
@@ -228,6 +247,30 @@ int main(){
  assert(screen==Screen::access);
  finish_scan();
  scene(canvas);
+ press(circle);
+ assert(screen==Screen::menu);
+ // A long-running scan must respond to Circle without freezing navigation
+ // or exposing a half-published result, and must not authorize another scan
+ // until it has acknowledged the cancellation.
+ selected=2;
+ stall_next_scan.store(true);
+ press(cross);
+ assert(screen==Screen::cleanup);
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(6);
+ while(!entered_stalled_scan.load()&&std::chrono::steady_clock::now()<deadline)
+  std::this_thread::yield();
+ assert(entered_stalled_scan.load());
+ assert(task_busy());
+ press(circle);
+ assert(screen==Screen::menu);
+ assert(scan_cancel_requested.load());
+ finish_scan();
+ assert(task_cancelled());
+ assert(media_review.count==0 && summary_status==Summary::unavailable);
+ press(cross);
+ assert(screen==Screen::cleanup);
+ finish_scan();
+ assert(!task_cancelled() && summary_status==Summary::ok);
  press(circle);
  assert(screen==Screen::menu);
  // Produce visually inspectable previews using the ACTUAL native scene().
