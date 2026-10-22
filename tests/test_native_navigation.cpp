@@ -102,6 +102,20 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
  if(cancel(context))return nullptr;
  return cmp5_duplicates_with_stats(root,len,stats);
 }
+char *cmp5_homebrew_with_stats(const char*,std::size_t*len,
+  Cmp5HomebrewStats*stats,Cmp5CancelCheck cancel,void*context){
+ if(cancel(context))return nullptr;
+ const char text[]="{\"schemaVersion\":1,\"mode\":\"read-only\"}";
+ char*result=(char*)std::malloc(sizeof(text));
+ assert(result);
+ std::memcpy(result,text,sizeof(text));
+ *len=sizeof(text)-1;
+ *stats=Cmp5HomebrewStats{};
+ stats->entries=8;stats->homebrew=3;stats->plugins=2;
+ stats->app_data=1;stats->installed=2;stats->partial=1;
+ stats->nominal_bytes=400000000;
+ return result;
+}
 }
 
 namespace ps5::demo {
@@ -248,6 +262,17 @@ int main(){
  assert(screen==Screen::access);
  finish_scan();
  scene(canvas);
+ press(square);
+ assert(screen==Screen::apps);
+ finish_scan();
+ assert(homebrew_checked);
+ assert(homebrew_stats.entries==8);
+ assert(homebrew_stats.homebrew==3&&homebrew_stats.plugins==2);
+ assert(homebrew_stats.installed==2&&homebrew_stats.app_data==1);
+ assert(homebrew_stats.partial==1);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::access);
  press(circle);
  assert(screen==Screen::menu);
  // A long-running scan must respond to Circle without freezing navigation
@@ -299,6 +324,7 @@ int main(){
   save(Screen::detail,"06-details");
   save(Screen::official,"07-official");
   save(Screen::access,"08-access");
+  save(Screen::apps,"09-apps");
  }
  return 0;
 }
