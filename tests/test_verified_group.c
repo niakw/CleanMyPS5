@@ -60,6 +60,36 @@ int main(int argc,char**argv){
  assert(a.count==3&&a.bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(!memcmp(a.manifest_sha256,b.manifest_sha256,32));
+ /* A complete group must be verifiable, while missing IDs remain empty. */
+ Cmp5RecoveryReport recovery={0};
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_VERIFIED);
+ assert(recovery.published_parts==3u&&recovery.staged_parts==0u);
+ assert(recovery.marker_present);
+ assert(cmp5_inspect_group_recovery(private,"NEVER_BACKED_UP",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_EMPTY);
+ assert(!recovery.published_parts&&!recovery.staged_parts&&!recovery.marker_present);
+ /* Simulate an interrupted transaction with only one committed capsule. */
+ Cmp5BackupReceipt orphan={0};
+ assert(cmp5_backup_media(root,&media[0],private,"RECOV__1",&orphan,NULL,NULL));
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INCOMPLETE);
+ assert(recovery.published_parts==1u&&!recovery.marker_present);
+ char planted[512];
+ (void)snprintf(planted,sizeof(planted),"%s/.RECOV__2.part",private);
+ FILE*partial=fopen(planted,"wb");assert(partial);
+ assert(fputs("INCOMPLETE",partial)>=0&&fclose(partial)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INCOMPLETE&&recovery.staged_parts==1u);
+ assert(unlink(planted)==0);
+ assert(symlink(jxr,planted)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(unlink(planted)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INCOMPLETE);
+ assert(!cmp5_inspect_group_recovery(private,"BAD/ID",&recovery));
+
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&b,NULL,NULL));
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,stop,NULL));
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
