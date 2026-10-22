@@ -110,7 +110,17 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
    invalid=1;break;
   }
   const char*name=entry->d_name;
-  if(name[0]=='.')continue;
+  if(name[0]=='.'){
+   /* Hidden same-stem remnants can be incomplete thumbnail/metadata
+    * transactions. Never silently declare a group complete when one
+    * exists; ignore unrelated dotfiles, but reject .REC_001.dat etc. */
+   if(strncmp(name+1,stem,stem_length)==0&&
+      name[1u+stem_length]=='.'){
+    if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+    invalid=1;break;
+   }
+   continue;
+  }
   if(strncmp(name,stem,stem_length)!=0||name[stem_length]!='.')continue;
   const char*ext=name+stem_length;
   uint32_t type=0;
@@ -147,8 +157,16 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   item->snapshot_device=(uint64_t)st.st_dev;
   item->snapshot_inode=(uint64_t)st.st_ino;
   item->media_type=type;
-  if(st.st_dev==selected.st_dev&&st.st_ino==selected.st_ino&&
-     strcmp(name,slash+1)==0)found_primary=1;
+  if(strcmp(name,slash+1)==0){
+   /* The primary was validated before enumeration. An in-place rewrite
+    * may preserve size, inode and second-resolution mtime while changing
+    * content. Compare full nanosecond mtime/ctime before accepting it. */
+   if(!same_file(&selected,&st)){
+    if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
+    invalid=1;break;
+   }
+   found_primary=1;
+  }
   scanned[gathered]=st;
   total+=item->bytes;gathered++;
  }
@@ -167,7 +185,10 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
    invalid=1;
   }
  }
- closedir(dir);
+ if(closedir(dir)!=0){
+  if(failure)*failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
+  invalid=1;
+ }
  const int invalid_group=gathered>1u&&
    !validate_capture_group_limit(out,gathered,max_total);
  if(invalid||!found_primary||gathered<minimum||invalid_group){
