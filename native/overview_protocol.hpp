@@ -130,7 +130,10 @@ class OverviewReader {
    unsigned flag=0;
    bool valid=true;
    if(scope==Scope::root){
-    if(key(name,"schemaVersion")){
+    if(key(name,"mode")){
+     flag=1u<<8;Span value{};
+     valid=str(&value)&&key(value,"metadata-only");
+    }else if(key(name,"schemaVersion")){
      flag=1u<<0;std::uint64_t n=0;
      valid=unsigned_number(&n)&&n==1;
     }else if(key(name,"scope")){
@@ -171,7 +174,7 @@ class OverviewReader {
    if(take('}'))break;
    if(!take(','))return false;
   }
-  return scope==Scope::root?mask==255u:
+  return scope==Scope::root?mask==511u:
    scope==Scope::categories?mask==7u:
    scope==Scope::review?mask==31u:true;
  }
