@@ -141,6 +141,22 @@ int main(){
  press(circle);
  assert(screen==Screen::review);
  assert(review_selection==0);
+ // Group by real title ID and return to same catalog without rescanning.
+ press(l3);
+ assert(screen==Screen::games);
+ assert(game_count==2 && !games_truncated);
+ assert(std::strcmp(games[0].id,"GAME123")==0);
+ assert(games[0].count==1 && games[0].bytes==30ULL*1024*1024);
+ press(down);
+ assert(std::strcmp(games[game_selection].id,"GAME456")==0);
+ press(cross);
+ assert(screen==Screen::review);
+ assert(review_visible==1 && std::strcmp(review_game,"GAME456")==0);
+ press(l3);
+ assert(screen==Screen::games);
+ press(triangle);
+ assert(screen==Screen::review);
+ assert(!review_game[0] && review_visible==2);
  press(options);
  assert(screen==Screen::search);
  press(square);
