@@ -40,6 +40,14 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root)],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "Media review:" in result.stdout
+    # A fresh workspace with NONE of the configured known roots is not a
+    # successful inventory with zero captures. Assert "partial" on macOS
+    # and Linux, with no dependence on system permissions.
+    empty_root=root/"empty-scan-workspace"
+    empty_root.mkdir()
+    empty_result=subprocess.run([sys.argv[1],str(empty_root),"empty"],
+                                check=True,text=True,capture_output=True,timeout=20)
+    assert "all roots absent means partial" in empty_result.stdout
     # Linux supports creating the >2-KiB source path needed to reach the
     # scanner's own 2048-byte budget. macOS's stricter system path ceiling
     # prevents constructing this specific fixture before the scanner runs.
