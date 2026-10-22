@@ -118,6 +118,12 @@ int main(){
  assert(review_selection==1);
  press(left);
  assert(review_selection==0);
+ press(square);
+ assert(screen==Screen::detail);
+ assert(detail_index==review_order[review_selection]);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::review);
  scene(canvas);
  press(circle);
  assert(screen==Screen::cleanup);
