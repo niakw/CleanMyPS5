@@ -172,6 +172,39 @@ LocalProbe probe_path(const char*path,bool file) noexcept {
  if(cancellation_hook(nullptr))return LocalProbe{}; // Ignore partial data
  return result;
 }
+/* The four fixed title-visible probes are NOT a global PS5 filesystem
+ * inventory. Summarize only observations; never infer write privileges. */
+struct LocalCoverage {
+ unsigned opened=0,listable=0,missing=0,denied=0,other=0;
+ unsigned entries=0;
+ bool truncated=false,io_error=false;
+ bool partial=true;
+};
+LocalCoverage summarize_local_coverage(const LocalProbe*probes,
+ std::size_t count,bool checked) noexcept {
+ LocalCoverage coverage{};
+ if(!probes||count!=4u||!checked)return coverage;
+ coverage.partial=false;
+ for(std::size_t i=0;i<count;i++){
+  const LocalProbe&probe=probes[i];
+  switch(probe.status){
+   case LocalAccess::opened: ++coverage.opened;break;
+   case LocalAccess::listable: ++coverage.listable;break;
+   case LocalAccess::missing: ++coverage.missing;coverage.partial=true;break;
+   case LocalAccess::denied:
+   case LocalAccess::enumeration_denied:
+    ++coverage.denied;coverage.partial=true;break;
+   default:++coverage.other;coverage.partial=true;break;
+  }
+  if(probe.status==LocalAccess::listable){
+   coverage.entries+=probe.entries;
+   coverage.truncated|=probe.truncated;
+   coverage.io_error|=probe.io_error;
+   coverage.partial|=probe.truncated||probe.io_error;
+  }
+ }
+ return coverage;
+}
 void probe_local() noexcept {
  local_checked=false;
  // Drop previously sampled rights and capacity before every new probe.
@@ -936,26 +969,27 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
                        available,denied,absent);
   panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
  }else if(summary_status==Summary::ok){
+  const LocalCoverage scope=summarize_local_coverage(local_probe,4u,local_checked);
+  const bool limited=summary_partial||scope.partial;
   panel(canvas,366,"SCAN NATIF DU TITRE",
-    summary_partial?"COUVERTURE LIMITEE AUX DROITS":"ANALYSE LOCALE DISPONIBLE",
-    summary_partial?Color::yellow:Color::cyan);
+    limited?"COUVERTURE PARTIELLE OU NON PROUVEE":"SONDAGE DES RACINES DISPONIBLE",
+    limited?Color::yellow:Color::cyan);
  }else{
   panel(canvas,366,"ANALYSE NON DISPONIBLE","DROITS OU MOTEUR LIMITES",Color::yellow);
  }
- char local_result[96]{};
- unsigned listable=0,sampled=0;
- bool incomplete=false;
- for(const auto&probe:local_probe){
-  if(probe.status==LocalAccess::listable){
-   ++listable;
-   sampled+=probe.entries;
-   incomplete|=probe.truncated||probe.io_error;
-  }
+ const LocalCoverage coverage=summarize_local_coverage(
+   local_probe,4u,local_checked);
+ char local_result[112]{};
+ if(local_checked){
+  (void)std::snprintf(local_result,sizeof(local_result),
+    "%u/4 OUVERTS  %u REFUSES  %u ABSENTS%s",
+    coverage.opened+coverage.listable,coverage.denied,coverage.missing,
+    coverage.partial?"  PARTIEL":"");
+ }else{
+  (void)std::snprintf(local_result,sizeof(local_result),"SONDAGE NON TERMINE");
  }
- (void)std::snprintf(local_result,sizeof(local_result),
-  local_checked?"%u DOSSIERS  %u ENTREES VUES%s":"NON EXECUTEE",
-  listable,sampled,incomplete?" (PARTIEL)":"");
- panel(canvas,515,"ANALYSE LOCALE",local_result);
+ panel(canvas,515,"COUVERTURE DES 4 SONDES",local_result,
+   coverage.partial?Color::yellow:Color::cyan);
  char detail[112]{};
  if(summary_status==Summary::ok){
   (void)std::snprintf(detail,sizeof(detail),"%u FICHIERS  %llu MIO NOMINAUX%s",
@@ -1010,8 +1044,9 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    (void)std::snprintf(detail,sizeof(detail),"%s",reason);
   }
   const unsigned y=353+static_cast<unsigned>(i)*144;
-   panel(canvas,y,local_names[i],
-     detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
+   panel(canvas,y,local_names[i],detail,
+     (state==LocalAccess::listable&&!probe.truncated&&!probe.io_error)||
+      state==LocalAccess::opened?Color::cyan:Color::yellow);
    if(state==LocalAccess::listable&&probe.volume_known){
     /* Each mount is independent; do not sum capacity across paths. */
     constexpr unsigned bar_width=650;
