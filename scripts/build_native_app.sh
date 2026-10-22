@@ -40,6 +40,10 @@ cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates
 cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 cp "$project/src/native/homebrew.c" "$tmp/native-toolchain/src/cmp5_homebrew.c"
 cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
+# Autoload config scan uses the same bounded, descriptor-anchored read-only
+# implementation in the title as the separately privileged helper.
+cp "$project/src/native/diagnostics.c" "$tmp/native-toolchain/src/cmp5_diagnostics.c"
+cp "$project/src/native/diagnostics.h" "$tmp/native-toolchain/src/diagnostics.h"
 cp "$project/src/native/media_preview.c" "$tmp/native-toolchain/src/cmp5_media_preview.c"
 cp "$project/src/native/media_preview.h" "$tmp/native-toolchain/src/media_preview.h"
 cp "$project/src/native/video_metadata.c" "$tmp/native-toolchain/src/cmp5_video_metadata.c"
