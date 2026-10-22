@@ -374,6 +374,26 @@ int main(){
  assert(screen==Screen::cleanup);
  finish_scan();
  assert(!task_cancelled() && summary_status==Summary::ok);
+ /* Saturation must not wrap nominal selection totals to a small value.
+  * Deselecting then recalculating restores the exact remaining total. */
+ assert(media_review.count==2);
+ const auto saved_first=media_review.entries[0].bytes;
+ const auto saved_second=media_review.entries[1].bytes;
+ media_review.entries[0].bytes=UINT64_MAX-5u;
+ media_review.entries[1].bytes=50;
+ marked_for_review[0]=true;
+ marked_for_review[1]=true;
+ rebuild_marked_totals();
+ assert(marked_count==2&&marked_images==1&&marked_videos==1);
+ assert(marked_nominal_bytes==UINT64_MAX);
+ marked_for_review[1]=false;
+ rebuild_marked_totals();
+ assert(marked_nominal_bytes==UINT64_MAX-5u&&marked_count==1);
+ marked_for_review[0]=false;
+ media_review.entries[0].bytes=saved_first;
+ media_review.entries[1].bytes=saved_second;
+ rebuild_marked_totals();
+ assert(marked_count==0&&marked_nominal_bytes==0);
  press(circle);
  assert(screen==Screen::menu);
  // Produce visually inspectable previews using the ACTUAL native scene().
