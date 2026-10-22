@@ -1089,7 +1089,7 @@ void show_video_info(ps5::demo::Canvas&canvas) noexcept {
  }
  if(task_cancelled()||task_failed()||!video_info_ready){
   panel(canvas,361,"VIDEO NON ANALYSABLE",
-   "MP4/WEBM INACCESSIBLE, MODIFIE OU NON COMPATIBLE",
+   "FORMAT OU DROITS INCOMPATIBLES",
    Color::yellow);
   panel(canvas,510,"LECTURE VIDEO / HDR","NON ENCORE PRIS EN CHARGE");
   footer(canvas,"CERCLE RETOUR  AUCUNE MODIFICATION");
