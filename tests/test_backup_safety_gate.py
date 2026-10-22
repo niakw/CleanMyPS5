@@ -41,6 +41,13 @@ assert "2u,MAX_TOTAL" in companion, "Host backup planner size cap relaxed"
 assert "validate_capture_group_limit(parts,count,MAX_TOTAL)" in companion, \
     "Host group validator size cap relaxed"
 assert "cmp5_plan_capture_group(" in companion
+# Inconclusive scans may return an enum reason but must never expose
+# candidate paths or raw gallery locators in the PS5 detail screen.
+assert "Cmp5CompanionFailure" in companion
+assert "CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT" in companion
+screen=native.split("void show_companions(",1)[1].split("void show_photo(",1)[0]
+assert "preview_path" not in screen and "snapshot_inode" not in screen
+assert "CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT" in screen
 assert "cmp5_capture_companions.c" in builder
 assert "verified_group.c" not in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
