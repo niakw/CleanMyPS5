@@ -622,6 +622,15 @@ void poll_pad() noexcept {
   previous=buttons;
   if(pressed&circle){
    if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
+   else if(screen==Screen::photo){
+    // Do not retain decoded RGBA buffers after closing the preview;
+    // avoid touching the buffer while its worker is still running.
+    cmp5_release_preview(&decoded_photo);
+    photo_ready=false;
+   }else if(screen==Screen::video_info){
+    video_info=Cmp5VideoMetadata{};
+    video_info_ready=false;
+   }
    screen=(screen==Screen::photo||screen==Screen::video_info)?Screen::detail:
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
