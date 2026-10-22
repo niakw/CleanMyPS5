@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "video_metadata.h"
+#include "webm_metadata.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -131,7 +132,9 @@ int cmp5_probe_video_snapshot(const char*root,const Cmp5MediaCandidate*c,
     memcmp(path,prefix,sizeof(prefix)-1)!=0||
     path[n-1]=='/')return 0;
  const char*ext=strrchr(path,'.');
- if(!ext||strcasecmp(ext,".mp4")!=0)return 0;
+ const int mp4=ext&&strcasecmp(ext,".mp4")==0;
+ const int webm=ext&&strcasecmp(ext,".webm")==0;
+ if(!mp4&&!webm)return 0;
  for(size_t i=0;i<n;i++){
   if(path[i]=='\\'||(i>0&&path[i]=='/'&&path[i-1]=='/'))return 0;
  }
@@ -158,13 +161,17 @@ int cmp5_probe_video_snapshot(const char*root,const Cmp5MediaCandidate*c,
  if(fstat(file_fd,&before)!=0||!same_file(&before,c)){close(fd);return 0;}
  Mp4 p={0};
  p.fd=fd;p.cancel=cancel;p.context=context;
- int parsed=boxes(&p,0,c->bytes,0);
+ Cmp5VideoMetadata webm_result={0};
+ int parsed=mp4?boxes(&p,0,c->bytes,0):
+   cmp5_parse_webm_metadata_fd(fd,c->bytes,&webm_result,cancel,context);
  int stable=fstat(fd,&after)==0&&same_file(&after,c)&&
       before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
       before.st_mtime==after.st_mtime&&before.st_size==after.st_size;
  close(fd);
- if(!parsed||!stable||!p.found_movie||!p.found_duration||!p.found_video||
+ if(!parsed||!stable||(mp4&&
+    (!p.found_movie||!p.found_duration||!p.found_video))||
     (cancel&&cancel(context)))return 0;
+ if(webm){*out=webm_result;return 1;}
  out->duration_ms=p.duration_ms;
  out->width=p.width;out->height=p.height;
  out->boxes_visited=p.count;
