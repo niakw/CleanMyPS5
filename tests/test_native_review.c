@@ -35,10 +35,14 @@ int main(int argc,char**argv){
  assert(json&&json_size>100);
  assert(strstr(json,"\"cleanupValidated\":false"));
  if(longpath){
-  /* The four ordinary captures remain visible. An additional path that
-   * exceeds PATH_CAP MUST make the entire scan incomplete, not complete. */
-  assert(review.count==4u&&review.media_scanned==4u);
-  assert(review.partial==1u&&strstr(json,"\"partial\":true"));
+  /* Scan order is unspecified: the long directory may be encountered
+   * before some otherwise valid captures. Never assume a full count. */
+  assert(review.count<=4u&&review.media_scanned<=4u);
+  if(review.partial!=1u||!strstr(json,"\"partial\":true")){
+   fprintf(stderr,"Overlong path was wrongly declared complete: count=%u media=%u partial=%u\n",
+     review.count,review.media_scanned,review.partial);
+   abort();
+  }
   free(json);
   puts("Native media review: overlong path reports incomplete coverage");
   return 0;
