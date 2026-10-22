@@ -152,6 +152,8 @@ std::uint64_t summary_bytes=0,summary_large_bytes=0;
 bool summary_partial=false;
 Cmp5MediaReview media_review{};
 unsigned review_selection=0;
+unsigned official_selection=0;
+bool official_checked[8]{}; // Session-only self-checks; no filesystem changes.
 
 // Native UI uses only fixed paths and a closed loopback listener.
 // Bounded receive buffers; the backend never receives a write command.
@@ -335,6 +337,12 @@ void poll_pad() noexcept {
     if(pressed&up)review_selection=(review_selection+media_review.count-1)%media_review.count;
     if(pressed&down)review_selection=(review_selection+1)%media_review.count;
    }
+   continue;
+  }
+  if(screen==Screen::official){
+   if(pressed&up)official_selection=(official_selection+7u)%8u;
+   if(pressed&down)official_selection=(official_selection+1u)%8u;
+   if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
    continue;
   }
   if(screen==Screen::cleanup&&(pressed&square)){
@@ -547,11 +555,29 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,"HAUT BAS NAVIGUER  CERCLE RETOUR  LECTURE SEULE");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
- panel(canvas,355,"REVOIR LES HOMEBREWS","VERIFIER MANUELLEMENT");
- panel(canvas,503,"SAUVEGARDER SES DONNEES","AVANT UNE MISE A JOUR");
- panel(canvas,651,"PARAMETRES OFFICIELS","UTILISER LA CONSOLE");
- panel(canvas,799,"SERVICES EN LIGNE","AUCUNE GARANTIE ANTI-BAN",Color::yellow);
- footer(canvas,"AUCUNE MODIFICATION DU SYSTEME   CERCLE RETOUR");
+ static constexpr const char*steps[8]={
+  "SAUVEGARDER LES DONNEES","VERIFIER LES CAPTURES",
+  "REVOIR LES HOMEBREWS","REVOIR LE CHARGEMENT AUTO",
+  "VERIFIER LES INSTALLATIONS","REVOIR LES PARAMETRES",
+  "EVALUER LA MISE A JOUR","COMPRENDRE LES RISQUES PSN"
+ };
+ unsigned done=0;
+ for(bool checked:official_checked)if(checked)done++;
+ char count[96]{};
+ (void)std::snprintf(count,sizeof(count),"%u / 8 REVUS   MODE MANUEL",done);
+ canvas.text(112,303,count,3,Color::yellow);
+ const unsigned page=official_selection/4u;
+ for(unsigned slot=0;slot<4;slot++){
+  const unsigned index=page*4+slot;
+  const unsigned top=351+slot*142u;
+  const bool selected_item=index==official_selection;
+  canvas.rectangle(95,top,1730,116,selected_item?Color::cyan:Color::panel);
+  canvas.rectangle(103,top+8,1714,100,Color::background);
+  canvas.text(135,top+29,steps[index],4,selected_item?Color::cyan:Color::white);
+  canvas.text(1400,top+36,official_checked[index]?"REVU":"A VERIFIER",3,
+    official_checked[index]?Color::cyan:Color::yellow);
+ }
+ footer(canvas,"X MARQUER REVU  HAUT BAS  CERCLE  AUCUNE GARANTIE PSN");
 }
 void scene(ps5::demo::Canvas&canvas) noexcept {
  poll_pad();
