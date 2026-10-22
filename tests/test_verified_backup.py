@@ -34,4 +34,8 @@ with tempfile.TemporaryDirectory() as temp:
     assert not list(backup.glob('*.part'))
     assert not (restore/'ANOTHER').exists()
     assert not (backup/'BAD').exists()
+    assert not (backup/'ABORTED').exists()
+    assert not (backup/'.ABORTED.part').exists()
+    assert not (backup/'HARDLINK').exists()
+    assert not source.with_name(source.name+'.link').exists()
     print(completed.stdout.strip())
