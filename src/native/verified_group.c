@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -93,6 +94,7 @@ static int canonical_same_capture(const Cmp5MediaCandidate *parts,uint32_t count
  size_t stem=(size_t)(dot-first);
  if(stem>246u)return 0;
  uint64_t sum=0;
+ unsigned media=0,sidecars=0;
  for(unsigned i=0;i<count;i++){
   const Cmp5MediaCandidate*c=&parts[i];
   const char*path=c->preview_path;
@@ -104,16 +106,19 @@ static int canonical_same_capture(const Cmp5MediaCandidate *parts,uint32_t count
      c->bytes==0||c->bytes>MAX_TOTAL-sum)return 0;
   if(c->media_type!=1&&c->media_type!=2&&c->media_type!=3)return 0;
   if(c->media_type==3){
-   if(strcmp(ext,".dat")&&strcmp(ext,".DAT"))return 0;
-   if(c->bytes>65536u)return 0;
-  }
-  for(unsigned j=0;j<i;j++)
-   if(!strcmp(parts[j].preview_path,path)||
+   if(strcasecmp(ext,".dat")||c->bytes>65536u)return 0;
+   sidecars++;
+  }else media++;
+  for(unsigned j=0;j<i;j++){
+   const char*prior_ext=strrchr(parts[j].preview_path,'.');
+   if((prior_ext&&strcasecmp(prior_ext,ext)==0)||
+      !strcmp(parts[j].preview_path,path)||
       (parts[j].snapshot_inode==c->snapshot_inode&&
        parts[j].snapshot_device==c->snapshot_device))return 0;
+  }
   sum+=c->bytes;
  }
- return sum<=MAX_TOTAL;
+ return media>=1&&sidecars<=1&&sum<=MAX_TOTAL;
 }
 static void manifest_header(uint8_t out[MARK_SIZE],const Cmp5BackupReceipt*r,
  uint32_t count){
