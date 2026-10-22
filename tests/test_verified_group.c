@@ -39,6 +39,16 @@ int main(int argc,char**argv){
   snapshot(&media[i],paths[i],relative,i==2?3:1);
  }
  Cmp5GroupReceipt a={0},b={0};
+ Cmp5MediaCandidate found[CMP5_GROUP_MAX];
+ uint32_t found_count=0;
+ assert(!cmp5_plan_capture_group(root,&media[0],found,&found_count,stop,NULL));
+ assert(found_count==0);
+ assert(cmp5_plan_capture_group(root,&media[0],found,&found_count,NULL,NULL));
+ assert(found_count==3u);
+ assert(found[0].media_type==3u&&found[1].media_type==1u&&
+        found[2].media_type==1u);
+ assert(found[0].bytes==media[2].bytes&&found[1].bytes==media[1].bytes&&
+        found[2].bytes==media[0].bytes);
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,stop,NULL));
  assert(!cmp5_verify_group(private,"ALBUM",&a,NULL,NULL));
  unsigned calls=0;
@@ -73,6 +83,19 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_group(root,wrong,3,private,"SAME_EXT",&b,NULL,NULL));
  assert(!cmp5_backup_group(root,media,3,private,"BAD/ID",&b,NULL,NULL));
  assert(!cmp5_backup_group(root,media,1,private,"SINGLE",&b,NULL,NULL));
+ Cmp5MediaCandidate invalid=media[0];
+ invalid.snapshot_inode++;
+ assert(!cmp5_plan_capture_group(root,&invalid,found,&found_count,NULL,NULL));
+ assert(found_count==0);
+ char nonregular[512];
+ (void)snprintf(nonregular,sizeof(nonregular),"%s",jxr);
+ size_t basename_len=strlen(nonregular);
+ assert(basename_len>4&&basename_len<sizeof(nonregular)-2);
+ memcpy(nonregular+basename_len-4,".png",5);
+ assert(symlink(jpg,nonregular)==0);
+ assert(!cmp5_plan_capture_group(root,&media[0],found,&found_count,NULL,NULL));
+ assert(found_count==0);
+ assert(unlink(nonregular)==0);
  assert(!cmp5_verify_group(private,"ALBUM__COMMIT",&b,NULL,NULL));
  char file[512];
  (void)snprintf(file,sizeof(file),"%s/ALBUM__2",restored);
