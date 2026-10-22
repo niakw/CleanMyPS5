@@ -28,6 +28,8 @@ cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_p
 # It inherits title permissions; it never escalates them or installs a daemon.
 cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"
 cp "$project/src/native/inventory.h" "$tmp/native-toolchain/src/inventory.h"
+cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates.c"
+cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 python3 "$project/scripts/embed_rules.py"   "$project/rules/metadata-v1.json" "$tmp/native-toolchain/src/scan_rules.h"
 python3 "$project/scripts/make_native_icon.py" "$tmp/native-toolchain/sce_sys/icon0.png"
 # Never distribute the toolchain demo title backgrounds/audio.
