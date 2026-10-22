@@ -47,7 +47,9 @@ L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le front
 
 **Captures par jeu :** depuis le catalogue natif, **L3** ouvre les groupes. **Carré** marque/démarque toutes les captures inventoriées du jeu choisi (compteur par jeu), sans supprimer de fichier et sans enregistrer la sélection.
 
-**Prévisualisation sans console :** la CI génère quatorze captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
+**Fichiers compagnons de captures :** depuis une fiche native, **Carré** lance une inspection bornée des fichiers associés partageant le même nom de base (ex. image et `.dat`) sous les permissions du titre. Les contrôles de groupe sont seulement descriptifs : un résultat positif ne prouve ni l'intégralité des index PS5 ni la possibilité de déplacer ou supprimer les captures. Les accès et résultats incomplets restent signalés comme non vérifiables. Le module intégré est strictement en lecture seule ; aucune fonction de copie/restauration du prototype hôte n'est intégrée à `eboot.bin`.
+
+**Prévisualisation sans console :** la CI génère quinze captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
 
 ## Développement et compilation
 
