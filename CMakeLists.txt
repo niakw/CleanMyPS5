@@ -63,3 +63,16 @@ add_test(NAME verified_backup_fixture
 # The prototype MUST remain host-only until PS5 media-index restore is proven.
 add_test(NAME verified_backup_activation_gate
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_backup_safety_gate.py)
+
+# Atomic logical group of multiple sidecars; host-only until PS5 media database
+# consistency, storage permissions, and power-loss recovery are verified.
+add_executable(cmp5-verified-group-tests
+ tests/test_verified_group.c src/native/verified_group.c
+ src/native/verified_backup.c src/native/sha256.c)
+target_include_directories(cmp5-verified-group-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-verified-group-tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME verified_group_fixture
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_group.py
+ $<TARGET_FILE:cmp5-verified-group-tests>)
