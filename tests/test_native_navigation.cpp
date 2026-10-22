@@ -493,6 +493,15 @@ int main(){
   review_sort=MediaSort::size;review_selection=0;
   rebuild_review_index();
   save(Screen::review,"03-catalog");
+  marked_for_review[0]=true;
+  rebuild_marked_totals();
+  review_marked_only=true;
+  rebuild_review_index();
+  save(Screen::review,"03b-marked-catalog");
+  review_marked_only=false;
+  marked_for_review[0]=false;
+  rebuild_marked_totals();
+  rebuild_review_index();
   save(Screen::search,"04-search");
   rebuild_games();game_selection=0;
   save(Screen::games,"05-games");
