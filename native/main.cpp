@@ -238,7 +238,7 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
     !scan_field(json,"\"oldMedia\":",&old)||
     !scan_field(json,"\"oldLargeMedia\":",&oldLarge)||
     !scan_u64(json,"\"largeMediaNominalBytes\":",&largeBytes)||
-    large>media||old>media||oldLarge>large||oldLarge>old)return;
+    large>media||old>media||oldLarge>large||oldLarge>old)return false;
  summary_files=files;
  summary_media=media;
  summary_cache=cache;
