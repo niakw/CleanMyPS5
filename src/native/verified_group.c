@@ -2,6 +2,7 @@
 #include "verified_group.h"
 #include "sha256.h"
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -85,6 +86,110 @@ static int write_exact(int fd,const uint8_t*p,size_t n){
   p+=r;n-=(size_t)r;
  }return 1;
 }
+static int canonical_same_capture(const Cmp5MediaCandidate*,uint32_t);
+/* Read-only companion planner. The root and every parent component are opened
+ * with O_NOFOLLOW; fstatat does not follow companion symlinks. Any matching
+ * suspicious or unreadable file refuses the entire plan (fail closed). */
+int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
+ Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
+ Cmp5CancelCheck cancel,void*context){
+ if(count)*count=0;
+ if(!root||!primary||!out||!count||
+    (primary->media_type!=1&&primary->media_type!=2)||
+    cancelled(cancel,context))return 0;
+ const char*path=primary->preview_path;
+ const char*prefix=primary->media_type==1?
+  "/user/av_contents/photo/":"/user/av_contents/video/";
+ size_t n=0;
+ while(n<sizeof(primary->preview_path)&&path[n])n++;
+ if(n==sizeof(primary->preview_path)||n<=strlen(prefix)||
+    memcmp(path,prefix,strlen(prefix))!=0)return 0;
+ const char*slash=strrchr(path,'/');
+ const char*extension=strrchr(path,'.');
+ if(!slash||!extension||extension<=slash+1||extension[1]==0)return 0;
+ size_t stem_length=(size_t)(extension-(slash+1));
+ if(stem_length>96u)return 0;
+ for(size_t i=0;i<n;i++)
+  if(path[i]=='\\'||(i&&path[i]=='/'&&path[i-1]=='/'))return 0;
+ char stem[100];memcpy(stem,slash+1,stem_length);stem[stem_length]=0;
+ /* Keep opened parent stable even when there are renames outside our scan. */
+ char directory[sizeof(primary->preview_path)];
+ const size_t parent_len=(size_t)(slash-path);
+ if(parent_len>=sizeof(directory)-1u)return 0;
+ memcpy(directory,path+1,parent_len-1u);directory[parent_len-1u]=0;
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return 0;
+ char*save=NULL;
+ for(char*part=strtok_r(directory,"/",&save);part;part=strtok_r(NULL,"/",&save)){
+  if(part[0]=='.'){close(fd);return 0;}
+  int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(fd);if(child<0)return 0;fd=child;
+ }
+ struct stat selected;
+ if(fstatat(fd,slash+1,&selected,AT_SYMLINK_NOFOLLOW)!=0||
+    !S_ISREG(selected.st_mode)||selected.st_nlink!=1||
+    selected.st_size<=0||(uint64_t)selected.st_size!=primary->bytes||
+    (uint64_t)selected.st_dev!=primary->snapshot_device||
+    (uint64_t)selected.st_ino!=primary->snapshot_inode||
+    (selected.st_mtime>0?(int64_t)selected.st_mtime:0)!=primary->modified_at){
+  close(fd);return 0;
+ }
+ const int anchored_fd=fd;
+ DIR*dir=fdopendir(fd);
+ if(!dir){close(fd);return 0;}
+ uint32_t gathered=0,visits=0;uint64_t total=0;
+ int invalid=0,found_primary=0;
+ struct dirent*entry;
+ while((entry=readdir(dir))!=NULL){
+  if(cancelled(cancel,context)||++visits>1024u){invalid=1;break;}
+  const char*name=entry->d_name;
+  if(name[0]=='.')continue;
+  if(strncmp(name,stem,stem_length)!=0||name[stem_length]!='.')continue;
+  const char*ext=name+stem_length;
+  uint32_t type=0;
+  if(!strcasecmp(ext,".dat"))type=3;
+  else if(primary->media_type==1&&
+     (!strcasecmp(ext,".jxr")||!strcasecmp(ext,".jpg")||
+      !strcasecmp(ext,".jpeg")||!strcasecmp(ext,".png")))type=1;
+  else if(primary->media_type==2&&
+     (!strcasecmp(ext,".mp4")||!strcasecmp(ext,".webm")))type=2;
+  else {invalid=1;break;} /* Unknown matching sidecar: cannot claim complete. */
+  struct stat st;
+  if(fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW)!=0||
+     !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||
+     (type==3&&st.st_size>65536)||
+     gathered>=CMP5_GROUP_MAX||
+     (uint64_t)st.st_size>MAX_TOTAL-total){invalid=1;break;}
+  size_t filename_length=strlen(name);
+  if(parent_len+filename_length>=sizeof(out[0].preview_path)){invalid=1;break;}
+  Cmp5MediaCandidate*item=&out[gather];
+  memset(item,0,sizeof(*item));
+  memcpy(item->preview_path,path,parent_len+1u);
+  memcpy(item->preview_path+parent_len+1u,name,filename_length+1u);
+  item->bytes=(uint64_t)st.st_size;
+  item->modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
+  item->snapshot_device=(uint64_t)st.st_dev;
+  item->snapshot_inode=(uint64_t)st.st_ino;
+  item->media_type=type;
+  if(st.st_dev==selected.st_dev&&st.st_ino==selected.st_ino&&
+     strcmp(name,slash+1)==0)found_primary=1;
+  total+=item->bytes;gathered++;
+ }
+ closedir(dir);
+ if(invalid||!found_primary||gathered<2u||
+    !canonical_same_capture(out,gathered))return 0;
+ /* A stable order is mandatory for group IDs and restore audit. */
+ for(unsigned i=1;i<gathered;i++){
+  Cmp5MediaCandidate tmp=out[i];unsigned j=i;
+  while(j&&strcmp(out[j-1].preview_path,tmp.preview_path)>0){
+   out[j]=out[j-1];j--;
+  }
+  out[j]=tmp;
+ }
+ *count=gathered;
+ return 1;
+}
+
 static int canonical_same_capture(const Cmp5MediaCandidate *parts,uint32_t count){
  if(!parts||count<2||count>CMP5_GROUP_MAX)return 0;
  const char*first=parts[0].preview_path;
