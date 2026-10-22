@@ -324,6 +324,18 @@ int main(){
  scene(canvas);
  press(circle);
  assert(screen==Screen::review);
+ press(r3);
+ assert(review_marked_only&&review_visible==1&&review_order[0]==0);
+ press(square);
+ assert(screen==Screen::detail&&detail_index==0);
+ press(triangle);
+ assert(marked_count==0&&review_visible==0);
+ press(triangle);
+ assert(marked_count==1&&review_visible==1&&review_order[0]==0);
+ press(circle);
+ assert(screen==Screen::review);
+ press(r3);
+ assert(!review_marked_only&&review_visible==2);
  press(down);
  assert(review_selection==1);
  press(square);
@@ -360,6 +372,7 @@ int main(){
  press(cross); // A fresh scan invalidates selected entries and duplicate snapshot.
  finish_scan();
  assert(marked_count==0 && !marked_for_review[0] && !marked_for_review[1]);
+ assert(!review_marked_only);
  assert(marked_nominal_bytes==0&&marked_images==0&&marked_videos==0);
  assert(!duplicates_checked && duplicate_stats.exact_groups==0);
  press(circle);
