@@ -312,6 +312,21 @@ int main(){
  press(circle);
  assert(screen==Screen::detail);
  assert(!photo_ready&&decoded_photo.pixels==nullptr);
+ /* Recreate the race where Circle navigates away while the preview
+  * worker reports busy, then completes after the input handler returns. */
+ const std::uint8_t late_frame[8]={0};
+ assert(cmp5_decode_preview(late_frame,sizeof(late_frame),&decoded_photo));
+ photo_ready=true;
+ task_state.store(1,std::memory_order_release);
+ scene(canvas);
+ assert(photo_ready&&decoded_photo.pixels!=nullptr); // worker still active
+ task_state.store(2,std::memory_order_release);
+ scene(canvas);
+ assert(!photo_ready&&decoded_photo.pixels==nullptr); // deferred disposal
+ video_info=Cmp5VideoMetadata{95200,1920,1080,6};
+ video_info_ready=true;
+ scene(canvas);
+ assert(!video_info_ready&&video_info.duration_ms==0);
  assert(marked_count==0);
  press(triangle);
  assert(marked_count==1);
