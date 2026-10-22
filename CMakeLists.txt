@@ -32,3 +32,8 @@ add_test(NAME generic_inventory_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SO
 
 add_executable(cmp5-duplicates-root-race tests/test_duplicates_root_race.c)
 add_test(NAME duplicates_root_race COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_duplicates_root_race.py $<TARGET_FILE:cmp5-duplicates-root-race>)
+
+# Exercise the same read-only metadata shortlist linked into the PS5 native UI.
+add_executable(cmp5-native-review-tests tests/test_native_review.c src/native/inventory.c ${RULES})
+target_include_directories(cmp5-native-review-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+add_test(NAME native_review_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_review.py $<TARGET_FILE:cmp5-native-review-tests>)
