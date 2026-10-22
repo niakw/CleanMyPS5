@@ -19,8 +19,19 @@ typedef enum {
  CMP5_COMPANIONS_SINGLE=1,
  CMP5_COMPANIONS_MULTIPLE=2
 } Cmp5CompanionState;
+/* No paths, identifiers or filenames in the user-facing failure reason.
+ * Failure reasons are descriptive only; NEVER authorization to delete. */
+typedef enum {
+ CMP5_COMPANION_FAILURE_NONE=0,
+ CMP5_COMPANION_FAILURE_UNAVAILABLE=1,
+ CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT=2,
+ CMP5_COMPANION_FAILURE_AMBIGUOUS=3,
+ CMP5_COMPANION_FAILURE_CHANGED=4,
+ CMP5_COMPANION_FAILURE_CANCELLED=5
+} Cmp5CompanionFailure;
 typedef struct {
  Cmp5CompanionState state;
+ Cmp5CompanionFailure failure;
  uint32_t files;
  uint32_t media;
  uint32_t sidecars;
