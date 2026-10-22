@@ -397,6 +397,14 @@ static void root_scan(Scan*s,const char*root,const char*id,const char*rel,const 
  c->status=(s->stopped||s->rootPartial)?"partial":"complete";
  if(s->stopped||s->rootPartial)s->partial=1;
 }
+/* No configured scanner root was traversable: an all-zero inventory
+ * is not evidence that a PS5 installation contains zero relevant files.
+ * Distinguish the absence of observations from a complete empty gallery. */
+static int has_completed_root(const Scan*s){
+ for(size_t i=0;i<s->nc;i++)
+  if(!strcmp(s->coverage[i].status,"complete"))return 1;
+ return 0;
+}
 char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;
  if(!root||!len)return NULL;
@@ -412,6 +420,7 @@ char *cmp5_report(const char*root,size_t*len){
   char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);root_scan(s,root,"usb-homebrew",path,"application");
   snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);root_scan(s,root,"extended-homebrew",path,"application");
  }
+ if(!has_completed_root(s))s->partial=1;
  add(&s->b,"],\"coverage\":[");
  for(size_t i=0;i<s->nc;i++){
   Coverage*c=&s->coverage[i];if(i)add(&s->b,",");
@@ -457,6 +466,7 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
   root_scan(s,root,"extended-homebrew",path,"application");
  }
  (void)cancellation_requested(s);
+ if(!has_completed_root(s))s->partial=1;
  size_t complete=0,part=0,absent=0,unavailable=0,other=0;
  for(size_t i=0;i<s->nc;i++){
   const char*status=s->coverage[i].status;
