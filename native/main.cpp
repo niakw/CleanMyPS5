@@ -4,6 +4,7 @@
 #include "demo_renderer.hpp"
 #include "loopback_protocol.hpp"
 #include "inventory.h"
+#include "duplicates.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -171,6 +172,8 @@ unsigned review_selection=0;
 unsigned detail_index=0;
 bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
+Cmp5DuplicateStats duplicate_stats{};
+bool duplicates_checked=false;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -356,9 +359,11 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
  return true;
 }
 void run_overview() noexcept {
- // Any new scan invalidates entry indices; never carry over prior selection.
+ // Any new scan invalidates entry indices and the duplicate snapshot.
  std::memset(marked_for_review,0,sizeof(marked_for_review));
  marked_count=0;
+ duplicate_stats=Cmp5DuplicateStats{};
+ duplicates_checked=false;
  // The same limited scanner is linked inside eboot.bin. It has only
  // the permissions actually granted to the installed title's sandbox.
  // Never present inaccessible roots as empty or deleted.
@@ -388,7 +393,19 @@ void run_environment_check() noexcept {
  if(helper_is_compatible()&&get_preflight())engine=Link::ok;
  run_overview();
 }
-enum class Task : unsigned { none, environment, access, overview };
+void run_duplicate_check() noexcept {
+ duplicate_stats=Cmp5DuplicateStats{};
+ duplicates_checked=false;
+ std::size_t length=0;
+ // Content comparison only after an explicit Triangle press.
+ // Limits: 128 images, 32 MiB each, 128 MiB IO, ~6 s. No writes.
+ char*report=cmp5_duplicates_with_stats("/",&length,&duplicate_stats);
+ if(report){
+  std::free(report); // Never bring private paths into the native UI.
+  duplicates_checked=true;
+ }
+}
+enum class Task : unsigned { none, environment, access, overview, duplicates };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed
 Task task_kind=Task::none;
 
@@ -397,6 +414,7 @@ void* background_task(void*) noexcept {
   case Task::environment: run_environment_check(); break;
   case Task::access: probe_local(); break;
   case Task::overview: run_overview(); break;
+  case Task::duplicates: run_duplicate_check(); break;
   default: break;
  }
  // Publish all task results to the video thread only after writes complete.
@@ -543,6 +561,10 @@ void poll_pad() noexcept {
    if(media_review.count){
     review_selection=0;rebuild_review_index();screen=Screen::review;
    }
+   continue;
+  }
+  if(screen==Screen::cleanup&&(pressed&triangle)){
+   (void)begin_task(Task::duplicates);
    continue;
   }
   if(screen==Screen::menu){
@@ -717,13 +739,19 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,651,"MOTEUR","DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
  }
- char selected_msg[112]{};
- (void)std::snprintf(selected_msg,sizeof(selected_msg),
-   "%u MARQUES A REVOIR  AUCUNE SUPPRESSION",marked_count);
- panel(canvas,799,"PROTECTION",selected_msg,Color::yellow);
- footer(canvas,media_review.count?
-  "CARRE CATALOGUE  X REANALYSER  CERCLE RETOUR":
-  "X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
+ char selected_msg[130]{};
+ if(duplicates_checked){
+  (void)std::snprintf(selected_msg,sizeof(selected_msg),
+    "%u MARQUES  %u GROUPES EXACTS%s",marked_count,
+    duplicate_stats.exact_groups,duplicate_stats.partial?"  PARTIEL":"");
+ }else{
+  (void)std::snprintf(selected_msg,sizeof(selected_msg),
+    "%u MARQUES   TRIANGLE POUR DOUBLONS",marked_count);
+ }
+ panel(canvas,799,"REVUE ET DOUBLONS",selected_msg,Color::yellow);
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,963,"CARRE CATALOGUE  TRIANGLE DOUBLONS  X REANALYSER",3,Color::white);
+ canvas.text(125,1005,"CERCLE RETOUR   LECTURE SEULE   AUCUNE SUPPRESSION",3,Color::cyan);
 }
 void show_review(ps5::demo::Canvas&canvas) noexcept {
  if(!media_review.count){
