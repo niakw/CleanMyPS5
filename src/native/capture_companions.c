@@ -168,12 +168,15 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   }
  }
  closedir(dir);
- if(invalid||!found_primary||gathered<minimum||
-    (gathered>1u&&!validate_capture_group_limit(out,gathered,max_total))){
-  if(failure&&!*failure)*failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
-  if(failure&&*failure==CMP5_COMPANION_FAILURE_UNAVAILABLE&&
-     (!found_primary||gathered>1u))
-   *failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+ const int invalid_group=gathered>1u&&
+   !validate_capture_group_limit(out,gathered,max_total);
+ if(invalid||!found_primary||gathered<minimum||invalid_group){
+  if(failure&&*failure==CMP5_COMPANION_FAILURE_UNAVAILABLE){
+   if(!invalid&&invalid_group)
+    *failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   else if(!invalid&&!found_primary)
+    *failure=CMP5_COMPANION_FAILURE_CHANGED;
+  }
   return 0;
  }
  /* A stable order is mandatory for group IDs and restore audit. */
