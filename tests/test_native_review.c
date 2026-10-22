@@ -13,7 +13,9 @@ static int stop_after_budget(void*opaque){
 int main(int argc,char**argv){
  if(argc!=2&&argc!=3)return 2;
  const int cancel=argc==3&&strcmp(argv[2],"cancel")==0;
- const unsigned expected=argc==3&&!cancel?(unsigned)strtoul(argv[2],NULL,10):4u;
+ const int longpath=argc==3&&strcmp(argv[2],"longpath")==0;
+ const unsigned expected=argc==3&&!cancel&&!longpath?
+   (unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
  unsigned calls=0;
@@ -32,6 +34,15 @@ int main(int argc,char**argv){
  }
  assert(json&&json_size>100);
  assert(strstr(json,"\"cleanupValidated\":false"));
+ if(longpath){
+  /* The four ordinary captures remain visible. An additional path that
+   * exceeds PATH_CAP MUST make the entire scan incomplete, not complete. */
+  assert(review.count==4u&&review.media_scanned==4u);
+  assert(review.partial==1u&&strstr(json,"\"partial\":true"));
+  free(json);
+  puts("Native media review: overlong path reports incomplete coverage");
+  return 0;
+ }
  assert(review.count==expected);
  assert(review.media_scanned==expected);
  assert(review.partial==0);
