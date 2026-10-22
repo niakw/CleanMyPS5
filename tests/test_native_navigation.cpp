@@ -96,6 +96,7 @@ char *cmp5_duplicates_with_stats(const char*,std::size_t*len,Cmp5DuplicateStats*
  stats->compared_bytes=2048;
  stats->duplicate_nominal_bytes=1024;
  return out;
+}
 char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
   Cmp5DuplicateStats*stats,Cmp5CancelCheck cancel,void*context){
  if(cancel(context))return nullptr;
