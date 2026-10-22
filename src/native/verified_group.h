@@ -50,6 +50,27 @@ int cmp5_inspect_group_recovery(const char *private_workspace,
  * backup capsules. It does not update or validate the PS5 album database. */
 int cmp5_inspect_restored_group_recovery(const char *restore_workspace,
  const char *group_id,Cmp5RecoveryReport *report);
+/* Host-only, read-only end-to-end audit: verify both private namespaces
+ * independently, then compare the COMPLETE group receipts, including the
+ * ordered content digests. A matching receipt proves that the restored
+ * private bytes correspond to the selected private backup, NOT that PS5
+ * gallery indexes/miniatures would be restorable.
+ * Distinct workspaces are mandatory even if their paths are aliases. */
+typedef enum {
+ CMP5_PAIR_UNVERIFIABLE=0,
+ CMP5_PAIR_NOT_READY=1,
+ CMP5_PAIR_MATCH=2,
+ CMP5_PAIR_MISMATCH=3,
+ CMP5_PAIR_INVALID=4
+} Cmp5RecoveryPairState;
+typedef struct {
+ Cmp5RecoveryPairState state;
+ Cmp5RecoveryReport backup;
+ Cmp5RecoveryReport restored;
+} Cmp5RecoveryPairReport;
+int cmp5_inspect_backup_restore_pair(const char *backup_workspace,
+ const char *backup_id,const char *restore_workspace,
+ const char *restore_id,Cmp5RecoveryPairReport *report);
 #ifdef __cplusplus
 }
 #endif
