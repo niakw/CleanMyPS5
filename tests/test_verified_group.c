@@ -173,6 +173,14 @@ int main(int argc,char**argv){
  assert(!cmp5_inspect_capture_companions(root,&media[0],&observed,stop,NULL));
  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
  assert(observed.failure==CMP5_COMPANION_FAILURE_CANCELLED);
+ char unavailable_root[512];
+ const int root_len=snprintf(unavailable_root,sizeof(unavailable_root),
+   "%s/NO_SUCH_SOURCE_FOLDER",root);
+ assert(root_len>0&&(size_t)root_len<sizeof(unavailable_root));
+ assert(!cmp5_inspect_capture_companions(unavailable_root,&media[0],
+         &observed,NULL,NULL));
+ assert(observed.failure==CMP5_COMPANION_FAILURE_UNAVAILABLE&&
+        observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
  const char*slash=strrchr(jxr,'/');assert(slash);
  char single_path[512];
  const int single_len=snprintf(single_path,sizeof(single_path),"%.*s/SOLO.jpg",
@@ -511,6 +519,14 @@ int main(int argc,char**argv){
  assert(race.created&&found_count==0);
  for(unsigned i=0;i<CMP5_GROUP_MAX;i++)
   assert(found[i].preview_path[0]==0&&found[i].bytes==0);
+ assert(unlink(race.late)==0);
+ memset(&race,0,sizeof(race));
+ memcpy(race.late,jxr,folder_len);
+ strcpy(race.late+folder_len,"/UNRELATED.txt");
+ assert(!cmp5_inspect_capture_companions(root,&media[0],&observed,
+   add_unrelated_during_scan,&race));
+ assert(race.created&&observed.failure==CMP5_COMPANION_FAILURE_CHANGED);
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
  assert(unlink(race.late)==0);
  puts("Atomic multi-file capture group: backup, restore, recovery, scan-race PASS");
  return 0;
