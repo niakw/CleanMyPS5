@@ -153,6 +153,8 @@ int main(int argc,char**argv){
  assert(fputc(original^0x80,f)>=0);
  assert(fclose(f)==0);
  assert(!cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.marker_present);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  puts("Atomic multi-file capture group: backup, restore, no-clobber, rejection, tamper PASS");
  return 0;
