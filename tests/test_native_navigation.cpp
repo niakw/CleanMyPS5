@@ -162,6 +162,24 @@ char *cmp5_homebrew_with_stats(const char*,std::size_t*len,
  stats->nominal_bytes=400000000;
  return result;
 }
+char *cmp5_diagnostics_with_stats(const char*,std::size_t*len,
+ Cmp5AutoloadStats*stats){
+ const char fixture[]="{\"checked\":11,\"entries\":[]}";
+ char*response=(char*)std::malloc(sizeof(fixture));
+ assert(response);
+ std::memcpy(response,fixture,sizeof(fixture));
+ *len=sizeof(fixture)-1;
+ *stats=Cmp5AutoloadStats{};
+ stats->checked=11;
+ stats->present=5;
+ stats->missing=6;
+ stats->etahen_references=1;
+ stats->other_references=1;
+ stats->autostart_enabled=1;
+ stats->autostart_disabled=1;
+ stats->unreadable=1;
+ return response;
+}
 }
 
 namespace ps5::demo {
@@ -405,6 +423,20 @@ int main(){
  press(cross);
  assert(official_checked[1]);
  scene(canvas);
+ press(square);
+ assert(screen==Screen::autoload);
+ finish_scan();
+ assert(autoload_checked);
+ assert(autoload_stats.checked==11&&autoload_stats.present==5);
+ assert(autoload_stats.missing==6&&autoload_stats.etahen_references==1);
+ assert(autoload_stats.autostart_enabled==1&&autoload_stats.unreadable==1);
+ scene(canvas);
+ press(cross);
+ finish_scan();
+ assert(autoload_checked);
+ press(circle);
+ assert(screen==Screen::official);
+ assert(official_checked[0]&&official_checked[1]);
  press(circle);
  assert(screen==Screen::menu);
  press(up);
@@ -529,6 +561,12 @@ int main(){
   detail_index=0;
   save(Screen::detail,"06-details");
   save(Screen::official,"07-official");
+  autoload_checked=true;
+  autoload_stats=Cmp5AutoloadStats{};
+  autoload_stats.checked=11;autoload_stats.present=5;
+  autoload_stats.missing=6;autoload_stats.etahen_references=1;
+  autoload_stats.autostart_enabled=1;autoload_stats.unreadable=1;
+  save(Screen::autoload,"07b-autoload");
   save(Screen::access,"08-access");
   save(Screen::apps,"09-apps");
   const std::uint8_t synthetic_photo[8]={0};
