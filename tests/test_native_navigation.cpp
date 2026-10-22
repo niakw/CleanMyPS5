@@ -122,15 +122,20 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
  if(cancel(context))return nullptr;
  return cmp5_duplicates_with_stats(root,len,stats);
 }
-int cmp5_plan_capture_group(const char*,const Cmp5MediaCandidate*primary,
- Cmp5MediaCandidate out[CMP5_GROUP_MAX],std::uint32_t*count,
- Cmp5CancelCheck cancel,void*context){
- *count=0;
- if(!primary||cancel(context)||primary->media_type!=1u)return 0;
- out[0]=*primary;
- out[1]=*primary;
- out[1].media_type=3u;out[1].bytes=256u;
- *count=2u;
+int cmp5_inspect_capture_companions(const char*,const Cmp5MediaCandidate*primary,
+ Cmp5CompanionReport*report,Cmp5CancelCheck cancel,void*context){
+ if(!report)return 0;
+ *report=Cmp5CompanionReport{};
+ if(!primary||cancel(context)||!primary->preview_path[0])return 0;
+ if(primary->media_type==1u){
+  report->state=CMP5_COMPANIONS_MULTIPLE;
+  report->files=2u;report->media=1u;report->sidecars=1u;
+  report->nominal_bytes=primary->bytes+256u;
+ }else if(primary->media_type==2u){
+  report->state=CMP5_COMPANIONS_SINGLE;
+  report->files=1u;report->media=1u;
+  report->nominal_bytes=primary->bytes;
+ }else return 0;
  return 1;
 }
 int cmp5_probe_video_snapshot(const char*,const Cmp5MediaCandidate*c,
@@ -332,7 +337,8 @@ int main(){
  assert(companion_checked);
  assert(companion_summary.files==2u&&companion_summary.sidecars==1u);
  assert(companion_summary.media==1u);
- assert(companion_summary.bytes==30ULL*1024*1024+256u);
+ assert(companion_summary.state==CMP5_COMPANIONS_MULTIPLE);
+ assert(companion_summary.nominal_bytes==30ULL*1024*1024+256u);
  scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
@@ -419,12 +425,25 @@ int main(){
  press(circle);
  assert(screen==Screen::detail);
  assert(!video_info_ready&&video_info.duration_ms==0);
- press(square); // Deliberately unsupported companion group: don't present success.
+ press(square);
+ assert(screen==Screen::companions);
+ finish_scan();
+ assert(companion_checked&&companion_summary.state==CMP5_COMPANIONS_SINGLE);
+ assert(companion_summary.files==1u&&companion_summary.sidecars==0u);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::detail);
+ // No locator and a cancelled request must fail closed, not appear single.
+ const char saved=media_review.entries[detail_index].preview_path[0];
+ media_review.entries[detail_index].preview_path[0]=0;
+ press(square);
  assert(screen==Screen::companions);
  finish_scan();
  assert(!companion_checked&&!companion_summary.files);
+ scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
+ media_review.entries[detail_index].preview_path[0]=saved;
  press(circle);
  assert(screen==Screen::review);
  scene(canvas);
@@ -637,10 +656,12 @@ int main(){
   rebuild_marked_totals();rebuild_games();
   detail_index=0;
   save(Screen::detail,"06-details");
-  companion_summary=CompanionSummary{2u,1u,1u,30ULL*1024*1024+256u};
+  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_MULTIPLE,2u,1u,1u,30ULL*1024*1024+256u};
   companion_checked=true;
   save(Screen::companions,"06b-companions");
-  companion_summary=CompanionSummary{};
+  companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_SINGLE,1u,1u,0u,10ULL*1024*1024};
+  save(Screen::companions,"06c-single-capture");
+  companion_summary=Cmp5CompanionReport{};
   companion_checked=false;
   save(Screen::official,"07-official");
   autoload_checked=true;
