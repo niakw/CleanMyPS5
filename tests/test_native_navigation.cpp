@@ -237,6 +237,28 @@ int main(){
  assert(sample.status!=LocalAccess::listable&&!sample.volume_known);
  assert(symlink(media,file_alias)==0);
  assert(probe_path(file_alias,true).status!=LocalAccess::opened);
+ /* O_NOFOLLOW only on the leaf is insufficient: a parent alias must NOT
+  * redirect either directory enumeration or a metadata-file open. */
+ char real_parent[256]{},alias_parent[256]{},through_alias[256]{};
+ char through_alias_file[256]{},direct_child[256]{};
+ (void)std::snprintf(real_parent,sizeof(real_parent),"%s/real",dir);
+ (void)std::snprintf(alias_parent,sizeof(alias_parent),"%s/alias-parent",dir);
+ (void)std::snprintf(through_alias,sizeof(through_alias),"%s/alias-parent",dir);
+ (void)std::snprintf(through_alias_file,sizeof(through_alias_file),
+    "%s/alias-parent/item.txt",dir);
+ (void)std::snprintf(direct_child,sizeof(direct_child),"%s/real/item.txt",dir);
+ assert(mkdir(real_parent,0700)==0);
+ FILE*child=std::fopen(direct_child,"wb");assert(child);
+ assert(std::fputs("TEST-ONLY",child)>=0&&std::fclose(child)==0);
+ assert(symlink(real_parent,alias_parent)==0);
+ assert(probe_path(real_parent,false).status==LocalAccess::listable);
+ assert(probe_path(direct_child,true).status==LocalAccess::opened);
+ assert(probe_path(through_alias,false).status!=LocalAccess::listable);
+ assert(probe_path(through_alias_file,true).status!=LocalAccess::opened);
+ assert(probe_path("/tmp/../tmp",false).status!=LocalAccess::listable);
+ assert(probe_path("/tmp//untrusted",false).status!=LocalAccess::listable);
+ assert(unlink(alias_parent)==0);
+ assert(unlink(direct_child)==0&&rmdir(real_parent)==0);
  assert(unlink(file_alias)==0&&unlink(alias)==0);
  assert(unlink(media)==0&&rmdir(dir)==0);
  /* Four successful probes do NOT mean a full PS5 disk inventory. A
