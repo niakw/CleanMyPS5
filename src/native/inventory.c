@@ -405,6 +405,20 @@ static int has_completed_root(const Scan*s){
   if(!strcmp(s->coverage[i].status,"complete"))return 1;
  return 0;
 }
+/* A readable application or USB root is not evidence that the title can
+ * inspect ANY PS5 Gallery capture directory. Require an independently
+ * traversed photo or video root before reporting a gallery inventory as
+ * complete. Missing roots alone are ambiguous: galleries can be absent,
+ * inaccessible, or simply have no content. No deletion is authorized. */
+static int has_completed_gallery_root(const Scan*s){
+ for(size_t i=0;i<s->nc;i++){
+  const Coverage*c=&s->coverage[i];
+  if(strcmp(c->status,"complete"))continue;
+  if(!strcmp(c->id,"captures-photo")||!strcmp(c->id,"captures-video"))
+   return 1;
+ }
+ return 0;
+}
 char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;
  if(!root||!len)return NULL;
@@ -420,7 +434,7 @@ char *cmp5_report(const char*root,size_t*len){
   char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);root_scan(s,root,"usb-homebrew",path,"application");
   snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);root_scan(s,root,"extended-homebrew",path,"application");
  }
- if(!has_completed_root(s))s->partial=1;
+ if(!has_completed_root(s)||!has_completed_gallery_root(s))s->partial=1;
  add(&s->b,"],\"coverage\":[");
  for(size_t i=0;i<s->nc;i++){
   Coverage*c=&s->coverage[i];if(i)add(&s->b,",");
@@ -466,7 +480,7 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
   root_scan(s,root,"extended-homebrew",path,"application");
  }
  (void)cancellation_requested(s);
- if(!has_completed_root(s))s->partial=1;
+ if(!has_completed_root(s)||!has_completed_gallery_root(s))s->partial=1;
  size_t complete=0,part=0,absent=0,unavailable=0,other=0;
  for(size_t i=0;i<s->nc;i++){
   const char*status=s->coverage[i].status;
