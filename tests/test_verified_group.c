@@ -64,6 +64,13 @@ int main(int argc,char**argv){
  wrong[1].snapshot_device=wrong[0].snapshot_device;
  wrong[1].snapshot_inode=wrong[0].snapshot_inode;
  assert(!cmp5_backup_group(root,wrong,3,private,"ALIAS",&b,NULL,NULL));
+ memcpy(wrong,media,sizeof(wrong));
+ wrong[0].media_type=3;
+ wrong[1].media_type=3;
+ assert(!cmp5_backup_group(root,wrong,3,private,"SIDECAR_ONLY",&b,NULL,NULL));
+ memcpy(wrong,media,sizeof(wrong));
+ strcpy(wrong[1].preview_path,wrong[0].preview_path);
+ assert(!cmp5_backup_group(root,wrong,3,private,"SAME_EXT",&b,NULL,NULL));
  assert(!cmp5_backup_group(root,media,3,private,"BAD/ID",&b,NULL,NULL));
  assert(!cmp5_backup_group(root,media,1,private,"SINGLE",&b,NULL,NULL));
  assert(!cmp5_verify_group(private,"ALBUM__COMMIT",&b,NULL,NULL));
