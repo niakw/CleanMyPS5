@@ -611,6 +611,22 @@ bool task_failed() noexcept {
 bool task_cancelled() noexcept {
  return task_state.load(std::memory_order_acquire)==4;
 }
+/* A cancellation can race with a worker's final completion check:
+ * Circle may navigate away while the worker still reports "busy".
+ * Reclaim deferred previews on the first safe UI frame after publication.
+ * The acquire load of task_state synchronizes with the worker's release.
+ */
+void release_inactive_previews() noexcept {
+ if(task_busy())return;
+ if(screen!=Screen::photo && (decoded_photo.pixels||photo_ready)){
+  cmp5_release_preview(&decoded_photo);
+  photo_ready=false;
+ }
+ if(screen!=Screen::video_info && video_info_ready){
+  video_info=Cmp5VideoMetadata{};
+  video_info_ready=false;
+ }
+}
 void poll_pad() noexcept {
  if(controller<0)return;
  RawPadSample samples[32]{};
@@ -1247,6 +1263,7 @@ void show_official(ps5::demo::Canvas&canvas) noexcept {
 }
 void scene(ps5::demo::Canvas&canvas) noexcept {
  poll_pad();
+ release_inactive_previews();
  const char*subtitle=screen==Screen::menu?"MAINTENANCE PS5":
    screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":
    screen==Screen::access?"PERMISSIONS DU TITRE":
