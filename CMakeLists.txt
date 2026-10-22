@@ -59,3 +59,7 @@ endif()
 add_test(NAME verified_backup_fixture
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_backup.py
  $<TARGET_FILE:cmp5-verified-backup-tests>)
+
+# The prototype MUST remain host-only until PS5 media-index restore is proven.
+add_test(NAME verified_backup_activation_gate
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_backup_safety_gate.py)
