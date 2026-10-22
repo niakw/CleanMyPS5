@@ -43,36 +43,36 @@ int main(){
    R"("note":"Escaped \"files\":8888 stays inside the string")")));
  CHECK(accepted(replace_once(valid,R"("coverage":{"complete":2,"partial":1})",
    R"("coverage":{"files":999,"categories":{"media":999},"partial":false})")));
- reject(replace_once(valid,R"("schemaVersion":1)",R"("schemaVersion":2)")));
+ reject(replace_once(valid,R"("schemaVersion":1)",R"("schemaVersion":2)"));
  reject(replace_once(valid,R"("scope":"bounded-known-roots")",
-   R"("scope":"other-roots")")));
+   R"("scope":"other-roots")"));
  reject(replace_once(valid,R"("cleanupValidated":false)",
-   R"("cleanupValidated":true)")));
+   R"("cleanupValidated":true)"));
  reject(replace_once(valid,R"("validatedForDeletion":false)",
-   R"("validatedForDeletion":true)")));
- reject(replace_once(valid,R"("partial":true)",R"("partial":"true")")));
- reject(replace_once(valid,R"("partial":true)",R"("partial":true,"partial":false)")));
- reject(replace_once(valid,R"("files":3)",R"("files":3,"files":3)")));
- reject(replace_once(valid,R"("media":2)",R"("media":2,"media":2)")));
- reject(replace_once(valid,R"("largeMedia":1)",R"("largeMedia":1,"largeMedia":1)")));
- reject(replace_once(valid,R"("files":3)",R"("files":4294967296)")));
- reject(replace_once(valid,R"("files":3)",R"("files":03)")));
- reject(replace_once(valid,R"("files":3)",R"("files":-1)")));
+   R"("validatedForDeletion":true)"));
+ reject(replace_once(valid,R"("partial":true)",R"("partial":"true")"));
+ reject(replace_once(valid,R"("partial":true)",R"("partial":true,"partial":false)"));
+ reject(replace_once(valid,R"("files":3)",R"("files":3,"files":3)"));
+ reject(replace_once(valid,R"("media":2)",R"("media":2,"media":2)"));
+ reject(replace_once(valid,R"("largeMedia":1)",R"("largeMedia":1,"largeMedia":1)"));
+ reject(replace_once(valid,R"("files":3)",R"("files":4294967296)"));
+ reject(replace_once(valid,R"("files":3)",R"("files":03)"));
+ reject(replace_once(valid,R"("files":3)",R"("files":-1)"));
  reject(replace_once(valid,R"("nominalBytes":50000000)",
-   R"("nominalBytes":18446744073709551616)")));
- reject(replace_once(valid,R"("files":3)",R"("files":1)")));
- reject(replace_once(valid,R"("largeMedia":1)",R"("largeMedia":3)")));
- reject(replace_once(valid,R"("oldLargeMedia":1)",R"("oldLargeMedia":2)")));
+   R"("nominalBytes":18446744073709551616)"));
+ reject(replace_once(valid,R"("files":3)",R"("files":1)"));
+ reject(replace_once(valid,R"("largeMedia":1)",R"("largeMedia":3)"));
+ reject(replace_once(valid,R"("oldLargeMedia":1)",R"("oldLargeMedia":2)"));
  reject(replace_once(valid,R"("largeMediaNominalBytes":40000000)",
-   R"("largeMediaNominalBytes":60000000)")));
+   R"("largeMediaNominalBytes":60000000)"));
  reject(replace_once(valid,R"("categories":{"media":2,"logs":1,"cache":0,"residuals":0})",
-   R"("categories":{"media":2,"cache":0})")));
+   R"("categories":{"media":2,"cache":0})"));
  reject(replace_once(valid,R"("review":{"largeMedia":1,"oldMedia":2,"oldLargeMedia":1,)",
    R"("review":{"largeMedia":1,"oldLargeMedia":1,)"));
  reject(replace_once(valid,R"("note":"Nominal only")",
-   R"("note":"bad \q escape")")));
+   R"("note":"bad \q escape")"));
  reject(replace_once(valid,R"("note":"Nominal only")",
-   R"("note":"truncated \u00HH escape")")));
+   R"("note":"truncated \u00HH escape")"));
  reject(valid+" trailing");
  reject(valid.substr(0,valid.size()-1));
  CHECK(!cmp5_native::parse_overview(nullptr,0,&out));
