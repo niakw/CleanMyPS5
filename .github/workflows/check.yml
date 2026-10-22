@@ -40,6 +40,8 @@ jobs:
           /tmp/cmp5-native-navigation
       - name: Native archive integrity fixture
         run: python3 tests/test_native_release_manifest.py
+      - name: Verify release gates do not claim untested PS5 compatibility
+        run: python3 tests/test_release_readiness.py
       - name: JavaScript syntax
         run: node --check web/app.js
       - name: JavaScript data validation and ordering tests
