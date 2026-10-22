@@ -41,6 +41,9 @@ cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates
 cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 cp "$project/src/native/homebrew.c" "$tmp/native-toolchain/src/cmp5_homebrew.c"
 cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
+# Shared descriptor-anchored companion discovery contains no backup/write API.
+cp "$project/src/native/capture_companions.c" "$tmp/native-toolchain/src/cmp5_capture_companions.c"
+cp "$project/src/native/capture_companions.h" "$tmp/native-toolchain/src/capture_companions.h"
 # Autoload config scan uses the same bounded, descriptor-anchored read-only
 # implementation in the title as the separately privileged helper.
 cp "$project/src/native/diagnostics.c" "$tmp/native-toolchain/src/cmp5_diagnostics.c"
