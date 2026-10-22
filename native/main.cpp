@@ -436,10 +436,10 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
 void run_overview() noexcept {
  // Any new scan invalidates all review indices and saved per-game totals.
  // In particular, an unavailable/invalid scan MUST NOT expose stale media
- // through the Square catalogue shortcut or detail view.
- media_review.count=0;
+ // through the Square catalogue shortcut or detail view. Wipe the private
+ // source paths as well as the row counts after every rescan.
+ std::memset(&media_review,0,sizeof(media_review));
  media_review.partial=1;
- media_review.media_scanned=0;
  review_visible=review_selection=detail_index=0;
  game_count=game_selection=0;
  games_truncated=false;
@@ -468,9 +468,8 @@ void run_overview() noexcept {
  }
  if(!accepted){
   // Scanner failure or invalid JSON may have left an incomplete snapshot.
-  // Keep the helper's aggregate-only fallback, but no native detail rows.
-  media_review.count=0;
-  media_review.media_scanned=0;
+  // Remove all unpublished private locators, not merely the published count.
+  std::memset(&media_review,0,sizeof(media_review));
   media_review.partial=1;
   review_visible=review_selection=detail_index=0;
   game_count=game_selection=0;
@@ -562,8 +561,10 @@ void* background_task(void*) noexcept {
  // All read/write UI controls are gated on task_busy() until this release.
  if(cancellation_hook(nullptr)){
   if(task_kind==Task::overview||task_kind==Task::environment){
-   media_review.count=0;
-   review_visible=0;
+   std::memset(&media_review,0,sizeof(media_review));
+   media_review.partial=1;
+   review_visible=review_selection=detail_index=0;
+   game_count=game_selection=0;
    summary_status=Summary::unavailable;
    scan_source=ScanSource::none;
   }
