@@ -163,6 +163,27 @@ int main(int argc,char**argv){
  assert(recovery.state==CMP5_RECOVERY_VERIFIED);
  assert(recovery.published_parts==3u&&recovery.staged_parts==0u);
  assert(recovery.marker_present);
+ assert(recovery.unexpected_entries==0u);
+ /* An unexpected fifth capsule and its staged form cannot be silently
+  * ignored by the read-only audit of a four-member namespace. */
+ char extra_unknown[512];
+ (void)snprintf(extra_unknown,sizeof(extra_unknown),"%s/ALBUM__5",private);
+ FILE*unexpected=fopen(extra_unknown,"wb");assert(unexpected);
+ assert(fputs("SURPLUS",unexpected)>=0&&fclose(unexpected)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&
+        recovery.unexpected_entries==1u);
+ assert(unlink(extra_unknown)==0);
+ (void)snprintf(extra_unknown,sizeof(extra_unknown),"%s/.ALBUM__5.part",private);
+ unexpected=fopen(extra_unknown,"wb");assert(unexpected);
+ assert(fputs("STAGE",unexpected)>=0&&fclose(unexpected)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&
+        recovery.unexpected_entries==1u);
+ assert(unlink(extra_unknown)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_VERIFIED&&
+        recovery.unexpected_entries==0u);
  /* A committed marker must not hide interrupted stages or extra capsules. */
  char extra_stage[512];
  (void)snprintf(extra_stage,sizeof(extra_stage),"%s/.ALBUM__2.part",private);
@@ -226,6 +247,36 @@ int main(int argc,char**argv){
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  assert(cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_VERIFIED&&
+        recovery.published_parts==3u&&recovery.marker_present&&
+        recovery.unexpected_entries==0u);
+ assert(cmp5_inspect_restored_group_recovery(restored,"NEVER_RESTORED",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_EMPTY);
+ char restore_surplus[512];
+ (void)snprintf(restore_surplus,sizeof(restore_surplus),"%s/ALBUM__5",restored);
+ unexpected=fopen(restore_surplus,"wb");assert(unexpected);
+ assert(fputs("UNKNOWN",unexpected)>=0&&fclose(unexpected)==0);
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&
+        recovery.unexpected_entries==1u);
+ assert(unlink(restore_surplus)==0);
+ (void)snprintf(restore_surplus,sizeof(restore_surplus),"%s/.ALBUM__1.part",restored);
+ unexpected=fopen(restore_surplus,"wb");assert(unexpected);
+ assert(fputs("INTERRUPTED",unexpected)>=0&&fclose(unexpected)==0);
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.staged_parts==1u);
+ assert(unlink(restore_surplus)==0);
+ (void)snprintf(restore_surplus,sizeof(restore_surplus),"%s/WAITING__1",restored);
+ unexpected=fopen(restore_surplus,"wb");assert(unexpected);
+ assert(fputs("UNCOMMITTED",unexpected)>=0&&fclose(unexpected)==0);
+ assert(cmp5_inspect_restored_group_recovery(restored,"WAITING",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INCOMPLETE&&
+        recovery.published_parts==1u&&!recovery.marker_present);
+ assert(unlink(restore_surplus)==0);
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_VERIFIED);
+ assert(!cmp5_inspect_restored_group_recovery(restored,"BAD/ID",&recovery));
  assert(b.count==3);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  Cmp5MediaCandidate wrong[3];memcpy(wrong,media,sizeof(wrong));
@@ -278,6 +329,8 @@ int main(int argc,char**argv){
  assert(fputc(old_byte^0x20,f)>=0);
  assert(fclose(f)==0);
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
  (void)snprintf(file,sizeof(file),"%s/ALBUM__2",private);
  f=fopen(file,"r+b");assert(f);
  assert(fseek(f,68,SEEK_SET)==0);
