@@ -187,6 +187,9 @@ int main(){
  assert(sample.entries==1&&!sample.truncated&&!sample.io_error);
  assert(sample.volume_known&&sample.total_bytes>=sample.available_bytes);
  assert(probe_path(media,true).status==LocalAccess::opened);
+ // Even if the path opens, a directory must never count as the title's
+ // expected regular-file metadata probe.
+ assert(probe_path(dir,true).status==LocalAccess::unavailable);
  assert(probe_path(missing,false).status==LocalAccess::missing);
  assert(symlink(dir,alias)==0);
  sample=probe_path(alias,false);
