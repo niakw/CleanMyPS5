@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
 #include <cerrno>
 #include <sys/statvfs.h>
 #include <atomic>
@@ -104,13 +105,15 @@ LocalAccess open_error(int value) noexcept {
 }
 void probe_local() noexcept {
  local_checked=false;
- // Only enumerate immediate directory entries visible to the installed title.
- // Never follow links, walk into child directories, open file contents or write.
- // The cap is intentional: numbers are sampled, NOT a full storage inventory.
+ // Drop the preceding sample before each probe, including partial/failed runs.
+ for(auto&sample:local_probe)sample=LocalProbe{};
+ // Open once, with O_NOFOLLOW: the directory enumerated must be the
+ // SAME opened object measured by fstatvfs (never a swapped pathname).
  for(std::size_t i=0;i<4;i++){
   if(cancellation_hook(nullptr))return;
   LocalProbe result{};
-  const int fd=open(local_paths[i],0);
+  const int fd=open(local_paths[i],O_RDONLY|O_NOFOLLOW|
+    (i==0?0:O_DIRECTORY));
   if(fd<0){result.status=open_error(errno);local_probe[i]=result;continue;}
   struct statvfs volume{};
   if(fstatvfs(fd,&volume)==0){
@@ -126,13 +129,20 @@ void probe_local() noexcept {
     }
    }
   }
-  (void)close(fd);
-  if(i==0){result.status=LocalAccess::opened;local_probe[i]=result;continue;}
+  if(i==0){
+   (void)close(fd);
+   result.status=LocalAccess::opened;local_probe[i]=result;continue;
+  }
   errno=0;
-  DIR*dir=opendir(local_paths[i]);
-  if(!dir){result.status=open_error(errno)==LocalAccess::missing?
-     LocalAccess::missing:open_error(errno)==LocalAccess::denied?
-     LocalAccess::denied:LocalAccess::enumeration_denied;local_probe[i]=result;continue;}
+  DIR*dir=fdopendir(fd);
+  if(!dir){
+   const int error=errno;
+   (void)close(fd);
+   result.status=open_error(error)==LocalAccess::missing?
+     LocalAccess::missing:open_error(error)==LocalAccess::denied?
+     LocalAccess::denied:LocalAccess::enumeration_denied;
+   local_probe[i]=result;continue;
+  }
   result.status=LocalAccess::listable;
   errno=0;
   for(;;){
@@ -405,7 +415,15 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
  return true;
 }
 void run_overview() noexcept {
- // Any new scan invalidates entry indices and the duplicate snapshot.
+ // Any new scan invalidates all review indices and saved per-game totals.
+ // In particular, an unavailable/invalid scan MUST NOT expose stale media
+ // through the Square catalogue shortcut or detail view.
+ media_review.count=0;
+ media_review.partial=1;
+ media_review.media_scanned=0;
+ review_visible=review_selection=detail_index=0;
+ game_count=game_selection=0;
+ games_truncated=false;
  std::memset(marked_for_review,0,sizeof(marked_for_review));
  marked_count=marked_images=marked_videos=0;
  marked_nominal_bytes=0;
@@ -420,13 +438,27 @@ void run_overview() noexcept {
  // Its results may be partial because the sandbox cannot read all roots.
  std::size_t length=0;
  char*json=cmp5_overview_with_review_cancel("/",&length,&media_review,cancellation_hook,nullptr);
+ bool accepted=false;
  if(json){
   if(!cancellation_hook(nullptr))
-   (void)accept_overview(json,ScanSource::native_title);
+   accepted=accept_overview(json,ScanSource::native_title)&&
+     media_review.count<=CMP5_REVIEW_CAP&&
+     media_review.count<=media_review.media_scanned;
   std::free(json);
  }
+ if(!accepted){
+  // Scanner failure or invalid JSON may have left an incomplete snapshot.
+  // Keep the helper's aggregate-only fallback, but no native detail rows.
+  media_review.count=0;
+  media_review.media_scanned=0;
+  media_review.partial=1;
+  review_visible=review_selection=detail_index=0;
+  game_count=game_selection=0;
+  games_truncated=false;
+  summary_status=Summary::unavailable;
+  scan_source=ScanSource::none;
+ }
  if(cancellation_hook(nullptr))return;
- if(review_selection>=media_review.count)review_selection=0;
  // Optionally prefer helper aggregate counters when it is already running.
  // Media review remains restricted to paths the installed title can see.
  if((summary_status!=Summary::ok||summary_partial)&&helper_is_compatible()){
