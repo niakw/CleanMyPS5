@@ -88,7 +88,11 @@ with tempfile.TemporaryDirectory() as work:
     )
     written = json.loads(report_path.read_text(encoding="utf-8"))
     assert written == inspect(source)
-    assert "private" not in json.dumps(written).lower()
+    # "private" is a legitimate generic description of the host-only
+    # backup gate. Exclude actual user/gallery locators, not that word.
+    payload = json.dumps(written)
+    assert "/user/av_contents/" not in payload
+    assert "/home/" not in payload and "/Users/" not in payload
     missing = subprocess.run(
         [sys.executable, str(REPO / "scripts/release_readiness.py"),
          str(root / "missing.json"), str(report_path)],
