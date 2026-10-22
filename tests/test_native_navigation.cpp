@@ -506,6 +506,18 @@ int main(){
  press(cross);
  finish_scan();
  assert(summary_status==Summary::ok&&media_review.count==2);
+ // A helper must not override the trusted native summary when a "files"
+ // number appears only in an unrelated nested JSON object.
+ const char nested_spoof[]=R"({"schemaVersion":1,"scope":"bounded-known-roots",)"
+   R"("cleanupValidated":false,"nominalBytes":40,"partial":false,)"
+   R"("categories":{"media":2,"logs":0,"cache":0,"files":2},)"
+   R"("review":{"largeMedia":0,"oldMedia":0,"oldLargeMedia":0,)"
+   R"("largeMediaNominalBytes":0,"validatedForDeletion":false}})";
+ const auto prior_source=scan_source;
+ const auto prior_count=summary_files;
+ assert(!accept_overview(nested_spoof,ScanSource::helper));
+ assert(scan_source==prior_source&&summary_files==prior_count);
+ assert(summary_status==Summary::ok);
  /* Saturation must not wrap nominal selection totals to a small value.
   * Deselecting then recalculating restores the exact remaining total. */
  assert(media_review.count==2);
