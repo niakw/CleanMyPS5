@@ -34,4 +34,12 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root)],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "Media review:" in result.stdout
+    # Regression: media number now follows scan cap, not the former top-12.
+    for i in range(60):
+        file=photos / f"capture_{i:03d}.jpg"
+        with file.open("wb") as stream:
+            stream.truncate(1024*(i+1))
+    result=subprocess.run([sys.argv[1],str(root),"64"],
+                          check=True,text=True,capture_output=True,timeout=20)
+    assert "all catalog entries retained" in result.stdout
 print("Native review bounded fixture: PASS")
