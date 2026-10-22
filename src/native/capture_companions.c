@@ -131,9 +131,15 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   else if(primary->media_type==2&&
      (!strcasecmp(ext,".mp4")||!strcasecmp(ext,".webm")))type=2;
   else {
-   if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   /* Other PS5 media-gallery tools report same-stem .meta/.ext files.
+    * We do not understand their restore/index semantics; distinguish
+    * this known blocker from an arbitrary unknown extension. */
+   if(failure)*failure=!strcasecmp(ext,".meta")||
+       !strcasecmp(ext,".ext")?
+        CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY:
+        CMP5_COMPANION_FAILURE_AMBIGUOUS;
    invalid=1;break;
-  } /* Unknown matching sidecar: cannot claim complete. */
+  } /* Never claim an unsupported group is complete. */
   struct stat st;
   if(fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW)!=0||
      !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||
