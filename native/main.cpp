@@ -63,7 +63,7 @@ struct NetSockaddrIn {
 static_assert(sizeof(NetSockaddrIn)==16);
 
 using Color=ps5::demo::Color;
-constexpr std::uint32_t l3=0x2,options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
+constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
@@ -207,7 +207,7 @@ enum class MediaType : unsigned { all, image, video };
 enum class MediaSort : unsigned { size, recent, name };
 MediaType review_type=MediaType::all;
 MediaSort review_sort=MediaSort::size;
-bool review_older=false,review_large=false;
+bool review_older=false,review_large=false,review_marked_only=false;
 char review_game[24]{};
 char review_query[21]{}; // Session-only uppercase ASCII. No console OS keyboard.
 unsigned keyboard_position=0;
@@ -311,6 +311,7 @@ void rebuild_review_index() noexcept {
  const auto cutoff=valid_clock?now-90*86400:0;
  for(unsigned i=0;i<media_review.count;i++){
   const auto&entry=media_review.entries[i];
+  if(review_marked_only&&!marked_for_review[i])continue;
   if(review_type==MediaType::image&&entry.media_type!=1u)continue;
   if(review_type==MediaType::video&&entry.media_type!=2u)continue;
   if(review_game[0]&&
@@ -442,6 +443,7 @@ void run_overview() noexcept {
  review_visible=review_selection=detail_index=0;
  game_count=game_selection=0;
  games_truncated=false;
+ review_marked_only=false;
  std::memset(marked_for_review,0,sizeof(marked_for_review));
  marked_count=marked_images=marked_videos=0;
  marked_nominal_bytes=0;
@@ -709,11 +711,17 @@ void poll_pad() noexcept {
    if((pressed&triangle)&&detail_index<media_review.count){
     bool&item=marked_for_review[detail_index];
     item=!item;
-     rebuild_marked_totals();
+    rebuild_marked_totals();
+    if(review_marked_only)rebuild_review_index();
    }
    continue;
   }
   if(screen==Screen::review){
+   if(pressed&r3){
+    review_marked_only=!review_marked_only;
+    review_selection=0;rebuild_review_index();
+    continue;
+   }
    if(pressed&l3){rebuild_games();screen=Screen::games;continue;}
    if(pressed&options){screen=Screen::search;continue;}
    if(pressed&square&&review_visible){
@@ -1029,8 +1037,9 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
    review_type==MediaType::video?"VIDEOS":"TOUS";
  const char*sort=review_sort==MediaSort::recent?"DATE":
    review_sort==MediaSort::name?"NOM":"TAILLE";
- (void)std::snprintf(title,sizeof(title),"%u / %u MEDIAS  %s  TRI %s%s",
+ (void)std::snprintf(title,sizeof(title),"%u / %u MEDIAS  %s  TRI %s%s%s",
   review_visible,media_review.media_scanned,type,sort,
+  review_marked_only?"  MARQUES":"",
   media_review.partial?"  PARTIEL":"");
  canvas.text(112,283,title,3,Color::yellow);
  if(review_game[0])canvas.text(1110,283,review_game,3,Color::cyan);
@@ -1059,8 +1068,8 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(1320,top+36,stats,3,Color::cyan);
  }
  canvas.rectangle(95,950,1730,96,Color::panel);
- canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X JEU  L2 AGE  R2 50 MIO",3,Color::white);
- canvas.text(125,1005,"OPTIONS RECHERCHE  L3 JEUX  CARRE DETAILS  CERCLE",3,Color::cyan);
+ canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  L2 AGE  R2 50 MIO  R3 MARQUES",3,Color::white);
+ canvas.text(125,1005,"OPTIONS RECHERCHE  L3 JEUX  X FILTRE JEU  CARRE DETAILS  CERCLE",3,Color::cyan);
 }
 void show_games(ps5::demo::Canvas&canvas) noexcept {
  char heading[110]{};
