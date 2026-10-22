@@ -25,7 +25,7 @@ Le moteur est toujours **en lecture seule** : aucune suppression, désinstallati
 - Contrôle des accès à 26 chemins candidats et mesures `statvfs` de `/data` et `/user/av_contents`, avec signalement de leur éventuelle identité de volume.
 - Analyse générale coordonnée : inventaire, chemins, montages et catalogue. **Elle n’ouvre aucun contenu de fichier.**
 - Contrôles supplémentaires **sur demande** : aperçus JPEG/PNG (32 Mio maximum), vidéo MP4/WebM par plages de 1 Mio, comparaison exacte bornée d’images et diagnostic limité d’autoload/configuration etaHEN. Ces contrôles lisent du contenu localement ; ils ne font pas partie de l’analyse générale.
-- Retour au système officiel : checklist manuelle et diagnostics locaux. Aucune garantie concernant les historiques distants ou l’accès aux services Sony.
+- Retour au système officiel : checklist manuelle et diagnostic natif des autoloaders via **Carré** (11 chemins connus, comptes agrégés, sans affichage des configurations). Aucune garantie concernant les historiques distants ou l’accès aux services Sony.
 
 ## Protection et limites
 
@@ -45,7 +45,7 @@ Le `.ffpkg` est destiné aux gestionnaires de homebrews capables d'installer le 
 
 L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le frontend WebKit et le payload intégré. Il est conservé le temps de porter les autres fonctionnalités vers l'application native. Ne pas confondre le prototype natif avec une version finale de nettoyage.
 
-**Prévisualisation sans console :** la CI génère douze captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
+**Prévisualisation sans console :** la CI génère treize captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
 
 ## Développement et compilation
 
