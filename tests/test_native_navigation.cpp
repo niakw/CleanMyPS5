@@ -239,6 +239,40 @@ int main(){
  assert(probe_path(file_alias,true).status!=LocalAccess::opened);
  assert(unlink(file_alias)==0&&unlink(alias)==0);
  assert(unlink(media)==0&&rmdir(dir)==0);
+ /* Four successful probes do NOT mean a full PS5 disk inventory. A
+  * permission error, absent mount, truncated directory or read error
+  * must make the UI coverage visibly partial, even with a green scan. */
+ LocalProbe roots[4]{};
+ roots[0].status=LocalAccess::opened;
+ roots[1].status=LocalAccess::listable;roots[1].entries=3;
+ roots[2].status=LocalAccess::listable;roots[2].entries=2;
+ roots[3].status=LocalAccess::listable;roots[3].entries=5;
+ LocalCoverage coverage=summarize_local_coverage(roots,4u,true);
+ assert(!coverage.partial&&coverage.opened==1u&&coverage.listable==3u);
+ assert(coverage.entries==10u&&!coverage.missing&&!coverage.denied);
+ assert(summarize_local_coverage(roots,4u,false).partial);
+ assert(summarize_local_coverage(roots,3u,true).partial);
+ roots[3].status=LocalAccess::denied;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.denied==1u&&coverage.listable==2u);
+ roots[3].status=LocalAccess::missing;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.missing==1u);
+ roots[3].status=LocalAccess::enumeration_denied;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.denied==1u);
+ roots[3].status=LocalAccess::unavailable;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.other==1u);
+ roots[3].status=LocalAccess::listable;roots[3].entries=5;
+ roots[2].truncated=true;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.truncated&&coverage.entries==10u);
+ roots[2].truncated=false;roots[2].io_error=true;
+ coverage=summarize_local_coverage(roots,4u,true);
+ assert(coverage.partial&&coverage.io_error);
+ roots[2].io_error=false;
+ assert(!summarize_local_coverage(roots,4u,true).partial);
  controller=1;
  ps5::demo::Canvas canvas;
  assert(screen==Screen::menu);
