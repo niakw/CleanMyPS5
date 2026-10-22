@@ -29,7 +29,8 @@ with tempfile.TemporaryDirectory() as scratch:
     subprocess.run(
         ["cc","-std=c11","-O1","-Wall","-Wextra","-Wpedantic",
          "-Isrc/native","tests/test_video_metadata.c",
-         "src/native/video_metadata.c","-o",str(binary)],
+         "src/native/video_metadata.c","src/native/webm_metadata.c",
+         "-o",str(binary)],
         cwd=root,check=True,timeout=40)
     ftyp=atom("ftyp",b"isom"+struct.pack(">I",0)+b"isomiso2")
     moov=atom("moov",mvhd()+atom("trak",tkhd()))
@@ -70,7 +71,39 @@ with tempfile.TemporaryDirectory() as scratch:
         broken=gallery/f"{name}.mp4"
         broken.write_bytes(payload)
         run(broken,f"/user/av_contents/video/NPXS00000/GAME123/{name}.mp4","invalid")
+    # WebM EBML Info/Tracks at end of a large Cluster, no video decode.
+    def vint(value):
+        for width in range(1,9):
+            if value<(1<<(width*7))-1:
+                return ((1<<(width*7))|value).to_bytes(width,"big")
+        raise ValueError("oversized EBML test field")
+    def ebml(code,payload):
+        return bytes.fromhex(code)+vint(len(payload))+payload
+    header=ebml("1A45DFA3",ebml("4282",b"webm"))
+    info=ebml("1549A966",
+        ebml("2AD7B1",(1000000).to_bytes(3,"big"))+
+        ebml("4489",struct.pack(">d",95.2)))
+    track=ebml("AE",ebml("E0",
+        ebml("B0",(1920).to_bytes(2,"big"))+
+        ebml("BA",(1080).to_bytes(2,"big"))))
+    tracks=ebml("1654AE6B",track)
+    cluster=ebml("1F43B675",b"\0"*1024*1024)
     webm=gallery/"sample.webm"
-    webm.write_bytes(b"\x1aE\xdf\xa3"+b"\0"*64)
-    run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","invalid")
-print("MP4 bounded metadata and corrupt-box fixture: PASS")
+    webm.write_bytes(header+ebml("18538067",cluster+info+tracks))
+    run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","valid")
+    # WebM limits: unsupported binary, missing tracks, corrupt VINT, 
+    # oversized element and abusive nesting / entry counts.
+    malformed_webm={
+        "no_track":header+ebml("18538067",info),
+        "unknown_atom":header+bytes.fromhex("18538067")+b"\xff"*8,
+        "endless_items":header+ebml("18538067",
+             ebml("EC",b"")*500+info+tracks),
+        "bad_size":header+bytes.fromhex("18538067")+b"\x81\0",
+        "no_duration":header+ebml("18538067",
+             ebml("1549A966",ebml("2AD7B1",(1000000).to_bytes(3,"big")))+tracks)
+    }
+    for name,payload in malformed_webm.items():
+        file=gallery/f"{name}.webm"
+        file.write_bytes(payload)
+        run(file,f"/user/av_contents/video/NPXS00000/GAME123/{name}.webm","invalid")
+print("MP4/WebM bounded metadata and corrupt-container fixture: PASS")
