@@ -67,8 +67,18 @@ def expected_manifest(folder: Path, title: str, pin: str) -> dict:
     validate_zip(archive, title)
     if not helper.is_file() or helper.is_symlink() or helper.stat().st_size < 64:
         raise ValueError("Separate read-only helper ELF missing")
+    pkg = folder / f"{title}.ffpkg"
+    if pkg.exists():
+        if not pkg.is_file() or pkg.is_symlink() or pkg.stat().st_size < 0x10560:
+            raise ValueError("Unsafe native FFPKG output")
+        # UFS2 superblock check: same test as the pinned package builder.
+        with pkg.open("rb") as stream:
+            stream.seek(0x1055C)
+            if stream.read(4) != bytes.fromhex("19015419"):
+                raise ValueError("Homebrew FFPKG UFS2 superblock missing")
     files = []
-    for path in (archive, helper):
+    sources=(archive, helper, pkg) if pkg.exists() else (archive, helper)
+    for path in sources:
         files.append({
             "name": path.name,
             "bytes": path.stat().st_size,
