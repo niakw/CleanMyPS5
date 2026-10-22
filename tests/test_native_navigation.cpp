@@ -13,6 +13,8 @@ namespace {
 std::uint32_t injected_buttons=0;
 std::atomic<bool> stall_next_scan{false};
 std::atomic<bool> entered_stalled_scan{false};
+std::atomic<bool> fail_next_overview{false};
+std::atomic<bool> corrupt_next_overview{false};
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -84,7 +86,20 @@ char *cmp5_overview_with_review_cancel(const char*root,std::size_t*len,
   }
  }
  if(cancel(context))return nullptr;
- return cmp5_overview_with_review(root,len,review);
+ // Model scanners which populate some rows and THEN fail or report a
+ // malformed summary: no previous/partial catalog may survive either case.
+ if(fail_next_overview.exchange(false)){
+  char*incomplete=cmp5_overview_with_review(root,len,review);
+  std::free(incomplete);
+  return nullptr;
+ }
+ char*result=cmp5_overview_with_review(root,len,review);
+ if(corrupt_next_overview.exchange(false)){
+  char*scope=std::strstr(result,"bounded-known-roots");
+  assert(scope);
+  scope[0]='X';
+ }
+ return result;
 }
 char *cmp5_duplicates_with_stats(const char*,std::size_t*len,Cmp5DuplicateStats*stats){
  // Synthetic duplicate groups only; never access the console.
@@ -374,6 +389,27 @@ int main(){
  assert(screen==Screen::cleanup);
  finish_scan();
  assert(!task_cancelled() && summary_status==Summary::ok);
+ // Regression: malformed or failed scans may populate Cmp5MediaReview
+ // temporarily, but never publish stale or partially valid rows.
+ fail_next_overview.store(true);
+ press(cross);
+ finish_scan();
+ assert(summary_status==Summary::unavailable);
+ assert(scan_source==ScanSource::none);
+ assert(media_review.count==0&&review_visible==0&&game_count==0);
+ assert(marked_count==0&&marked_nominal_bytes==0);
+ press(square);
+ assert(screen==Screen::cleanup);
+ corrupt_next_overview.store(true);
+ press(cross);
+ finish_scan();
+ assert(summary_status==Summary::unavailable);
+ assert(media_review.count==0&&review_visible==0);
+ press(square);
+ assert(screen==Screen::cleanup);
+ press(cross);
+ finish_scan();
+ assert(summary_status==Summary::ok&&media_review.count==2);
  /* Saturation must not wrap nominal selection totals to a small value.
   * Deselecting then recalculating restores the exact remaining total. */
  assert(media_review.count==2);
