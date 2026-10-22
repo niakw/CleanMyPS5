@@ -374,21 +374,6 @@ bool fetch_local(const char*route,char*response,std::size_t capacity,
  *json=body.data;
  return true;
 }
-bool scan_u64(const char*text,const char*name,std::uint64_t*out) noexcept {
- const char*start=std::strstr(text,name);
- if(!start)return false;
- start+=std::strlen(name);
- if(*start<'0'||*start>'9')return false;
- std::uint64_t n=0;
- while(*start>='0'&&*start<='9'){
-  const unsigned digit=static_cast<unsigned>(*start-'0');
-  if(n>(UINT64_MAX-digit)/10)return false;
-  n=n*10+digit;
-  ++start;
- }
- *out=n;
- return true;
-}
 bool helper_is_compatible() noexcept {
  char response[1024]{};
  const char*json=nullptr;
