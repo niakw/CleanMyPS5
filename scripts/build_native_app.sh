@@ -24,6 +24,11 @@ test "$(git -C "$tmp/native-toolchain" rev-parse HEAD)" = "$pin" || {
 # temporary directory; its source/history/branding never enter this repo.
 cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
 cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
+# The read-only metadata scanner is compiled INTO the native title.
+# It inherits title permissions; it never escalates them or installs a daemon.
+cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"
+cp "$project/src/native/inventory.h" "$tmp/native-toolchain/src/inventory.h"
+python3 "$project/scripts/embed_rules.py"   "$project/rules/metadata-v1.json" "$tmp/native-toolchain/src/scan_rules.h"
 python3 "$project/scripts/make_native_icon.py" "$tmp/native-toolchain/sce_sys/icon0.png"
 # Never distribute the toolchain demo title backgrounds/audio.
 rm -f -- "$tmp/native-toolchain/sce_sys/pic0.dds" \
