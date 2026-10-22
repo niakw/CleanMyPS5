@@ -6,6 +6,7 @@ on:
       - native/**
       - tests/test_native_protocol.cpp
       - tests/test_native_navigation.cpp
+      - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
       - rules/**
@@ -32,7 +33,7 @@ jobs:
       - name: Install build prerequisites
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y clang-18 lld-18 clang-format-18 make python3 python3-venv git unzip zip curl wget pkg-config
+          sudo apt-get install -y clang-18 lld-18 clang-format-18 make python3 python3-venv python3-pil git unzip zip curl wget pkg-config
       - name: Run strict native response-framing regression
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol
@@ -41,6 +42,12 @@ jobs:
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
           /tmp/cmp5-native-navigation
+      - name: Render eight preview screens without a PS5
+        run: |
+          mkdir -p dist/ui-traces
+          CMP5_NATIVE_PREVIEW_DIR=dist/ui-traces /tmp/cmp5-native-navigation
+          python3 tests/render_native_preview.py dist/ui-traces dist/native-ui-preview
+          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 8
       - name: Reject tampered or unsafe homebrew archives
         run: python3 tests/test_native_release_manifest.py
       - uses: actions/setup-dotnet@v4
@@ -61,4 +68,10 @@ jobs:
             dist/native/PPSA99784.ffpkg
             dist/native/cleanmyps5-helper.elf
             dist/native/manifest.json
+          if-no-files-found: error
+      - name: Publish host-only native UI previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: CleanMyPS5-native-UI-preview-not-hardware
+          path: dist/native-ui-preview/
           if-no-files-found: error
