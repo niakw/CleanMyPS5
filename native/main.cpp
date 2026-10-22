@@ -103,66 +103,74 @@ LocalAccess open_error(int value) noexcept {
  if(value==EACCES||value==EPERM)return LocalAccess::denied;
  return LocalAccess::unavailable;
 }
+LocalProbe probe_path(const char*path,bool file) noexcept {
+ LocalProbe result{};
+ if(!path||cancellation_hook(nullptr))return result;
+ // One O_NOFOLLOW open anchors both the capacity query and enumeration.
+ const int fd=open(path,O_RDONLY|O_NOFOLLOW|(file?0:O_DIRECTORY));
+ if(fd<0){result.status=open_error(errno);return result;}
+ struct statvfs volume{};
+ if(fstatvfs(fd,&volume)==0){
+  const std::uint64_t block=volume.f_frsize?volume.f_frsize:volume.f_bsize;
+  if(block&&static_cast<std::uint64_t>(volume.f_bavail)<=UINT64_MAX/block&&
+     static_cast<std::uint64_t>(volume.f_blocks)<=UINT64_MAX/block){
+   const auto free=static_cast<std::uint64_t>(volume.f_bavail)*block;
+   const auto total=static_cast<std::uint64_t>(volume.f_blocks)*block;
+   if(total>0&&free<=total){
+    result.volume_known=true;
+    result.available_bytes=free;
+    result.total_bytes=total;
+   }
+  }
+ }
+ if(file){
+  (void)close(fd);
+  result.status=LocalAccess::opened;
+  return result;
+ }
+ errno=0;
+ DIR*dir=fdopendir(fd);
+ if(!dir){
+  const int error=errno;
+  (void)close(fd);
+  result.status=open_error(error)==LocalAccess::missing?
+    LocalAccess::missing:open_error(error)==LocalAccess::denied?
+    LocalAccess::denied:LocalAccess::enumeration_denied;
+  return result;
+ }
+ result.status=LocalAccess::listable;
+ for(;;){
+  if(cancellation_hook(nullptr))break;
+  errno=0;
+  struct dirent*entry=readdir(dir);
+  if(!entry){
+   if(errno!=0)result.io_error=true;
+   break;
+  }
+  if(std::strcmp(entry->d_name,".")==0||
+     std::strcmp(entry->d_name,"..")==0)continue;
+  if(result.entries==max_entries_per_root){
+   result.truncated=true;
+   break;
+  }
+  ++result.entries;
+ }
+ (void)closedir(dir);
+ if(cancellation_hook(nullptr))return LocalProbe{}; // Ignore partial data
+ return result;
+}
 void probe_local() noexcept {
  local_checked=false;
- // Drop the preceding sample before each probe, including partial/failed runs.
+ // Drop previously sampled rights and capacity before every new probe.
  for(auto&sample:local_probe)sample=LocalProbe{};
- // Open once, with O_NOFOLLOW: the directory enumerated must be the
- // SAME opened object measured by fstatvfs (never a swapped pathname).
  for(std::size_t i=0;i<4;i++){
   if(cancellation_hook(nullptr))return;
-  LocalProbe result{};
-  const int fd=open(local_paths[i],O_RDONLY|O_NOFOLLOW|
-    (i==0?0:O_DIRECTORY));
-  if(fd<0){result.status=open_error(errno);local_probe[i]=result;continue;}
-  struct statvfs volume{};
-  if(fstatvfs(fd,&volume)==0){
-   const std::uint64_t block=volume.f_frsize?volume.f_frsize:volume.f_bsize;
-   if(block&&static_cast<std::uint64_t>(volume.f_bavail)<=UINT64_MAX/block&&
-      static_cast<std::uint64_t>(volume.f_blocks)<=UINT64_MAX/block){
-    const auto free=static_cast<std::uint64_t>(volume.f_bavail)*block;
-    const auto total=static_cast<std::uint64_t>(volume.f_blocks)*block;
-    if(total>0&&free<=total){
-     result.volume_known=true;
-     result.available_bytes=free;
-     result.total_bytes=total;
-    }
-   }
-  }
-  if(i==0){
-   (void)close(fd);
-   result.status=LocalAccess::opened;local_probe[i]=result;continue;
-  }
-  errno=0;
-  DIR*dir=fdopendir(fd);
-  if(!dir){
-   const int error=errno;
-   (void)close(fd);
-   result.status=open_error(error)==LocalAccess::missing?
-     LocalAccess::missing:open_error(error)==LocalAccess::denied?
-     LocalAccess::denied:LocalAccess::enumeration_denied;
-   local_probe[i]=result;continue;
-  }
-  result.status=LocalAccess::listable;
-  errno=0;
-  for(;;){
-   if(cancellation_hook(nullptr))break;
-   struct dirent*entry=readdir(dir);
-   if(!entry){
-    if(errno!=0)result.io_error=true;
-    break;
-   }
-   if(std::strcmp(entry->d_name,".")==0||std::strcmp(entry->d_name,"..")==0)continue;
-   if(result.entries==max_entries_per_root){result.truncated=true;break;}
-   ++result.entries;
-   errno=0;
-  }
-  (void)closedir(dir);
+  local_probe[i]=probe_path(local_paths[i],i==0);
   if(cancellation_hook(nullptr))return;
-  local_probe[i]=result;
  }
  local_checked=true;
 }
+
 bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
  const char*start=std::strstr(text,name);
  if(!start)return false;
