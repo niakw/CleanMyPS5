@@ -196,5 +196,31 @@ int main(){
  scene(canvas);
  press(circle);
  assert(screen==Screen::menu);
+ // Produce visually inspectable previews using the ACTUAL native scene().
+ // All data below is synthetic, not the user's files or PS5 logs.
+ if(const char*directory=std::getenv("CMP5_NATIVE_PREVIEW_DIR")){
+  const auto save=[&](Screen display,const char*name){
+   screen=display;
+   scene(canvas);
+   char filepath[320]{};
+   (void)std::snprintf(filepath,sizeof(filepath),"%s/%s.trace",directory,name);
+   assert(canvas.save_trace(filepath));
+  };
+  selected=2;
+  save(Screen::menu,"01-menu");
+  save(Screen::cleanup,"02-cleanup");
+  review_query[0]=0;review_game[0]=0;
+  review_type=MediaType::all;review_older=false;review_large=false;
+  review_sort=MediaSort::size;review_selection=0;
+  rebuild_review_index();
+  save(Screen::review,"03-catalog");
+  save(Screen::search,"04-search");
+  rebuild_games();game_selection=0;
+  save(Screen::games,"05-games");
+  detail_index=0;
+  save(Screen::detail,"06-details");
+  save(Screen::official,"07-official");
+  save(Screen::access,"08-access");
+ }
  return 0;
 }
