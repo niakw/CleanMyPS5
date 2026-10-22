@@ -37,14 +37,22 @@ jobs:
           /tmp/cmp5-protocol
       - name: Reject tampered or unsafe homebrew archives
         run: python3 tests/test_native_release_manifest.py
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - name: Build genuine native eboot title and verify metadata
-        run: bash scripts/build_native_app.sh
+        env:
+          CMP5_BUILD_FFPKG: '1'
+        run: |
+          bash scripts/build_native_app.sh
+          test -s dist/native/PPSA99784.ffpkg
       - name: Publish a single ID-named installation archive
         uses: actions/upload-artifact@v4
         with:
           name: PPSA99784-native-title-unverified-on-13-60
           path: |
             dist/native/PPSA99784.zip
+            dist/native/PPSA99784.ffpkg
             dist/native/cleanmyps5-helper.elf
             dist/native/manifest.json
           if-no-files-found: error
