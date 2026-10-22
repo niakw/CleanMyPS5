@@ -40,6 +40,14 @@ with tempfile.TemporaryDirectory() as temp:
  usb=root/"mnt/usb0/ps5_autoloader"
  usb.mkdir(parents=True)
  (usb/"autoload.txt").write_text("!2000\n# etaHEN.elf\n")
+ # An autoload directory/leaf swapped for a symlink must be reported
+ # unreadable, never followed to a private file elsewhere in the fixture.
+ usb1=root/"mnt/usb1/ps5_autoloader"
+ usb1.parent.mkdir(parents=True)
+ usb1.symlink_to(usb,target_is_directory=True)
+ usb2=root/"mnt/usb2/ps5_autoloader"
+ usb2.mkdir(parents=True)
+ (usb2/"autoload.txt").symlink_to(other/"save.bin")
  (other/"save.bin").write_text("DO NOT TOUCH")
  homebrew=root/"data/homebrew/HB_DEMO"
  homebrew.mkdir(parents=True)
@@ -219,6 +227,9 @@ with tempfile.TemporaryDirectory() as temp:
   assert found["/data/pldmgr/autoload.txt"]["status"]=="other-payload-reference"
   assert found["/data/etaHEN/config.ini"]["status"]=="enabled"
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
+  assert found["/mnt/usb1/ps5_autoloader/autoload.txt"]["status"]=="unreadable"
+  assert found["/mnt/usb2/ps5_autoloader/autoload.txt"]["status"]=="unreadable"
+  assert "DO NOT TOUCH" not in json.dumps(diag)
   assert "PRIVATE_TOKEN" not in json.dumps(diag)
   with urlopen(base+"/api/homebrew",timeout=3) as r:hb=json.load(r)
   assert hb["schemaVersion"]==1 and hb["scope"]=="protected-homebrew-metadata"
