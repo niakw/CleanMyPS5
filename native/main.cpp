@@ -1322,6 +1322,8 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
    reason="LIMITE DE 1024 ENTREES DU DOSSIER";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_AMBIGUOUS)
    reason="VARIANTE INCONNUE OU FICHIER SUSPECT";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY)
+   reason="METADONNEE GALERIE NON PRISE EN CHARGE";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_CHANGED)
    reason="FICHIER OU DOSSIER MODIFIE PENDANT LE SCAN";
   panel(canvas,360,"INSPECTION NON FIABLE",reason,Color::yellow);
