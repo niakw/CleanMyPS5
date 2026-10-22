@@ -16,6 +16,14 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/fetch_stb_decoder.sh
+      - scripts/enable_native_preview_blit.py
+      - native/preview_decode.c
+      - native/preview_decode.h
+      - tests/test_photo_preview.c
+      - tests/test_photo_preview.py
+      - src/native/media_preview.c
+      - src/native/media_preview.h
       - scripts/enable_interactive_videoout.py
       - tests/test_interactive_videoout.py
       - scripts/native_release_manifest.py
@@ -46,12 +54,16 @@ jobs:
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
           /tmp/cmp5-native-navigation
-      - name: Render nine preview screens without a PS5
+      - name: Render ten preview screens without a PS5
         run: |
           mkdir -p dist/ui-traces
           CMP5_NATIVE_PREVIEW_DIR=dist/ui-traces /tmp/cmp5-native-navigation
           python3 tests/render_native_preview.py dist/ui-traces dist/native-ui-preview
-          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 9
+          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 10
+      - name: Validate JPEG/PNG decoding and anchored photo snapshots
+        run: |
+          bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb
+          python3 tests/test_photo_preview.py /tmp/cmp5-stb
       - name: Reject tampered or unsafe homebrew archives
         run: python3 tests/test_native_release_manifest.py
       - uses: actions/setup-dotnet@v4
