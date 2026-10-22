@@ -7,15 +7,28 @@
 #include <stdlib.h>
 #include <string.h>
 int main(int argc,char**argv){
- if(argc!=2)return 2;
+ if(argc!=2&&argc!=3)return 2;
+ const unsigned expected=argc==3?(unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
  char*json=cmp5_overview_with_review(argv[1],&json_size,&review);
  assert(json&&json_size>100);
  assert(strstr(json,"\"cleanupValidated\":false"));
- assert(review.count==4);
- assert(review.media_scanned==4);
+ assert(review.count==expected);
+ assert(review.media_scanned==expected);
  assert(review.partial==0);
+ for(unsigned i=1;i<review.count;i++){
+  assert(review.entries[i-1].bytes>=review.entries[i].bytes);
+ }
+ if(expected!=4u){
+  for(unsigned i=0;i<review.count;i++){
+   assert(review.entries[i].title_id[0]);
+   assert(!strchr(review.entries[i].label,'/'));
+  }
+  free(json);
+  puts("Media review: all catalog entries retained, sorted, no filesystem paths");
+  return 0;
+ }
  const uint64_t mib=1024u*1024u;
  const uint64_t sizes[]={10u*mib,7u*mib,4u*mib,1u*mib};
  for(unsigned i=0;i<review.count;i++){
