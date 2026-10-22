@@ -55,7 +55,10 @@ static int snapshot_matches(const struct stat*s,const Cmp5MediaCandidate*c){
 static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*out){
  if(!root||!c||!out||c->bytes==0||c->bytes>CMP5_BACKUP_LIMIT)return -1;
  const char*prefix=c->media_type==1?"/user/av_contents/photo/":
-  c->media_type==2?"/user/av_contents/video/":NULL;
+  c->media_type==2?"/user/av_contents/video/":
+  c->media_type==3?
+   (!strncmp(c->preview_path,"/user/av_contents/photo/",24)?
+    "/user/av_contents/photo/":"/user/av_contents/video/"):NULL;
  if(!prefix)return -1;
  const char*path=c->preview_path;
  size_t n=0;while(n<sizeof(c->preview_path)&&path[n])n++;
@@ -66,7 +69,9 @@ static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*ou
  if(c->media_type==1){
   if(strcasecmp(ext,".jpg")&&strcasecmp(ext,".jpeg")&&
      strcasecmp(ext,".png")&&strcasecmp(ext,".jxr"))return -1;
- }else if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return -1;
+ }else if(c->media_type==2){
+  if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return -1;
+ }else if(strcasecmp(ext,".dat")||c->bytes>65536u)return -1;
  for(size_t i=0;i<n;i++)if(path[i]=='\\'||(i&&path[i]=='/'&&path[i-1]=='/'))return -1;
  if(path[n-1]=='/')return -1;
  char segments[sizeof(c->preview_path)];
