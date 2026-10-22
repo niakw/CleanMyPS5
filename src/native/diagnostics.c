@@ -123,8 +123,32 @@ static void entry(Out*out,const char*path,const char*kind,const char*status){
  put(out,"{\"path\":\"/");put(out,path);put(out,"\",\"kind\":\"");put(out,kind);
  put(out,"\",\"status\":\"");put(out,status);put(out,"\"}");
 }
-char *cmp5_diagnostics(const char*root,size_t *length){
- if(length)*length=0;if(!root||!length)return NULL;
+static void count_status(Cmp5AutoloadStats*s,int code,const char*status){
+ if(code==0){s->missing++;return;}
+ s->present++;
+ if(code<0)s->unreadable++;
+ else if(code==2)s->oversized++;
+ else if(strcmp(status,"etaHEN-reference")==0)s->etahen_references++;
+ else if(strcmp(status,"other-payload-reference")==0)s->other_references++;
+ else if(strcmp(status,"enabled")==0)s->autostart_enabled++;
+ else if(strcmp(status,"disabled")==0)s->autostart_disabled++;
+ else if(strcmp(status,"no-reference")==0)s->no_reference++;
+ else s->unknown++;
+}
+static void diagnostic_entry(Out*out,Cmp5AutoloadStats*s,
+ const char*path,const char*kind,int code,char*contents,int toolbox){
+ const char*status=code==1?analyze(contents,toolbox):
+  code==2?"too-large":"unreadable";
+ count_status(s,code,status);
+ if(code!=0)entry(out,path,kind,status);
+}
+char *cmp5_diagnostics_with_stats(const char*root,size_t *length,
+ Cmp5AutoloadStats *stats){
+ if(length)*length=0;
+ if(stats)memset(stats,0,sizeof(*stats));
+ if(!root||!length||!stats)return NULL;
+ Cmp5AutoloadStats counts={0};
+ counts.checked=11;
  Out out={0};out.buf=(char*)calloc(1,JSON_CAP);if(!out.buf)return NULL;
  out.first=1;put(&out,"{\"schemaVersion\":1,\"source\":\"known local autoload paths, read-only\",\"checked\":11,\"entries\":[");
  const char *internal[]={"data/ps5_autoloader/autoload.txt","data/pldmgr/autoload.txt"};
@@ -132,20 +156,23 @@ char *cmp5_diagnostics(const char*root,size_t *length){
  char *contents=(char*)malloc(READ_CAP+1);if(!contents){free(out.buf);return NULL;}
  for(size_t i=0;i<2;i++){
   int code=safe_read(root,internal[i],contents,READ_CAP+1);
-  if(code!=0)entry(&out,internal[i],"autoload",
-   code==1?analyze(contents,0):code==2?"too-large":"unreadable");
+  diagnostic_entry(&out,&counts,internal[i],"autoload",code,contents,0);
  }
  for(int i=0;i<8;i++){
   char path[80];snprintf(path,sizeof(path),"mnt/usb%d/ps5_autoloader/autoload.txt",i);
   int code=safe_read(root,path,contents,READ_CAP+1);
-  if(code!=0)entry(&out,path,"autoload",
-    code==1?analyze(contents,0):code==2?"too-large":"unreadable");
+  diagnostic_entry(&out,&counts,path,"autoload",code,contents,0);
  }
  int code=safe_read(root,toolbox,contents,READ_CAP+1);
- if(code!=0)entry(&out,toolbox,"toolbox",
-   code==1?analyze(contents,1):code==2?"too-large":"unreadable");
+ diagnostic_entry(&out,&counts,toolbox,"toolbox",code,contents,1);
  free(contents);
  put(&out,"],\"limitations\":\"Autoload par application et autres loaders non couverts. Presence != execution actuelle.\"}");
  if(out.error){free(out.buf);return NULL;}
- *length=out.size;return out.buf;
+ *length=out.size;
+ *stats=counts;
+ return out.buf;
+}
+char *cmp5_diagnostics(const char*root,size_t *length){
+ Cmp5AutoloadStats ignored={0};
+ return cmp5_diagnostics_with_stats(root,length,&ignored);
 }
