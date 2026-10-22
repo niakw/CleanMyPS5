@@ -42,3 +42,8 @@ add_test(NAME native_review_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE
 add_executable(cmp5-native-homebrew-tests tests/test_native_homebrew.c src/native/homebrew.c ${RULES})
 target_include_directories(cmp5-native-homebrew-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py $<TARGET_FILE:cmp5-native-homebrew-tests>)
+
+# Safely read MP4 container metadata using a generated fake gallery.
+# Does not require ffmpeg, a PS5 or user media.
+add_test(NAME native_video_metadata_fixture
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_video_metadata.py)
