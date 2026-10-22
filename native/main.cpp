@@ -6,6 +6,7 @@
 #include "inventory.h"
 #include "duplicates.h"
 #include "homebrew.h"
+#include "diagnostics.h"
 #include "media_preview.h"
 #include "video_metadata.h"
 #include "preview_decode.h"
@@ -67,7 +68,7 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -245,6 +246,8 @@ Cmp5DuplicateStats duplicate_stats{};
 bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
 bool homebrew_checked=false;
+Cmp5AutoloadStats autoload_stats{};
+bool autoload_checked=false;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -542,7 +545,19 @@ void run_homebrew_check() noexcept {
   homebrew_checked=!cancellation_hook(nullptr);
  }
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, photo, video_info };
+void run_autoload_check() noexcept {
+ autoload_stats=Cmp5AutoloadStats{};
+ autoload_checked=false;
+ std::size_t length=0;
+ // The same read-only scanner used by the optional helper runs under
+ // title permissions. Drop its JSON immediately: the UI uses counts only.
+ char*report=cmp5_diagnostics_with_stats("/",&length,&autoload_stats);
+ if(report){
+  std::free(report);
+  autoload_checked=!cancellation_hook(nullptr)&&autoload_stats.checked==11u;
+ }
+}
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -553,6 +568,7 @@ void* background_task(void*) noexcept {
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
   case Task::homebrew: run_homebrew_check(); break;
+  case Task::autoload: run_autoload_check(); break;
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
   default: break;
@@ -575,6 +591,10 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::homebrew){
    homebrew_stats=Cmp5HomebrewStats{};
    homebrew_checked=false;
+  }
+  if(task_kind==Task::autoload){
+   autoload_stats=Cmp5AutoloadStats{};
+   autoload_checked=false;
   }
   if(task_kind==Task::photo){
    cmp5_release_preview(&decoded_photo);
@@ -652,7 +672,8 @@ void poll_pad() noexcept {
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::apps?Screen::access:
-     screen==Screen::review?Screen::cleanup:Screen::menu;
+     screen==Screen::review?Screen::cleanup:
+     screen==Screen::autoload?Screen::official:Screen::menu;
    continue;
   }
   if(task_busy())continue;
@@ -788,7 +809,16 @@ void poll_pad() noexcept {
    }
    continue;
   }
+  if(screen==Screen::autoload){
+   if(pressed&cross)(void)begin_task(Task::autoload);
+   continue;
+  }
   if(screen==Screen::official){
+   if(pressed&square){
+    screen=Screen::autoload;
+    (void)begin_task(Task::autoload);
+    continue;
+   }
    if(pressed&up)official_selection=(official_selection+7u)%8u;
    if(pressed&down)official_selection=(official_selection+1u)%8u;
    if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
@@ -1260,7 +1290,38 @@ void show_official(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(1400,top+36,official_checked[index]?"REVU":"A VERIFIER",3,
     official_checked[index]?Color::cyan:Color::yellow);
  }
- footer(canvas,"X MARQUER REVU  HAUT BAS  CERCLE  AUCUNE GARANTIE PSN");
+ footer(canvas,"X MARQUER REVU  CARRE AUTOSTART  CERCLE  AUCUNE GARANTIE PSN");
+}
+void show_autoload(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,355,"AUTOLOAD PS5","EXAMEN DES CONFIGURATIONS",Color::cyan);
+  panel(canvas,503,"ACCES","LECTURE SEULE  AUCUN CHANGEMENT");
+  footer(canvas,"CERCLE ANNULER  AUCUNE ACTION PSN");
+  return;
+ }
+ if(task_failed()||task_cancelled()||!autoload_checked){
+  panel(canvas,355,"AUTOLOAD INDISPONIBLE",
+    task_cancelled()?"CONTROLE ANNULE":"SCAN OU PERMISSIONS LIMITES",Color::yellow);
+  footer(canvas,"X REESSAYER  CERCLE RETOUR");
+  return;
+ }
+ char detail[130]{};
+ (void)std::snprintf(detail,sizeof(detail),"%u / %u CHEMINS  %u ABSENTS",
+  autoload_stats.present,autoload_stats.checked,autoload_stats.missing);
+ panel(canvas,355,"CONFIGURATIONS VISIBLES",detail,Color::cyan);
+ (void)std::snprintf(detail,sizeof(detail),"%u ETAHEN  %u AUTRES PAYLOADS",
+  autoload_stats.etahen_references,autoload_stats.other_references);
+ panel(canvas,503,"REFERENCES AUTOLOAD",detail,Color::cyan);
+ (void)std::snprintf(detail,sizeof(detail),"%u ACTIFS  %u DESACTIVES  %u INCONNUS",
+  autoload_stats.autostart_enabled,autoload_stats.autostart_disabled,
+  autoload_stats.unknown);
+ panel(canvas,651,"DECLARATIONS TOOLBOX",detail,Color::yellow);
+ (void)std::snprintf(detail,sizeof(detail),"%u ILLISIBLES  %u TROP GRANDS",
+  autoload_stats.unreadable,autoload_stats.oversized);
+ panel(canvas,799,"VERIFICATION PARTIELLE",detail,Color::yellow);
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,963,"X RECONTROLER  CERCLE GUIDE RETOUR OFFICIEL",3,Color::white);
+ canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void scene(ps5::demo::Canvas&canvas) noexcept {
  poll_pad();
@@ -1275,7 +1336,8 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::games?"CAPTURES PAR JEU":
    screen==Screen::detail?"DETAIL DE LA CAPTURE":
    screen==Screen::photo?"APERCU PHOTO":
-   screen==Screen::video_info?"INFORMATIONS VIDEO":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::video_info?"INFORMATIONS VIDEO":
+   screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
@@ -1290,6 +1352,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::photo:show_photo(canvas);break;
   case Screen::video_info:show_video_info(canvas);break;
   case Screen::official:show_official(canvas);break;
+  case Screen::autoload:show_autoload(canvas);break;
  }
 }
 }
