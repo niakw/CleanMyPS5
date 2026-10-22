@@ -29,7 +29,8 @@ typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,sum
  size_t largeMedia,oldMedia,oldLargeMedia;
  unsigned long long largeMediaBytes;
  time_t scanEpoch;
- Cmp5MediaReview *review;} Scan;
+ Cmp5MediaReview *review;
+ Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
  return 0;
@@ -225,8 +226,14 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
 }
 // Enumerate via an anchored directory fd. A symlink swap in an ancestor
 // cannot cause traversal into an unrelated homebrew, title or OS tree.
+static int cancellation_requested(Scan*s){
+ if(s->should_cancel&&s->should_cancel(s->cancel_context)){
+  s->stopped=1;s->partial=1;return 1;
+ }
+ return 0;
+}
 static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
- if(s->stopped||s->b.fail||s->rootPartial){close(fd);return;}
+ if(s->stopped||s->b.fail||s->rootPartial||cancellation_requested(s)){close(fd);return;}
  // Keep the directory descriptor supplied by the caller for anchored
  // openat/fstatat. The native-title toolchain does not export dirfd().
  // fdopendir takes ownership and closedir closes the same descriptor.
@@ -235,6 +242,7 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
  if(!d){s->rootPartial=1;warn(s,"Acces refuse",path);close(fd);return;}
  struct dirent*e;
  while((e=readdir(d))!=NULL){
+  if(cancellation_requested(s)){s->rootPartial=1;break;}
   if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0)continue;
   if(s->visits-s->rootStart>=2500){s->rootPartial=1;warn(s,"Limite locale de parcours",path);break;}
   if(++s->visits>VISIT_CAP){s->stopped=1;warn(s,"Limite de parcours atteinte",path);break;}
@@ -269,7 +277,7 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
 static void root_scan(Scan*s,const char*root,const char*id,const char*rel,const char*kind){
  Coverage*c=&s->coverage[s->nc++];c->id=id;c->status="not-scanned";
  snprintf(c->path,sizeof(c->path),"/%s",rel);
- if(s->stopped){s->partial=1;return;}
+ if(s->stopped||cancellation_requested(s)){s->partial=1;return;}
  char copy[PATH_CAP],path[PATH_CAP];
  if(strlen(rel)>=sizeof(copy)){c->status="partial";s->partial=1;return;}
  snprintf(path,sizeof(path),"/%s",rel);memcpy(copy,rel,strlen(rel)+1);
@@ -331,7 +339,7 @@ char *cmp5_report(const char*root,size_t*len){
  * classification as the full report, but never serializes a file name.
  * Sizes are nominal; no space is implied to be safely recoverable.
  */
-char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *review){
+char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaReview *review,Cmp5CancelCheck should_cancel,void *context){
  if(len)*len=0;
  if(!root||!len)return NULL;
  struct stat st;
@@ -339,6 +347,8 @@ char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *re
  Scan*s=(Scan*)calloc(1,sizeof(*s));if(!s)return NULL;
  s->summary_only=1;
  s->review=review;
+ s->should_cancel=should_cancel;
+ s->cancel_context=context;
  if(review)memset(review,0,sizeof(*review));
  s->scanEpoch=time(NULL);
  uint64_t now=monotonic_ns();
@@ -352,6 +362,7 @@ char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *re
   snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);
   root_scan(s,root,"extended-homebrew",path,"application");
  }
+ (void)cancellation_requested(s);
  size_t complete=0,part=0,absent=0,unavailable=0,other=0;
  for(size_t i=0;i<s->nc;i++){
   const char*status=s->coverage[i].status;
@@ -392,6 +403,9 @@ char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *re
  return out;
 }
 
+char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *review){
+ return cmp5_overview_with_review_cancel(root,len,review,NULL,NULL);
+}
 char *cmp5_overview(const char *root,size_t *len){
- return cmp5_overview_with_review(root,len,NULL);
+ return cmp5_overview_with_review_cancel(root,len,NULL,NULL,NULL);
 }
