@@ -1113,8 +1113,9 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_games(ps5::demo::Canvas&canvas) noexcept {
  char heading[110]{};
- (void)std::snprintf(heading,sizeof(heading),"%u JEUX %s",
-  game_count,games_truncated?"(LISTE PARTIELLE)":"DANS LE SCAN");
+ (void)std::snprintf(heading,sizeof(heading),"%u JEUX %s%s",
+  game_count,games_truncated?"(LISTE PARTIELLE)":"INVENTORIES",
+  media_review.partial?"  SCAN PARTIEL":"");
  canvas.text(112,288,heading,4,Color::yellow);
  if(game_count==0){
   panel(canvas,506,"AUCUN JEU","GALERIE OU DROITS LIMITES",Color::yellow);
@@ -1133,12 +1134,12 @@ void show_games(ps5::demo::Canvas&canvas) noexcept {
     game.name[0]?game.name:game.id);
   canvas.text(145,y+30,display,4,focus?Color::cyan:Color::white);
   char info[100]{};
-  (void)std::snprintf(info,sizeof(info),"%u / %u MARQUES  %llu MIO",
+  (void)std::snprintf(info,sizeof(info),"%u / %u MARQUES  %llu MIO NOMINAUX",
     game.marked,game.count,static_cast<unsigned long long>(game.bytes/1048576ULL));
   canvas.text(1030,y+37,info,3,Color::white);
  }
  canvas.rectangle(95,950,1730,96,Color::panel);
- canvas.text(125,959,"X FILTRER  CARRE MARQUER / DEMARQUER TOUT LE JEU",3,Color::white);
+ canvas.text(125,959,"X FILTRER  CARRE MARQUER / DEMARQUER CAPTURES SCANNEES",3,Color::white);
  canvas.text(125,1004,"TRIANGLE TOUS  CERCLE CATALOGUE  REVUE SEULE - AUCUN EFFACEMENT",3,Color::cyan);
 }
 void show_search(ps5::demo::Canvas&canvas) noexcept {
