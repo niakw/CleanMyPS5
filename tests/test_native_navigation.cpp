@@ -238,6 +238,18 @@ int main(){
  assert(screen==Screen::photo);
  finish_scan();
  assert(photo_ready&&decoded_photo.width==32&&decoded_photo.height==16);
+ assert(photo_zoom==100);
+ press(r2);
+ assert(photo_zoom==135);
+ press(r2);
+ assert(photo_zoom==170);
+ press(l2);
+ assert(photo_zoom==135);
+ press(l2);
+ assert(photo_zoom==100);
+ press(r1); // Only one previewable image, must remain on it.
+ finish_scan();
+ assert(screen==Screen::photo&&photo_ready&&review_selection==0);
  scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
