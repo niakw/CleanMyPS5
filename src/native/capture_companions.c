@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#define MAX_TOTAL (512ULL*1024ULL*1024ULL)
+#define MAX_TOTAL (512ULL*1024ULL*1024ULL) /* Host backup contract only. */
 static int cancelled(Cmp5CancelCheck check,void*ctx){return check&&check(ctx);}
 static int same_file(const struct stat*a,const struct stat*b){
 #if defined(__APPLE__)
@@ -26,13 +26,13 @@ static int same_file(const struct stat*a,const struct stat*b){
 }
 /* Identical planner used by host-only group backup and installed title.
  * No backup/writer implementation is linked with this file. */
-int cmp5_validate_capture_group(const Cmp5MediaCandidate*,uint32_t);
+static int validate_capture_group_limit(const Cmp5MediaCandidate*,uint32_t,uint64_t);
 /* Read-only companion planner. The root and every parent component are opened
  * with O_NOFOLLOW; fstatat does not follow companion symlinks. Any matching
  * suspicious or unreadable file refuses the entire plan (fail closed). */
 static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
- Cmp5CancelCheck cancel,void*context,uint32_t minimum){
+ Cmp5CancelCheck cancel,void*context,uint32_t minimum,uint64_t max_total){
  if(count)*count=0;
  if(!root||!primary||!out||!count||
     (primary->media_type!=1&&primary->media_type!=2)||
@@ -111,7 +111,7 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
      !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||
      (type==3&&st.st_size>65536)||
      gathered>=CMP5_GROUP_MAX||
-     (uint64_t)st.st_size>MAX_TOTAL-total){invalid=1;break;}
+     (uint64_t)st.st_size>max_total-total){invalid=1;break;}
   size_t filename_length=strlen(name);
   if(parent_len+filename_length>=sizeof(out[0].preview_path)){invalid=1;break;}
   Cmp5MediaCandidate*item=&out[gathered];
@@ -139,7 +139,7 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  }
  closedir(dir);
  if(invalid||!found_primary||gathered<minimum||
-    (gathered>1u&&!cmp5_validate_capture_group(out,gathered)))return 0;
+    (gathered>1u&&!validate_capture_group_limit(out,gathered,max_total)))return 0;
  /* A stable order is mandatory for group IDs and restore audit. */
  for(unsigned i=1;i<gathered;i++){
   Cmp5MediaCandidate tmp=out[i];unsigned j=i;
@@ -155,7 +155,7 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
 int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
  Cmp5CancelCheck cancel,void*context){
- const int ok=scan_capture_group(root,primary,out,count,cancel,context,2u);
+ const int ok=scan_capture_group(root,primary,out,count,cancel,context,2u,MAX_TOTAL);
  if(!ok&&out){
   /* Enumeration may have copied private locators into output before a
    * late race, symlink or ambiguous companion invalidated the group. */
@@ -172,7 +172,10 @@ int cmp5_inspect_capture_companions(const char*root,
  Cmp5MediaCandidate parts[CMP5_GROUP_MAX];
  memset(parts,0,sizeof(parts));
  uint32_t count=0;
- const int found=scan_capture_group(root,primary,parts,&count,cancel,context,1u);
+ /* Pure metadata: 64-bit addition is checked, and no file body is read.
+  * Large video recordings must not inherit the 512-MiB backup limit. */
+ const int found=scan_capture_group(root,primary,parts,&count,cancel,context,
+    1u,UINT64_MAX);
  Cmp5CompanionReport result={0};
  if(found&&!cancelled(cancel,context)&&count>=1u&&count<=CMP5_GROUP_MAX){
   result.files=count;
@@ -180,7 +183,7 @@ int cmp5_inspect_capture_companions(const char*root,
   for(uint32_t i=0;i<count;i++){
    if(parts[i].media_type==3u)result.sidecars++;
    else result.media++;
-   result.nominal_bytes+=parts[i].bytes; /* scanner enforces <=512 MiB */
+   result.nominal_bytes+=parts[i].bytes; /* scanner enforces no uint64 overflow */
   }
   *report=result;
  }
@@ -231,7 +234,8 @@ static int valid_group_component(const Cmp5MediaCandidate*c,
  return 1;
 }
 
-int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
+static int validate_capture_group_limit(const Cmp5MediaCandidate *parts,
+ uint32_t count,uint64_t max_total){
  if(!parts||count<2||count>CMP5_GROUP_MAX)return 0;
  const char*first_ext=NULL;
  size_t stem=0;
@@ -245,7 +249,7 @@ int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
   size_t current_stem=0;
   if(!valid_group_component(c,&ext,&current_stem)||
      current_stem!=stem||memcmp(first,c->preview_path,stem)!=0||
-     !c->bytes||c->bytes>MAX_TOTAL-sum)return 0;
+     !c->bytes||c->bytes>max_total-sum)return 0;
   if(c->media_type==3u)sidecars++;
   else media++;
   for(unsigned j=0;j<i;j++){
@@ -259,5 +263,11 @@ int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
   }
   sum+=c->bytes;
  }
- return media>=1&&sidecars<=1&&sum<=MAX_TOTAL;
+ return media>=1&&sidecars<=1&&sum<=max_total;
+}
+
+/* Backup and restore stay capped at 512 MiB in total, independent of the
+ * read-only title's ability to describe large captures. */
+int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
+ return validate_capture_group_limit(parts,count,MAX_TOTAL);
 }
