@@ -61,6 +61,7 @@ char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*revi
  review->partial=1;
  std::strcpy(review->entries[0].label,"PHOTO UN");
  std::strcpy(review->entries[0].title_id,"GAME123");
+ std::strcpy(review->entries[0].preview_path,"/user/av_contents/photo/NPXS00000/GAME123/photo.jpg");
  review->entries[0].bytes=30ULL*1024*1024;
  review->entries[0].media_type=1;
  std::strcpy(review->entries[1].label,"VIDEO DEUX");
@@ -101,6 +102,24 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
   Cmp5DuplicateStats*stats,Cmp5CancelCheck cancel,void*context){
  if(cancel(context))return nullptr;
  return cmp5_duplicates_with_stats(root,len,stats);
+}
+uint8_t *cmp5_read_photo_snapshot(const char*,const Cmp5MediaCandidate*c,size_t*size){
+ if(!c||!c->preview_path[0])return nullptr;
+ uint8_t*payload=(uint8_t*)std::malloc(8);
+ assert(payload);
+ *size=8;
+ return payload;
+}
+int cmp5_decode_preview(const uint8_t*,std::size_t,Cmp5PreviewImage*out){
+ out->width=32;out->height=16;
+ out->pixels=(uint32_t*)std::malloc(32u*16u*sizeof(uint32_t));
+ assert(out->pixels);
+ for(unsigned i=0;i<32u*16u;i++)out->pixels[i]=0xff333333u;
+ return 1;
+}
+void cmp5_release_preview(Cmp5PreviewImage*out){
+ std::free(out->pixels);
+ *out=Cmp5PreviewImage{};
 }
 char *cmp5_homebrew_with_stats(const char*,std::size_t*len,
   Cmp5HomebrewStats*stats,Cmp5CancelCheck cancel,void*context){
@@ -215,6 +234,13 @@ int main(){
  press(square);
  assert(screen==Screen::detail);
  assert(detail_index==review_order[review_selection]);
+ press(cross);
+ assert(screen==Screen::photo);
+ finish_scan();
+ assert(photo_ready&&decoded_photo.width==32&&decoded_photo.height==16);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::detail);
  assert(marked_count==0);
  press(triangle);
  assert(marked_count==1);
@@ -325,6 +351,8 @@ int main(){
   save(Screen::official,"07-official");
   save(Screen::access,"08-access");
   save(Screen::apps,"09-apps");
+  photo_ready=true;
+  save(Screen::photo,"10-photo");
  }
  return 0;
 }
