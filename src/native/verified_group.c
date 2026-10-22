@@ -162,7 +162,7 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
      (uint64_t)st.st_size>MAX_TOTAL-total){invalid=1;break;}
   size_t filename_length=strlen(name);
   if(parent_len+filename_length>=sizeof(out[0].preview_path)){invalid=1;break;}
-  Cmp5MediaCandidate*item=&out[gather];
+  Cmp5MediaCandidate*item=&out[gathered];
   memset(item,0,sizeof(*item));
   memcpy(item->preview_path,path,parent_len+1u);
   memcpy(item->preview_path+parent_len+1u,name,filename_length+1u);
