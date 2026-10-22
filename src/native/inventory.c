@@ -114,6 +114,15 @@ static void capture_review(Scan*s,const char*path,const struct stat*info,const c
  c.bytes=(uint64_t)info->st_size;
  c.modified_at=info->st_mtime>0?(int64_t)info->st_mtime:0;
  c.media_type=!strcmp(kind,"video")?2u:1u;
+ /* Only real gallery captures are eligible for preview; never app data. */
+ const char*prefix=c.media_type==1u?"/user/av_contents/photo/":"/user/av_contents/video/";
+ const size_t path_length=strlen(path);
+ if(strncmp(path,prefix,strlen(prefix))==0 &&
+    path_length<sizeof(c.preview_path) && info->st_size>0){
+  memcpy(c.preview_path,path,path_length+1u);
+  c.snapshot_device=(uint64_t)info->st_dev;
+  c.snapshot_inode=(uint64_t)info->st_ino;
+ }
  const char *base=strrchr(path,'/');
  base=base?base+1:path;
  size_t n=0;
