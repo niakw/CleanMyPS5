@@ -219,6 +219,8 @@ int main(int argc,char**argv){
  assert(symlink(jpg,nonregular)==0);
  assert(!cmp5_plan_capture_group(root,&media[0],found,&found_count,NULL,NULL));
  assert(found_count==0);
+ for(unsigned i=0;i<CMP5_GROUP_MAX;i++)
+  assert(found[i].preview_path[0]==0&&found[i].bytes==0);
  assert(unlink(nonregular)==0);
  assert(!cmp5_verify_group(private,"ALBUM__COMMIT",&b,NULL,NULL));
  char file[512];
@@ -252,6 +254,8 @@ int main(int argc,char**argv){
  assert(!cmp5_plan_capture_group(root,&media[0],found,&found_count,
   add_unrelated_during_scan,&race));
  assert(race.created&&found_count==0);
+ for(unsigned i=0;i<CMP5_GROUP_MAX;i++)
+  assert(found[i].preview_path[0]==0&&found[i].bytes==0);
  assert(unlink(race.late)==0);
  puts("Atomic multi-file capture group: backup, restore, recovery, scan-race PASS");
  return 0;
