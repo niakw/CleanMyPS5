@@ -13,7 +13,8 @@ for token in ("verified_backup.h","verified_backup.c",
               "verified_group.h","verified_group.c",
               "cmp5_backup_media(","cmp5_restore_backup(",
               "cmp5_backup_group(","cmp5_restore_group(",
-              "cmp5_inspect_group_recovery("):
+              "cmp5_inspect_group_recovery(",
+              "cmp5_inspect_restored_group_recovery("):
     assert token not in native, f"Unvalidated native backup activation: {token}"
     assert token not in builder, f"Unvalidated title packaging: {token}"
     assert token not in server, f"Unvalidated helper endpoint: {token}"
