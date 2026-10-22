@@ -394,3 +394,72 @@ int cmp5_inspect_restored_group_recovery(const char*workspace,const char*id,
  Cmp5RecoveryReport*report){
  return inspect_recovery(workspace,id,1,report);
 }
+
+/* Correlate two independently valid private workspaces. No PS5 gallery
+ * access, writing, repair, or file cleanup. IDs can differ because the
+ * receipt commits to ordered file sizes and SHA-256 digests, not names. */
+int cmp5_inspect_backup_restore_pair(const char*backup,const char*backup_id,
+ const char*restore,const char*restore_id,Cmp5RecoveryPairReport*report){
+ if(!report)return 0;
+ memset(report,0,sizeof(*report));
+ if(!backup||!restore||!valid_id(backup_id)||!valid_id(restore_id))return 0;
+ int from=safe_dir(backup);
+ if(from<0)return 0;
+ int to=safe_dir(restore);
+ if(to<0){close(from);return 0;}
+ struct stat from_before,to_before,from_after,to_after;
+ int ok=fstat(from,&from_before)==0&&fstat(to,&to_before)==0&&
+   !(from_before.st_dev==to_before.st_dev&&
+     from_before.st_ino==to_before.st_ino);
+ if(!ok){close(to);close(from);return 0;}
+ Cmp5RecoveryPairReport found={0};
+ ok=cmp5_inspect_group_recovery(backup,backup_id,&found.backup)&&
+   cmp5_inspect_restored_group_recovery(restore,restore_id,&found.restored);
+ if(ok){
+  if(found.backup.state==CMP5_RECOVERY_INVALID||
+     found.restored.state==CMP5_RECOVERY_INVALID){
+   found.state=CMP5_PAIR_INVALID;
+  }else if(found.backup.state!=CMP5_RECOVERY_VERIFIED||
+           found.restored.state!=CMP5_RECOVERY_VERIFIED){
+   found.state=CMP5_PAIR_NOT_READY;
+  }else{
+   Cmp5GroupReceipt original={0},recovered={0};
+   if(cmp5_verify_group(backup,backup_id,&original,NULL,NULL)&&
+      cmp5_verify_restored_group(restore,restore_id,&recovered,NULL,NULL)){
+    const int matches=original.count==recovered.count&&
+      original.bytes==recovered.bytes&&
+      memcmp(original.manifest_sha256,recovered.manifest_sha256,32)==0;
+    found.state=matches?CMP5_PAIR_MATCH:CMP5_PAIR_MISMATCH;
+   }else found.state=CMP5_PAIR_UNVERIFIABLE;
+   /* A directory can mutate while we hash large capsules. Recheck both
+    * namespaces before claiming an end-to-end match. */
+   if(found.state==CMP5_PAIR_MATCH){
+    Cmp5RecoveryReport backup_after={0},restore_after={0};
+    if(!cmp5_inspect_group_recovery(backup,backup_id,&backup_after)||
+       !cmp5_inspect_restored_group_recovery(restore,restore_id,&restore_after)||
+       backup_after.state!=CMP5_RECOVERY_VERIFIED||
+       restore_after.state!=CMP5_RECOVERY_VERIFIED)
+     found.state=CMP5_PAIR_UNVERIFIABLE;
+   }
+  }
+ }
+ /* Both path identities and directory contents must remain stable between
+  * the initial check and publication. A rename/alias cannot validate a
+  * different workspace than the one initially opened. */
+ int check_from=safe_dir(backup),check_to=safe_dir(restore);
+ struct stat current_from,current_to;
+ if(check_from<0||check_to<0)ok=0;
+ else if(fstat(check_from,&current_from)!=0||
+         fstat(check_to,&current_to)!=0||
+         !same_file(&current_from,&from_before)||
+         !same_file(&current_to,&to_before))ok=0;
+ if(check_from>=0)close(check_from);
+ if(check_to>=0)close(check_to);
+ if(fstat(from,&from_after)!=0||fstat(to,&to_after)!=0||
+    !same_file(&from_before,&from_after)||
+    !same_file(&to_before,&to_after))ok=0;
+ close(to);close(from);
+ if(!ok)return 0;
+ *report=found;
+ return 1;
+}
