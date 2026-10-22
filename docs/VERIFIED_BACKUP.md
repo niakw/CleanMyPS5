@@ -16,7 +16,7 @@ L'objectif est d'éprouver le contrat de sauvegarde avant une éventuelle opéra
 - Le test en C, lancé en CI sur Linux et macOS avec et sans sanitizers, compare l'empreinte à `hashlib.sha256`, vérifie la copie identique, le refus des liens physiques, l'annulation à mi-copie, le refus de collision, la restauration et la détection d'une capsule altérée.
 
 
-Le planificateur `cmp5_plan_capture_group` et la vérification structurale `cmp5_validate_capture_group` sont maintenant partagés par les tests hôte et le titre natif, **sans** y importer `verified_backup.c` ni `verified_group.c`. L'inspection native présente seulement des compteurs et ne crée aucune capsule, ne restaure aucun objet et n'autorise aucune écriture dans la galerie.
+Le planificateur `cmp5_plan_capture_group` et la vérification structurale `cmp5_validate_capture_group` sont maintenant partagés par les tests hôte et le titre natif, **sans** y importer `verified_backup.c` ni `verified_group.c`. L'inspection native présente seulement des compteurs et ne crée aucune capsule, ne restaure aucun objet et n'autorise aucune écriture dans la galerie. L'interface utilise en outre `cmp5_inspect_capture_companions` pour les résultats à un seul fichier ; l'ancien contrat `cmp5_plan_capture_group` ne change pas et exige toujours au moins deux membres pour la logique de sauvegarde hôte.
 
 ## Sauvegarde groupée hôte : transaction logique
 
