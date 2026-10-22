@@ -5,6 +5,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/* Cooperative cancellation callback. Must not mutate scanner-owned objects. */
+#ifndef CMP5_CANCEL_CHECK_TYPE
+#define CMP5_CANCEL_CHECK_TYPE
+typedef int (*Cmp5CancelCheck)(void *context);
+#endif
 /* Anonymous, bounded statistics; bytes are NOMINAL and never a deletion budget. */
 typedef struct {
  uint32_t exact_groups;
@@ -20,6 +25,8 @@ typedef struct {
 char *cmp5_duplicates(const char *root, size_t *length);
 /* Same scan, returns privacy-safe counters for the native PS5 title. */
 char *cmp5_duplicates_with_stats(const char *root, size_t *length, Cmp5DuplicateStats *stats);
+/* Cancel-aware variant, no deletion or mutation; partial when cancelled. */
+char *cmp5_duplicates_with_stats_cancel(const char *root, size_t *length, Cmp5DuplicateStats *stats, Cmp5CancelCheck should_cancel, void *context);
 #ifdef __cplusplus
 }
 #endif
