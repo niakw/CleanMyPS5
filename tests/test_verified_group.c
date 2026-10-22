@@ -137,6 +137,15 @@ int main(int argc,char**argv){
  assert(unlink(suspicious_path)==0);
  assert(unlink(single_path)==0);
 
+ /* The backup API, not only its pure validator, must reject an
+  * unterminated gallery locator before opening/creating any private files. */
+ memcpy(malformed,media,sizeof(malformed));
+ memset(malformed[0].preview_path,'X',sizeof(malformed[0].preview_path));
+ assert(!cmp5_backup_group(root,malformed,3,private,"BADPATH",&a,NULL,NULL));
+ char no_stage[512],no_commit[512];
+ (void)snprintf(no_stage,sizeof(no_stage),"%s/BADPATH__1",private);
+ (void)snprintf(no_commit,sizeof(no_commit),"%s/BADPATH__COMMIT",private);
+ assert(access(no_stage,F_OK)!=0&&access(no_commit,F_OK)!=0);
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,stop,NULL));
  assert(!cmp5_verify_group(private,"ALBUM",&a,NULL,NULL));
  unsigned calls=0;
