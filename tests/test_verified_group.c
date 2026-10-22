@@ -60,6 +60,46 @@ int main(int argc,char**argv){
         found[2].media_type==1u);
  assert(found[0].bytes==media[2].bytes&&found[1].bytes==media[1].bytes&&
         found[2].bytes==media[0].bytes);
+ /* Read-only UI inspection must distinguish one stable visible media file
+  * from permission or integrity failures, while backup planner still
+  * refuses to treat that singleton as a restorable group. */
+ Cmp5CompanionReport observed={0};
+ assert(cmp5_inspect_capture_companions(root,&media[0],&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_MULTIPLE);
+ assert(observed.files==3u&&observed.media==2u&&observed.sidecars==1u);
+ assert(observed.nominal_bytes==media[0].bytes+media[1].bytes+media[2].bytes);
+ assert(!cmp5_inspect_capture_companions(root,&media[0],&observed,stop,NULL));
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
+ const char*slash=strrchr(jxr,'/');assert(slash);
+ char single_path[512];
+ const int single_len=snprintf(single_path,sizeof(single_path),"%.*s/SOLO.jpg",
+   (int)(slash-jxr),jxr);
+ assert(single_len>0&&(size_t)single_len<sizeof(single_path));
+ FILE*single=fopen(single_path,"wb");assert(single);
+ assert(fputs("ONLY_MEDIA_NO_VISIBLE_COMPANION",single)>=0&&fclose(single)==0);
+ Cmp5MediaCandidate lone;
+ snapshot(&lone,single_path,
+   "/user/av_contents/photo/NPXS00000/GAME123/SOLO.jpg",1u);
+ assert(!cmp5_plan_capture_group(root,&lone,found,&found_count,NULL,NULL));
+ assert(found_count==0u);
+ assert(cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_SINGLE);
+ assert(observed.files==1u&&observed.media==1u&&observed.sidecars==0u);
+ assert(observed.nominal_bytes==lone.bytes);
+ Cmp5MediaCandidate invalid_lone=lone;
+ invalid_lone.snapshot_inode++;
+ assert(!cmp5_inspect_capture_companions(root,&invalid_lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
+ char suspicious_path[512];
+ const int suspicious_len=snprintf(suspicious_path,sizeof(suspicious_path),
+   "%.*s/SOLO.png",(int)(slash-jxr),jxr);
+ assert(suspicious_len>0&&(size_t)suspicious_len<sizeof(suspicious_path));
+ assert(symlink(jxr,suspicious_path)==0);
+ assert(!cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
+ assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE);
+ assert(unlink(suspicious_path)==0);
+ assert(unlink(single_path)==0);
+
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,stop,NULL));
  assert(!cmp5_verify_group(private,"ALBUM",&a,NULL,NULL));
  unsigned calls=0;
