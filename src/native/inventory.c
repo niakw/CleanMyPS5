@@ -16,6 +16,7 @@
 #define PATH_CAP 2048
 #define OUTPUT_CAP (8u*1024u*1024u)
 #define VISIT_CAP 30000u
+#define SEEN_HASH_CAP 65536u /* power of two, <= 46% load */
 #define ITEM_CAP 10000u
 #define DEPTH_CAP 12
 #define SCAN_MAX_NANOSECONDS 5000000000ULL
@@ -23,7 +24,7 @@ typedef struct {char *p;size_t len,cap;int fail;} Buffer;
 typedef struct {dev_t dev; ino_t ino;} Identity;
 typedef struct {const char *id;char path[PATH_CAP];const char *status;size_t items,visits;unsigned long long bytes;} Coverage;
 typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,summary_only;char warnings[32][256];size_t nw;uint64_t deadline;
- Identity seen[VISIT_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;
+ Identity seen[VISIT_CAP];uint32_t seenSlots[SEEN_HASH_CAP];size_t nseen,aliases,links,special,excluded;Coverage coverage[sizeof(cmp5_roots)/sizeof(*cmp5_roots)+16];size_t nc,rootStart;unsigned long long bytes;
  size_t media,logs,caches,residuals,other;
  size_t largeMedia,oldMedia,oldLargeMedia;
  unsigned long long largeMediaBytes;
@@ -38,10 +39,31 @@ static int private_name(const char *name,int directory){
  if(directory)return listed(name,cmp5_private_dirs,sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs));
  return listed(name,cmp5_private_files,sizeof(cmp5_private_files)/sizeof(*cmp5_private_files));
 }
+static uint64_t seen_hash(dev_t dev,ino_t ino){
+ /* Hash, not a replacement for exact device/inode equality. */
+ uint64_t h=(uint64_t)dev;
+ h^=(uint64_t)ino+UINT64_C(0x9e3779b97f4a7c15)+(h<<6)+(h>>2);
+ h^=h>>30;h*=UINT64_C(0xbf58476d1ce4e5b9);
+ h^=h>>27;h*=UINT64_C(0x94d049bb133111eb);
+ return h^(h>>31);
+}
 static int seen(Scan*s,const struct stat*st){
- for(size_t i=0;i<s->nseen;i++)if(s->seen[i].dev==st->st_dev&&s->seen[i].ino==st->st_ino){s->aliases++;return 1;}
- if(s->nseen>=VISIT_CAP){s->stopped=1;return 1;}
- s->seen[s->nseen++]=(Identity){st->st_dev,st->st_ino};return 0;
+ size_t slot=(size_t)(seen_hash(st->st_dev,st->st_ino)&(SEEN_HASH_CAP-1u));
+ for(size_t probes=0;probes<SEEN_HASH_CAP;probes++){
+  const uint32_t index=s->seenSlots[slot];
+  if(index==0){
+   if(s->nseen>=VISIT_CAP){s->stopped=1;return 1;}
+   s->seen[s->nseen]=(Identity){st->st_dev,st->st_ino};
+   s->seenSlots[slot]=(uint32_t)(++s->nseen);
+   return 0;
+  }
+  const Identity*known=&s->seen[index-1u];
+  if(known->dev==st->st_dev&&known->ino==st->st_ino){
+   s->aliases++;return 1;
+  }
+  slot=(slot+1u)&(SEEN_HASH_CAP-1u);
+ }
+ s->stopped=1;return 1; /* Hash saturation fails closed. */
 }
 static uint64_t monotonic_ns(void){
  struct timespec t;
