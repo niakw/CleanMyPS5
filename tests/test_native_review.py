@@ -42,4 +42,13 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root),"64"],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "all catalog entries retained" in result.stdout
+    # Stress a moderately sized gallery while retaining hardlink skipping,
+    # exact inode identity and the 2,500-entry per-root traversal limit.
+    for i in range(512):
+        file=photos / f"large_catalog_{i:04d}.jpg"
+        with file.open("wb") as stream:
+            stream.truncate(1024*(i+1))
+    result=subprocess.run([sys.argv[1],str(root),"576"],
+                          check=True,text=True,capture_output=True,timeout=20)
+    assert "all catalog entries retained" in result.stdout
 print("Native review bounded fixture: PASS")
