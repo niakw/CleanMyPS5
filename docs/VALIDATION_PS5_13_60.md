@@ -1,37 +1,44 @@
-# Validation PS5 13.60 — premier lancement
+# CleanMyPS5 — portes de livraison et acceptation PS5 firmware 13.60
 
-**Statut : NON EXÉCUTÉ sur une PS5 réelle.** Une compilation croisée ne prouve pas la compatibilité avec WebKit et le firmware.
+**État : développement natif en cours, aucune validation matérielle sur PS5 13.60.**
 
-## Conditions et procédure (lecture seule)
+Ce document décrit la **validation finale**, pas une demande de test d'un prototype incomplet. Une compilation verte, un `.ffpkg` construit et un scan hôte ne prouvent ni l'exécution sur console ni la sécurité d'un nettoyage. L'application doit d'abord atteindre la parité fonctionnelle attendue.
 
-1. Sur PS5 13.60, injecter une seule fois l'artefact `cleanmyps5.elf` depuis le chargeur habituel (Payload Manager / WebKit Autoloader). Ne pas activer le démarrage automatique pour cette première validation.
-2. Relever la notification `CleanMyPS5: interface http://127.0.0.1:8877/` ; son absence ne prouve pas l'arrêt du payload.
-3. Ouvrir `http://127.0.0.1:8877/` **sur la PS5 elle-même**. Le `127.0.0.1` du Mac n'est pas celui de la console ; aucune interface LAN n'est exposée.
-4. Lancer « Analyser ma PS5 » et noter le nombre de fichiers et les avertissements. Ne pas interpréter cette taille comme tout l'espace du SSD.
-5. Tester JPEG/PNG, MP4/WebM (selon les codecs supportés par le navigateur), puis les doublons octet à octet sans supprimer de fichiers.
-6. Vérifier ✕, ○, L1/R1 et L2/R2 avec la DualSense, la fermeture des modales et la restauration du focus.
-7. Consulter les montages et le diagnostic etaHEN, sans modifier les configurations ni les bases multimédias.
-8. Arrêter le payload par le gestionnaire habituel et vérifier que le serveur ne répond plus.
-9. Après extinction complète, vérifier qu'aucune entrée d'application ou de Paramètres n'a été installée. CleanMyPS5 ne crée aucun raccourci.
+## Livraison cible
 
-## Rapport utile
+- **Application native** `PPSA99784` avec interface VideoOut et DualSense. Le moteur d'inventaire lecture seule est déjà intégré à `eboot.bin` et fonctionne selon les permissions réellement disponibles.
+- **Package `PPSA99784.ffpkg`** : homebrew UFS2 produit automatiquement en CI, destiné à un gestionnaire compatible. Ce **n'est pas un PKG Sony retail signé** ; le support de ce package par le firmware et son gestionnaire reste à valider.
+- **Archive `PPSA99784.zip`** : dossier de titre alternatif si son enregistrement est pris en charge par un gestionnaire de homebrews.
+- **`manifest.json`** : empreintes SHA-256 des livrables, dont le `.ffpkg`. Rejeter toute archive ou empreinte modifiée.
+- **`cleanmyps5-helper.elf`** : auxiliaire de lecture et de diagnostic **facultatif** ; son lancement séparé n'est plus nécessaire pour l'inventaire de base. Le titre natif n'hérite pas automatiquement de ses privilèges.
 
-- Firmware, chargeur ELF, autoloader et SHA du commit testé.
-- Démarrage/notification oui ou non ; WebKit loopback accessible oui ou non.
-- Scan : nombre d'entrées, avertissements et durée observée.
-- Manette, image, clip, doublons : résultats OK/KO.
-- En cas d'échec, décrire l'étape sans exposer les sauvegardes, tokens ou fichiers de configuration personnels.
+## À terminer avant de demander la validation finale sur console
 
-## Porte avant une version destructive
+1. **Parité de navigation native :** accueil et raccourcis, états d'analyse, filtres, tri, exploration par jeu, recherche, détails et aperçu des captures. Une liste bornée de douze captures, même utile, n'est pas une galerie complète.
+2. **Permissions effectives :** afficher l'étendue réelle des racines accessibles, distinguer refus/absence et ne jamais annoncer un scan complet si des chemins sont inaccessibles. Le port communautaire etaHEN 13.60 utilise une whitelist qui ne contient pas `PPSA99784` pour son déclencheur de sandbox ; ne pas utiliser ce protocole à l'aveugle.
+3. **Cycle de vie :** ouverture/fermeture propre, manette, retour au menu, veille/reprise, gestion des threads et annulation des scans longs. Aucun travail en parallèle ne doit conserver un fichier ouvert sans borne.
+4. **Nettoyage sûr :** trouver des objets **véritablement supprimables**, prouver les dépendances à la galerie et aux installations, effectuer des sauvegardes restaurables et implémenter un retrait transactionnel avec arrêt/reprise. Aucune suppression de sauvegardes, licences, bases actives, firmwares ou plugins chargés.
+5. **Retour officiel :** conserver la liste manuelle et les avertissements ; ne jamais vendre une opération « anti-ban » ou une garantie d'absence de traces.
+6. **Emballage :** verrouiller la compatibilité du gestionnaire d'installation UFS2, sa désinstallation normale et le comportement au redémarrage, sans raccourci WebKit qui se substituerait à une vraie application.
 
-Vérifier les chemins réels, les APIs multimédias, la synchronisation avec les bases de captures et le cycle de vie du payload. Définir un export ou sauvegarde réversible, protéger les sauvegardes et titres, confirmer avant toute opération, puis vérifier la taille libérée. Aucune suppression générique de dossiers système ; aucune défragmentation SSD.
+## Tests hôte et CI préalables
 
-La version actuelle reste en lecture seule.
+- Compiler le titre et le helper avec la révision épinglée, vérifier les métadonnées du titre, icône et module de runtime.
+- Vérifier les empreintes SHA-256 et l'archive contre traversée de chemins, liens symboliques et fichiers dupliqués.
+- Exécuter scanner/HTTP/revue médias sur arborescences synthétiques, sous sanitizer. Tester les refus d'accès, symlinks et hardlinks, ainsi que les races de chemins.
+- Vérifier le handshake de compatibilité entre le titre et le helper, les timeout HTTP et le rejet des réponses incomplètes.
+- Conserver un seul branchement Git `main` et un historique sans données personnelles en clair. Un audit de l'historique ne réécrit pas les anciens commits.
 
-### Diagnostic USB
+## Matrice d'acceptation matérielle, une fois la parité atteinte
 
-Le preflight examine à présent les répertoires autoloader candidats de `/mnt/usb0` à `/mnt/usb7` en lecture seule. La présence ou l'absence d'un montage n'établit pas à elle seule si le chargeur de payload est actif ; les vrais chemins doivent être confirmés sur la console 13.60.
+| Domaine | Succès attendu | État |
+|---|---|---|
+| Installation | Package homebrew reconnu, icône et désinstallation sans manipulation de registre | **Non testé** |
+| Démarrage natif | Interface TV utilisable sans navigateur ni injection manuelle d'un helper | **Non testé** |
+| Contrôles | DualSense, focus et navigation, Carré pour revue, Cercle pour retour | **Non testé** |
+| Analyse | Inventaire natif cohérent, couverture réelle indiquée, UI fluide pendant les scans | **Non testé** |
+| Médias | Métadonnées et éventuellement prévisualisation cohérentes avec la Galerie PS5 | **Incomplet** |
+| Nettoyage | Sauvegarde réellement restaurable, permission et confirmation vérifiées, espace mesuré après | **Non implémenté** |
+| Retour officiel | Checklist informative, aucune garantie sur les services Sony | **Implémentation partielle** |
 
-## Variante expérimentale navigateur
-
-Le projet produit désormais **deux ELF**. `cleanmyps5.elf` est inchangé (serveur loopback seul). `cleanmyps5-browser.elf` tente d'ouvrir `http://127.0.0.1:8877/` via les APIs de navigateur utilisées par l'exemple officiel du PS5 Payload SDK. Ne charger **qu'un seul** des deux. Tester la variante serveur seul avant de tenter la variante navigateur, car elle peut entrer en conflit avec un WebKit Autoloader déjà lancé. Consigner séparément les résultats d'initialisation de UserService, d'ouverture du navigateur et de navigation DualSense ; aucune installation persistante n'est effectuée.
+**Aucune modification de la console, de son jailbreak, des paramètres etaHEN ni de ses données personnelles ne doit être présentée comme un prérequis silencieux.** La phase de validation matérielle ne commencera qu'après traitement des fonctionnalités nécessaires dans le dépôt.
