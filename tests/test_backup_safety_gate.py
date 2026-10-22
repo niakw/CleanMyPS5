@@ -25,6 +25,16 @@ assert "unlinkat(dir,temp,0)" in sources
 assert "unlinkat(target,temp,0)" in sources
 assert "linkat(dir,temp,dir,id,0)" in sources
 assert "snapshot_matches" in sources
+# The extracted companion planner is allowed in the installed title only
+# while it remains a purely read-only, bounded directory/metadata scanner.
+companion=(root/"src/native/capture_companions.c").read_text(encoding="utf-8")
+for forbidden in ("verified_backup.h", "verified_group.h", "O_WRONLY", "O_RDWR",
+                  "O_CREAT", "O_TRUNC", "unlinkat(", "renameat(", "linkat(",
+                  "fwrite(", "fopen(", "remove(", "rmdir("):
+    assert forbidden not in companion, f"Unsafe companion planner: {forbidden}"
+assert "cmp5_plan_capture_group(" in companion
+assert "cmp5_capture_companions.c" in builder
+assert "verified_group.c" not in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
 assert "cmp5_backup_media(" in group and "cmp5_restore_backup(" in group
 assert "unlinkat" in group and "linkat" in group
