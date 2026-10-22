@@ -99,6 +99,22 @@ int main(int argc,char**argv){
  assert(unlink(planted)==0);
  assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INCOMPLETE);
+ /* A forged commit marker must never make a partial group appear valid. */
+ (void)snprintf(planted,sizeof(planted),"%s/RECOV__COMMIT",private);
+ assert(symlink(jxr,planted)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.marker_present);
+ assert(unlink(planted)==0);
+ /* Likewise reject hardlinked capsules even in a private workspace. */
+ char first_member[512],second_member[512];
+ (void)snprintf(first_member,sizeof(first_member),"%s/RECOV__1",private);
+ (void)snprintf(second_member,sizeof(second_member),"%s/RECOV__2",private);
+ assert(link(first_member,second_member)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(unlink(second_member)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INCOMPLETE);
  assert(!cmp5_inspect_group_recovery(private,"BAD/ID",&recovery));
 
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&b,NULL,NULL));
