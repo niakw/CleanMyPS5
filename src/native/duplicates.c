@@ -45,6 +45,7 @@ static int is_image(const char *name){
 // Hold directory FDs throughout traversal; reject symlinks at every component.
 static void walk(Scan*s,int fd,const char*dir,int depth){
  if(s->partial){close(fd);return;}
+ const int anchored_fd=fd; // fdopendir owns fd; dirfd is unavailable in native PS5 libc.
  DIR*d=fdopendir(fd);if(!d){close(fd);s->partial=1;return;}
  struct dirent*entry;
  while((entry=readdir(d))!=NULL){
@@ -54,11 +55,11 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
   char path[PATH_CAP];
   if(!join(path,sizeof(path),dir,entry->d_name)){s->partial=1;continue;}
   struct stat st;
-  if(fstatat(dirfd(d),entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){s->partial=1;continue;}
+  if(fstatat(anchored_fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){s->partial=1;continue;}
   if(S_ISLNK(st.st_mode))continue;
   if(S_ISDIR(st.st_mode)){
    if(depth<DEPTH_CAP){
-    int child=openat(dirfd(d),entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    int child=openat(anchored_fd,entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
     if(child<0)s->partial=1;
     else walk(s,child,path,depth+1);
    }else s->partial=1;
@@ -161,7 +162,8 @@ static void quote(Json*b,const char*s){
  }
  add(b,"\"");
 }
-char *cmp5_duplicates(const char*root,size_t*length){
+char *cmp5_duplicates_with_stats(const char*root,size_t*length,Cmp5DuplicateStats *stats){
+ if(stats)memset(stats,0,sizeof(*stats));
  if(length)*length=0;if(!root||!length)return NULL;
  // Open first, then inspect that descriptor. A pathname pre-check can race
  // with replacement; every subsequent lookup stays anchored to this handle.
@@ -202,6 +204,12 @@ char *cmp5_duplicates(const char*root,size_t*length){
    else if(result<0)s->partial=1;
   }
   if(nm>1){
+   if(stats){
+    stats->exact_groups++;
+    stats->matching_files+=(uint32_t)nm;
+    const uint64_t bytes=(uint64_t)s->items[i].size*(uint64_t)(nm-1);
+    stats->duplicate_nominal_bytes+=bytes; // Not necessarily reclaimable.
+   }
    if(groups++)add(&out,",");
    char n[40];snprintf(n,sizeof(n),"%llu",(unsigned long long)s->items[i].size);
    add(&out,"{\"bytesEach\":");add(&out,n);add(&out,",\"paths\":[");
@@ -209,12 +217,23 @@ char *cmp5_duplicates(const char*root,size_t*length){
    add(&out,"]}");
   }
  }
- char stats[512];
- snprintf(stats,sizeof(stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
+ char report_stats[512];
+ snprintf(report_stats,sizeof(report_stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
   s->count,s->visits,s->hardlinksSkipped,budget,s->partial?"true":"false");
- add(&out,stats);close(root_fd);free(s);
+ add(&out,report_stats);
+ if(stats){
+  stats->files_considered=(uint32_t)s->count;
+  stats->hardlinks_skipped=(uint32_t)s->hardlinksSkipped;
+  stats->compared_bytes=budget;
+  stats->partial=s->partial?1u:0u;
+ }
+ close(root_fd);free(s);
  if(out.error){free(out.data);return NULL;}
  *length=out.len;return out.data;
+}
+
+char *cmp5_duplicates(const char*root,size_t*length){
+ return cmp5_duplicates_with_stats(root,length,NULL);
 }
