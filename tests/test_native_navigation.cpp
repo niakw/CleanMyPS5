@@ -216,6 +216,7 @@ int main(){
  assert(screen==Screen::games);
  assert(game_count==2 && !games_truncated);
  assert(std::strcmp(games[0].id,"GAME123")==0);
+ assert(std::strcmp(games[0].name,"Astro's Playroom")==0);
  assert(games[0].count==1 && games[0].bytes==30ULL*1024*1024);
  press(down);
  assert(std::strcmp(games[game_selection].id,"GAME456")==0);
