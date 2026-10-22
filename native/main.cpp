@@ -694,6 +694,9 @@ void poll_pad() noexcept {
    }else if(screen==Screen::video_info){
     video_info=Cmp5VideoMetadata{};
     video_info_ready=false;
+   }else if(screen==Screen::companions){
+    companion_summary=CompanionSummary{};
+    companion_checked=false;
    }
    screen=(screen==Screen::photo||screen==Screen::video_info||
             screen==Screen::companions)?Screen::detail:
