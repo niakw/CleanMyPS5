@@ -8,7 +8,7 @@ Depuis l'écran **Accès au stockage**, **Carré** ouvre un bilan natif des home
 
 Le moteur est toujours **en lecture seule** : aucune suppression, désinstallation, purge, réparation, écriture système ou changement de configuration n'est actuellement autorisé. Dans le titre natif, **Triangle** depuis Nettoyage lance une comparaison explicite de doublons d'images (128 images, 32 Mio par fichier, 128 Mio de lectures maximum, limite indicative de six secondes), sans proposer d'effacement ou de gain d'espace. La détection de permissions n'accorde pas de privilèges et ne démontre pas qu'un effacement serait sûr.
 
-**Préparation du nettoyage réversible :** un prototype **hôte uniquement** sait créer une copie privée, vérifier son SHA-256 et restaurer le contenu dans un second espace privé. La CI teste l'annulation, les fichiers corrompus, les refus d'écrasement et les liens symboliques. Il **n'est ni intégré au titre PS5 ni accessible sur la console**, tant que la cohérence des index de la Galerie n'est pas démontrée. Voir [le contrat de sauvegarde vérifiée](docs/VERIFIED_BACKUP.md).
+**Préparation du nettoyage réversible :** un prototype **hôte uniquement** sait créer des copies privées SHA-256, vérifier et restaurer leur contenu dans un autre dossier privé. Il prend aussi en charge des groupes de **2 à 4 fichiers associés** (par exemple JXR/JPG/DAT) avec un marqueur de validation publié seulement après vérification de tous les éléments. La CI teste les annulations, corruptions, collisions et groupes incomplets. Il **n'est ni intégré au titre PS5 ni accessible sur la console**, tant que la cohérence des index de la Galerie n'est pas démontrée. Voir [le contrat de sauvegarde vérifiée](docs/VERIFIED_BACKUP.md).
 
 ## Fonctions disponibles
 
