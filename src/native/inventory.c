@@ -119,12 +119,15 @@ static void capture_review(Scan*s,const char*path,const struct stat*info,const c
   }
   if(mark[t]!='/')c.title_id[0]=0;
  }
- unsigned insert=0;
- while(insert<r->count&&r->entries[insert].bytes>=c.bytes)insert++;
- if(insert>=CMP5_REVIEW_CAP)return;
- if(r->count<CMP5_REVIEW_CAP)r->count++;
- for(unsigned i=r->count-1;i>insert;i--)r->entries[i]=r->entries[i-1];
- r->entries[insert]=c;
+ if(r->count<CMP5_REVIEW_CAP)r->entries[r->count++]=c;
+}
+static int cmp_media_largest(const void*a,const void*b){
+ const Cmp5MediaCandidate*x=(const Cmp5MediaCandidate*)a;
+ const Cmp5MediaCandidate*y=(const Cmp5MediaCandidate*)b;
+ if(x->bytes!=y->bytes)return x->bytes>y->bytes?-1:1;
+ if(x->modified_at!=y->modified_at)return x->modified_at>y->modified_at?-1:1;
+ int title=strcmp(x->title_id,y->title_id);
+ return title?title:strcmp(x->label,y->label);
 }
 
 static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
@@ -359,7 +362,10 @@ char *cmp5_overview_with_review(const char *root,size_t *len,Cmp5MediaReview *re
   if(n<0||(size_t)n>=1024){free(out);out=NULL;}
   else *len=(size_t)n;
  }
- if(review)review->partial=(s->stopped||s->partial)?1u:0u;
+ if(review){
+  review->partial=(s->stopped||s->partial||review->media_scanned>review->count)?1u:0u;
+  qsort(review->entries,review->count,sizeof(review->entries[0]),cmp_media_largest);
+ }
  free(s);
  return out;
 }
