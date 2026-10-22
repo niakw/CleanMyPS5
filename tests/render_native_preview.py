@@ -43,6 +43,9 @@ def preview(trace: Path, output: Path) -> None:
             draw.ellipse((x - w, y - w, x + w, y + w), fill=ink)
         elif command == "T":
             draw.polygon([(x, y + h), (x + w, y), (x + w * 2, y + h)], fill=ink)
+        elif command == "I":
+            draw.rectangle((x,y,x+w,y+h),fill=(35,70,110))
+            draw.text((x+28,y+28),"PHOTO SYNTHETIQUE - PAS UNE CAPTURE PS5",fill=(240,240,240))
         elif command == "X":
             if scale not in fonts:
                 if FONT.is_file():
@@ -61,8 +64,8 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     traces = sorted(args.traces.glob("*.trace"))
-    if len(traces) != 9:
-        raise SystemExit(f"expected nine synthetic native screens, got {len(traces)}")
+    if len(traces) != 10:
+        raise SystemExit(f"expected ten synthetic native screens, got {len(traces)}")
     for path in traces:
         target = args.output / f"{path.stem}.png"
         preview(path, target)
