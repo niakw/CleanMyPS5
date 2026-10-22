@@ -1,6 +1,10 @@
 #define _DEFAULT_SOURCE
 #include "verified_backup.h"
 #include "sha256.h"
+/* Test invariants must run even when CMake uses -DNDEBUG (Release). */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
