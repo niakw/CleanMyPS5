@@ -647,7 +647,8 @@ void show_menu(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(1000,top+37,detail[i],3,Color::white);
  }
  footer(canvas,task_busy()?
-   "ANALYSE EN COURS    X OUVRIR UNE SECTION    HAUT / BAS":
+   "ANALYSE EN COURS    CERCLE POUR ANNULER":
+   task_cancelled()?"ANALYSE ANNULEE   X POUR RECOMMENCER":
    "X OUVRIR    HAUT / BAS NAVIGUER");
 }
 void show_analyze(ps5::demo::Canvas&canvas) noexcept {
@@ -658,8 +659,10 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
   return;
  }
- if(task_failed()){
-  panel(canvas,366,"CONTROLE NON LANCE","ECHEC DE CREATION DU WORKER",Color::yellow);
+ if(task_failed()||task_cancelled()){
+  panel(canvas,366,task_cancelled()?"ANALYSE ANNULEE":"CONTROLE NON LANCE",
+    task_cancelled()?"RESULTAT PARTIEL REJETE":"ECHEC DE CREATION DU WORKER",
+    Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
   return;
  }
@@ -713,8 +716,9 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"CERCLE RETOUR  AUCUNE MODIFICATION");
   return;
  }
- if(task_failed()){
-  panel(canvas,366,"CONTROLE NON LANCE","WORKER INDISPONIBLE",Color::yellow);
+ if(task_failed()||task_cancelled()){
+  panel(canvas,366,task_cancelled()?"LECTURE ANNULEE":"CONTROLE NON LANCE",
+   "AUCUNE CONCLUSION SUR LES ACCES",Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
   return;
  }
@@ -752,8 +756,9 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"ANALYSE EN COURS    CERCLE RETOUR");
   return;
  }
- if(task_failed()){
-  panel(canvas,355,"ANALYSE NON LANCEE","WORKER INDISPONIBLE",Color::yellow);
+ if(task_failed()||task_cancelled()){
+  panel(canvas,355,task_cancelled()?"ANALYSE ANNULEE":"ANALYSE NON LANCEE",
+   "AUCUN RESULTAT UTILISABLE",Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
   return;
  }
