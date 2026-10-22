@@ -184,6 +184,7 @@ unsigned review_selection=0;
 unsigned detail_index=0;
 Cmp5PreviewImage decoded_photo{};
 bool photo_ready=false;
+unsigned photo_zoom=100; // 100%, 135%, 170% display-only scaling
 bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
 Cmp5DuplicateStats duplicate_stats{};
@@ -578,12 +579,31 @@ void poll_pad() noexcept {
    }
    continue;
   }
-  if(screen==Screen::photo)continue;
+  if(screen==Screen::photo){
+   if(pressed&l2)photo_zoom=photo_zoom==170?135:100;
+   if(pressed&r2)photo_zoom=photo_zoom==100?135:170;
+   if((pressed&l1||pressed&r1)&&review_visible){
+    const unsigned direction=(pressed&r1)?1u:review_visible-1u;
+    for(unsigned offset=1;offset<=review_visible;offset++){
+     const unsigned candidate=(review_selection+offset*direction)%review_visible;
+     const auto&item=media_review.entries[review_order[candidate]];
+     if(item.media_type==1u&&item.preview_path[0]){
+      review_selection=candidate;
+      detail_index=review_order[candidate];
+      photo_zoom=100;
+      (void)begin_task(Task::photo);
+      break;
+     }
+    }
+   }
+   continue;
+  }
   if(screen==Screen::detail){
    if((pressed&cross)&&detail_index<media_review.count){
     const auto&item=media_review.entries[detail_index];
     if(item.media_type==1u&&item.preview_path[0]){
      screen=Screen::photo;
+     photo_zoom=100;
      (void)begin_task(Task::photo);
     }
     continue;
@@ -1012,11 +1032,13 @@ void show_photo(ps5::demo::Canvas&canvas) noexcept {
  }
  canvas.rectangle(220,315,1480,600,Color::panel);
  const unsigned src_w=decoded_photo.width,src_h=decoded_photo.height;
- const unsigned dest_x=960u-src_w/2u;
- const unsigned dest_y=615u-src_h/2u;
- canvas.blit(dest_x,dest_y,src_w,src_h,
+ const unsigned draw_w=(src_w*photo_zoom)/100u;
+ const unsigned draw_h=(src_h*photo_zoom)/100u;
+ const unsigned dest_x=960u-draw_w/2u;
+ const unsigned dest_y=615u-draw_h/2u;
+ canvas.blit(dest_x,dest_y,draw_w,draw_h,
    decoded_photo.pixels,src_w,src_h);
- footer(canvas,"APERCU JPG OU PNG  CERCLE RETOUR  LECTURE SEULE");
+ footer(canvas,"L1 R1 PHOTO  L2 R2 ZOOM  CERCLE RETOUR  LECTURE SEULE");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
