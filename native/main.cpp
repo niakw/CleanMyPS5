@@ -5,6 +5,7 @@
 #include "loopback_protocol.hpp"
 #include "inventory.h"
 #include "duplicates.h"
+#include "homebrew.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -61,7 +62,7 @@ constexpr std::uint32_t l3=0x2,options=0x8,up=0x10,down=0x40,left=0x80,right=0x2
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, cleanup, review, search, games, detail, official };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -183,6 +184,8 @@ bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
 Cmp5DuplicateStats duplicate_stats{};
 bool duplicates_checked=false;
+Cmp5HomebrewStats homebrew_stats{};
+bool homebrew_checked=false;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -418,7 +421,19 @@ void run_duplicate_check() noexcept {
   duplicates_checked=!cancellation_hook(nullptr);
  }
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates };
+void run_homebrew_check() noexcept {
+ homebrew_stats=Cmp5HomebrewStats{};
+ homebrew_checked=false;
+ std::size_t length=0;
+ // The JSON contains homebrew paths, so never pass it to the title UI.
+ char*report=cmp5_homebrew_with_stats("/", &length, &homebrew_stats,
+   cancellation_hook, nullptr);
+ if(report){
+  std::free(report);
+  homebrew_checked=!cancellation_hook(nullptr);
+ }
+}
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -428,6 +443,7 @@ void* background_task(void*) noexcept {
   case Task::access: probe_local(); break;
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
+  case Task::homebrew: run_homebrew_check(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -442,6 +458,10 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::duplicates){
    duplicate_stats=Cmp5DuplicateStats{};
    duplicates_checked=false;
+  }
+  if(task_kind==Task::homebrew){
+   homebrew_stats=Cmp5HomebrewStats{};
+   homebrew_checked=false;
   }
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
@@ -484,6 +504,7 @@ void poll_pad() noexcept {
    if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
    screen=(screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
+     screen==Screen::apps?Screen::access:
      screen==Screen::review?Screen::cleanup:Screen::menu;
    continue;
   }
@@ -589,6 +610,11 @@ void poll_pad() noexcept {
    if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
    continue;
   }
+  if(screen==Screen::access&&(pressed&square)){
+   screen=Screen::apps;
+   (void)begin_task(Task::homebrew);
+   continue;
+  }
   if(screen==Screen::cleanup&&(pressed&square)&&!task_cancelled()){
    if(media_review.count){
     review_selection=0;rebuild_review_index();screen=Screen::review;
@@ -612,6 +638,7 @@ void poll_pad() noexcept {
   }else if(pressed&cross){
    if(screen==Screen::analyze||screen==Screen::cleanup)(void)begin_task(Task::overview);
    if(screen==Screen::access)(void)begin_task(Task::access);
+   if(screen==Screen::apps)(void)begin_task(Task::homebrew);
   }
  }
 }
@@ -746,7 +773,38 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,353+static_cast<unsigned>(i)*144,local_names[i],
     detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
  }
- footer(canvas,"X VERIFIER A NOUVEAU    CERCLE RETOUR");
+ footer(canvas,"X ACTUALISER  CARRE APPS ET PLUGINS  CERCLE RETOUR");
+}
+void show_apps(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,355,"APPS ET PLUGINS","INVENTAIRE EN COURS",Color::cyan);
+  panel(canvas,503,"LECTURE PROTEGEE","ANALYSE LIMITEE A 3 SECONDES");
+  footer(canvas,"CERCLE ANNULER  AUCUNE DESINSTALLATION");
+  return;
+ }
+ if(task_cancelled()||task_failed()||!homebrew_checked){
+  panel(canvas,355,"INVENTAIRE INDISPONIBLE",
+    task_cancelled()?"ANNULE":"DROITS OU MOTEUR LIMITES",Color::yellow);
+  footer(canvas,"X REESSAYER   CERCLE RETOUR");
+  return;
+ }
+ const unsigned counts[4]={
+  homebrew_stats.homebrew,homebrew_stats.plugins,
+  homebrew_stats.app_data,homebrew_stats.installed
+ };
+ static constexpr const char*labels[4]={
+  "HOMEBREWS","PLUGINS","DONNEES APPS","INSTALLATIONS"
+ };
+ for(unsigned i=0;i<4;i++){
+  char detail[95]{};
+  (void)std::snprintf(detail,sizeof(detail),"%u ELEMENTS PROTEGES",counts[i]);
+  panel(canvas,355+i*144,labels[i],detail,Color::cyan);
+ }
+ char footer_message[150]{};
+ (void)std::snprintf(footer_message,sizeof(footer_message),
+  "X ACTUALISER  %s  CERCLE RETOUR  AUCUN EFFACEMENT",
+  homebrew_stats.partial?"SCAN PARTIEL":"PERIMETRE CONNU");
+ footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
@@ -936,6 +994,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
  const char*subtitle=screen==Screen::menu?"MAINTENANCE PS5":
    screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":
    screen==Screen::access?"PERMISSIONS DU TITRE":
+   screen==Screen::apps?"HOMEBREWS ET PLUGINS":
    screen==Screen::cleanup?"NETTOYAGE PROTEGE":
    screen==Screen::review?"CATALOGUE DES CAPTURES":
    screen==Screen::search?"RECHERCHE DES CAPTURES":
@@ -946,6 +1005,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::menu:show_menu(canvas);break;
   case Screen::analyze:show_analyze(canvas);break;
   case Screen::access:show_access(canvas);break;
+  case Screen::apps:show_apps(canvas);break;
   case Screen::cleanup:show_cleanup(canvas);break;
   case Screen::review:show_review(canvas);break;
   case Screen::search:show_search(canvas);break;
