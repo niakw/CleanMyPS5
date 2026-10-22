@@ -146,6 +146,20 @@ int main(int argc,char**argv){
  (void)snprintf(no_stage,sizeof(no_stage),"%s/BADPATH__1",private);
  (void)snprintf(no_commit,sizeof(no_commit),"%s/BADPATH__COMMIT",private);
  assert(access(no_stage,F_OK)!=0&&access(no_commit,F_OK)!=0);
+ /* A structurally valid 2-item subset is NOT a complete observable
+  * capture group while REC_001.dat is present. Reject before any staging. */
+ assert(cmp5_validate_capture_group(media,2));
+ assert(!cmp5_backup_group(root,media,2,private,"OMITTED",&a,NULL,NULL));
+ char omitted[512];
+ (void)snprintf(omitted,sizeof(omitted),"%s/OMITTED__1",private);
+ assert(access(omitted,F_OK)!=0);
+ (void)snprintf(omitted,sizeof(omitted),"%s/OMITTED__COMMIT",private);
+ assert(access(omitted,F_OK)!=0);
+ Cmp5MediaCandidate missing_jpg[2]={media[0],media[2]};
+ assert(cmp5_validate_capture_group(missing_jpg,2));
+ assert(!cmp5_backup_group(root,missing_jpg,2,private,"OMITTEDDAT",&a,NULL,NULL));
+ (void)snprintf(omitted,sizeof(omitted),"%s/OMITTEDDAT__1",private);
+ assert(access(omitted,F_OK)!=0);
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,stop,NULL));
  assert(!cmp5_verify_group(private,"ALBUM",&a,NULL,NULL));
  unsigned calls=0;
@@ -274,7 +288,24 @@ int main(int argc,char**argv){
  /* A second, independently valid two-member album must NOT correlate
   * to the 3-member restored contents of the first album. */
  Cmp5GroupReceipt shorter={0};
- assert(cmp5_backup_group(root,media,2,private,"SHORT",&shorter,NULL,NULL));
+ /* An independent, complete 2-file fixture exercises content mismatch.
+  * Using a subset of REC_001 here would incorrectly bypass the new guard. */
+ Cmp5MediaCandidate alternate[2]={{0}};
+ char alternate_absolute[512],alternate_relative[256];
+ const char*alt_ext[2]={".jpg",".dat"};
+ for(unsigned k=0;k<2;k++){
+  const int n=snprintf(alternate_absolute,sizeof(alternate_absolute),
+    "%.*s/ALT_002%s",(int)(strrchr(jxr,'/')-jxr),jxr,alt_ext[k]);
+  assert(n>0&&(size_t)n<sizeof(alternate_absolute));
+  FILE*alt=fopen(alternate_absolute,"wb");assert(alt);
+  assert(fputs(k==0?"OTHER_CAPTURE_IMAGE":"OTHER_METADATA",alt)>=0);
+  assert(fclose(alt)==0);
+  const int relative_length=snprintf(alternate_relative,sizeof(alternate_relative),
+    "/user/av_contents/photo/NPXS00000/GAME123/ALT_002%s",alt_ext[k]);
+  assert(relative_length>0&&(size_t)relative_length<sizeof(alternate_relative));
+  snapshot(&alternate[k],alternate_absolute,alternate_relative,k==0?1u:3u);
+ }
+ assert(cmp5_backup_group(root,alternate,2,private,"SHORT",&shorter,NULL,NULL));
  assert(cmp5_restore_group(private,"SHORT",restored,&shorter,NULL,NULL));
  assert(cmp5_inspect_backup_restore_pair(private,"ALBUM",restored,
    "SHORT",&pair));
