@@ -33,7 +33,7 @@ def update(path: Path) -> None:
     source=path.read_text(encoding="utf-8")
     # Reject unexpected versions, incorrect VideoOut ordering, or double patch.
     anchors=(
-        "const std::size_t frame_bytes = 0x1000000;",
+        "constexpr std::size_t frame_bytes = 0x1000000;",
         "Canvas first{static_cast<std::uint32_t *>(mapped)};",
         "Canvas second{reinterpret_cast<std::uint32_t *>(second_frame)};",
         "if (sceVideoOutSubmitFlip(video, 0, 1, 1) < 0)",
