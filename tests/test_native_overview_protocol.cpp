@@ -44,6 +44,10 @@ int main(){
  CHECK(accepted(replace_once(valid,R"("coverage":{"complete":2,"partial":1})",
    R"("coverage":{"files":999,"categories":{"media":999},"partial":false})")));
  reject(replace_once(valid,R"("schemaVersion":1)",R"("schemaVersion":2)"));
+ reject(replace_once(valid,R"("mode":"metadata-only")",R"("mode":"writable")"));
+ reject(replace_once(valid,R"("mode":"metadata-only",)",""));
+ reject(replace_once(valid,R"("mode":"metadata-only")",
+   R"("mode":"metadata-only","mode":"metadata-only")"));
  reject(replace_once(valid,R"("scope":"bounded-known-roots")",
    R"("scope":"other-roots")"));
  reject(replace_once(valid,R"("cleanupValidated":false)",
