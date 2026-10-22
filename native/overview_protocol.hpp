@@ -12,6 +12,9 @@ struct Overview {
  std::uint64_t bytes=0,large_bytes=0;
  bool partial=false;
 };
+struct Preflight {
+ unsigned accessible=0,denied=0,absent=0,other=0;
+};
 class OverviewReader {
  const char*at;
  const char*end;
@@ -178,8 +181,67 @@ class OverviewReader {
    scope==Scope::categories?mask==7u:
    scope==Scope::review?mask==31u:true;
  }
+bool preflight_summary(Preflight*out,unsigned depth) noexcept {
+  if(depth>12||!take('{'))return false;
+  unsigned mask=0;
+  if(take('}'))return false;
+  for(;;){
+   Span name{};
+   if(!str(&name)||name.escaped||!take(':'))return false;
+   unsigned flag=0;bool valid=true;
+   if(key(name,"accessible")){
+    flag=1u;valid=uint_field(&out->accessible);
+   }else if(key(name,"denied")){
+    flag=2u;valid=uint_field(&out->denied);
+   }else if(key(name,"absent")){
+    flag=4u;valid=uint_field(&out->absent);
+   }else if(key(name,"other")){
+    flag=8u;valid=uint_field(&out->other);
+   }else valid=ignore(depth+1);
+   if(!valid||(flag&&(mask&flag)))return false;
+   mask|=flag;
+   if(take('}'))break;
+   if(!take(','))return false;
+  }
+  return mask==15u;
+ }
+ bool preflight_root(Preflight*out) noexcept {
+  if(!take('{'))return false;
+  unsigned mask=0;
+  if(take('}'))return false;
+  for(;;){
+   Span name{};
+   if(!str(&name)||name.escaped||!take(':'))return false;
+   unsigned flag=0;bool valid=true;
+   if(key(name,"schemaVersion")){
+    flag=1u;std::uint64_t v=0;
+    valid=unsigned_number(&v)&&v==1u;
+   }else if(key(name,"mode")){
+    flag=2u;Span v{};
+    valid=str(&v)&&key(v,"read-only");
+   }else if(key(name,"scope")){
+    flag=4u;Span v{};
+    valid=str(&v)&&key(v,"known-paths-only");
+   }else if(key(name,"summary")){
+    flag=8u;valid=preflight_summary(out,1);
+   }else valid=ignore(1);
+   if(!valid||(flag&&(mask&flag)))return false;
+   mask|=flag;
+   if(take('}'))break;
+   if(!take(','))return false;
+  }
+  return mask==15u;
+ }
 public:
  OverviewReader(const char*json,std::size_t len) noexcept:at(json),end(json+len){}
+ bool parse_preflight(Preflight*out) noexcept {
+  if(!out||!preflight_root(out))return false;
+  whitespace();
+  if(at!=end)return false;
+  const std::uint64_t n=static_cast<std::uint64_t>(out->accessible)+
+    out->denied+out->absent+out->other;
+  return n>0&&n<=1024;
+ }
  bool parse(Overview*out) noexcept {
   if(!out||!object(Scope::root,out,0))return false;
   whitespace();
@@ -196,6 +258,13 @@ inline bool parse_overview(const char*json,std::size_t length,Overview*out) noex
  if(!json||!out||length<64||length>4096)return false;
  Overview value{};
  if(!OverviewReader(json,length).parse(&value))return false;
+ *out=value;
+ return true;
+}
+inline bool parse_preflight(const char*json,std::size_t length,Preflight*out) noexcept {
+ if(!json||!out||length<64||length>16384)return false;
+ Preflight value{};
+ if(!OverviewReader(json,length).parse_preflight(&value))return false;
  *out=value;
  return true;
 }
