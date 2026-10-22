@@ -7,6 +7,7 @@
 #include "inventory.h"
 #include "duplicates.h"
 #include "homebrew.h"
+#include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
 #include "video_metadata.h"
@@ -69,7 +70,7 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -211,6 +212,12 @@ Cmp5PreviewImage decoded_photo{};
 bool photo_ready=false;
 Cmp5VideoMetadata video_info{};
 bool video_info_ready=false;
+struct CompanionSummary {
+ unsigned files=0,sidecars=0,media=0;
+ std::uint64_t bytes=0;
+};
+CompanionSummary companion_summary{};
+bool companion_checked=false;
 unsigned photo_zoom=100; // 100%, 135%, 170% display-only scaling
 bool marked_for_review[CMP5_REVIEW_CAP]{};
 unsigned marked_count=0;
@@ -435,6 +442,8 @@ void run_overview() noexcept {
  marked_nominal_bytes=0;
  duplicate_stats=Cmp5DuplicateStats{};
  duplicates_checked=false;
+ companion_summary=CompanionSummary{};
+ companion_checked=false;
  // The same limited scanner is linked inside eboot.bin. It has only
  // the permissions actually granted to the installed title's sandbox.
  // Never present inaccessible roots as empty or deleted.
@@ -516,6 +525,32 @@ void run_video_info() noexcept {
  video_info_ready=cmp5_probe_video_snapshot("/",&entry,&video_info,
    cancellation_hook,nullptr)!=0;
 }
+void run_companion_check() noexcept {
+ companion_summary=CompanionSummary{};
+ companion_checked=false;
+ if(detail_index>=media_review.count)return;
+ const auto&primary=media_review.entries[detail_index];
+ if((primary.media_type!=1u&&primary.media_type!=2u)||
+    !primary.preview_path[0]||cancellation_hook(nullptr))return;
+ Cmp5MediaCandidate companions[CMP5_GROUP_MAX]{};
+ std::uint32_t count=0;
+ const bool found=cmp5_plan_capture_group("/", &primary,companions,
+   &count,cancellation_hook,nullptr)!=0;
+ if(found&&count>=2u&&count<=CMP5_GROUP_MAX&&!cancellation_hook(nullptr)){
+  CompanionSummary summary{};
+  summary.files=count;
+  for(unsigned i=0;i<count;i++){
+   if(companions[i].media_type==3u)summary.sidecars++;
+   else summary.media++;
+   const auto bytes=companions[i].bytes;
+   summary.bytes=UINT64_MAX-summary.bytes<bytes?UINT64_MAX:summary.bytes+bytes;
+  }
+  companion_summary=summary;
+  companion_checked=true;
+ }
+ // Do not publish persistent private paths or candidate file names.
+ std::memset(companions,0,sizeof(companions));
+}
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
  homebrew_checked=false;
@@ -540,7 +575,7 @@ void run_autoload_check() noexcept {
   autoload_checked=!cancellation_hook(nullptr)&&autoload_stats.checked==11u;
  }
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -554,6 +589,7 @@ void* background_task(void*) noexcept {
   case Task::autoload: run_autoload_check(); break;
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
+  case Task::companions: run_companion_check(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -586,6 +622,10 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::video_info){
    video_info=Cmp5VideoMetadata{};
    video_info_ready=false;
+  }
+  if(task_kind==Task::companions){
+   companion_summary=CompanionSummary{};
+   companion_checked=false;
   }
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
@@ -630,6 +670,10 @@ void release_inactive_previews() noexcept {
   video_info=Cmp5VideoMetadata{};
   video_info_ready=false;
  }
+ if(screen!=Screen::companions && companion_checked){
+  companion_summary=CompanionSummary{};
+  companion_checked=false;
+ }
 }
 void poll_pad() noexcept {
  if(controller<0)return;
@@ -651,7 +695,8 @@ void poll_pad() noexcept {
     video_info=Cmp5VideoMetadata{};
     video_info_ready=false;
    }
-   screen=(screen==Screen::photo||screen==Screen::video_info)?Screen::detail:
+   screen=(screen==Screen::photo||screen==Screen::video_info||
+            screen==Screen::companions)?Screen::detail:
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::apps?Screen::access:
@@ -706,7 +751,7 @@ void poll_pad() noexcept {
    }
    continue;
   }
-  if(screen==Screen::video_info)continue;
+  if(screen==Screen::video_info||screen==Screen::companions)continue;
   if(screen==Screen::photo){
    if(pressed&l2)photo_zoom=photo_zoom==170?135:100;
    if(pressed&r2)photo_zoom=photo_zoom==100?135:170;
@@ -727,6 +772,11 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::detail){
+   if((pressed&square)&&detail_index<media_review.count){
+    screen=Screen::companions;
+    (void)begin_task(Task::companions);
+    continue;
+   }
    if((pressed&cross)&&detail_index<media_review.count){
     const auto&item=media_review.entries[detail_index];
     if(item.preview_path[0]&&item.media_type==1u){
@@ -1194,8 +1244,36 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
    marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
    marked_for_review[detail_index]?Color::cyan:Color::yellow);
  footer(canvas,item.media_type==2u?
-  "X INFOS MP4/WEBM  TRIANGLE MARQUER  CERCLE RETOUR":
-  "X PREVISUALISER PHOTO  TRIANGLE MARQUER  CERCLE RETOUR");
+  "X INFOS MP4/WEBM  CARRE FICHIERS LIES  TRIANGLE MARQUER  CERCLE":
+  "X APERCU PHOTO  CARRE FICHIERS LIES  TRIANGLE MARQUER  CERCLE");
+}
+void show_companions(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,360,"FICHIERS ASSOCIES","VERIFICATION EN LECTURE SEULE",Color::cyan);
+  footer(canvas,"CERCLE ANNULER  AUCUNE MODIFICATION");
+  return;
+ }
+ if(task_cancelled()||task_failed()||!companion_checked){
+  panel(canvas,360,"GROUPE NON VERIFIABLE",
+    task_cancelled()?"ANALYSE ANNULEE":"FICHIERS ABSENTS, INACCESSIBLES OU AMBIGUS",
+    Color::yellow);
+  panel(canvas,510,"SECURITE","NE PAS SUPPRIMER CETTE CAPTURE",Color::yellow);
+  footer(canvas,"CERCLE DETAIL  AUCUN NETTOYAGE AUTORISE");
+  return;
+ }
+ char count[105]{};
+ (void)std::snprintf(count,sizeof(count),"%u FICHIERS  %u MEDIAS",
+   companion_summary.files,companion_summary.media);
+ panel(canvas,360,"GROUPE OBSERVE",count,Color::cyan);
+ (void)std::snprintf(count,sizeof(count),"%u FICHIER(S) DAT",companion_summary.sidecars);
+ panel(canvas,508,"METADONNEES ASSOCIEES",count,Color::cyan);
+ (void)std::snprintf(count,sizeof(count),"%llu MIO NOMINAUX",
+   static_cast<unsigned long long>(companion_summary.bytes/1048576ULL));
+ panel(canvas,656,"TAILLE DU GROUPE",count);
+ panel(canvas,804,"LIMITATION","INDEX GALERIE ET MINIATURES NON PROUVES",Color::yellow);
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,968,"CERCLE DETAIL  AUCUNE SUPPRESSION NI SAUVEGARDE",3,Color::white);
+ canvas.text(125,1006,"ASSOCIATIONS VISIBLES SEULEMENT - LECTURE SEULE",3,Color::cyan);
 }
 void show_photo(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
@@ -1324,7 +1402,8 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::detail?"DETAIL DE LA CAPTURE":
    screen==Screen::photo?"APERCU PHOTO":
    screen==Screen::video_info?"INFORMATIONS VIDEO":
-   screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":
+   screen==Screen::companions?"FICHIERS LIES A LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
@@ -1340,6 +1419,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::video_info:show_video_info(canvas);break;
   case Screen::official:show_official(canvas);break;
   case Screen::autoload:show_autoload(canvas);break;
+  case Screen::companions:show_companions(canvas);break;
  }
 }
 }
