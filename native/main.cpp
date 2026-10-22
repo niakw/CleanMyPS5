@@ -12,6 +12,7 @@
 #include <sys/statvfs.h>
 #include <atomic>
 #include <pthread.h>
+#include <cstdlib>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -27,6 +28,7 @@ extern "C" {
  int sceNetSocketClose(int);
  int open(const char*,int,...);
  int close(int);
+ char *cmp5_overview(const char*,std::size_t*);
 }
 
 namespace {
@@ -141,7 +143,9 @@ bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
  *out=n;return true;
 }
 enum class Summary { unchecked, ok, unavailable };
+enum class ScanSource { none, native_title, helper };
 Summary summary_status=Summary::unchecked;
+ScanSource scan_source=ScanSource::none;
 unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
 unsigned summary_large=0,summary_old=0,summary_old_large=0;
 std::uint64_t summary_bytes=0,summary_large_bytes=0;
@@ -219,23 +223,10 @@ bool get_preflight() noexcept {
  available=a;denied=d;absent=b;
  return true;
 }
-void run_environment_check() noexcept {
- probe_local();
- engine=Link::offline;
- if(helper_is_compatible() && get_preflight())engine=Link::ok;
- summary_status=Summary::unchecked;
-}
-void run_overview() noexcept {
- summary_status=Summary::unavailable;
- // May take several seconds on large drives. Only execute on explicit X action.
- // A foreign or old process on :8877 must never be mistaken for this helper.
- if(!helper_is_compatible())return;
- char response[2048]{};
- const char*json=nullptr;
- if(!fetch_local("/api/overview",response,sizeof(response),&json))return;
- if(!std::strstr(json,"\"scope\":\"bounded-known-roots\"")||
+bool accept_overview(const char*json,ScanSource source) noexcept {
+ if(!json||!std::strstr(json,"\"scope\":\"bounded-known-roots\"")||
     !std::strstr(json,"\"cleanupValidated\":false")||
-    !std::strstr(json,"\"validatedForDeletion\":false"))return;
+    !std::strstr(json,"\"validatedForDeletion\":false"))return false;
  unsigned files=0,media=0,cache=0,logs=0,large=0,old=0,oldLarge=0;
  std::uint64_t bytes=0,largeBytes=0;
  if(!scan_field(json,"\"files\":",&files)||
@@ -259,6 +250,35 @@ void run_overview() noexcept {
  summary_large_bytes=largeBytes;
  summary_partial=std::strstr(json,"\"partial\":true")!=nullptr;
  summary_status=Summary::ok;
+ scan_source=source;
+ return true;
+}
+void run_overview() noexcept {
+ // The same limited scanner is linked inside eboot.bin. It has only
+ // the permissions actually granted to the installed title's sandbox.
+ // Never present inaccessible roots as empty or deleted.
+ summary_status=Summary::unavailable;
+ scan_source=ScanSource::none;
+ // Prefer a compatible optional backend when it is already running.
+ // No manual helper launch is required to obtain native metadata.
+ if(helper_is_compatible()){
+  char response[2048]{};
+  const char*json=nullptr;
+  if(fetch_local("/api/overview",response,sizeof(response),&json) &&
+     accept_overview(json,ScanSource::helper))return;
+ }
+ std::size_t length=0;
+ char*json=cmp5_overview("/",&length);
+ if(json){
+  (void)accept_overview(json,ScanSource::native_title);
+  std::free(json);
+ }
+}
+void run_environment_check() noexcept {
+ probe_local();
+ engine=Link::offline;
+ if(helper_is_compatible()&&get_preflight())engine=Link::ok;
+ run_overview();
 }
 enum class Task : unsigned { none, environment, access, overview };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed
@@ -395,13 +415,14 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   (void)std::snprintf(detail,sizeof(detail),"%u FICHIERS  %llu MIO NOMINAUX%s",
     summary_files,static_cast<unsigned long long>(summary_bytes/1048576ULL),
     summary_partial?"  PARTIEL":"");
-  panel(canvas,664,"BILAN DU HELPER",detail,Color::cyan);
+  panel(canvas,664,scan_source==ScanSource::native_title?
+    "BILAN NATIF DU TITRE":"BILAN DU MOTEUR",detail,Color::cyan);
   (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u",
     summary_media,summary_cache,summary_logs);
   panel(canvas,813,"CATEGORIES VUES",detail);
  }else{
-  panel(canvas,664,"BILAN DU HELPER",
-    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"INDISPONIBLE",
+  panel(canvas,664,"BILAN DU STOCKAGE",
+    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"ANALYSE INDISPONIBLE",
     Color::yellow);
   panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
  }
@@ -469,7 +490,7 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  }else{
   panel(canvas,355,"CAPTURES VOLUMINEUSES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
-  panel(canvas,651,"MOTEUR","LANCER LE HELPER SI NECESSAIRE",Color::yellow);
+  panel(canvas,651,"MOTEUR","DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
  }
  panel(canvas,799,"PROTECTION","AUCUN FICHIER DECLARE SUPPRIMABLE",Color::yellow);
  footer(canvas,"X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
