@@ -3,6 +3,7 @@
 // Advanced diagnostics require the separately privileged, read-only helper.
 #include "demo_renderer.hpp"
 #include "loopback_protocol.hpp"
+#include "inventory.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -28,8 +29,7 @@ extern "C" {
  int sceNetSocketClose(int);
  int open(const char*,int,...);
  int close(int);
- char *cmp5_overview(const char*,std::size_t*);
-}
+ }
 
 namespace {
 struct RawPadSample {
@@ -55,9 +55,9 @@ struct NetSockaddrIn {
 static_assert(sizeof(NetSockaddrIn)==16);
 
 using Color=ps5::demo::Color;
-constexpr std::uint32_t up=0x10,down=0x40,cross=0x4000,circle=0x2000;
+constexpr std::uint32_t up=0x10,down=0x40,cross=0x4000,circle=0x2000,square=0x8000;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, cleanup, official };
+enum class Screen { menu, analyze, access, cleanup, review, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -150,6 +150,8 @@ unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
 unsigned summary_large=0,summary_old=0,summary_old_large=0;
 std::uint64_t summary_bytes=0,summary_large_bytes=0;
 bool summary_partial=false;
+Cmp5MediaReview media_review{};
+unsigned review_selection=0;
 
 // Native UI uses only fixed paths and a closed loopback listener.
 // Bounded receive buffers; the backend never receives a write command.
@@ -259,19 +261,22 @@ void run_overview() noexcept {
  // Never present inaccessible roots as empty or deleted.
  summary_status=Summary::unavailable;
  scan_source=ScanSource::none;
- // Prefer a compatible optional backend when it is already running.
- // No manual helper launch is required to obtain native metadata.
- if(helper_is_compatible()){
-  char response[2048]{};
-  const char*json=nullptr;
-  if(fetch_local("/api/overview",response,sizeof(response),&json) &&
-     accept_overview(json,ScanSource::helper))return;
- }
+ // The title itself discovers media independently of the helper.
+ // Its results may be partial because the sandbox cannot read all roots.
  std::size_t length=0;
- char*json=cmp5_overview("/",&length);
+ char*json=cmp5_overview_with_review("/",&length,&media_review);
  if(json){
   (void)accept_overview(json,ScanSource::native_title);
   std::free(json);
+ }
+ if(review_selection>=media_review.count)review_selection=0;
+ // Optionally prefer helper aggregate counters when it is already running.
+ // Media review remains restricted to paths the installed title can see.
+ if((summary_status!=Summary::ok||summary_partial)&&helper_is_compatible()){
+  char response[2048]{};
+  const char*remote=nullptr;
+  if(fetch_local("/api/overview",response,sizeof(response),&remote))
+   (void)accept_overview(remote,ScanSource::helper);
  }
 }
 void run_environment_check() noexcept {
@@ -323,8 +328,19 @@ void poll_pad() noexcept {
   const std::uint32_t buttons=samples[i].connected!=0?samples[i].buttons:0;
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
-  if(pressed&circle){screen=Screen::menu;continue;}
+  if(pressed&circle){screen=screen==Screen::review?Screen::cleanup:Screen::menu;continue;}
   if(task_busy())continue;
+  if(screen==Screen::review){
+   if(media_review.count){
+    if(pressed&up)review_selection=(review_selection+media_review.count-1)%media_review.count;
+    if(pressed&down)review_selection=(review_selection+1)%media_review.count;
+   }
+   continue;
+  }
+  if(screen==Screen::cleanup&&(pressed&square)){
+   if(media_review.count){review_selection=0;screen=Screen::review;}
+   continue;
+  }
   if(screen==Screen::menu){
    if(pressed&up)selected=(selected+row_count-1)%row_count;
    if(pressed&down)selected=(selected+1)%row_count;
@@ -332,6 +348,7 @@ void poll_pad() noexcept {
     screen=selected==0?Screen::analyze:selected==1?Screen::access:
       selected==2?Screen::cleanup:Screen::official;
     if(screen==Screen::analyze)(void)begin_task(Task::environment);
+    if(screen==Screen::cleanup)(void)begin_task(Task::overview);
     if(screen==Screen::access)(void)begin_task(Task::access);
    }
   }else if(pressed&cross){
@@ -493,7 +510,41 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,651,"MOTEUR","DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
  }
  panel(canvas,799,"PROTECTION","AUCUN FICHIER DECLARE SUPPRIMABLE",Color::yellow);
- footer(canvas,"X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
+ footer(canvas,media_review.count?
+  "CARRE VOIR CAPTURES  X REANALYSER  CERCLE RETOUR":
+  "X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
+}
+void show_review(ps5::demo::Canvas&canvas) noexcept {
+ if(!media_review.count){
+  panel(canvas,367,"CAPTURES NON VISIBLES","ACCES LIMITE OU AUCUNE CAPTURE",Color::yellow);
+  footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
+  return;
+ }
+ char title[100]{};
+ (void)std::snprintf(title,sizeof(title),"%u ELEMENTS VUS  %s",
+  media_review.media_scanned,media_review.partial?"SCAN PARTIEL":"SCANS LIMITES");
+ canvas.text(112,302,title,3,Color::yellow);
+ const unsigned page=review_selection/4u;
+ for(unsigned slot=0;slot<4;slot++){
+  const unsigned index=page*4u+slot;
+  if(index>=media_review.count)break;
+  const auto&item=media_review.entries[index];
+  const unsigned top=358+slot*142u;
+  const bool selected_item=index==review_selection;
+  canvas.rectangle(95,top,1730,116,selected_item?Color::cyan:Color::panel);
+  canvas.rectangle(103,top+8,1714,100,Color::background);
+  canvas.text(135,top+17,item.title_id[0]?item.title_id:"JEU INCONNU",4,
+    selected_item?Color::cyan:Color::white);
+  char label[31]{};
+  (void)std::snprintf(label,sizeof(label),"%.30s",item.label);
+  canvas.text(620,top+31,label,3,Color::white);
+  char stats[78]{};
+  (void)std::snprintf(stats,sizeof(stats),"%s  %llu MIO",
+    item.media_type==2u?"VIDEO":"IMAGE",
+    static_cast<unsigned long long>(item.bytes/1048576ULL));
+  canvas.text(1320,top+36,stats,3,Color::cyan);
+ }
+ footer(canvas,"HAUT BAS NAVIGUER  CERCLE RETOUR  LECTURE SEULE");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,355,"REVOIR LES HOMEBREWS","VERIFIER MANUELLEMENT");
@@ -507,13 +558,15 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
  const char*subtitle=screen==Screen::menu?"MAINTENANCE PS5":
    screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":
    screen==Screen::access?"PERMISSIONS DU TITRE":
-   screen==Screen::cleanup?"NETTOYAGE PROTEGE":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::cleanup?"NETTOYAGE PROTEGE":
+   screen==Screen::review?"CAPTURES A EXAMINER":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
   case Screen::analyze:show_analyze(canvas);break;
   case Screen::access:show_access(canvas);break;
   case Screen::cleanup:show_cleanup(canvas);break;
+  case Screen::review:show_review(canvas);break;
   case Screen::official:show_official(canvas);break;
  }
 }
