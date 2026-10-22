@@ -56,11 +56,11 @@ struct NetSockaddrIn {
 static_assert(sizeof(NetSockaddrIn)==16);
 
 using Color=ps5::demo::Color;
-constexpr std::uint32_t options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
+constexpr std::uint32_t l3=0x2,options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=4;
-enum class Screen { menu, analyze, access, cleanup, review, search, detail, official };
+enum class Screen { menu, analyze, access, cleanup, review, search, games, detail, official };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -169,6 +169,43 @@ std::uint32_t review_order[CMP5_REVIEW_CAP]{};
 unsigned review_visible=0;
 unsigned review_selection=0;
 unsigned detail_index=0;
+constexpr unsigned game_capacity=256;
+struct GameSummary {
+ char id[24]{};
+ unsigned count=0;
+ std::uint64_t bytes=0;
+};
+GameSummary games[game_capacity]{};
+unsigned game_count=0,game_selection=0;
+bool games_truncated=false;
+
+void rebuild_games() noexcept {
+ game_count=0;games_truncated=false;
+ for(unsigned i=0;i<media_review.count;i++){
+  const auto&item=media_review.entries[i];
+  const char*title=item.title_id[0]?item.title_id:"INCONNU";
+  unsigned index=0;
+  while(index<game_count&&std::strcmp(games[index].id,title)!=0)index++;
+  if(index==game_count){
+   if(game_count==game_capacity){games_truncated=true;continue;}
+   games[index]=GameSummary{};
+   (void)std::snprintf(games[index].id,sizeof(games[index].id),"%s",title);
+   game_count++;
+  }
+  auto&game=games[index];
+  game.count++;
+  game.bytes=(UINT64_MAX-game.bytes<item.bytes)?UINT64_MAX:game.bytes+item.bytes;
+ }
+ for(unsigned i=1;i<game_count;i++){
+  GameSummary current=games[i];
+  unsigned j=i;
+  while(j&&games[j-1].bytes<current.bytes){
+   games[j]=games[j-1];--j;
+  }
+  games[j]=current;
+ }
+ if(game_selection>=game_count)game_selection=game_count?game_count-1:0;
+}
 
 int compare_media_indices(const void*a,const void*b) noexcept {
  const auto x=*static_cast<const std::uint32_t*>(a);
@@ -388,7 +425,8 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
-   screen=(screen==Screen::detail||screen==Screen::search)?Screen::review:
+   screen=(screen==Screen::detail||screen==Screen::search||
+           screen==Screen::games)?Screen::review:
      screen==Screen::review?Screen::cleanup:Screen::menu;
    continue;
   }
@@ -418,8 +456,30 @@ void poll_pad() noexcept {
    }
    continue;
   }
+  if(screen==Screen::games){
+   if(game_count){
+    if(pressed&up)game_selection=(game_selection+game_count-1)%game_count;
+    if(pressed&down)game_selection=(game_selection+1)%game_count;
+    if(pressed&left)game_selection=game_selection>4?game_selection-4:0;
+    if(pressed&right)game_selection=(game_selection+4<game_count)?
+      game_selection+4:game_count-1;
+    if(pressed&cross){
+     const char*id=games[game_selection].id;
+     if(std::strcmp(id,"INCONNU")==0)review_game[0]=0;
+     else (void)std::snprintf(review_game,sizeof(review_game),"%s",id);
+     review_selection=0;rebuild_review_index();
+     screen=Screen::review;continue;
+    }
+   }
+   if(pressed&triangle){
+    review_game[0]=0;review_selection=0;rebuild_review_index();
+    screen=Screen::review;
+   }
+   continue;
+  }
   if(screen==Screen::detail)continue;
   if(screen==Screen::review){
+   if(pressed&l3){rebuild_games();screen=Screen::games;continue;}
    if(pressed&options){screen=Screen::search;continue;}
    if(pressed&square&&review_visible){
     detail_index=review_order[review_selection];
@@ -688,7 +748,32 @@ void show_review(ps5::demo::Canvas&canvas) noexcept {
  }
  canvas.rectangle(95,950,1730,96,Color::panel);
  canvas.text(125,962,"L1 R1 TYPE  TRIANGLE TRI  X JEU  L2 AGE  R2 50 MIO",3,Color::white);
- canvas.text(125,1005,"OPTIONS RECHERCHE  CARRE DETAILS  HAUT BAS  CERCLE",3,Color::cyan);
+ canvas.text(125,1005,"OPTIONS RECHERCHE  L3 JEUX  CARRE DETAILS  CERCLE",3,Color::cyan);
+}
+void show_games(ps5::demo::Canvas&canvas) noexcept {
+ char heading[110]{};
+ (void)std::snprintf(heading,sizeof(heading),"%u JEUX %s",
+  game_count,games_truncated?"(LISTE PARTIELLE)":"DANS LE SCAN");
+ canvas.text(112,288,heading,4,Color::yellow);
+ if(game_count==0){
+  panel(canvas,506,"AUCUN JEU","GALERIE OU DROITS LIMITES",Color::yellow);
+ }
+ const unsigned page=game_selection/4u;
+ for(unsigned slot=0;slot<4u;slot++){
+  const unsigned at=page*4u+slot;
+  if(at>=game_count)break;
+  const auto&game=games[at];
+  const unsigned y=351+slot*142u;
+  const bool focus=at==game_selection;
+  canvas.rectangle(95,y,1730,116,focus?Color::cyan:Color::panel);
+  canvas.rectangle(103,y+8,1714,100,Color::background);
+  canvas.text(145,y+30,game.id,5,focus?Color::cyan:Color::white);
+  char info[100]{};
+  (void)std::snprintf(info,sizeof(info),"%u MEDIAS  %llu MIO NOMINAUX",
+    game.count,static_cast<unsigned long long>(game.bytes/1048576ULL));
+  canvas.text(1030,y+37,info,3,Color::white);
+ }
+ footer(canvas,"X FILTRER JEU  TRIANGLE TOUS  CERCLE CATALOGUE");
 }
 void show_search(ps5::demo::Canvas&canvas) noexcept {
  char query[95]{};
@@ -769,6 +854,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::cleanup?"NETTOYAGE PROTEGE":
    screen==Screen::review?"CATALOGUE DES CAPTURES":
    screen==Screen::search?"RECHERCHE DES CAPTURES":
+   screen==Screen::games?"CAPTURES PAR JEU":
    screen==Screen::detail?"DETAIL DE LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
@@ -778,6 +864,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::cleanup:show_cleanup(canvas);break;
   case Screen::review:show_review(canvas);break;
   case Screen::search:show_search(canvas);break;
+  case Screen::games:show_games(canvas);break;
   case Screen::detail:show_detail(canvas);break;
   case Screen::official:show_official(canvas);break;
  }
