@@ -83,6 +83,37 @@ int main(){
  CHECK(!cmp5_native::parse_overview(valid.data(),valid.size(),nullptr));
  CHECK(!cmp5_native::parse_overview(valid.data(),valid.size()-1,&out));
  CHECK(!cmp5_native::parse_overview(valid.data(),4097,&out));
+ const std::string preflight=
+  R"({"schemaVersion":1,"mode":"read-only","scope":"known-paths-only",)"
+  R"("entries":[{"path":"/data","status":"accessible","writableHint":false}],)"
+  R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0}})";
+ cmp5_native::Preflight permissions{};
+ CHECK(cmp5_native::parse_preflight(preflight.data(),preflight.size(),&permissions));
+ CHECK(permissions.accessible==1&&permissions.denied==2&&
+   permissions.absent==4&&permissions.other==1);
+ auto invalid_preflight=[&](const std::string&input){
+  cmp5_native::Preflight original{};
+  original.accessible=1234;
+  CHECK(!cmp5_native::parse_preflight(input.data(),input.size(),&original));
+  CHECK(original.accessible==1234);
+ };
+ invalid_preflight(replace_once(preflight,R"("mode":"read-only")",R"("mode":"writable")"));
+ invalid_preflight(replace_once(preflight,R"("scope":"known-paths-only")",
+   R"("scope":"all-roots")"));
+ invalid_preflight(replace_once(preflight,R"("schemaVersion":1)",R"("schemaVersion":2)"));
+ invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":1,"accessible":2)"));
+ invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":-1)"));
+ invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":99999999999)"));
+ invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":1025)"));
+ invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0})",
+   R"("summary":{"accessible":1,"denied":2,"other":1})"));
+ invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0})",
+   R"("result":{"summary":{"accessible":1,"denied":2,"absent":4,"other":1}})"));
+ invalid_preflight(preflight+" garbage");
+ invalid_preflight(preflight.substr(0,preflight.size()-1));
+ CHECK(!cmp5_native::parse_preflight(preflight.data(),preflight.size(),nullptr));
+ CHECK(!cmp5_native::parse_preflight(nullptr,0,&permissions));
+ puts("Bounded native preflight decoding: PASS");
  puts("Bounded native overview decoding: PASS");
  return 0;
 }
