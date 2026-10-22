@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -22,7 +23,8 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
     candidate->bytes==0||candidate->bytes>CMP5_PREVIEW_FILE_CAP)return NULL;
  static const char prefix[]="/user/av_contents/photo/";
  const char*path=candidate->preview_path;
- const size_t n=strnlen(path,sizeof(candidate->preview_path));
+ size_t n=0;
+ while(n<sizeof(candidate->preview_path)&&path[n])n++;
  if(n==0||n>=sizeof(candidate->preview_path)||
     n<=sizeof(prefix)-1||memcmp(path,prefix,sizeof(prefix)-1)!=0)return NULL;
  const char*extension=strrchr(path,'.');
