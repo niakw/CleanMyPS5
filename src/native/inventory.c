@@ -311,7 +311,19 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
  DIR*d=fdopendir(fd);
  if(!d){s->rootPartial=1;warn(s,"Acces refuse",path);close(fd);return;}
  struct dirent*e;
- while((e=readdir(d))!=NULL){
+ for(;;){
+  /* readdir() returns NULL both on end-of-directory and on I/O failure.
+   * Reset errno BEFORE each call because fstatat/openat also modify it.
+   * A read failure must never produce a false "complete" root. */
+  errno=0;
+  e=readdir(d);
+  if(!e){
+   if(errno!=0){
+    s->rootPartial=1;
+    warn(s,"Erreur de lecture du dossier",path);
+   }
+   break;
+  }
   if(cancellation_requested(s)){s->rootPartial=1;break;}
   if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0)continue;
   if(s->visits-s->rootStart>=2500){s->rootPartial=1;warn(s,"Limite locale de parcours",path);break;}
@@ -323,7 +335,11 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
    }
   }
   char child[PATH_CAP];
-  if(!join(child,sizeof(child),path,e->d_name)){warn(s,"Nom trop long",path);continue;}
+  if(!join(child,sizeof(child),path,e->d_name)){
+   s->rootPartial=1;
+   warn(s,"Chemin trop long : scan incomplet",path);
+   break;
+  }
   struct stat st;
   if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
    s->rootPartial=1;warn(s,"Entree inaccessible",child);continue;
@@ -347,7 +363,10 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
   }
   if(s->stopped||s->b.fail||s->rootPartial)break;
  }
- closedir(d);
+ if(closedir(d)!=0){
+  s->rootPartial=1;
+  warn(s,"Erreur fermeture du dossier",path);
+ }
 }
 static void root_scan(Scan*s,const char*root,const char*id,const char*rel,const char*kind){
  Coverage*c=&s->coverage[s->nc++];c->id=id;c->status="not-scanned";
