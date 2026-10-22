@@ -77,6 +77,24 @@ int main(int argc,char**argv){
  assert(recovery.state==CMP5_RECOVERY_VERIFIED);
  assert(recovery.published_parts==3u&&recovery.staged_parts==0u);
  assert(recovery.marker_present);
+ /* A committed marker must not hide interrupted stages or extra capsules. */
+ char extra_stage[512];
+ (void)snprintf(extra_stage,sizeof(extra_stage),"%s/.ALBUM__2.part",private);
+ FILE*stage=fopen(extra_stage,"wb");assert(stage);
+ assert(fputs("stale stage",stage)>=0&&fclose(stage)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(recovery.staged_parts==1u&&recovery.marker_present);
+ assert(unlink(extra_stage)==0);
+ Cmp5BackupReceipt extra={0};
+ assert(cmp5_backup_media(root,&media[0],private,"ALBUM__4",&extra,NULL,NULL));
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.published_parts==4u);
+ char surplus[512];
+ (void)snprintf(surplus,sizeof(surplus),"%s/ALBUM__4",private);
+ assert(unlink(surplus)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_VERIFIED);
  assert(cmp5_inspect_group_recovery(private,"NEVER_BACKED_UP",&recovery));
  assert(recovery.state==CMP5_RECOVERY_EMPTY);
  assert(!recovery.published_parts&&!recovery.staged_parts&&!recovery.marker_present);
