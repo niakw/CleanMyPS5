@@ -14,6 +14,17 @@ static int stop_during_copy(void*context){
  unsigned *calls=(unsigned*)context;
  return ++(*calls)>10u;
 }
+typedef struct {char late[512];unsigned calls;int created;} ScanMutation;
+static int add_unrelated_during_scan(void*context){
+ ScanMutation*state=(ScanMutation*)context;
+ if(++state->calls==2u){
+  FILE*f=fopen(state->late,"wb");
+  if(!f)return 1;
+  state->created=fputs("DELIBERATE_DIR_MUTATION",f)>=0&&fclose(f)==0;
+  if(!state->created)return 1;
+ }
+ return 0;
+}
 static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  const char*relative,unsigned type){
  struct stat st;assert(stat(absolute,&st)==0);
@@ -156,6 +167,18 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.marker_present);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
- puts("Atomic multi-file capture group: backup, restore, no-clobber, rejection, tamper PASS");
+ /* Even a newly created *unrelated* sibling invalidates a stale scan. */
+ ScanMutation race={0};
+ const char*last_slash=strrchr(jxr,'/');
+ assert(last_slash);
+ const size_t folder_len=(size_t)(last_slash-jxr);
+ assert(folder_len+strlen("/UNRELATED.txt")<sizeof(race.late));
+ memcpy(race.late,jxr,folder_len);
+ strcpy(race.late+folder_len,"/UNRELATED.txt");
+ assert(!cmp5_plan_capture_group(root,&media[0],found,&found_count,
+  add_unrelated_during_scan,&race));
+ assert(race.created&&found_count==0);
+ assert(unlink(race.late)==0);
+ puts("Atomic multi-file capture group: backup, restore, recovery, scan-race PASS");
  return 0;
 }
