@@ -86,6 +86,7 @@ struct LocalProbe {
  bool io_error=false;
  bool volume_known=false;
  std::uint64_t available_bytes=0;
+ std::uint64_t total_bytes=0;
 };
 LocalProbe local_probe[4]{};
 bool local_checked=false;
@@ -114,9 +115,15 @@ void probe_local() noexcept {
   struct statvfs volume{};
   if(fstatvfs(fd,&volume)==0){
    const std::uint64_t block=volume.f_frsize?volume.f_frsize:volume.f_bsize;
-   if(block && static_cast<std::uint64_t>(volume.f_bavail)<=UINT64_MAX/block){
-    result.volume_known=true;
-    result.available_bytes=static_cast<std::uint64_t>(volume.f_bavail)*block;
+   if(block&&static_cast<std::uint64_t>(volume.f_bavail)<=UINT64_MAX/block&&
+      static_cast<std::uint64_t>(volume.f_blocks)<=UINT64_MAX/block){
+    const auto free=static_cast<std::uint64_t>(volume.f_bavail)*block;
+    const auto total=static_cast<std::uint64_t>(volume.f_blocks)*block;
+    if(total>0&&free<=total){
+     result.volume_known=true;
+     result.available_bytes=free;
+     result.total_bytes=total;
+    }
    }
   }
   (void)close(fd);
@@ -848,8 +855,10 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   char detail[100]{};
   if(state==LocalAccess::listable){
    if(probe.volume_known)
-    (void)std::snprintf(detail,sizeof(detail),"%u VUES  %llu MIO DISPO%s",
-      probe.entries,static_cast<unsigned long long>(probe.available_bytes/1048576ULL),
+    (void)std::snprintf(detail,sizeof(detail),"%u VUES  %llu/%llu GIO LIBRES/TOTAL%s",
+      probe.entries,
+      static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
+      static_cast<unsigned long long>(probe.total_bytes/1073741824ULL),
       probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
    else
     (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
@@ -863,8 +872,18 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
      "ERREUR D ACCES";
    (void)std::snprintf(detail,sizeof(detail),"%s",reason);
   }
-  panel(canvas,353+static_cast<unsigned>(i)*144,local_names[i],
-    detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
+  const unsigned y=353+static_cast<unsigned>(i)*144;
+   panel(canvas,y,local_names[i],
+     detail,state==LocalAccess::listable||state==LocalAccess::opened?Color::cyan:Color::yellow);
+   if(state==LocalAccess::listable&&probe.volume_known){
+    /* Each mount is independent; do not sum capacity across paths. */
+    constexpr unsigned bar_width=650;
+    const double fraction=static_cast<double>(probe.available_bytes)/
+      static_cast<double>(probe.total_bytes);
+    const unsigned free_width=static_cast<unsigned>(fraction*bar_width);
+    canvas.rectangle(930,y+87,bar_width,12,Color::background);
+    if(free_width)canvas.rectangle(930,y+87,free_width,12,Color::cyan);
+   }
  }
  footer(canvas,"X ACTUALISER  CARRE APPS ET PLUGINS  CERCLE RETOUR");
 }
