@@ -489,8 +489,13 @@ int cmp5_inspect_group_recovery(const char*workspace,const char*id,
  if(!ok)return 0;
  if(unsafe)result.state=CMP5_RECOVERY_INVALID;
  else if(result.marker_present){
-  result.state=cmp5_verify_group(workspace,id,NULL,NULL,NULL)?
-   CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
+  Cmp5GroupReceipt verified={0};
+  /* A valid manifest alone is not enough: leftover stages or surplus
+   * capsules make recovery ambiguous even if the original set hashes OK. */
+  const int complete=cmp5_verify_group(workspace,id,&verified,NULL,NULL);
+  result.state=complete&&result.staged_parts==0u&&
+   result.published_parts==verified.count?
+    CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
  }else if(result.published_parts||result.staged_parts)
   result.state=CMP5_RECOVERY_INCOMPLETE;
  else result.state=CMP5_RECOVERY_EMPTY;
