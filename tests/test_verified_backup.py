@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory() as temp:
     backup.mkdir(mode=0o700)
     restore=base/'private-restores'
     restore.mkdir(mode=0o700)
+    alias=base/'linked-backups'
+    alias.symlink_to(backup,target_is_directory=True)
     binary=Path(sys.argv[1]) if len(sys.argv)>1 else base/'backup-test'
     if len(sys.argv)==1:
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Wpedantic','-Werror',
@@ -25,7 +27,7 @@ with tempfile.TemporaryDirectory() as temp:
                         'src/native/verified_backup.c','src/native/sha256.c',
                         '-o',str(binary)],cwd=root,check=True,timeout=30)
     completed=subprocess.run([str(binary),str(base),str(source),str(backup),
-                              str(restore),'tamper'],capture_output=True,text=True,
+                              str(restore),'tamper',str(alias)],capture_output=True,text=True,
                               check=True,timeout=30)
     assert hashlib.sha256(data).hexdigest() in completed.stdout
     assert source.read_bytes()==data
@@ -37,5 +39,9 @@ with tempfile.TemporaryDirectory() as temp:
     assert not (backup/'ABORTED').exists()
     assert not (backup/'.ABORTED.part').exists()
     assert not (backup/'HARDLINK').exists()
+    assert not (backup/'ALIAS_DIR').exists()
+    assert not (backup/'SYMLINK').exists()
+    assert not (backup/'PUBLIC').exists()
+    assert not (backup/'TOO_LARGE').exists()
     assert not source.with_name(source.name+'.link').exists()
     print(completed.stdout.strip())
