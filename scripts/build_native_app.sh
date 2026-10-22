@@ -25,7 +25,8 @@ test "$(git -C "$tmp/native-toolchain" rev-parse HEAD)" = "$pin" || {
 cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
 # The pinned starter draws one frame and sleeps forever. Enable actual
 # double-buffered redraws before compiling the installed controller UI.
-python3 "$project/scripts/enable_interactive_videoout.py"   "$tmp/native-toolchain/src/demo_renderer.cpp"
+python3 "$project/scripts/enable_interactive_videoout.py" "$tmp/native-toolchain/src/demo_renderer.cpp"
+python3 "$project/scripts/enable_native_preview_blit.py"   "$tmp/native-toolchain/src/demo_renderer.hpp" "$tmp/native-toolchain/src/demo_renderer.cpp"
 cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
 # The read-only metadata scanner is compiled INTO the native title.
 # It inherits title permissions; it never escalates them or installs a daemon.
@@ -35,6 +36,11 @@ cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates
 cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 cp "$project/src/native/homebrew.c" "$tmp/native-toolchain/src/cmp5_homebrew.c"
 cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
+cp "$project/src/native/media_preview.c" "$tmp/native-toolchain/src/cmp5_media_preview.c"
+cp "$project/src/native/media_preview.h" "$tmp/native-toolchain/src/media_preview.h"
+cp "$project/native/preview_decode.c" "$tmp/native-toolchain/src/cmp5_preview_decode.c"
+cp "$project/native/preview_decode.h" "$tmp/native-toolchain/src/preview_decode.h"
+bash "$project/scripts/fetch_stb_decoder.sh" "$tmp/native-toolchain/src"
 python3 "$project/scripts/embed_rules.py"   "$project/rules/metadata-v1.json" "$tmp/native-toolchain/src/scan_rules.h"
 python3 "$project/scripts/make_native_icon.py" "$tmp/native-toolchain/sce_sys/icon0.png"
 # Never distribute the toolchain demo title backgrounds/audio.
