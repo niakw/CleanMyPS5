@@ -1,6 +1,6 @@
 # CleanMyPS5 — validation et priorités
 
-**État natif :** dossier de titre `PPSA99784/` compilé avec `eboot.bin`, icône, runtime et écran DualSense. Un helper ELF **séparé** expose les données en lecture seule sur loopback. Compilation CI réussie ; pas de validation physique sur FW 13.60 ni de nettoyage activé. Le tableau ci-dessous décrit majoritairement l'ancien moteur de lecture WebKit/ELF, pas la parité de l'interface native.
+**État natif :** dossier de titre `PPSA99784/` compilé avec `eboot.bin`, icône, runtime et écran DualSense. Le scanner de métadonnées est désormais **lié dans `eboot.bin`**, les analyses passent sur un worker, la liste des douze captures les plus volumineuses est accessible depuis Nettoyage et le guide Retour officiel a huit étapes cochables. Un helper ELF **facultatif** expose des diagnostics et une couverture complémentaire en lecture seule sur loopback. La CI produit aussi un `.ffpkg` UFS2 expérimental. Compilation CI réussie ; pas de validation physique sur FW 13.60 ni de nettoyage activé. Le tableau ci-dessous décrit majoritairement l'ancien moteur de lecture WebKit/ELF, pas la parité de l'interface native.
 
 | Sous-système | Implémenté | Tests hôte | ELF compilé | Test FW 13.60 | Écritures |
 |---|---|---|---|---|---|
@@ -25,7 +25,7 @@
 
 ## Portes restantes
 
-**P0 — Titre natif et helper réellement accessibles** : installer et lancer le dossier `PPSA99784/` via un gestionnaire de titres compatible, vérifier la manette, les pages, les sondes natives et la connexion loopback au helper ELF. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.
+**P0 — Titre natif et droits réellement accessibles** : vérifier ultérieurement le package `.ffpkg` ou le dossier `PPSA99784/` via un gestionnaire de titres compatible, la manette, les pages et les sondes natives **sans helper** ; la connexion loopback au helper devient facultative. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.
 
 **P1 — données réellement fiables** : confirmer les chemins FW 13.60, Title IDs, bases multimédias, capacités des montages, plugins et autoloaders réels.
 
@@ -41,7 +41,7 @@ P0 et P1 sont bloqués sans PS5 13.60 accessible ; compilation ELF et sanitizers
 
 La compilation ELF dépend dorénavant de la validation des tests natifs et des sanitizers. L'artefact fourni est accompagné de son SHA-256 et du numéro de version issu du dépôt. CodeQL examine les sources C et JavaScript via un workflow dédié ; la réussite de CodeQL n'est pas une preuve de bon fonctionnement sur la PS5.
 
-L'ancien payload WebKit reste une solution transitoire. La livraison cible est le **titre natif** ; le helper doit pour l'instant être démarré séparément par l'environnement jailbreaké. Ne pas présenter l'archive comme un PKG Sony ni un nettoyeur terminé.
+L'ancien payload WebKit reste une solution transitoire. La livraison cible est le **titre natif seul pour l'inventaire de base** ; le helper facultatif conserve les diagnostics propres à son contexte de permissions. La parité complète du frontend et les fonctions d'effacement réversible restent à développer et valider. Ne pas présenter l'archive comme un PKG Sony ni un nettoyeur terminé.
 
 ## Développement après audit outil générique
 
