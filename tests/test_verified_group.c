@@ -25,6 +25,21 @@ static int add_unrelated_during_scan(void*context){
  }
  return 0;
 }
+typedef struct {
+ char first_published[512];
+ char late_variant[512];
+ int created;
+} LateCompanion;
+static int add_companion_during_backup(void*context){
+ LateCompanion*state=(LateCompanion*)context;
+ if(!state->created&&access(state->first_published,F_OK)==0){
+  FILE*file=fopen(state->late_variant,"wb");
+  if(!file)return 1;
+  state->created=fputs("LATE_CAPTURE_VARIANT",file)>=0&&fclose(file)==0;
+  if(!state->created)return 1;
+ }
+ return 0;
+}
 static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  const char*relative,unsigned type){
  struct stat st;assert(stat(absolute,&st)==0);
@@ -167,7 +182,24 @@ int main(int argc,char**argv){
   stop_during_copy,&calls));
  assert(calls>10u);
  assert(!cmp5_verify_group(private,"ABORTED",&a,NULL,NULL));
- assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
+ /* Simulate a new same-stem image appearing after the first capsule has
+  * been published but before COMMIT. Even when all original bytes verify,
+  * an unaccounted companion must prevent declaring a complete group. */
+ LateCompanion late={0};
+ (void)snprintf(late.first_published,sizeof(late.first_published),
+   "%s/RACEADD__1",private);
+ const int late_name_length=snprintf(late.late_variant,sizeof(late.late_variant),
+   "%.*s/REC_001.png",(int)(strrchr(jxr,'/')-jxr),jxr);
+ assert(late_name_length>0&&(size_t)late_name_length<sizeof(late.late_variant));
+ assert(!cmp5_backup_group(root,media,3,private,"RACEADD",&a,
+   add_companion_during_backup,&late));
+ assert(late.created);
+ char late_commit[512];
+ (void)snprintf(late_commit,sizeof(late_commit),"%s/RACEADD__COMMIT",private);
+ assert(access(late_commit,F_OK)!=0);
+ assert(unlink(late.late_variant)==0);
+ /* Original captures remain unchanged; a clean fresh ID can now commit. */
+  assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
  assert(a.count==3&&a.bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(!memcmp(a.manifest_sha256,b.manifest_sha256,32));
