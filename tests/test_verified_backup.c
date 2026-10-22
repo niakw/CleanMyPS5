@@ -33,7 +33,7 @@ int main(int argc,char**argv){
  unsigned checks=0;
  assert(!cmp5_backup_media(root,&media,backup,"ABORTED",&a,cancel_mid_copy,&checks));
  assert(checks>3u);
- char alias[512]{};
+ char alias[512]={0};
  (void)snprintf(alias,sizeof(alias),"%s.link",original);
  assert(link(original,alias)==0); // Test hardlinks are rejected, never unlinked.
  assert(!cmp5_backup_media(root,&media,backup,"HARDLINK",&a,NULL,NULL));
