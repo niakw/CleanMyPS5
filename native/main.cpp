@@ -183,19 +183,6 @@ void probe_local() noexcept {
  local_checked=true;
 }
 
-bool scan_field(const char*text,const char*name,unsigned*out) noexcept {
- const char*start=std::strstr(text,name);
- if(!start)return false;
- start+=std::strlen(name);
- unsigned n=0;
- if(*start<'0'||*start>'9')return false;
- while(*start>='0'&&*start<='9') {
-  const unsigned d=static_cast<unsigned>(*start-'0');
-  if(n>100000u)return false;
-  n=n*10u+d;start++;
- }
- *out=n;return true;
-}
 enum class Summary { unchecked, ok, unavailable };
 enum class ScanSource { none, native_title, helper };
 Summary summary_status=Summary::unchecked;
@@ -381,15 +368,15 @@ bool helper_is_compatible() noexcept {
  return cmp5_native::matches_expected_helper(json,std::strlen(json));
 }
 bool get_preflight() noexcept {
+ available=denied=absent=0;
  char response[18432]{};
  const char*json=nullptr;
  if(!fetch_local("/api/preflight",response,sizeof(response),&json))return false;
- if(!std::strstr(json,"\"scope\":\"known-paths-only\""))return false;
- unsigned a=0,d=0,b=0;
- if(!scan_field(json,"\"accessible\":",&a)||
-    !scan_field(json,"\"denied\":",&d)||
-    !scan_field(json,"\"absent\":",&b))return false;
- available=a;denied=d;absent=b;
+ cmp5_native::Preflight parsed{};
+ if(!cmp5_native::parse_preflight(json,std::strlen(json),&parsed))return false;
+ available=parsed.accessible;
+ denied=parsed.denied;
+ absent=parsed.absent;
  return true;
 }
 bool accept_overview(const char*json,ScanSource source) noexcept {
