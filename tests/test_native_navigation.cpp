@@ -292,6 +292,12 @@ int main(){
  assert(games[0].count==1 && games[0].bytes==30ULL*1024*1024);
  press(down);
  assert(std::strcmp(games[game_selection].id,"GAME456")==0);
+ press(square);
+ assert(games[game_selection].marked==1&&marked_count==1);
+ assert(marked_for_review[1]&&!marked_for_review[0]);
+ press(square);
+ assert(games[game_selection].marked==0&&marked_count==0);
+ assert(!marked_for_review[1]);
  press(cross);
  assert(screen==Screen::review);
  assert(review_visible==1 && std::strcmp(review_game,"GAME456")==0);
@@ -538,6 +544,32 @@ int main(){
  media_review.entries[1].bytes=saved_second;
  rebuild_marked_totals();
  assert(marked_count==0&&marked_nominal_bytes==0);
+ // A partially marked game toggles to ALL of its scanned media, then to
+ // NONE, regardless of the current type/search filters in the catalogue.
+ media_review.entries[2]=media_review.entries[0];
+ media_review.count=3;
+ media_review.media_scanned=3;
+ marked_for_review[0]=true;
+ review_type=MediaType::video;
+ review_query[0]='Z';review_query[1]=0;
+ rebuild_marked_totals();
+ rebuild_games();
+ assert(game_count==2&&std::strcmp(games[0].id,"GAME123")==0);
+ assert(games[0].count==2&&games[0].marked==1);
+ toggle_game_marks(0);
+ assert(games[0].marked==2&&marked_count==2);
+ assert(marked_for_review[0]&&marked_for_review[2]&&!marked_for_review[1]);
+ assert(marked_nominal_bytes==60ULL*1024*1024);
+ toggle_game_marks(0);
+ assert(games[0].marked==0&&marked_count==0);
+ assert(!marked_for_review[0]&&!marked_for_review[2]);
+ toggle_game_marks(game_count); // Invalid selection must be a no-op.
+ assert(marked_count==0);
+ media_review.count=2;media_review.media_scanned=2;
+ media_review.entries[2]=Cmp5MediaCandidate{};
+ marked_for_review[2]=false;
+ review_type=MediaType::all;review_query[0]=0;
+ rebuild_review_index();
  press(circle);
  assert(screen==Screen::menu);
  // Produce visually inspectable previews using the ACTUAL native scene().
@@ -570,6 +602,11 @@ int main(){
   save(Screen::search,"04-search");
   rebuild_games();game_selection=0;
   save(Screen::games,"05-games");
+  marked_for_review[0]=true;
+  rebuild_marked_totals();rebuild_games();game_selection=0;
+  save(Screen::games,"05b-games-marked");
+  marked_for_review[0]=false;
+  rebuild_marked_totals();rebuild_games();
   detail_index=0;
   save(Screen::detail,"06-details");
   save(Screen::official,"07-official");
