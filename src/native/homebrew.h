@@ -1,6 +1,28 @@
 #ifndef CMP5_HOMEBREW_H
 #define CMP5_HOMEBREW_H
 #include <stddef.h>
+#include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+#ifndef CMP5_CANCEL_CHECK_TYPE
+#define CMP5_CANCEL_CHECK_TYPE
+typedef int (*Cmp5CancelCheck)(void *context);
+#endif
+typedef struct {
+ uint32_t entries;
+ uint32_t homebrew;
+ uint32_t plugins;
+ uint32_t app_data;
+ uint32_t installed;
+ uint32_t partial;
+ uint64_t nominal_bytes; /* Seen data only, NOT reclaimable space. */
+} Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);
+char *cmp5_homebrew_with_stats(const char *root, size_t *length,
+ Cmp5HomebrewStats *stats, Cmp5CancelCheck should_cancel, void *context);
+#ifdef __cplusplus
+}
+#endif
 #endif
