@@ -37,6 +37,11 @@ class Canvas {
   void text(unsigned x,unsigned y,std::string_view value,unsigned scale,Color color) noexcept {
    commands.push_back({'X',x,y,0,0,scale,color,std::string(value)});
   }
+  void blit(unsigned x,unsigned y,unsigned w,unsigned h,
+            const std::uint32_t*pixels,unsigned source_w,unsigned source_h) noexcept {
+   if(pixels&&source_w&&source_h)
+    commands.push_back({'I',x,y,w,h,0,Color::cyan,"PREVIEW PHOTO TEST"});
+  }
   bool save_trace(const char*path) const {
    std::ofstream stream(path);
    if(!stream)return false;
