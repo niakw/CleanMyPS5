@@ -122,6 +122,17 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,std::size_t*len,
  if(cancel(context))return nullptr;
  return cmp5_duplicates_with_stats(root,len,stats);
 }
+int cmp5_plan_capture_group(const char*,const Cmp5MediaCandidate*primary,
+ Cmp5MediaCandidate out[CMP5_GROUP_MAX],std::uint32_t*count,
+ Cmp5CancelCheck cancel,void*context){
+ *count=0;
+ if(!primary||cancel(context)||primary->media_type!=1u)return 0;
+ out[0]=*primary;
+ out[1]=*primary;
+ out[1].media_type=3u;out[1].bytes=256u;
+ *count=2u;
+ return 1;
+}
 int cmp5_probe_video_snapshot(const char*,const Cmp5MediaCandidate*c,
  Cmp5VideoMetadata*out,Cmp5CancelCheck cancelled,void*context){
  *out=Cmp5VideoMetadata{};
@@ -315,6 +326,17 @@ int main(){
  press(square);
  assert(screen==Screen::detail);
  assert(detail_index==review_order[review_selection]);
+ press(square);
+ assert(screen==Screen::companions);
+ finish_scan();
+ assert(companion_checked);
+ assert(companion_summary.files==2u&&companion_summary.sidecars==1u);
+ assert(companion_summary.media==1u);
+ assert(companion_summary.bytes==30ULL*1024*1024+256u);
+ scene(canvas);
+ press(circle);
+ assert(screen==Screen::detail);
+ assert(!companion_checked&&!companion_summary.files);
  press(cross);
  assert(screen==Screen::photo);
  finish_scan();
@@ -397,6 +419,12 @@ int main(){
  press(circle);
  assert(screen==Screen::detail);
  assert(!video_info_ready&&video_info.duration_ms==0);
+ press(square); // Deliberately unsupported companion group: don't present success.
+ assert(screen==Screen::companions);
+ finish_scan();
+ assert(!companion_checked&&!companion_summary.files);
+ press(circle);
+ assert(screen==Screen::detail);
  press(circle);
  assert(screen==Screen::review);
  scene(canvas);
@@ -609,6 +637,11 @@ int main(){
   rebuild_marked_totals();rebuild_games();
   detail_index=0;
   save(Screen::detail,"06-details");
+  companion_summary=CompanionSummary{2u,1u,1u,30ULL*1024*1024+256u};
+  companion_checked=true;
+  save(Screen::companions,"06b-companions");
+  companion_summary=CompanionSummary{};
+  companion_checked=false;
   save(Screen::official,"07-official");
   autoload_checked=true;
   autoload_stats=Cmp5AutoloadStats{};
