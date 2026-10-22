@@ -307,9 +307,11 @@ int main(){
  press(r1); // Only one previewable image, must remain on it.
  finish_scan();
  assert(screen==Screen::photo&&photo_ready&&review_selection==0);
+ assert(decoded_photo.pixels!=nullptr);
  scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
+ assert(!photo_ready&&decoded_photo.pixels==nullptr);
  assert(marked_count==0);
  press(triangle);
  assert(marked_count==1);
@@ -355,6 +357,7 @@ int main(){
  scene(canvas);
  press(circle);
  assert(screen==Screen::detail);
+ assert(!video_info_ready&&video_info.duration_ms==0);
  press(circle);
  assert(screen==Screen::review);
  scene(canvas);
