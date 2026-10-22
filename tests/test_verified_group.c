@@ -10,6 +10,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 static int stop(void*context){(void)context;return 1;}
+static int stop_during_copy(void*context){
+ unsigned *calls=(unsigned*)context;
+ return ++(*calls)>10u;
+}
 static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  const char*relative,unsigned type){
  struct stat st;assert(stat(absolute,&st)==0);
@@ -37,6 +41,11 @@ int main(int argc,char**argv){
  Cmp5GroupReceipt a={0},b={0};
  assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,stop,NULL));
  assert(!cmp5_verify_group(private,"ALBUM",&a,NULL,NULL));
+ unsigned calls=0;
+ assert(!cmp5_backup_group(root,media,3,private,"ABORTED",&a,
+  stop_during_copy,&calls));
+ assert(calls>10u);
+ assert(!cmp5_verify_group(private,"ABORTED",&a,NULL,NULL));
  assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
  assert(a.count==3&&a.bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
@@ -59,8 +68,16 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_group(root,media,1,private,"SINGLE",&b,NULL,NULL));
  assert(!cmp5_verify_group(private,"ALBUM__COMMIT",&b,NULL,NULL));
  char file[512];
- (void)snprintf(file,sizeof(file),"%s/ALBUM__2",private);
+ (void)snprintf(file,sizeof(file),"%s/ALBUM__2",restored);
  FILE*f=fopen(file,"r+b");assert(f);
+ assert(fseek(f,13,SEEK_SET)==0);
+ int original=fgetc(f);assert(original>=0);
+ assert(fseek(f,13,SEEK_SET)==0);
+ assert(fputc(original^0x20,f)>=0);
+ assert(fclose(f)==0);
+ assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
+ (void)snprintf(file,sizeof(file),"%s/ALBUM__2",private);
+ f=fopen(file,"r+b");assert(f);
  assert(fseek(f,68,SEEK_SET)==0);
  int original=fgetc(f);assert(original>=0);
  assert(fseek(f,68,SEEK_SET)==0);
