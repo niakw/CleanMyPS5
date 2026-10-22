@@ -45,7 +45,9 @@ Le `.ffpkg` est destiné aux gestionnaires de homebrews capables d'installer le 
 
 L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le frontend WebKit et le payload intégré. Il est conservé le temps de porter les autres fonctionnalités vers l'application native. Ne pas confondre le prototype natif avec une version finale de nettoyage.
 
-**Prévisualisation sans console :** la CI génère treize captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
+**Captures par jeu :** depuis le catalogue natif, **L3** ouvre les groupes. **Carré** marque/démarque toutes les captures inventoriées du jeu choisi (compteur par jeu), sans supprimer de fichier et sans enregistrer la sélection.
+
+**Prévisualisation sans console :** la CI génère quatorze captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
 
 ## Développement et compilation
 
