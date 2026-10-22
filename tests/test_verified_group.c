@@ -128,6 +128,29 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_group(root,large,2,private,"BIGBACKUP",
                            &oversized_receipt,NULL,NULL));
  assert(!oversized_receipt.count&&!oversized_receipt.bytes);
+ /* A very busy video directory must report a specific bounded-scan limit,
+  * not silently claim there are no companion files or that access is denied. */
+ char noise[512];
+ for(unsigned i=0;i<1030u;i++){
+  const int n=snprintf(noise,sizeof(noise),"%.*s/UNRELATED_%04u.tmp",
+    (int)(strrchr(big_video,'/')-big_video),big_video,i);
+  assert(n>0&&(size_t)n<sizeof(noise));
+  FILE*item=fopen(noise,"wb");assert(item);
+  assert(fputs("x",item)>=0&&fclose(item)==0);
+ }
+ Cmp5CompanionReport crowded={0};
+ assert(!cmp5_inspect_capture_companions(root,&large[0],&crowded,NULL,NULL));
+ assert(crowded.state==CMP5_COMPANIONS_UNVERIFIABLE&&crowded.files==0u);
+ assert(crowded.nominal_bytes==0u&&crowded.failure==
+   CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT);
+ for(unsigned i=0;i<1030u;i++){
+  (void)snprintf(noise,sizeof(noise),"%.*s/UNRELATED_%04u.tmp",
+    (int)(strrchr(big_video,'/')-big_video),big_video,i);
+  assert(unlink(noise)==0);
+ }
+ assert(cmp5_inspect_capture_companions(root,&large[0],&crowded,NULL,NULL));
+ assert(crowded.state==CMP5_COMPANIONS_MULTIPLE&&
+        crowded.failure==CMP5_COMPANION_FAILURE_NONE);
  Cmp5GroupReceipt a={0},b={0};
  Cmp5MediaCandidate found[CMP5_GROUP_MAX];
  uint32_t found_count=0;
@@ -149,6 +172,7 @@ int main(int argc,char**argv){
  assert(observed.nominal_bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(!cmp5_inspect_capture_companions(root,&media[0],&observed,stop,NULL));
  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
+ assert(observed.failure==CMP5_COMPANION_FAILURE_CANCELLED);
  const char*slash=strrchr(jxr,'/');assert(slash);
  char single_path[512];
  const int single_len=snprintf(single_path,sizeof(single_path),"%.*s/SOLO.jpg",
@@ -169,6 +193,7 @@ int main(int argc,char**argv){
  invalid_lone.snapshot_inode++;
  assert(!cmp5_inspect_capture_companions(root,&invalid_lone,&observed,NULL,NULL));
  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
+ assert(observed.failure==CMP5_COMPANION_FAILURE_CHANGED);
  char suspicious_path[512];
  const int suspicious_len=snprintf(suspicious_path,sizeof(suspicious_path),
    "%.*s/SOLO.png",(int)(slash-jxr),jxr);
@@ -176,6 +201,7 @@ int main(int argc,char**argv){
  assert(symlink(jxr,suspicious_path)==0);
  assert(!cmp5_inspect_capture_companions(root,&lone,&observed,NULL,NULL));
  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE);
+ assert(observed.failure==CMP5_COMPANION_FAILURE_AMBIGUOUS);
  assert(unlink(suspicious_path)==0);
  assert(unlink(single_path)==0);
 
