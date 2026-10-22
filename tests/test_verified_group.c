@@ -49,6 +49,43 @@ int main(int argc,char**argv){
   (void)snprintf(relative,sizeof(relative),"%s%s",folder,exts[i]);
   snapshot(&media[i],paths[i],relative,i==2?3:1);
  }
+ /* Snapshot metadata may be supplied by a corrupt or untrusted caller.
+  * Validate fixed buffers before any unbounded C string traversal, then
+  * enforce media-family and suffix consistency for host backup groups. */
+ Cmp5MediaCandidate malformed[3];
+ assert(cmp5_validate_capture_group(media,3));
+ memcpy(malformed,media,sizeof(malformed));
+ memset(malformed[0].preview_path,'A',sizeof(malformed[0].preview_path));
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ memset(malformed[1].preview_path,'B',sizeof(malformed[1].preview_path));
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ strcpy(malformed[0].preview_path,
+   "/user/av_contents/photo/NPXS00000/GAME123/REC_001.mp4");
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ malformed[1].media_type=2u;
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ strcpy(malformed[1].preview_path,
+   "/user/av_contents/video/NPXS00000/GAME123/REC_001.jpg");
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ strcpy(malformed[1].preview_path,
+   "/user/av_contents/photo/NPXS00000/../GAME123/REC_001.jpg");
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ strcpy(malformed[1].preview_path,
+   "/user/av_contents/photo/NPXS00000/GAME123/REC_001.gif");
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ malformed[2].bytes=65537u;
+ assert(!cmp5_validate_capture_group(malformed,3));
+ memcpy(malformed,media,sizeof(malformed));
+ strcpy(malformed[1].preview_path,
+   "/user/av_contents/photo/NPXS00000/GAME123/REC_001.JPG");
+ assert(cmp5_validate_capture_group(malformed,3));
  Cmp5GroupReceipt a={0},b={0};
  Cmp5MediaCandidate found[CMP5_GROUP_MAX];
  uint32_t found_count=0;
