@@ -16,6 +16,8 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build portable C runtime
         run: cmake --build build --parallel 2
+      - name: Verify native VideoOut keeps presenting interactive frames
+        run: python3 tests/test_interactive_videoout.py
       - name: Native HTTP and scanner fixtures
         run: ctest --test-dir build --output-on-failure
       - name: Verify native title loopback protocol
