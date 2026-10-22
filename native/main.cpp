@@ -241,6 +241,7 @@ struct GameSummary {
  char id[24]{};
  char name[56]{};
  unsigned count=0;
+ unsigned marked=0;
  std::uint64_t bytes=0;
 };
 GameSummary games[game_capacity]{};
@@ -264,6 +265,7 @@ void rebuild_games() noexcept {
   if(!game.name[0]&&item.game_name[0])
    (void)std::snprintf(game.name,sizeof(game.name),"%s",item.game_name);
   game.count++;
+  if(marked_for_review[i])game.marked++;
   game.bytes=(UINT64_MAX-game.bytes<item.bytes)?UINT64_MAX:game.bytes+item.bytes;
  }
  for(unsigned i=1;i<game_count;i++){
@@ -319,6 +321,23 @@ void rebuild_review_index() noexcept {
  if(review_selection>=review_visible)review_selection=review_visible?review_visible-1:0;
 }
 
+/* Square in the per-game overview changes an in-memory review plan only.
+ * Include all scanned media for the selected title, independent of current
+ * text, type or date filters. No PS5 filesystem mutation can occur here.
+ */
+void toggle_game_marks(unsigned selected_game) noexcept {
+ if(selected_game>=game_count)return;
+ auto&game=games[selected_game];
+ const bool mark=game.marked<game.count;
+ for(unsigned i=0;i<media_review.count&&i<CMP5_REVIEW_CAP;i++){
+  const auto&item=media_review.entries[i];
+  const char*id=item.title_id[0]?item.title_id:"INCONNU";
+  if(std::strcmp(game.id,id)==0)marked_for_review[i]=mark;
+ }
+ game.marked=mark?game.count:0;
+ rebuild_marked_totals();
+ if(review_marked_only)rebuild_review_index();
+}
 unsigned official_selection=0;
 bool official_checked[8]{}; // Session-only self-checks; no filesystem changes.
 
@@ -673,6 +692,7 @@ void poll_pad() noexcept {
     if(pressed&left)game_selection=game_selection>4?game_selection-4:0;
     if(pressed&right)game_selection=(game_selection+4<game_count)?
       game_selection+4:game_count-1;
+    if(pressed&square){toggle_game_marks(game_selection);continue;}
     if(pressed&cross){
      const char*id=games[game_selection].id;
      (void)std::snprintf(review_game,sizeof(review_game),"%s",id);
@@ -1113,11 +1133,13 @@ void show_games(ps5::demo::Canvas&canvas) noexcept {
     game.name[0]?game.name:game.id);
   canvas.text(145,y+30,display,4,focus?Color::cyan:Color::white);
   char info[100]{};
-  (void)std::snprintf(info,sizeof(info),"%u MEDIAS  %llu MIO NOMINAUX",
-    game.count,static_cast<unsigned long long>(game.bytes/1048576ULL));
+  (void)std::snprintf(info,sizeof(info),"%u / %u MARQUES  %llu MIO",
+    game.marked,game.count,static_cast<unsigned long long>(game.bytes/1048576ULL));
   canvas.text(1030,y+37,info,3,Color::white);
  }
- footer(canvas,"X FILTRER JEU  TRIANGLE TOUS  CERCLE CATALOGUE");
+ canvas.rectangle(95,950,1730,96,Color::panel);
+ canvas.text(125,959,"X FILTRER  CARRE MARQUER / DEMARQUER TOUT LE JEU",3,Color::white);
+ canvas.text(125,1004,"TRIANGLE TOUS  CERCLE CATALOGUE  REVUE SEULE - AUCUN EFFACEMENT",3,Color::cyan);
 }
 void show_search(ps5::demo::Canvas&canvas) noexcept {
  char query[95]{};
