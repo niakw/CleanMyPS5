@@ -7,6 +7,9 @@ extern "C" {
 /* Discovery only. Never copies, renames or deletes PS5 media.
  * A group of matching visible files is not proof of a complete PS5 album. */
 #define CMP5_GROUP_MAX 4u
+/* Metadata-only consistency check shared with the host backup prototype.
+ * It does not assert that all PS5 gallery/index files have been discovered. */
+int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count);
 int cmp5_plan_capture_group(const char *root,const Cmp5MediaCandidate *primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t *count,
  Cmp5CancelCheck cancel,void *context);
