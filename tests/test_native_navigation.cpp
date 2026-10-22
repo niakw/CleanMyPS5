@@ -118,6 +118,35 @@ int main(){
  assert(review_selection==1);
  press(left);
  assert(review_selection==0);
+ // Full native keyboard search without PlayStation OS keyboard API.
+ press(options);
+ assert(screen==Screen::search);
+ assert(review_visible==2);
+ keyboard_position=15; // P
+ press(cross);
+ keyboard_position=7;  // H
+ press(cross);
+ assert(std::strcmp(review_query,"PH")==0);
+ assert(review_visible==1);
+ assert(review_order[0]==0);
+ scene(canvas);
+ press(triangle);
+ assert(std::strcmp(review_query,"P")==0);
+ assert(review_visible==1);
+ press(square);
+ assert(!review_query[0]&&review_visible==2);
+ keyboard_position=6; // G: match both game IDs.
+ press(cross);
+ assert(review_visible==2);
+ press(circle);
+ assert(screen==Screen::review);
+ assert(review_selection==0);
+ press(options);
+ assert(screen==Screen::search);
+ press(square);
+ assert(review_visible==2);
+ press(circle);
+ assert(screen==Screen::review);
  press(square);
  assert(screen==Screen::detail);
  assert(detail_index==review_order[review_selection]);
