@@ -169,6 +169,8 @@ std::uint32_t review_order[CMP5_REVIEW_CAP]{};
 unsigned review_visible=0;
 unsigned review_selection=0;
 unsigned detail_index=0;
+bool marked_for_review[CMP5_REVIEW_CAP]{};
+unsigned marked_count=0;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -354,6 +356,9 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
  return true;
 }
 void run_overview() noexcept {
+ // Any new scan invalidates entry indices; never carry over prior selection.
+ std::memset(marked_for_review,0,sizeof(marked_for_review));
+ marked_count=0;
  // The same limited scanner is linked inside eboot.bin. It has only
  // the permissions actually granted to the installed title's sandbox.
  // Never present inaccessible roots as empty or deleted.
@@ -478,7 +483,15 @@ void poll_pad() noexcept {
    }
    continue;
   }
-  if(screen==Screen::detail)continue;
+  if(screen==Screen::detail){
+   if((pressed&triangle)&&detail_index<media_review.count){
+    bool&item=marked_for_review[detail_index];
+    item=!item;
+    if(item)marked_count++;
+    else if(marked_count)marked_count--;
+   }
+   continue;
+  }
   if(screen==Screen::review){
    if(pressed&l3){rebuild_games();screen=Screen::games;continue;}
    if(pressed&options){screen=Screen::search;continue;}
@@ -704,7 +717,10 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,651,"MOTEUR","DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
  }
- panel(canvas,799,"PROTECTION","AUCUN FICHIER DECLARE SUPPRIMABLE",Color::yellow);
+ char selected_msg[112]{};
+ (void)std::snprintf(selected_msg,sizeof(selected_msg),
+   "%u MARQUES A REVOIR  AUCUNE SUPPRESSION",marked_count);
+ panel(canvas,799,"PROTECTION",selected_msg,Color::yellow);
  footer(canvas,media_review.count?
   "CARRE CATALOGUE  X REANALYSER  CERCLE RETOUR":
   "X ANALYSER  AUCUN EFFACEMENT  CERCLE RETOUR");
@@ -820,8 +836,10 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
     static_cast<unsigned long long>(item.bytes/1048576ULL));
  }
  panel(canvas,651,"METADONNEES",details);
- panel(canvas,799,"STATUT","FICHIER NON VALIDE POUR SUPPRESSION",Color::yellow);
- footer(canvas,"CERCLE RETOUR  LECTURE SEULE  AUCUNE SUPPRESSION");
+ panel(canvas,799,"SELECTION",
+   marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
+   marked_for_review[detail_index]?Color::cyan:Color::yellow);
+ footer(canvas,"TRIANGLE MARQUER  CERCLE RETOUR  AUCUNE SUPPRESSION");
 }
 void show_official(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*steps[8]={
