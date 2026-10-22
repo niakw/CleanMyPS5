@@ -16,11 +16,6 @@ static void put(Out*out,const char *text){
  size_t n=strlen(text);if(out->error||n>JSON_CAP-out->size-1){out->error=1;return;}
  memcpy(out->buf+out->size,text,n+1);out->size+=n;
 }
-static int join(char *dst,size_t cap,const char*root,const char*rel){
- size_t n=strlen(root);
- int r=snprintf(dst,cap,"%s%s%s",root,n&&root[n-1]=='/'?"":"/",rel);
- return r>=0&&(size_t)r<cap;
-}
 static int contains_ci(const char*text,const char*word){
  size_t n=strlen(word);
  for(const char*p=text;*p;p++){
@@ -35,32 +30,62 @@ static char*trim(char*p){
  while(n&&isspace((unsigned char)p[n-1]))p[--n]=0;
  return p;
 }
-static int safe_read(const char*root,const char*rel,char *buf,size_t cap){
- // Reject symlinks in every path component, including the filename.
- char copy[PATH_CAP],current[PATH_CAP],next[PATH_CAP];
- if(strlen(rel)>=sizeof(copy)||strlen(root)>=sizeof(current))return -1;
- memcpy(copy,rel,strlen(rel)+1);memcpy(current,root,strlen(root)+1);
- struct stat st;
- if(lstat(current,&st)!=0||!S_ISDIR(st.st_mode))return -1;
- char*save=0;
- for(char*p=strtok_r(copy,"/",&save);p;p=strtok_r(NULL,"/",&save)){
-  if(!join(next,sizeof(next),current,p))return -1;
-  if(lstat(next,&st)!=0)return errno==ENOENT?0:-1;
-  if(S_ISLNK(st.st_mode))return -1;
-  memcpy(current,next,strlen(next)+1);
+static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
+ /* Open every descendant relative to an already opened directory. A
+  * pathname checked with lstat() and reopened later can be replaced with
+  * a symlink in between; O_NOFOLLOW at the final leaf is not enough.
+  * Return 0 for missing, 1 for valid, 2 for oversized, -1 for unsafe.
+  */
+ if(!root||!rel||!buf||cap<2)return -1;
+ size_t n=strlen(rel);
+ if(n==0||n>=PATH_CAP||rel[0]=='/'||rel[n-1]=='/')return -1;
+ char parts[PATH_CAP];
+ memcpy(parts,rel,n+1);
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return -1;
+ char*save=NULL;
+ char*part=strtok_r(parts,"/",&save);
+ if(!part){close(fd);return -1;}
+ for(;;){
+  if(part[0]=='.'){close(fd);return -1;}
+  char*next=strtok_r(NULL,"/",&save);
+  int child=openat(fd,part,O_RDONLY|O_NOFOLLOW|
+    (next?O_DIRECTORY:O_NONBLOCK));
+  const int error=errno;
+  close(fd);
+  if(child<0)return error==ENOENT?0:-1;
+  fd=child;
+  if(!next)break;
+  part=next;
  }
- int fd=open(current,O_RDONLY|O_NOFOLLOW);
- if(fd<0)return errno==ENOENT?0:-1;
- if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)){close(fd);return -1;}
- if(st.st_size>(off_t)(cap-1)){close(fd);return 2;}
- ssize_t total=0;
- while((size_t)total<cap-1){
-  ssize_t got=read(fd,buf+total,cap-1-(size_t)total);
+ struct stat before,after;
+ if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
+    before.st_size<0){close(fd);return -1;}
+ if((uint64_t)before.st_size>cap-1){close(fd);return 2;}
+ size_t total=0;
+ while(total<cap-1){
+  ssize_t got=read(fd,buf+total,cap-1-total);
   if(got<0){if(errno==EINTR)continue;close(fd);return -1;}
-  if(got==0)break;total+=got;
+  if(got==0)break;
+  total+=(size_t)got;
  }
- if((size_t)total==cap-1){char extra;ssize_t got=read(fd,&extra,1);if(got>0){close(fd);return 2;}}
- close(fd);buf[total]=0;return 1;
+ if(total==cap-1){
+  char extra;
+  ssize_t got;
+  do{got=read(fd,&extra,1);}while(got<0&&errno==EINTR);
+  if(got>0){close(fd);return 2;}
+  if(got<0){close(fd);return -1;}
+ }
+ const int stable=fstat(fd,&after)==0&&
+   S_ISREG(after.st_mode)&&
+   before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
+   before.st_size==after.st_size&&
+   before.st_mtime==after.st_mtime&&before.st_ctime==after.st_ctime&&
+   (uint64_t)after.st_size==total;
+ close(fd);
+ if(!stable)return -1;
+ buf[total]=0;
+ return 1;
 }
 static const char *analyze(char *bytes,int toolbox){
  const char *status=toolbox?"unknown":"no-reference";
