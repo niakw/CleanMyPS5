@@ -6,6 +6,21 @@
 #include <string.h>
 #include <sys/stat.h>
 static int cancellation(void*ignored){(void)ignored;return 1;}
+/* Change metadata without changing size, inode or whole-second mtime.
+ * A probe must reject it rather than publish a stale video result. */
+typedef struct {
+ const char*path;
+ mode_t original_mode;
+ int changed;
+} ModeMutation;
+static int mutate_mode_during_read(void*context){
+ ModeMutation*state=(ModeMutation*)context;
+ if(!state->changed){
+  if(chmod(state->path,state->original_mode^S_IXUSR)!=0)return 1;
+  state->changed=1;
+ }
+ return 0;
+}
 int main(int argc,char**argv){
  if(argc!=5&&argc!=6)return 2;
  const unsigned long long expected_ms=argc==6?strtoull(argv[5],NULL,10):95200ULL;
@@ -33,6 +48,11 @@ int main(int argc,char**argv){
   assert(!cmp5_probe_video_snapshot(root,&c,&found,NULL,NULL));
   assert(found.width==0&&found.height==0);
   c.snapshot_inode--;
+  ModeMutation changed={absolute,st.st_mode&0777,0};
+  assert(!cmp5_probe_video_snapshot(root,&c,&found,
+     mutate_mode_during_read,&changed));
+  assert(changed.changed&&found.duration_ms==0);
+  assert(chmod(absolute,changed.original_mode)==0);
   assert(!cmp5_probe_video_snapshot(root,&c,&found,cancellation,NULL));
   assert(found.duration_ms==0);
  }else{
