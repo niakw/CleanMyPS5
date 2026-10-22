@@ -446,6 +446,7 @@ int main(){
  finish_scan();
  assert(task_cancelled());
  assert(media_review.count==0 && summary_status==Summary::unavailable);
+ assert(media_review.entries[0].preview_path[0]==0);
  press(cross);
  assert(screen==Screen::cleanup);
  finish_scan();
@@ -458,6 +459,7 @@ int main(){
  assert(summary_status==Summary::unavailable);
  assert(scan_source==ScanSource::none);
  assert(media_review.count==0&&review_visible==0&&game_count==0);
+ assert(media_review.entries[0].preview_path[0]==0);
  assert(marked_count==0&&marked_nominal_bytes==0);
  press(square);
  assert(screen==Screen::cleanup);
@@ -466,6 +468,7 @@ int main(){
  finish_scan();
  assert(summary_status==Summary::unavailable);
  assert(media_review.count==0&&review_visible==0);
+ assert(media_review.entries[0].preview_path[0]==0);
  press(square);
  assert(screen==Screen::cleanup);
  press(cross);
