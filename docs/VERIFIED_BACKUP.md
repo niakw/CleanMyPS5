@@ -28,6 +28,17 @@ ctest --test-dir build -R 'verified_backup_fixture|verified_group_fixture' --out
 
 Les tests couvrent la corruption d'une capsule, la modification d'un fichier restauré, les interruptions, les identifiants interdits, les variantes sans média principal, les noms de base différents et les doublons d'extensions.
 
+## Audit de reprise après interruption (lecture seule)
+
+Le moteur dispose d'un contrôle supplémentaire `cmp5_inspect_group_recovery` pour les **dossiers privés du prototype sur ordinateur**. Pour un identifiant de groupe strictement validé, il vérifie exclusivement les noms de fichiers que le moteur sait produire (jusqu'à quatre capsules, leurs fichiers `.part` et le marqueur de validation), sans suivre les liens symboliques. Il retourne quatre états :
+
+- `EMPTY` : aucune capsule, aucun fichier temporaire et aucun marqueur connu.
+- `INCOMPLETE` : composants ou fichiers temporaires présents, mais aucun marqueur validé.
+- `VERIFIED` : marqueur de transaction présent et **vérification SHA-256 intégrale** de toutes les capsules réussie.
+- `INVALID` : marqueur non fiable, composant non régulier, lien symbolique ou autre anomalie détectée.
+
+Les compteurs de capsules publiées et de fragments temporaires sont rapportés séparément. Ce contrôle **ne retire jamais les fichiers `.part`**, ne réutilise pas une sauvegarde interrompue et n'autorise aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
+
 ## Ce qui n'est pas encore prouvé
 
 Ce prototype ne restaure **pas** les captures dans `/user/av_contents` et ne répare aucune base d'index multimédia. Il sait maintenant valider logiquement un groupe de **2 à 4 composants de même nom de base**, dont les versions JXR/JPG et un sidecar `.dat` d'au plus 64 Kio ; les miniatures PS5 dans d'autres répertoires ne sont pas encore associées. Un groupe n'est marqué complet qu'après validation SHA-256 de tous ses membres. Une restauration groupée n'écrit que dans un **second espace privé** et publie à son tour un marqueur une fois les composants revérifiés. Les composants partiels laissés par un arrêt brutal sont ignorés sans marqueur, mais **leur nettoyage et leur reprise automatique restent à développer**. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
