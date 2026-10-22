@@ -10,6 +10,8 @@
 #include <dirent.h>
 #include <cerrno>
 #include <sys/statvfs.h>
+#include <atomic>
+#include <pthread.h>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
@@ -258,6 +260,40 @@ void run_overview() noexcept {
  summary_partial=std::strstr(json,"\"partial\":true")!=nullptr;
  summary_status=Summary::ok;
 }
+enum class Task : unsigned { none, environment, access, overview };
+std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed
+Task task_kind=Task::none;
+
+void* background_task(void*) noexcept {
+ switch(task_kind){
+  case Task::environment: run_environment_check(); break;
+  case Task::access: probe_local(); break;
+  case Task::overview: run_overview(); break;
+  default: break;
+ }
+ // Publish all task results to the video thread only after writes complete.
+ task_state.store(2,std::memory_order_release);
+ return nullptr;
+}
+bool begin_task(Task kind) noexcept {
+ if(task_state.load(std::memory_order_acquire)==1)return false;
+ task_kind=kind;
+ task_state.store(1,std::memory_order_release);
+ pthread_t worker{};
+ const int rc=pthread_create(&worker,nullptr,background_task,nullptr);
+ if(rc!=0){
+  task_state.store(3,std::memory_order_release);
+  return false;
+ }
+ (void)pthread_detach(worker);
+ return true;
+}
+bool task_busy() noexcept {
+ return task_state.load(std::memory_order_acquire)==1;
+}
+bool task_failed() noexcept {
+ return task_state.load(std::memory_order_acquire)==3;
+}
 void poll_pad() noexcept {
  if(controller<0)return;
  RawPadSample samples[32]{};
@@ -268,18 +304,19 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){screen=Screen::menu;continue;}
+  if(task_busy())continue;
   if(screen==Screen::menu){
    if(pressed&up)selected=(selected+row_count-1)%row_count;
    if(pressed&down)selected=(selected+1)%row_count;
    if(pressed&cross){
     screen=selected==0?Screen::analyze:selected==1?Screen::access:
       selected==2?Screen::cleanup:Screen::official;
-    if(screen==Screen::analyze)run_environment_check();
-    if(screen==Screen::access)probe_local();
+    if(screen==Screen::analyze)(void)begin_task(Task::environment);
+    if(screen==Screen::access)(void)begin_task(Task::access);
    }
   }else if(pressed&cross){
-   if(screen==Screen::analyze||screen==Screen::cleanup)run_overview();
-   if(screen==Screen::access)probe_local();
+   if(screen==Screen::analyze||screen==Screen::cleanup)(void)begin_task(Task::overview);
+   if(screen==Screen::access)(void)begin_task(Task::access);
   }
  }
 }
@@ -314,9 +351,23 @@ void show_menu(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(145,top+30,items[i],5,i==selected?Color::cyan:Color::white);
   canvas.text(1000,top+37,detail[i],3,Color::white);
  }
- footer(canvas,"X OUVRIR    HAUT / BAS NAVIGUER");
+ footer(canvas,task_busy()?
+   "ANALYSE EN COURS    X OUVRIR UNE SECTION    HAUT / BAS":
+   "X OUVRIR    HAUT / BAS NAVIGUER");
 }
 void show_analyze(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,366,"ANALYSE EN COURS","LE MENU RESTE UTILISABLE",Color::cyan);
+  panel(canvas,515,"DOSSIERS ET PERMISSIONS","CONTROLES EN LECTURE SEULE");
+  panel(canvas,664,"MOTEUR DE MAINTENANCE","REPONSE EN ATTENTE");
+  footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
+  return;
+ }
+ if(task_failed()){
+  panel(canvas,366,"CONTROLE NON LANCE","ECHEC DE CREATION DU WORKER",Color::yellow);
+  footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
  if(engine==Link::ok){
   char result[112]{};
   (void)std::snprintf(result,sizeof(result),"ACCESSIBLES %u  REFUSES %u  ABSENTS %u",
@@ -357,6 +408,16 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,"X ANALYSE APPROFONDIE    CERCLE RETOUR");
 }
 void show_access(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,366,"LECTURE DES DROITS","VERIFICATION EN COURS",Color::cyan);
+  footer(canvas,"CERCLE RETOUR  AUCUNE MODIFICATION");
+  return;
+ }
+ if(task_failed()){
+  panel(canvas,366,"CONTROLE NON LANCE","WORKER INDISPONIBLE",Color::yellow);
+  footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
  for(std::size_t i=0;i<4;i++){
   const auto&probe=local_probe[i];
   const auto state=probe.status;
@@ -384,6 +445,18 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,"X VERIFIER A NOUVEAU    CERCLE RETOUR");
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,355,"BILAN DES CAPTURES","ANALYSE EN COURS",Color::cyan);
+  panel(canvas,503,"LE SYSTEME RESTE RESPONSIF","CERCLE POUR RETOURNER");
+  panel(canvas,799,"PROTECTION","LECTURE SEULE  AUCUNE SUPPRESSION",Color::yellow);
+  footer(canvas,"ANALYSE EN COURS    CERCLE RETOUR");
+  return;
+ }
+ if(task_failed()){
+  panel(canvas,355,"ANALYSE NON LANCEE","WORKER INDISPONIBLE",Color::yellow);
+  footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
  if(summary_status==Summary::ok){
   char result[120]{};
   (void)std::snprintf(result,sizeof(result),"%u A REVOIR (PLUS DE 50 MIO)",summary_large);
