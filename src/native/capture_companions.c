@@ -26,7 +26,7 @@ static int same_file(const struct stat*a,const struct stat*b){
 }
 /* Identical planner used by host-only group backup and installed title.
  * No backup/writer implementation is linked with this file. */
-static int canonical_same_capture(const Cmp5MediaCandidate*,uint32_t);
+int cmp5_validate_capture_group(const Cmp5MediaCandidate*,uint32_t);
 /* Read-only companion planner. The root and every parent component are opened
  * with O_NOFOLLOW; fstatat does not follow companion symlinks. Any matching
  * suspicious or unreadable file refuses the entire plan (fail closed). */
@@ -139,7 +139,7 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  }
  closedir(dir);
  if(invalid||!found_primary||gathered<2u||
-    !canonical_same_capture(out,gathered))return 0;
+    !cmp5_validate_capture_group(out,gathered))return 0;
  /* A stable order is mandatory for group IDs and restore audit. */
  for(unsigned i=1;i<gathered;i++){
   Cmp5MediaCandidate tmp=out[i];unsigned j=i;
@@ -152,7 +152,7 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  return 1;
 }
 
-static int canonical_same_capture(const Cmp5MediaCandidate *parts,uint32_t count){
+int cmp5_validate_capture_group(const Cmp5MediaCandidate *parts,uint32_t count){
  if(!parts||count<2||count>CMP5_GROUP_MAX)return 0;
  const char*first=parts[0].preview_path;
  const char*dot=strrchr(first,'.');
