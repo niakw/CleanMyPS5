@@ -29,6 +29,14 @@ int main(int argc,char**argv){
  assert(image.width<=1100&&image.height<=620);
  cmp5_release_preview(&image);
  assert(image.pixels==NULL&&image.width==0);
+ /* A gallery photo with multiple hardlinks cannot be treated as an
+  * independently owned preview. The fixture must fail closed. */
+ char alias[4096];
+ int alias_length=snprintf(alias,sizeof(alias),"%s.alias",absolute);
+ assert(alias_length>0&&(size_t)alias_length<sizeof(alias));
+ assert(link(absolute,alias)==0);
+ assert(!cmp5_read_photo_snapshot(root,&snapshot,&length)&&length==0u);
+ assert(unlink(alias)==0);
  // Snapshot tampering, symlink traversal, and mismatched media kinds fail.
  snapshot.snapshot_inode++;
  assert(!cmp5_read_photo_snapshot(root,&snapshot,&length));

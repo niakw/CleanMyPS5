@@ -53,6 +53,16 @@ with tempfile.TemporaryDirectory() as td:
     verify(jxr_rel,"invalid")
     twin.unlink()
     source.save(twin,format="JPEG")
+    # Reject ambiguous ownership of either the HDR original or its SDR twin.
+    twin_alias=native/"hdr_frame_extra.jpg"
+    twin_alias.hardlink_to(twin)
+    verify(jxr_rel,"invalid")
+    twin_alias.unlink()
+    original_alias=native/"hdr_frame_extra.jxr"
+    original_alias.hardlink_to(original)
+    verify(jxr_rel,"invalid")
+    original_alias.unlink()
+    verify(jxr_rel,"valid")
     verify("/user/av_contents/photo//NPXS00000/GAME123/hdr_frame.jxr","invalid")
     verify("/user/av_contents/photo/../../data/private.jxr","invalid")
     # A changed original (new snapshot on the console) cannot be trusted.

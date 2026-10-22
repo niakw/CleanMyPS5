@@ -9,8 +9,23 @@
 #include <unistd.h>
 
 #define PATH_LIMIT 256
+/* Prevent accepting a capture or SDR twin rewritten or renamed during read.
+ * Checking whole-second mtime alone misses same-second modifications. */
+static int same_file(const struct stat *a,const struct stat *b){
+#if defined(__APPLE__)
+ const int nsec=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+   a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nsec=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+   a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nsec&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime&&a->st_nlink==b->st_nlink&&
+   a->st_mode==b->st_mode;
+}
 static int matches(const struct stat *st,const Cmp5MediaCandidate *c){
- return S_ISREG(st->st_mode)&&st->st_size>0&&
+ return S_ISREG(st->st_mode)&&st->st_nlink==1&&st->st_size>0&&
   (uint64_t)st->st_size==c->bytes &&
   (uint64_t)st->st_dev==c->snapshot_device &&
   (uint64_t)st->st_ino==c->snapshot_inode &&
@@ -63,11 +78,11 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
    }
    int read_fd=selected;
    struct stat source=original;
+   char companion[PATH_LIMIT]={0};
    if(jxr){
     /* An HDR JXR is never decoded as JPEG. It can have an SDR JPG twin
      * alongside it, as in the 13.60 gallery layout. Open the twin through
      * the SAME anchored directory; never follow symlinks or trust filenames. */
-    char companion[PATH_LIMIT];
     const size_t filename_length=strlen(part);
     if(filename_length<4u||filename_length>=sizeof(companion)-5u){
      close(selected);close(directory_fd);return NULL;
@@ -77,31 +92,38 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
     read_fd=openat(directory_fd,companion,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
     if(read_fd<0){close(selected);close(directory_fd);return NULL;}
     if(fstat(read_fd,&source)!=0||!S_ISREG(source.st_mode)||
-       source.st_size<8||source.st_size>CMP5_PREVIEW_FILE_CAP){
+       source.st_nlink!=1||source.st_size<8||
+       source.st_size>CMP5_PREVIEW_FILE_CAP){
      close(read_fd);close(selected);close(directory_fd);return NULL;
     }
    }
-   close(directory_fd);
    if(source.st_size<8||source.st_size>CMP5_PREVIEW_FILE_CAP){
+    close(directory_fd);
     if(jxr)close(read_fd);
     close(selected);return NULL;
    }
    const size_t target=(size_t)source.st_size;
    uint8_t*bytes=(uint8_t*)malloc(target);
-   if(!bytes){if(jxr)close(read_fd);close(selected);return NULL;}
+   if(!bytes){close(directory_fd);if(jxr)close(read_fd);close(selected);return NULL;}
    size_t obtained=0;
    while(obtained<target){
     const ssize_t count=read(read_fd,bytes+obtained,target-obtained);
     if(count<0&&errno==EINTR)continue;
-    if(count<=0){free(bytes);if(jxr)close(read_fd);close(selected);return NULL;}
+    if(count<=0){free(bytes);close(directory_fd);if(jxr)close(read_fd);close(selected);return NULL;}
     obtained+=(size_t)count;
    }
-   struct stat current,still_original;
+   struct stat current,still_original,named_primary,named_twin;
    const int stable=fstat(read_fd,&current)==0&&
-     S_ISREG(current.st_mode)&&current.st_dev==source.st_dev&&
-     current.st_ino==source.st_ino&&current.st_size==source.st_size&&
-     current.st_mtime==source.st_mtime&&
-     fstat(selected,&still_original)==0&&matches(&still_original,candidate);
+     same_file(&source,&current)&&
+     fstat(selected,&still_original)==0&&
+     matches(&still_original,candidate)&&
+     same_file(&original,&still_original)&&
+     fstatat(directory_fd,part,&named_primary,AT_SYMLINK_NOFOLLOW)==0&&
+     same_file(&original,&named_primary)&&
+     (!jxr||
+      (fstatat(directory_fd,companion,&named_twin,AT_SYMLINK_NOFOLLOW)==0&&
+       same_file(&source,&named_twin)));
+   close(directory_fd);
    if(jxr)close(read_fd);
    close(selected);
    if(!stable){free(bytes);return NULL;}
