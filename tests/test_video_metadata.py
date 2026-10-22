@@ -40,9 +40,11 @@ with tempfile.TemporaryDirectory() as scratch:
         file.write(struct.pack(">I4s",1_048_584,b"mdat"))
         file.seek(1_048_576,1)
         file.write(moov)
-    def run(source,virtual,mode):
-        subprocess.run([str(binary),str(folder),str(source),virtual,mode],
-                       cwd=root,check=True,timeout=15)
+    def run(source,virtual,mode,expected_ms=None):
+        args=[str(binary),str(folder),str(source),virtual,mode]
+        if expected_ms is not None:
+            args.append(str(expected_ms))
+        subprocess.run(args,cwd=root,check=True,timeout=15)
     run(fixture,relative,"valid")
     # Paths are never user-controlled APIs; test fail-closed anyway.
     run(fixture,relative.replace("/video/","/photo/"),"invalid")
@@ -91,10 +93,19 @@ with tempfile.TemporaryDirectory() as scratch:
     webm=gallery/"sample.webm"
     webm.write_bytes(header+ebml("18538067",cluster+info+tracks))
     run(webm,"/user/av_contents/video/NPXS00000/GAME123/sample.webm","valid")
+    longer=gallery/"long_video.webm"
+    long_info=ebml("1549A966",
+        ebml("2AD7B1",(1000000).to_bytes(3,"big"))+
+        ebml("4489",struct.pack(">d",36000000.0)))
+    longer.write_bytes(header+ebml("18538067",long_info+tracks))
+    run(longer,"/user/av_contents/video/NPXS00000/GAME123/long_video.webm",
+        "valid",36000000)
     # WebM limits: unsupported binary, missing tracks, corrupt VINT, 
     # oversized element and abusive nesting / entry counts.
     malformed_webm={
         "no_track":header+ebml("18538067",info),
+        "wrong_doctype":ebml("1A45DFA3",ebml("4282",b"matroska"))+
+          ebml("18538067",info+tracks),
         "unknown_atom":header+bytes.fromhex("18538067")+b"\xff"*8,
         "endless_items":header+ebml("18538067",
              ebml("EC",b"")*500+info+tracks),
