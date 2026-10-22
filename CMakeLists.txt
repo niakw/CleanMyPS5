@@ -43,6 +43,17 @@ add_executable(cmp5-native-homebrew-tests tests/test_native_homebrew.c src/nativ
 target_include_directories(cmp5-native-homebrew-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py $<TARGET_FILE:cmp5-native-homebrew-tests>)
 
+# Reuse the production autoload scanner in native title and helper. Verify
+# aggregate counts without exposing config contents or enabling writes.
+add_executable(cmp5-native-autoload-tests
+ tests/test_native_autoload.c src/native/diagnostics.c)
+target_include_directories(cmp5-native-autoload-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-native-autoload-tests PRIVATE
+   -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native_autoload_fixture COMMAND cmp5-native-autoload-tests)
+
 # Safely read MP4 container metadata using a generated fake gallery.
 # Does not require ffmpeg, a PS5 or user media.
 add_test(NAME native_video_metadata_fixture
