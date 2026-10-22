@@ -8,55 +8,64 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define CHECK(condition) do { if(!(condition)) { \
+ fprintf(stderr,"fixture check failed: %s at line %d\\n",#condition,__LINE__); \
+ exit(1); } } while(0)
+static void join_path(char*out,size_t cap,const char*parent,const char*suffix){
+ const size_t base=strlen(parent),tail=strlen(suffix);
+ CHECK(base+tail<cap);
+ memcpy(out,parent,base);
+ memcpy(out+base,suffix,tail+1);
+}
 static void make_dir(const char*path){
- assert(mkdir(path,0700)==0);
+ CHECK(mkdir(path,0700)==0);
 }
 static void write_fixture(const char*path,const char*body){
- FILE*f=fopen(path,"wb");assert(f);
+ FILE*f=fopen(path,"wb");CHECK(f);
  const size_t n=strlen(body);
- assert(fwrite(body,1,n,f)==n);
- assert(fclose(f)==0);
+ CHECK(fwrite(body,1,n,f)==n);
+ CHECK(fclose(f)==0);
 }
 int main(void){
  char root[]="/tmp/cmp5-autoload-stats-XXXXXX";
- assert(mkdtemp(root));
+ CHECK(mkdtemp(root));
  char path[512],data[512],base[512],pldmgr[512],eta[512],usb[512];
- (void)snprintf(data,sizeof(data),"%s/data",root);make_dir(data);
- (void)snprintf(base,sizeof(base),"%s/ps5_autoloader",data);make_dir(base);
- (void)snprintf(pldmgr,sizeof(pldmgr),"%s/pldmgr",data);make_dir(pldmgr);
- (void)snprintf(eta,sizeof(eta),"%s/etaHEN",data);make_dir(eta);
- (void)snprintf(path,sizeof(path),"%s/autoload.txt",base);
+ join_path(data,sizeof(data),root,"/data");make_dir(data);
+ join_path(base,sizeof(base),data,"/ps5_autoloader");make_dir(base);
+ join_path(pldmgr,sizeof(pldmgr),data,"/pldmgr");make_dir(pldmgr);
+ join_path(eta,sizeof(eta),data,"/etaHEN");make_dir(eta);
+ join_path(path,sizeof(path),base,"/autoload.txt");
  write_fixture(path,"# not active\netaHEN.elf\n");
- (void)snprintf(path,sizeof(path),"%s/autoload.txt",pldmgr);
+ join_path(path,sizeof(path),pldmgr,"/autoload.txt");
  write_fixture(path,"# only a comment\n");
- (void)snprintf(path,sizeof(path),"%s/config.ini",eta);
+ join_path(path,sizeof(path),eta,"/config.ini");
  write_fixture(path,"toolbox_auto_start = 1\nPRIVATE=NEVER_EXPORT\n");
- (void)snprintf(usb,sizeof(usb),"%s/mnt",root);make_dir(usb);
- char mount[512];(void)snprintf(mount,sizeof(mount),"%s/usb0",usb);make_dir(mount);
- (void)snprintf(path,sizeof(path),"%s/ps5_autoloader",mount);
- assert(symlink(base,path)==0);
- (void)snprintf(mount,sizeof(mount),"%s/usb1",usb);make_dir(mount);
- (void)snprintf(path,sizeof(path),"%s/ps5_autoloader",mount);make_dir(path);
- char huge[512];(void)snprintf(huge,sizeof(huge),"%s/autoload.txt",path);
- FILE*f=fopen(huge,"wb");assert(f);
+ join_path(usb,sizeof(usb),root,"/mnt");make_dir(usb);
+ char mount[512];join_path(mount,sizeof(mount),usb,"/usb0");make_dir(mount);
+ join_path(path,sizeof(path),mount,"/ps5_autoloader");
+ CHECK(symlink(base,path)==0);
+ join_path(mount,sizeof(mount),usb,"/usb1");make_dir(mount);
+ join_path(path,sizeof(path),mount,"/ps5_autoloader");make_dir(path);
+ char huge[512];join_path(huge,sizeof(huge),path,"/autoload.txt");
+ FILE*f=fopen(huge,"wb");CHECK(f);
  char block[1024];memset(block,'X',sizeof(block));
- for(unsigned i=0;i<65;i++)assert(fwrite(block,1,sizeof(block),f)==sizeof(block));
- assert(fclose(f)==0);
+ for(unsigned i=0;i<65;i++)CHECK(fwrite(block,1,sizeof(block),f)==sizeof(block));
+ CHECK(fclose(f)==0);
  size_t len=0;
  Cmp5AutoloadStats stats={0};
  char*json=cmp5_diagnostics_with_stats(root,&len,&stats);
- assert(json&&len==strlen(json));
- assert(stats.checked==11&&stats.present==5&&stats.missing==6);
- assert(stats.etahen_references==1&&stats.other_references==0);
- assert(stats.autostart_enabled==1&&stats.autostart_disabled==0);
- assert(stats.no_reference==1&&stats.unreadable==1&&stats.oversized==1);
- assert(stats.unknown==0);
- assert(strstr(json,"etaHEN-reference")&&strstr(json,"too-large"));
- assert(strstr(json,"unreadable")&&!strstr(json,"PRIVATE=NEVER_EXPORT"));
+ CHECK(json&&len==strlen(json));
+ CHECK(stats.checked==11&&stats.present==5&&stats.missing==6);
+ CHECK(stats.etahen_references==1&&stats.other_references==0);
+ CHECK(stats.autostart_enabled==1&&stats.autostart_disabled==0);
+ CHECK(stats.no_reference==1&&stats.unreadable==1&&stats.oversized==1);
+ CHECK(stats.unknown==0);
+ CHECK(strstr(json,"etaHEN-reference")&&strstr(json,"too-large"));
+ CHECK(strstr(json,"unreadable")&&!strstr(json,"PRIVATE=NEVER_EXPORT"));
  free(json);
  size_t compatibility_len=0;
  char*legacy=cmp5_diagnostics(root,&compatibility_len);
- assert(legacy&&compatibility_len==len);
+ CHECK(legacy&&compatibility_len==len);
  free(legacy);
  puts("Native autoload aggregate and helper backward compatibility: PASS");
  return 0;
