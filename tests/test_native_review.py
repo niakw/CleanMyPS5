@@ -48,6 +48,15 @@ with tempfile.TemporaryDirectory() as scratch:
     empty_result=subprocess.run([sys.argv[1],str(empty_root),"empty"],
                                 check=True,text=True,capture_output=True,timeout=20)
     assert "all roots absent means partial" in empty_result.stdout
+    # Critical: /data is readable and inventories normally, but both Gallery
+    # capture roots are invisible. A zero-capture result is NOT complete.
+    app_only=root/"app-visible-no-gallery"
+    app_dir=app_only/"data/SomeHomebrew"
+    app_dir.mkdir(parents=True)
+    (app_dir/"cache.log").write_bytes(b"TEST-ONLY")
+    app_result=subprocess.run([sys.argv[1],str(app_only),"no-gallery"],
+                              check=True,text=True,capture_output=True,timeout=20)
+    assert "readable app root cannot mask missing Gallery" in app_result.stdout
     # Linux supports creating the >2-KiB source path needed to reach the
     # scanner's own 2048-byte budget. macOS's stricter system path ceiling
     # prevents constructing this specific fixture before the scanner runs.
