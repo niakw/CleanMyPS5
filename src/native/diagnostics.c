@@ -119,9 +119,15 @@ static const char *analyze(char *bytes,int toolbox){
 }
 static void entry(Out*out,const char*path,const char*kind,const char*status){
  // path/kind/status originate only from fixed literals, never external input.
- if(!out->first)put(out,",");out->first=0;
- put(out,"{\"path\":\"/");put(out,path);put(out,"\",\"kind\":\"");put(out,kind);
- put(out,"\",\"status\":\"");put(out,status);put(out,"\"}");
+ if(!out->first)put(out,",");
+ out->first=0;
+ put(out,"{\"path\":\"/");
+ put(out,path);
+ put(out,"\",\"kind\":\"");
+ put(out,kind);
+ put(out,"\",\"status\":\"");
+ put(out,status);
+ put(out,"\"}");
 }
 static void count_status(Cmp5AutoloadStats*s,int code,const char*status){
  if(code==0){s->missing++;return;}
