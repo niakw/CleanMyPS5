@@ -199,7 +199,7 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  uint32_t count,const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
- if(!r||!valid_id(id)||!canonical_same_capture(parts,count)||
+ if(!r||!valid_id(id)||!cmp5_validate_capture_group(parts,count)||
     cancelled(cancel,ctx))return 0;
  int dir=safe_dir(workspace);if(dir<0)return 0;
  char commit_name[48];marker_name(commit_name,id,0);
