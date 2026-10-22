@@ -30,6 +30,13 @@ int main(int argc,char**argv){
  assert(!cmp5_backup_media(root,&media,backup,"ONE",&a,always_cancel,NULL));
  assert(!cmp5_verify_backup(backup,"ONE",&a,NULL,NULL));
  assert(!cmp5_backup_media(root,&media,backup,"BAD/NAME",&a,NULL,NULL));
+ assert(chmod(backup,0755)==0);
+ assert(!cmp5_backup_media(root,&media,backup,"PUBLIC",&a,NULL,NULL));
+ assert(chmod(backup,0700)==0);
+ const uint64_t correct_size=media.bytes;
+ media.bytes=(uint64_t)CMP5_BACKUP_LIMIT+1u;
+ assert(!cmp5_backup_media(root,&media,backup,"TOO_LARGE",&a,NULL,NULL));
+ media.bytes=correct_size;
  unsigned checks=0;
  assert(!cmp5_backup_media(root,&media,backup,"ABORTED",&a,cancel_mid_copy,&checks));
  assert(checks>3u);
