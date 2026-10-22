@@ -33,14 +33,14 @@ Les tests couvrent la corruption d'une capsule, la modification d'un fichier res
 
 ## Audit de reprise après interruption (lecture seule)
 
-Le moteur dispose d'un contrôle supplémentaire `cmp5_inspect_group_recovery` pour les **dossiers privés du prototype sur ordinateur**. Pour un identifiant de groupe strictement validé, il vérifie exclusivement les noms de fichiers que le moteur sait produire (jusqu'à quatre capsules, leurs fichiers `.part` et le marqueur de validation), sans suivre les liens symboliques. Il retourne quatre états :
+Le moteur dispose de deux contrôles complémentaires, **uniquement pour les dossiers privés du prototype sur ordinateur** : `cmp5_inspect_group_recovery` vérifie les capsules et le marqueur `__COMMIT`, tandis que `cmp5_inspect_restored_group_recovery` vérifie les fichiers bruts restaurés et le marqueur `__RESTORED`. Le second valide les empreintes SHA-256 des fichiers restaurés, pas uniquement celles des capsules sauvegardées. Les contrôles parcourent jusqu'à 4 096 entrées de répertoire, refusent les éléments inattendus dans l'espace de noms du groupe (par exemple `ALBUM__5`, `.ALBUM__5.part` ou un marqueur étranger) et vérifient les liens symboliques/physiques sans les suivre. Ils retournent quatre états :
 
 - `EMPTY` : aucune capsule, aucun fichier temporaire et aucun marqueur connu.
 - `INCOMPLETE` : composants ou fichiers temporaires présents, mais aucun marqueur validé.
 - `VERIFIED` : marqueur de transaction présent et **vérification SHA-256 intégrale** de toutes les capsules réussie.
 - `INVALID` : marqueur non fiable, composant non régulier, lien symbolique ou autre anomalie détectée.
 
-Les compteurs de capsules publiées et de fragments temporaires sont rapportés séparément. Ce contrôle **ne retire jamais les fichiers `.part`**, ne réutilise pas une sauvegarde interrompue et n'autorise aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
+Les compteurs de composants publiés, de fragments temporaires et d'entrées inattendues sont rapportés séparément. Les tests hôte simulent une interruption de restauration, un membre `__5` excédentaire, un `.part` résiduel et la corruption d'un fichier restauré. Ces contrôles **ne retirent jamais les fichiers `.part`**, ne réutilisent pas une sauvegarde interrompue et n'autorisent aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
 
 ## Ce qui n'est pas encore prouvé
 
