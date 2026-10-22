@@ -42,6 +42,18 @@ Le moteur dispose de deux contrôles complémentaires, **uniquement pour les dos
 
 Les compteurs de composants publiés, de fragments temporaires et d'entrées inattendues sont rapportés séparément. Les tests hôte simulent une interruption de restauration, un membre `__5` excédentaire, un `.part` résiduel et la corruption d'un fichier restauré. Ces contrôles **ne retirent jamais les fichiers `.part`**, ne réutilisent pas une sauvegarde interrompue et n'autorisent aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
 
+## Correspondance sauvegarde / restauration privée
+
+L'API **hôte et en lecture seule** `cmp5_inspect_backup_restore_pair` rapproche maintenant une sauvegarde et un groupe restauré, même si leurs identifiants de groupe diffèrent. Elle exige des **répertoires privés distincts en termes de périphérique/inode**, refuse les alias du même dossier et confirme :
+
+1. Que le groupe de sauvegarde et le groupe restauré sont tous deux vérifiés indépendamment, sans fichiers supplémentaires ou temporaires ambigus.
+2. Que leurs reçus comportent le même nombre de membres, le même nombre d'octets et le même SHA-256 de manifeste, lequel contient les tailles et SHA-256 ordonnés de chaque membre.
+3. Que les deux espaces de travail gardent la même identité et ne changent pas pendant le contrôle ; avant de publier `MATCH`, les états de récupération sont relus.
+
+Les statuts sont `UNVERIFIABLE` (inspection impossible), `NOT_READY` (au moins un groupe vide ou interrompu), `MATCH` (restauration privée correspondant à la sauvegarde choisie), `MISMATCH` (deux groupes complets mais de contenus différents) et `INVALID` (un groupe corrompu ou ambigu). Les tests couvrent ces cas ainsi que les refus d'alias et d'identifiants invalides.
+
+Cette comparaison ne restaure **pas** les entrées d'index, miniatures ou associations de la Galerie PS5 ; même `MATCH` ne donne **aucune** permission de supprimer la capture originale. L'état observé est ponctuel, pas une transaction atomique sur le système de fichiers.
+
 ## Ce qui n'est pas encore prouvé
 
 Ce prototype ne restaure **pas** les captures dans `/user/av_contents` et ne répare aucune base d'index multimédia. Il sait maintenant valider logiquement un groupe de **2 à 4 composants de même nom de base**, dont les versions JXR/JPG et un sidecar `.dat` d'au plus 64 Kio ; les miniatures PS5 dans d'autres répertoires ne sont pas encore associées. Un groupe n'est marqué complet qu'après validation SHA-256 de tous ses membres. Une restauration groupée n'écrit que dans un **second espace privé** et publie à son tour un marqueur une fois les composants revérifiés. Les composants partiels laissés par un arrêt brutal sont ignorés sans marqueur, mais **leur nettoyage et leur reprise automatique restent à développer**. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
