@@ -49,6 +49,13 @@ with tempfile.TemporaryDirectory() as temp:
  usb2.mkdir(parents=True)
  (usb2/"autoload.txt").symlink_to(other/"save.bin")
  (other/"save.bin").write_text("DO NOT TOUCH")
+ # Oversized autoloads and aliases to protected files are not parsed.
+ usb3=root/"mnt/usb3/ps5_autoloader"
+ usb3.mkdir(parents=True)
+ (usb3/"autoload.txt").write_bytes(b"A"*(65536+1))
+ usb4=root/"mnt/usb4/ps5_autoloader"
+ usb4.mkdir(parents=True)
+ (usb4/"autoload.txt").hardlink_to(other/"save.bin")
  homebrew=root/"data/homebrew/HB_DEMO"
  homebrew.mkdir(parents=True)
  (homebrew/"assets.bin").write_bytes(b"H"*137)
@@ -229,6 +236,8 @@ with tempfile.TemporaryDirectory() as temp:
   assert found["/mnt/usb0/ps5_autoloader/autoload.txt"]["status"]=="no-reference"
   assert found["/mnt/usb1/ps5_autoloader/autoload.txt"]["status"]=="unreadable"
   assert found["/mnt/usb2/ps5_autoloader/autoload.txt"]["status"]=="unreadable"
+  assert found["/mnt/usb3/ps5_autoloader/autoload.txt"]["status"]=="too-large"
+  assert found["/mnt/usb4/ps5_autoloader/autoload.txt"]["status"]=="unreadable"
   assert "DO NOT TOUCH" not in json.dumps(diag)
   assert "PRIVATE_TOKEN" not in json.dumps(diag)
   with urlopen(base+"/api/homebrew",timeout=3) as r:hb=json.load(r)
