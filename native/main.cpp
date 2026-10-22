@@ -85,7 +85,12 @@ struct LocalProbe {
 };
 LocalProbe local_probe[4]{};
 bool local_checked=false;
+std::atomic<bool> scan_cancel_requested{false};
 constexpr unsigned max_entries_per_root=256;
+
+int cancellation_hook(void*) noexcept {
+ return scan_cancel_requested.load(std::memory_order_acquire)?1:0;
+}
 
 LocalAccess open_error(int value) noexcept {
  if(value==ENOENT)return LocalAccess::missing;
@@ -93,10 +98,12 @@ LocalAccess open_error(int value) noexcept {
  return LocalAccess::unavailable;
 }
 void probe_local() noexcept {
+ local_checked=false;
  // Only enumerate immediate directory entries visible to the installed title.
  // Never follow links, walk into child directories, open file contents or write.
  // The cap is intentional: numbers are sampled, NOT a full storage inventory.
  for(std::size_t i=0;i<4;i++){
+  if(cancellation_hook(nullptr))return;
   LocalProbe result{};
   const int fd=open(local_paths[i],0);
   if(fd<0){result.status=open_error(errno);local_probe[i]=result;continue;}
@@ -118,6 +125,7 @@ void probe_local() noexcept {
   result.status=LocalAccess::listable;
   errno=0;
   for(;;){
+   if(cancellation_hook(nullptr))break;
    struct dirent*entry=readdir(dir);
    if(!entry){
     if(errno!=0)result.io_error=true;
@@ -129,6 +137,7 @@ void probe_local() noexcept {
    errno=0;
   }
   (void)closedir(dir);
+  if(cancellation_hook(nullptr))return;
   local_probe[i]=result;
  }
  local_checked=true;
@@ -372,11 +381,13 @@ void run_overview() noexcept {
  // The title itself discovers media independently of the helper.
  // Its results may be partial because the sandbox cannot read all roots.
  std::size_t length=0;
- char*json=cmp5_overview_with_review("/",&length,&media_review);
+ char*json=cmp5_overview_with_review_cancel("/",&length,&media_review,cancellation_hook,nullptr);
  if(json){
-  (void)accept_overview(json,ScanSource::native_title);
+  if(!cancellation_hook(nullptr))
+   (void)accept_overview(json,ScanSource::native_title);
   std::free(json);
  }
+ if(cancellation_hook(nullptr))return;
  if(review_selection>=media_review.count)review_selection=0;
  // Optionally prefer helper aggregate counters when it is already running.
  // Media review remains restricted to paths the installed title can see.
@@ -389,9 +400,10 @@ void run_overview() noexcept {
 }
 void run_environment_check() noexcept {
  probe_local();
+ if(cancellation_hook(nullptr))return;
  engine=Link::offline;
- if(helper_is_compatible()&&get_preflight())engine=Link::ok;
- run_overview();
+ if(helper_is_compatible()&&!cancellation_hook(nullptr)&&get_preflight())engine=Link::ok;
+ if(!cancellation_hook(nullptr))run_overview();
 }
 void run_duplicate_check() noexcept {
  duplicate_stats=Cmp5DuplicateStats{};
@@ -399,14 +411,15 @@ void run_duplicate_check() noexcept {
  std::size_t length=0;
  // Content comparison only after an explicit Triangle press.
  // Limits: 128 images, 32 MiB each, 128 MiB IO, ~6 s. No writes.
- char*report=cmp5_duplicates_with_stats("/",&length,&duplicate_stats);
+ char*report=cmp5_duplicates_with_stats_cancel(
+   "/",&length,&duplicate_stats,cancellation_hook,nullptr);
  if(report){
   std::free(report); // Never bring private paths into the native UI.
-  duplicates_checked=true;
+  duplicates_checked=!cancellation_hook(nullptr);
  }
 }
 enum class Task : unsigned { none, environment, access, overview, duplicates };
-std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed
+std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
 void* background_task(void*) noexcept {
@@ -417,13 +430,28 @@ void* background_task(void*) noexcept {
   case Task::duplicates: run_duplicate_check(); break;
   default: break;
  }
- // Publish all task results to the video thread only after writes complete.
- task_state.store(2,std::memory_order_release);
+ // Reject incomplete results and publish completion AFTER all writes.
+ // All read/write UI controls are gated on task_busy() until this release.
+ if(cancellation_hook(nullptr)){
+  if(task_kind==Task::overview||task_kind==Task::environment){
+   media_review.count=0;
+   review_visible=0;
+   summary_status=Summary::unavailable;
+   scan_source=ScanSource::none;
+  }
+  if(task_kind==Task::duplicates){
+   duplicate_stats=Cmp5DuplicateStats{};
+   duplicates_checked=false;
+  }
+  if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
+  task_state.store(4,std::memory_order_release);
+ }else task_state.store(2,std::memory_order_release);
  return nullptr;
 }
 bool begin_task(Task kind) noexcept {
  if(task_state.load(std::memory_order_acquire)==1)return false;
  task_kind=kind;
+ scan_cancel_requested.store(false,std::memory_order_release);
  task_state.store(1,std::memory_order_release);
  pthread_t worker{};
  const int rc=pthread_create(&worker,nullptr,background_task,nullptr);
@@ -440,6 +468,9 @@ bool task_busy() noexcept {
 bool task_failed() noexcept {
  return task_state.load(std::memory_order_acquire)==3;
 }
+bool task_cancelled() noexcept {
+ return task_state.load(std::memory_order_acquire)==4;
+}
 void poll_pad() noexcept {
  if(controller<0)return;
  RawPadSample samples[32]{};
@@ -450,6 +481,7 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
+   if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
    screen=(screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::review?Screen::cleanup:Screen::menu;
@@ -557,13 +589,13 @@ void poll_pad() noexcept {
    if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
    continue;
   }
-  if(screen==Screen::cleanup&&(pressed&square)){
+  if(screen==Screen::cleanup&&(pressed&square)&&!task_cancelled()){
    if(media_review.count){
     review_selection=0;rebuild_review_index();screen=Screen::review;
    }
    continue;
   }
-  if(screen==Screen::cleanup&&(pressed&triangle)){
+  if(screen==Screen::cleanup&&(pressed&triangle)&&!task_cancelled()){
    (void)begin_task(Task::duplicates);
    continue;
   }
