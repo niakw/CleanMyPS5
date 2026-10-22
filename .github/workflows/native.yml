@@ -16,6 +16,8 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/enable_verified_zlib_mirrors.py
+      - tests/test_verified_zlib_mirrors.py
       - scripts/fetch_stb_decoder.sh
       - scripts/enable_native_preview_blit.py
       - native/preview_decode.c
@@ -44,6 +46,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y clang-18 lld-18 clang-format-18 make python3 python3-venv python3-pil git unzip zip curl wget pkg-config
+      - name: Validate pinned zlib SHA-256 fallback safeguards
+        run: python3 tests/test_verified_zlib_mirrors.py
       - name: Verify native VideoOut keeps presenting interactive frames
         run: python3 tests/test_interactive_videoout.py
       - name: Run strict native response-framing regression
