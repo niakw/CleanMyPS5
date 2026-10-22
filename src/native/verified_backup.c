@@ -33,7 +33,14 @@ static int private_dir(const char*path){
  return fd;
 }
 static int same(const struct stat*a,const struct stat*b){
- return S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
+#if defined(__APPLE__)
+ const int precise=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec &&
+  a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int precise=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec &&
+  a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return precise&&S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime;
