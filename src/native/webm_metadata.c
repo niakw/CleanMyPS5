@@ -17,7 +17,7 @@ typedef struct {
  uint32_t width,height;
  uint64_t scale_ns;
  double duration;
- int found_header,found_segment,found_info,found_video;
+ int found_header,found_doctype,found_segment,found_info,found_video;
 } Ebml;
 static int bytes_at(Ebml*p,uint64_t pos,uint8_t*out,size_t n){
  if(n>MAX_EBML_READS-p->read_bytes||pos>(uint64_t)INT64_MAX)return 0;
@@ -78,10 +78,10 @@ static int webm_float(Ebml*p,uint64_t start,uint64_t len,double*out){
   *out=value;
  }
  // Reject infinities, NaNs and absurd timeline values.
- return *out>0.0&&*out<2592000.0;
+ return *out>0.0&&*out<1000000000000000.0;
 }
 static int parse(Ebml*p,uint64_t start,uint64_t end,unsigned level){
- if(level>5||start>end)return 0;
+ if(level>6||start>end)return 0;
  for(uint64_t pos=start;pos<end;){
   if(++p->nodes>MAX_EBML_ITEMS)return 0;
   uint64_t id=0,size=0;
@@ -100,6 +100,11 @@ static int parse(Ebml*p,uint64_t start,uint64_t end,unsigned level){
   if(level==0&&pos==0&&id!=0x1A45DFA3u)return 0;
   if(id==0x1A45DFA3u&&level==0){
    p->found_header=1;
+   if(!parse(p,body,stop,6))return 0;
+  }else if(id==0x4282u&&level==6){
+   uint8_t doc[4]={0};
+   if(size==4&&bytes_at(p,body,doc,4)&&memcmp(doc,"webm",4)==0)
+    p->found_doctype=1;
   }else if(id==0x18538067u&&level==0){
    p->found_segment=1;
    if(!parse(p,body,stop,1))return 0;
@@ -131,7 +136,7 @@ int cmp5_parse_webm_metadata_fd(int fd,uint64_t length,
  Cmp5VideoMetadata*out,Cmp5CancelCheck cancel,void*context){
  if(!out||length<16||length>(64ULL*1024ULL*1024ULL*1024ULL))return 0;
  Ebml p={0};p.fd=fd;p.cancel=cancel;p.context=context;p.scale_ns=1000000u;
- if(!parse(&p,0,length,0)||!p.found_header||!p.found_segment||
+ if(!parse(&p,0,length,0)||!p.found_header||!p.found_doctype||!p.found_segment||
     !p.found_info||!p.found_video||p.duration<=0.0||!p.scale_ns||
     (cancel&&cancel(context)))return 0;
  // Duration element units * TimestampScale (ns) => milliseconds.
