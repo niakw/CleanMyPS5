@@ -212,11 +212,7 @@ Cmp5PreviewImage decoded_photo{};
 bool photo_ready=false;
 Cmp5VideoMetadata video_info{};
 bool video_info_ready=false;
-struct CompanionSummary {
- unsigned files=0,sidecars=0,media=0;
- std::uint64_t bytes=0;
-};
-CompanionSummary companion_summary{};
+Cmp5CompanionReport companion_summary{};
 bool companion_checked=false;
 unsigned photo_zoom=100; // 100%, 135%, 170% display-only scaling
 bool marked_for_review[CMP5_REVIEW_CAP]{};
@@ -442,7 +438,7 @@ void run_overview() noexcept {
  marked_nominal_bytes=0;
  duplicate_stats=Cmp5DuplicateStats{};
  duplicates_checked=false;
- companion_summary=CompanionSummary{};
+ companion_summary=Cmp5CompanionReport{};
  companion_checked=false;
  // The same limited scanner is linked inside eboot.bin. It has only
  // the permissions actually granted to the installed title's sandbox.
@@ -526,30 +522,18 @@ void run_video_info() noexcept {
    cancellation_hook,nullptr)!=0;
 }
 void run_companion_check() noexcept {
- companion_summary=CompanionSummary{};
+ companion_summary=Cmp5CompanionReport{};
  companion_checked=false;
  if(detail_index>=media_review.count)return;
  const auto&primary=media_review.entries[detail_index];
  if((primary.media_type!=1u&&primary.media_type!=2u)||
     !primary.preview_path[0]||cancellation_hook(nullptr))return;
- Cmp5MediaCandidate companions[CMP5_GROUP_MAX]{};
- std::uint32_t count=0;
- const bool found=cmp5_plan_capture_group("/", &primary,companions,
-   &count,cancellation_hook,nullptr)!=0;
- if(found&&count>=2u&&count<=CMP5_GROUP_MAX&&!cancellation_hook(nullptr)){
-  CompanionSummary summary{};
-  summary.files=count;
-  for(unsigned i=0;i<count;i++){
-   if(companions[i].media_type==3u)summary.sidecars++;
-   else summary.media++;
-   const auto bytes=companions[i].bytes;
-   summary.bytes=UINT64_MAX-summary.bytes<bytes?UINT64_MAX:summary.bytes+bytes;
-  }
-  companion_summary=summary;
+ Cmp5CompanionReport observed{};
+ if(cmp5_inspect_capture_companions("/", &primary,&observed,
+     cancellation_hook,nullptr)!=0&&!cancellation_hook(nullptr)){
+  companion_summary=observed;
   companion_checked=true;
  }
- // Do not publish persistent private paths or candidate file names.
- std::memset(companions,0,sizeof(companions));
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
@@ -624,7 +608,7 @@ void* background_task(void*) noexcept {
    video_info_ready=false;
   }
   if(task_kind==Task::companions){
-   companion_summary=CompanionSummary{};
+   companion_summary=Cmp5CompanionReport{};
    companion_checked=false;
   }
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
@@ -671,7 +655,7 @@ void release_inactive_previews() noexcept {
   video_info_ready=false;
  }
  if(screen!=Screen::companions && companion_checked){
-  companion_summary=CompanionSummary{};
+  companion_summary=Cmp5CompanionReport{};
   companion_checked=false;
  }
 }
@@ -695,7 +679,7 @@ void poll_pad() noexcept {
     video_info=Cmp5VideoMetadata{};
     video_info_ready=false;
    }else if(screen==Screen::companions){
-    companion_summary=CompanionSummary{};
+    companion_summary=Cmp5CompanionReport{};
     companion_checked=false;
    }
    screen=(screen==Screen::photo||screen==Screen::video_info||
@@ -1257,26 +1241,34 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  if(task_cancelled()||task_failed()||!companion_checked){
-  panel(canvas,360,"GROUPE NON VERIFIABLE",
-    task_cancelled()?"ANALYSE ANNULEE":"FICHIERS ABSENTS, INACCESSIBLES OU AMBIGUS",
+  panel(canvas,360,"INSPECTION NON FIABLE",
+    task_cancelled()?"ANALYSE ANNULEE":"ACCES, IDENTITE OU DOSSIER NON VERIFIABLE",
     Color::yellow);
-  panel(canvas,510,"SECURITE","NE PAS SUPPRIMER CETTE CAPTURE",Color::yellow);
+  panel(canvas,510,"SECURITE","AUCUNE DECISION DE NETTOYAGE POSSIBLE",Color::yellow);
   footer(canvas,"CERCLE DETAIL  AUCUN NETTOYAGE AUTORISE");
   return;
  }
- char count[105]{};
- (void)std::snprintf(count,sizeof(count),"%u FICHIERS  %u MEDIAS",
+ if(companion_summary.state==CMP5_COMPANIONS_SINGLE){
+  panel(canvas,360,"CAPTURE SEULE OBSERVEE",
+    "AUCUN AUTRE FICHIER DE MEME NOM VISIBLE",Color::yellow);
+  panel(canvas,508,"METADONNEES",
+    "ABSENCE DE DAT OU AUTRE DEPENDANCE NON PROUVEE",Color::yellow);
+ }else{
+  char detail[100]{};
+  (void)std::snprintf(detail,sizeof(detail),"%u FICHIERS  %u MEDIAS",
    companion_summary.files,companion_summary.media);
- panel(canvas,360,"GROUPE OBSERVE",count,Color::cyan);
- (void)std::snprintf(count,sizeof(count),"%u FICHIER(S) DAT",companion_summary.sidecars);
- panel(canvas,508,"METADONNEES ASSOCIEES",count,Color::cyan);
- (void)std::snprintf(count,sizeof(count),"%llu MIO NOMINAUX",
-   static_cast<unsigned long long>(companion_summary.bytes/1048576ULL));
- panel(canvas,656,"TAILLE DU GROUPE",count);
+  panel(canvas,360,"GROUPE OBSERVE",detail,Color::cyan);
+  (void)std::snprintf(detail,sizeof(detail),"%u FICHIER(S) DAT",companion_summary.sidecars);
+  panel(canvas,508,"METADONNEES ASSOCIEES",detail,Color::cyan);
+ }
+ char nominal[100]{};
+ (void)std::snprintf(nominal,sizeof(nominal),"%llu MIO NOMINAUX",
+   static_cast<unsigned long long>(companion_summary.nominal_bytes/1048576ULL));
+ panel(canvas,656,"TAILLE OBSERVEE",nominal);
  panel(canvas,804,"LIMITATION","INDEX GALERIE ET MINIATURES NON PROUVES",Color::yellow);
  canvas.rectangle(95,950,1730,96,Color::panel);
  canvas.text(125,968,"CERCLE DETAIL  AUCUNE SUPPRESSION NI SAUVEGARDE",3,Color::white);
- canvas.text(125,1006,"ASSOCIATIONS VISIBLES SEULEMENT - LECTURE SEULE",3,Color::cyan);
+ canvas.text(125,1006,"FICHIERS VISIBLES SEULEMENT - LECTURE SEULE",3,Color::cyan);
 }
 void show_photo(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
