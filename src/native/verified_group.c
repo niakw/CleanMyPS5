@@ -142,12 +142,17 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   close(fd);return 0;
  }
  const int anchored_fd=fd;
+ struct stat parent_before;
+ if(fstat(anchored_fd,&parent_before)!=0){close(fd);return 0;}
  DIR*dir=fdopendir(fd);
  if(!dir){close(fd);return 0;}
  uint32_t gathered=0,visits=0;uint64_t total=0;
  int invalid=0,found_primary=0;
+ struct stat scanned[CMP5_GROUP_MAX];
  struct dirent*entry;
- while((entry=readdir(dir))!=NULL){
+ for(;;){
+  errno=0;entry=readdir(dir);
+  if(!entry){if(errno!=0)invalid=1;break;}
   if(cancelled(cancel,context)||++visits>1024u){invalid=1;break;}
   const char*name=entry->d_name;
   if(name[0]=='.')continue;
@@ -180,7 +185,17 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   item->media_type=type;
   if(st.st_dev==selected.st_dev&&st.st_ino==selected.st_ino&&
      strcmp(name,slash+1)==0)found_primary=1;
+  scanned[gathered]=st;
   total+=item->bytes;gathered++;
+ }
+ /* Detect changes within a single enumeration, not only source/backup time. */
+ struct stat parent_after,check;
+ if(fstat(anchored_fd,&parent_after)!=0||
+    !same_file(&parent_before,&parent_after))invalid=1;
+ for(uint32_t i=0;!invalid&&i<gathered;i++){
+  const char*leaf=strrchr(out[i].preview_path,'/');
+  if(!leaf||fstatat(anchored_fd,leaf+1,&check,AT_SYMLINK_NOFOLLOW)!=0||
+     !same_file(&scanned[i],&check)||check.st_nlink!=1)invalid=1;
  }
  closedir(dir);
  if(invalid||!found_primary||gathered<2u||
