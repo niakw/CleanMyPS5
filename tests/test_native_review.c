@@ -6,12 +6,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+static int stop_after_budget(void*opaque){
+ unsigned*counter=(unsigned*)opaque;
+ return ++(*counter)>5u;
+}
 int main(int argc,char**argv){
  if(argc!=2&&argc!=3)return 2;
- const unsigned expected=argc==3?(unsigned)strtoul(argv[2],NULL,10):4u;
+ const int cancel=argc==3&&strcmp(argv[2],"cancel")==0;
+ const unsigned expected=argc==3&&!cancel?(unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
- char*json=cmp5_overview_with_review(argv[1],&json_size,&review);
+ unsigned calls=0;
+ char*json=cancel?
+   cmp5_overview_with_review_cancel(argv[1],&json_size,&review,stop_after_budget,&calls):
+   cmp5_overview_with_review(argv[1],&json_size,&review);
+ if(cancel){
+  assert(json&&json_size>100);
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"cleanupValidated\":false"));
+  assert(review.partial==1u&&review.count<64u);
+  assert(calls>=6u);
+  free(json);
+  puts("Metadata scan cancellation: partial result, never validated for deletion");
+  return 0;
+ }
  assert(json&&json_size>100);
  assert(strstr(json,"\"cleanupValidated\":false"));
  assert(review.count==expected);
