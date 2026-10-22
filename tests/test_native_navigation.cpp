@@ -513,8 +513,12 @@ int main(){
   save(Screen::official,"07-official");
   save(Screen::access,"08-access");
   save(Screen::apps,"09-apps");
+  const std::uint8_t synthetic_photo[8]={0};
+  assert(cmp5_decode_preview(synthetic_photo,sizeof(synthetic_photo),&decoded_photo));
   photo_ready=true;
   save(Screen::photo,"10-photo");
+  cmp5_release_preview(&decoded_photo);
+  photo_ready=false;
   video_info_ready=true;
   video_info=Cmp5VideoMetadata{95200,1920,1080,6};
   save(Screen::video_info,"11-video-info");
