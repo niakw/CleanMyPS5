@@ -31,6 +31,25 @@ int cmp5_restore_group(const char *private_workspace,const char *group_id,
  Cmp5CancelCheck cancel,void *context);
 int cmp5_verify_restored_group(const char *restore_workspace,const char *group_id,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
+/* Read-only recovery audit of the private backup workspace.
+ * EMPTY: no known components; INCOMPLETE: no committed marker;
+ * VERIFIED: marker and all capsules pass SHA-256; INVALID: a marker is
+ * corrupt/incomplete or an unexpected non-regular/linked entry is found.
+ * No staging file, capsule, or gallery item is ever changed or removed. */
+typedef enum {
+ CMP5_RECOVERY_EMPTY=1,
+ CMP5_RECOVERY_INCOMPLETE=2,
+ CMP5_RECOVERY_VERIFIED=3,
+ CMP5_RECOVERY_INVALID=4
+} Cmp5RecoveryState;
+typedef struct {
+ Cmp5RecoveryState state;
+ uint32_t published_parts;
+ uint32_t staged_parts;
+ int marker_present;
+} Cmp5RecoveryReport;
+int cmp5_inspect_group_recovery(const char *private_workspace,
+ const char *group_id,Cmp5RecoveryReport *report);
 #ifdef __cplusplus
 }
 #endif
