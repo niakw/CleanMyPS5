@@ -61,7 +61,7 @@ static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
  }
  struct stat before,after;
  if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
-    before.st_size<0){close(fd);return -1;}
+    before.st_nlink!=1||before.st_size<0){close(fd);return -1;}
  if((uint64_t)before.st_size>cap-1){close(fd);return 2;}
  size_t total=0;
  while(total<cap-1){
@@ -78,7 +78,7 @@ static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
   if(got<0){close(fd);return -1;}
  }
  const int stable=fstat(fd,&after)==0&&
-   S_ISREG(after.st_mode)&&
+   S_ISREG(after.st_mode)&&after.st_nlink==1&&
    before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
    before.st_size==after.st_size&&
    before.st_mtime==after.st_mtime&&before.st_ctime==after.st_ctime&&
