@@ -195,12 +195,50 @@ int cmp5_verify_group(const char*workspace,const char*id,
  if(ok&&r)*r=found;
  return ok;
 }
+/* A caller can omit a visible JPG/JXR/DAT variant while still passing
+ * structural validation. Require the exact descriptor-anchored companion
+ * inventory, not merely a plausible subset, before publishing a transaction.
+ * This is only visible filesystem coverage; PS5 gallery indexes remain
+ * unverified and no deletion is authorized by it. */
+static int matches_visible_companions(const char*root,
+ const Cmp5MediaCandidate*parts,uint32_t count,
+ Cmp5CancelCheck cancel,void*ctx){
+ if(!root||!cmp5_validate_capture_group(parts,count)||
+    cancelled(cancel,ctx))return 0;
+ const Cmp5MediaCandidate*primary=NULL;
+ for(uint32_t i=0;i<count;i++){
+  if(parts[i].media_type!=3u){primary=&parts[i];break;}
+ }
+ if(!primary)return 0;
+ Cmp5MediaCandidate visible[CMP5_GROUP_MAX]={{0}};
+ uint32_t observed=0;
+ int ok=cmp5_plan_capture_group(root,primary,visible,&observed,cancel,ctx)&&
+   observed==count;
+ unsigned matched=0u;
+ for(uint32_t i=0;ok&&i<count;i++){
+  unsigned found=0u;
+  for(uint32_t j=0;j<count;j++){
+   const Cmp5MediaCandidate*a=&parts[i],*b=&visible[j];
+   if(strcmp(a->preview_path,b->preview_path)==0&&
+      a->media_type==b->media_type&&a->bytes==b->bytes&&
+      a->modified_at==b->modified_at&&
+      a->snapshot_device==b->snapshot_device&&
+      a->snapshot_inode==b->snapshot_inode){
+    if(matched&(1u<<j)){ok=0;break;}
+    matched|=1u<<j;found=1u;break;
+   }
+  }
+  if(!found)ok=0;
+ }
+ memset(visible,0,sizeof(visible));
+ return ok&&!cancelled(cancel,ctx);
+}
 int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  uint32_t count,const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
- if(!r||!valid_id(id)||!cmp5_validate_capture_group(parts,count)||
-    cancelled(cancel,ctx))return 0;
+ if(!r||!valid_id(id)||!matches_visible_companions(root,parts,count,
+      cancel,ctx))return 0;
  int dir=safe_dir(workspace);if(dir<0)return 0;
  char commit_name[48];marker_name(commit_name,id,0);
  struct stat st;
@@ -221,6 +259,10 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
      check.bytes!=pieces[i].bytes||
      memcmp(check.sha256,pieces[i].sha256,32)!=0)return 0;
  }
+ /* Re-enumerate before COMMIT: copying can take time, and a new
+  * visible variant or inode replacement must leave this transaction
+  * uncommitted rather than proclaiming a complete group. */
+ if(!matches_visible_companions(root,parts,count,cancel,ctx))return 0;
  uint8_t manifest[MARK_SIZE];manifest_header(manifest,pieces,count);
  dir=safe_dir(workspace);if(dir<0)return 0;
  int ok=publish_manifest(dir,id,0,manifest,cancel,ctx);
