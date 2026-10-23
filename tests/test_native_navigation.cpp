@@ -23,6 +23,8 @@ unsigned mock_ampr_receive=0;
 unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
+bool mock_ampr_foreign_running=false;
+unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -118,11 +120,15 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
  }
  if(id==20){
   char progress[320]{};
+  const bool idle=mock_ampr_post_bodies==0u&&!mock_ampr_foreign_running;
+  const char*state=idle?"idle":mock_ampr_paused?"paused":"running";
+  const char*title=idle?"":mock_ampr_foreign_running?"PPSA98765":"PPSA12345";
   const int body_size=std::snprintf(progress,sizeof(progress),
    "{\"service\":\"CleanMyPS5-AMPR\",\"state\":\"%s\","
-   "\"percent\":45,\"bytes_done\":450,\"bytes_total\":1000,"
-   "\"queue_len\":1,\"launch_checked\":false,\"title_id\":\"PPSA12345\"}",
-   mock_ampr_paused?"paused":"running");
+   "\"percent\":%u,\"bytes_done\":%u,\"bytes_total\":%u,"
+   "\"queue_len\":%u,\"launch_checked\":false,\"title_id\":\"%s\"}",
+   state,idle?0u:45u,idle?0u:450u,idle?0u:1000u,
+   mock_ampr_queued_work,title);
   assert(body_size>0&&static_cast<std::size_t>(body_size)<sizeof(progress));
   char reply[512]{};
   int n=std::snprintf(reply,sizeof(reply),
@@ -731,6 +737,18 @@ int main(){
  assert(compression_view==2u);
  finish_scan();
  assert(game_preflight.ready());
+ /* Foreign running job and pending queue reject a newly requested game
+  * despite a favorable per-title preflight. */
+ mock_ampr_foreign_running=true;
+ run_game_submission();
+ assert(game_job_attempted&&!game_job_accepted);
+ assert(mock_ampr_post_headers==0&&mock_ampr_post_bodies==0);
+ mock_ampr_foreign_running=false;
+ mock_ampr_queued_work=1u;
+ run_game_submission();
+ assert(!game_job_accepted);
+ assert(mock_ampr_post_headers==0&&mock_ampr_post_bodies==0);
+ mock_ampr_queued_work=0u;
  press(cross);
  assert(compression_view==3u);
  press(cross);
@@ -739,6 +757,8 @@ int main(){
  assert(game_job_attempted&&game_job_accepted);
  assert(!game_job_reply_unknown&&game_job_position==0u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ run_game_submission(); /* Accepted outcome is sticky: no repeat POST. */
+ assert(game_job_accepted&&mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  scene(canvas);
  press(cross);
  finish_scan();
@@ -776,7 +796,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==8u);
+ assert(mock_ampr_gets==10u);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
