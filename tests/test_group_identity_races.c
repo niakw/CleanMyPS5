@@ -7,6 +7,7 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +15,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 static char watched[1024],moved[1024];
-static int action,triggered;
+static int action,triggered,fail_staging_unlink;
+static int racing_unlinkat(int dir,const char*name,int flags){
+ if(fail_staging_unlink&&!strcmp(name,".STAGE__COMMIT.part")){
+  errno=EIO;return -1;
+ }
+ return unlinkat(dir,name,flags);
+}
 static ssize_t race_read(int fd,void*out,size_t n){
  ssize_t got=read(fd,out,n);
  if(got>0&&action&&!triggered){
@@ -36,7 +43,9 @@ static ssize_t race_read(int fd,void*out,size_t n){
  return got;
 }
 #define read race_read
+#define unlinkat racing_unlinkat
 #include "../src/native/verified_group.c"
+#undef unlinkat
 #undef read
 static void setup_watch(const char*parent,const char*name,const char*replacement,int operation){
  int length=snprintf(watched,sizeof(watched),"%s/%s",parent,name);
@@ -141,6 +150,16 @@ int main(int argc,char**argv){
  assert(rename(moved,watched)==0);
  assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
  assert(result.count==2u&&result.bytes==lens[0]+lens[1]);
+ /* A failed cleanup after atomic publication must not yield a success:
+  * the private marker and staged hardlink may both remain for recovery. */
+ fail_staging_unlink=1;
+ assert(!publish_manifest(dir,"STAGE",0,manifest,NULL,NULL));
+ fail_staging_unlink=0;
+ struct stat st;
+ assert(fstatat(dir,"STAGE__COMMIT",&st,AT_SYMLINK_NOFOLLOW)==0);
+ assert(fstatat(dir,".STAGE__COMMIT.part",&st,AT_SYMLINK_NOFOLLOW)==0);
+ assert(unlinkat(dir,".STAGE__COMMIT.part",0)==0);
+ assert(unlinkat(dir,"STAGE__COMMIT",0)==0);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
  return 0;
