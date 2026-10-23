@@ -7,6 +7,7 @@
 #include "game_images.h"
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 int main(int argc,char**argv){
  if(argc!=2)return 2;
  Cmp5GameImageStats r={0};
@@ -21,6 +22,12 @@ int main(int argc,char**argv){
  assert(r.large_folders==1);
  assert(r.folder_partials==0);
  assert(r.folder_nominal_bytes>=22ULL*1024*1024*1024);
+ assert(r.shown_folders==1);
+ assert(r.hidden_folders==0);
+ assert(r.folder[0].size_complete==1);
+ assert(r.folder[0].nominal_bytes>=22ULL*1024*1024*1024);
+ assert(!strcmp(r.folder[0].label,"PPSA12345"));
+ assert(!strcmp(r.folder[0].path,"/data/homebrew/PPSA12345"));
  assert(r.hardlinks_skipped==2);
  assert(r.partial==1); /* A hardlink is never counted as freeable. */
  assert(r.nominal_bytes==54ULL*1024*1024*1024+340+560);

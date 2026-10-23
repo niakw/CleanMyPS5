@@ -9,7 +9,14 @@ extern "C" {
 typedef int (*Cmp5CancelCheck)(void* context);
 #endif
 enum { CMP5_IMAGE_EXFAT=0, CMP5_IMAGE_FFPKG=1,
- CMP5_IMAGE_FFPFS=2, CMP5_IMAGE_FFPFSC=3, CMP5_IMAGE_FORMATS=4 };
+ CMP5_IMAGE_FFPFS=2, CMP5_IMAGE_FFPFSC=3, CMP5_IMAGE_FORMATS=4,
+ CMP5_GAME_LIST_CAP=12 };
+typedef struct {
+ char path[192]; /* Known-root folder, metadata only; NEVER deletion permission. */
+ char label[64];
+ uint64_t nominal_bytes;
+ uint32_t size_complete;
+} Cmp5GameFolder;
 typedef struct {
  uint32_t scanned_roots,missing_roots,unavailable_roots,entries_seen;
  uint32_t count[CMP5_IMAGE_FORMATS];
@@ -18,6 +25,8 @@ typedef struct {
  uint64_t nominal_bytes,large_nominal_bytes,largest_bytes;
  uint32_t folder_games,large_folders,folder_partials;
  uint64_t folder_nominal_bytes,large_folder_nominal_bytes;
+ uint32_t shown_folders,hidden_folders;
+ Cmp5GameFolder folder[CMP5_GAME_LIST_CAP];
 } Cmp5GameImageStats;
 /* Bounded, metadata-only game IMAGE and homebrew FOLDER survey.
  * Fixed roots, no filenames or paths leave the scanner; no image

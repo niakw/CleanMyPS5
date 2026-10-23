@@ -127,7 +127,19 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
  if(closedir(d)!=0)good=0;
  return good;
 }
-static void scan_game_folder(Audit*a,int parent,const char*name){
+static int safe_label(const char*name){
+ const size_t n=strlen(name);
+ if(n==0||n>=64u)return 0;
+ for(size_t i=0;i<n;i++){
+  const unsigned char c=(unsigned char)name[i];
+  if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||
+       (c>='0'&&c<='9')||c==' '||c=='.'||c=='_'||
+       c=='-'||c=='['||c==']'||c=='('||c==')'))return 0;
+ }
+ return 1;
+}
+static void scan_game_folder(Audit*a,int parent,
+                             const char*relative,const char*name){
  const int folder=game_root(parent,name);
  if(folder<0)return; /* Not a recognized homebrew game directory. */
  struct stat before,after,named;
@@ -144,6 +156,24 @@ static void scan_game_folder(Audit*a,int parent,const char*name){
  close(folder);
  if(!stable){a->stats->partial=1;return;}
  a->stats->folder_games++;
+ /* This is an advisory UI shortlist. Restrict names and length; a
+  * conversion must perform a NEW independent preflight before writing. */
+ if(a->stats->shown_folders<CMP5_GAME_LIST_CAP&&safe_label(name)){
+  Cmp5GameFolder*item=&a->stats->folder[a->stats->shown_folders];
+  int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,name);
+  if(n>0&&(size_t)n<sizeof(item->path)){
+   (void)snprintf(item->label,sizeof(item->label),"%s",name);
+   item->nominal_bytes=complete?bytes:0;
+   item->size_complete=complete?1u:0u;
+   a->stats->shown_folders++;
+  }else{
+   a->stats->hidden_folders++;
+   a->stats->partial=1;
+  }
+ }else{
+  a->stats->hidden_folders++;
+  a->stats->partial=1;
+ }
  if(!complete){
   a->stats->folder_partials++;
   a->stats->partial=1;
@@ -186,7 +216,7 @@ static void scan_one(Audit*a,int parent,const char*relative){
    /* One level of recognized dump folders only. No blind SSD recursion. */
    struct stat candidate;
    if(fstatat(fd,e->d_name,&candidate,AT_SYMLINK_NOFOLLOW)==0&&
-      S_ISDIR(candidate.st_mode))scan_game_folder(a,fd,e->d_name);
+      S_ISDIR(candidate.st_mode))scan_game_folder(a,fd,relative,e->d_name);
    continue;
   }
   struct stat before,after;
