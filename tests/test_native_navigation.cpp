@@ -16,6 +16,9 @@ std::atomic<bool> stall_next_scan{false};
 std::atomic<bool> entered_stalled_scan{false};
 std::atomic<bool> fail_next_overview{false};
 std::atomic<bool> corrupt_next_overview{false};
+bool mock_ampr_online=false;
+unsigned mock_ampr_gets=0;
+unsigned mock_ampr_receive=0;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -44,12 +47,34 @@ int scePadRead(int,void*buffer,int){
  sample->connected=1;
  return 1;
 }
-int sceNetSocket(const char*,int,int,int){return -1;} // No optional helper in host smoke test
-int sceNetConnect(int,const void*,std::uint32_t){return -1;}
-int sceNetSend(int,const void*,std::size_t,int){return -1;}
-int sceNetRecv(int,void*,std::size_t,int){return -1;}
+int sceNetSocket(const char*label,int,int,int){
+ return mock_ampr_online&&std::strcmp(label,"cmp5_ampr_probe")==0?17:-1;
+}
+int sceNetConnect(int id,const void*,std::uint32_t){return id==17?0:-1;}
+int sceNetSend(int id,const void*data,std::size_t size,int){
+ if(id!=17)return -1;
+ const std::string_view request{static_cast<const char*>(data),size};
+ assert(request.find("GET /api/hello HTTP/1.0")==0);
+ assert(request.find("Host: 127.0.0.1:6972")!=std::string_view::npos);
+ assert(request.find("POST")==std::string_view::npos);
+ ++mock_ampr_gets;
+ return static_cast<int>(size);
+}
+int sceNetRecv(int id,void*data,std::size_t capacity,int){
+ if(id!=17)return -1;
+ if(mock_ampr_receive++)return 0;
+ static constexpr char body[]=
+  R"({"paired":true,"local":true,"version":"v1.27"})";
+ char reply[300]{};
+ const int n=std::snprintf(reply,sizeof(reply),
+  "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
+  sizeof(body)-1,body);
+ assert(n>0&&static_cast<std::size_t>(n)<capacity);
+ std::memcpy(data,reply,static_cast<std::size_t>(n));
+ return n;
+}
 int sceNetSetsockopt(int,int,int,const void*,std::uint32_t){return -1;}
-int sceNetSocketClose(int){return 0;}
+int sceNetSocketClose(int){mock_ampr_receive=0;return 0;}
 
 int cmp5_scan_game_images(const char*,Cmp5GameImageStats*result,
  Cmp5CancelCheck cancel,void*context){
@@ -559,9 +584,20 @@ int main(){
  assert(game_images_checked);
  assert(game_images.count[CMP5_IMAGE_EXFAT]==2u);
  assert(game_images.count[CMP5_IMAGE_FFPFSC]==1u);
+ assert(!compression_engine_seen);
  scene(canvas);
+ mock_ampr_online=true;
  press(cross);
  finish_scan();
+ assert(compression_engine_seen);
+ assert(std::strcmp(compression_engine_version,"v1.27")==0);
+ assert(mock_ampr_gets==1u);
+ scene(canvas);
+ mock_ampr_online=false;
+ press(cross);
+ finish_scan();
+ assert(!compression_engine_seen&&!compression_engine_version[0]);
+ assert(mock_ampr_gets==1u);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
