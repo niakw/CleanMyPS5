@@ -17,6 +17,8 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/check_privileged_surface.py
+      - tests/test_privileged_surface.py
       - scripts/build_embedded_compression_engine.sh
       - scripts/patch_embedded_engine.py
       - scripts/verify_embedded_engine_policy.py
@@ -69,6 +71,8 @@ jobs:
         run: python3 tests/test_verified_zlib_mirrors.py
       - name: Verify native VideoOut keeps presenting interactive frames
         run: python3 tests/test_interactive_videoout.py
+      - name: Audit privilege and filesystem mutation surface
+        run: python3 tests/test_privileged_surface.py
       - name: Run strict native response-framing regression
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol

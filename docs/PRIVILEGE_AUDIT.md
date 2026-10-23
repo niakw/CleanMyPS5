@@ -33,3 +33,13 @@ Les copies/restaurations SHA-256 du dépôt sont **hôte uniquement**.
 Le protocole de NiakPS5/Eden Encore ne doit pas être copié en supposant
 que sa disponibilité sur un autre titre ou firmware autorise celle du
 nettoyeur. Les tests CI ne constituent pas une validation matérielle.
+
+### Contrôle CI des surfaces d'écriture natives
+
+Les neuf scanners C copiés par le script de build dans le titre ainsi que
+l'interface, le décodeur et le helper doivent rester exempts de primitives
+d'écriture système, de modification d'UID/GID et de suppression directe.
+Les ajouts de sources natifs non approuvés échouent avant le build SDK.
+Tests par injection de `unlinkat`, `rename`, `O_CREAT`, `seteuid` et
+une unité de sauvegarde illégitime. Contrôle structurel seulement : il ne
+remplace pas une revue d'appel indirect ni un test sur console.
