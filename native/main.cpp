@@ -11,6 +11,7 @@
 #include "compression_bridge.hpp"
 #include "compression_stream.hpp"
 #include "compression_preflight.hpp"
+#include "compression_progress.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -663,6 +664,8 @@ cmp5_compression::GamePreflight game_preflight{};
 bool game_preflight_checked=false,game_preflight_transport=false;
 bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=false;
 unsigned game_job_position=0;
+cmp5_compression::GameProgress game_progress{};
+bool game_progress_checked=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
 bool stage_game_preflight() noexcept {
  if(!game_images_checked||compression_selection>=game_images.shown_folders||
@@ -675,7 +678,7 @@ bool stage_game_preflight() noexcept {
  (void)std::snprintf(game_dest_checked,sizeof(game_dest_checked),"%s",dest);
  game_preflight_checked=false;game_preflight_transport=false;
  game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
- game_job_position=0;
+ game_job_position=0;game_progress={};game_progress_checked=false;
  game_preflight=cmp5_compression::GamePreflight{};
  return true;
 }
@@ -876,6 +879,49 @@ bool ampr_submit_job(const char*source,const char*dest,
  return cmp5_compression::parse_ampr_http(response,used,&http)&&
    cmp5_compression::parse_start_ack(http.body,http.size,out);
 }
+bool ampr_read_progress(cmp5_compression::GameProgress*out) noexcept {
+ if(!out)return false;
+ const int socket=sceNetSocket("cmp5_ampr_progress",2,1,6);
+ if(socket<0)return false;
+ const int timeout_us=5000000;
+ (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn local{16,2,
+  static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(socket,&local,sizeof(local))>=0;
+ constexpr char request[]=
+  "GET /api/cmp5-progress HTTP/1.0\r\nHost: 127.0.0.1:6973\r\n"
+  "Connection: close\r\n\r\n";
+ std::size_t sent=0,received=0;
+ while(ok&&sent<sizeof(request)-1u){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetSend(socket,request+sent,sizeof(request)-1u-sent,0);
+  if(n<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(n);
+ }
+ char response[2048]{};
+ while(ok&&received<sizeof(response)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetRecv(socket,response+received,sizeof(response)-received,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  received+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(socket);
+ if(!ok||received==sizeof(response)||cancellation_hook(nullptr))return false;
+ cmp5_compression::HttpJson body{};
+ return cmp5_compression::parse_ampr_http(response,received,&body)&&
+        cmp5_compression::parse_progress(body.body,body.size,out);
+}
+void run_game_progress() noexcept {
+ game_progress_checked=false;
+ cmp5_compression::GameProgress result{};
+ char ver[32]{};
+ if(check_local_ampr(ver)&&ampr_read_progress(&result)&&
+    !cancellation_hook(nullptr)){
+  game_progress=result;game_progress_checked=true;
+ }
+}
 void run_game_submission() noexcept {
  game_job_accepted=false;game_job_reply_unknown=false;game_job_attempted=true;
  if(!game_preflight_checked||!game_preflight.ready())return;
@@ -926,7 +972,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start, game_progress };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -945,6 +991,7 @@ void* background_task(void*) noexcept {
   case Task::engine_start: run_embedded_engine(); break;
   case Task::game_check: run_game_preflight(); break;
   case Task::game_start: run_game_submission(); break;
+  case Task::game_progress: run_game_progress(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -992,6 +1039,7 @@ void* background_task(void*) noexcept {
   /* A cancelled POST may have already reached the engine: keep the
    * uncertain result until the user checks job status. */
   if(task_kind==Task::game_start&&!game_job_accepted)game_job_reply_unknown=game_job_attempted;
+  if(task_kind==Task::game_progress)game_progress_checked=false;
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
@@ -1248,8 +1296,10 @@ void poll_pad() noexcept {
      compression_view=3u;  /* first affirmative action */
     if(pressed&triangle)(void)begin_task(Task::game_check);
    }else if(compression_view==3u&&(pressed&cross)){
-    compression_view=4u;  /* second affirmative action, no auto-submit */
+    compression_view=4u;  /* second affirmative action, send once */
     (void)begin_task(Task::game_start);
+   }else if(compression_view==4u&&(pressed&cross)){
+    (void)begin_task(Task::game_progress);
    }
    if(compression_view<=1u&&(pressed&square))
     (void)begin_task(Task::engine_start);
@@ -1840,7 +1890,21 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    panel(canvas,707,"AUCUN TRAVAIL CONFIRME",
      "COMPATIBILITE / ESPACE / REPONSE A REVERIFIER",Color::yellow);
   }
-  footer(canvas,"CERCLE RETOUR   ORIGINAL JAMAIS SUPPRIME AUTOMATIQUEMENT");
+  if(game_progress_checked){
+   const char*state=game_progress.state==cmp5_compression::JobState::running?
+     "CONVERSION EN COURS":game_progress.state==cmp5_compression::JobState::paused?
+     "CONVERSION EN PAUSE":game_progress.state==cmp5_compression::JobState::done?
+     "PACK VERIFIE  TESTER LE JEU":game_progress.state==cmp5_compression::JobState::error?
+     "ERREUR DE COMPRESSION":game_progress.state==cmp5_compression::JobState::cancelled?
+     "CONVERSION ANNULEE":"MOTEUR PRET OU EN FILE";
+   char line[150]{};
+   (void)std::snprintf(line,sizeof(line),
+     "%s   %u %%  %llu / %llu MIO",state,game_progress.percent,
+     static_cast<unsigned long long>(game_progress.bytes_done/1048576ULL),
+     static_cast<unsigned long long>(game_progress.bytes_total/1048576ULL));
+   canvas.text(125,899,line,2,Color::cyan);
+  }else canvas.text(125,899,"X: INTERROGER LA PROGRESSION DU MOTEUR",2,Color::cyan);
+  footer(canvas,"X ACTUALISER  CERCLE RETOUR  JEU ORIGINAL PRESERVE");
   return;
  }
  if(compression_view==3u){
