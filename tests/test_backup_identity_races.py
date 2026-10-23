@@ -25,6 +25,8 @@ with tempfile.TemporaryDirectory() as temp:
     run("backup-rename",moved_capture)
     assert moved_capture.read_bytes()==original and not (backup/"RACED").exists()
     moved_capture.rename(source)
+    run("fsync-backup",restored)
+    assert (backup/"UNSYNCED").is_file()
     run("create",restored)
     assert (backup/"GOOD").is_file()
     moved_backup=backup/"GOOD-MOVED"
@@ -37,5 +39,9 @@ with tempfile.TemporaryDirectory() as temp:
     moved_backup.rename(backup/"GOOD")
     run("same-workspace",backup/".")
     assert not (backup/"SAVED").exists()
+    run("fsync-restore",restored)
+    # A failed durability barrier may leave a published private file,
+    # but the API must never return a success receipt.
+    assert (restored/"UNSYNCED").is_file()
     assert source.read_bytes()==original
 print("Private backup source/verification/restore races and workspace alias: PASS")

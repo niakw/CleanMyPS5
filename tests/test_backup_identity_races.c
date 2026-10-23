@@ -6,6 +6,7 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -15,7 +16,14 @@
 #include <unistd.h>
 
 static char watching[1024],moved[1024];
-static int armed,triggered,restore_only;
+static int armed,triggered,restore_only,fail_directory_fsync;
+static int intercepted_fsync(int fd){
+ struct stat st;
+ if(fail_directory_fsync&&fstat(fd,&st)==0&&S_ISDIR(st.st_mode)){
+  errno=EIO;return -1;
+ }
+ return fsync(fd);
+}
 static ssize_t racing_read(int fd,void*buffer,size_t n){
  const ssize_t got=read(fd,buffer,n);
  if(got>0&&armed&&!triggered){
@@ -35,7 +43,9 @@ static off_t racing_lseek(int fd,off_t n,int whence){
 }
 #define read racing_read
 #define lseek racing_lseek
+#define fsync intercepted_fsync
 #include "../src/native/verified_backup.c"
+#undef fsync
 #undef lseek
 #undef read
 
@@ -77,6 +87,20 @@ int main(int argc,char**argv){
  }else if(!strcmp(action,"same-workspace")){
   assert(!cmp5_restore_backup(backup,"GOOD",backup,"SAVED",&receipt,NULL,NULL));
   assert(!cmp5_restore_backup(backup,"GOOD",new_path,"SAVED",&receipt,NULL,NULL));
+ }else if(!strcmp(action,"fsync-backup")){
+  fail_directory_fsync=1;
+  assert(!cmp5_backup_media(root,&item,backup,"UNSYNCED",&receipt,NULL,NULL));
+  fail_directory_fsync=0;
+  assert(!receipt.published);
+  /* Publication may have occurred before the directory reported failure;
+   * never auto-delete the committed file or claim it is durable. */
+  Cmp5BackupReceipt probe={0};
+  assert(cmp5_verify_backup(backup,"UNSYNCED",&probe,NULL,NULL));
+ }else if(!strcmp(action,"fsync-restore")){
+  fail_directory_fsync=1;
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"UNSYNCED",&receipt,NULL,NULL));
+  fail_directory_fsync=0;
+  assert(!receipt.published);
  }else return 3;
  puts("Private backup name-integrity race rejected: PASS");
  return 0;

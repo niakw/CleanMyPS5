@@ -128,8 +128,12 @@ static int start_stage(int dest,const char*id,char temp[56]){
 }
 static int publish(int dir,const char*temp,const char*id){
  if(linkat(dir,temp,dir,id,0)!=0)return 0; /* no-clobber, atomic */
- (void)unlinkat(dir,temp,0); /* leftover temp harmless; never deletes media */
- return 1;
+ /* A residual .part hardlink means this namespace is not transactionally
+  * clean; do not present success after failed staging cleanup. */
+ if(unlinkat(dir,temp,0)!=0)return 0; /* app-owned staging only */
+ /* Successful fsync of the file alone does not ensure its directory entry
+  * survives a power loss. Refuse to issue a durable receipt if this fails. */
+ return fsync(dir)==0;
 }
 static int read_header(int fd,uint64_t*len,uint8_t digest[32]){
  uint8_t header[HEADER_SIZE];
@@ -175,8 +179,7 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
  if(ok&&canceled(cancel,ctx))ok=0;
  if(ok){
   ok=publish(dir,temp,id);
-  if(ok){r->published=1;r->bytes=c->bytes;memcpy(r->sha256,digest,32);
-   (void)fsync(dir);}
+  if(ok){r->published=1;r->bytes=c->bytes;memcpy(r->sha256,digest,32);}
  }
  if(!ok)(void)unlinkat(dir,temp,0);
  close(dir);
@@ -264,7 +267,7 @@ int cmp5_restore_backup(const char*backup,const char*id,
  if(ok&&canceled(cancel,ctx))ok=0;
  if(ok){
   ok=publish(target,temp,newname);
-  if(ok){if(r){*r=verified;}(void)fsync(target);}
+  if(ok&&r)*r=verified;
  }
  if(!ok)(void)unlinkat(target,temp,0);
  close(target);
