@@ -10,6 +10,7 @@
 #include "game_images.h"
 #include "compression_bridge.hpp"
 #include "compression_stream.hpp"
+#include "compression_preflight.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -652,7 +653,28 @@ void run_autoload_check() noexcept {
 }
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
-unsigned compression_view=0,compression_selection=0;
+unsigned compression_view=0,compression_selection=0,compression_destination=0;
+constexpr const char*game_destinations[]={
+ "/data/homebrew","/mnt/usb0/homebrew","/mnt/ext0/homebrew",
+ "/mnt/usb1/homebrew","/mnt/ext1/homebrew"
+};
+constexpr unsigned game_destination_count=sizeof(game_destinations)/sizeof(game_destinations[0]);
+cmp5_compression::GamePreflight game_preflight{};
+bool game_preflight_checked=false,game_preflight_transport=false;
+char game_source_checked[192]{},game_dest_checked[48]{};
+bool stage_game_preflight() noexcept {
+ if(!game_images_checked||compression_selection>=game_images.shown_folders||
+    compression_destination>=game_destination_count)return false;
+ const char*source=game_images.folder[compression_selection].path;
+ const char*dest=game_destinations[compression_destination];
+ if(!source[0]||std::strlen(source)>=sizeof(game_source_checked)||
+    std::strlen(dest)>=sizeof(game_dest_checked))return false;
+ (void)std::snprintf(game_source_checked,sizeof(game_source_checked),"%s",source);
+ (void)std::snprintf(game_dest_checked,sizeof(game_dest_checked),"%s",dest);
+ game_preflight_checked=false;game_preflight_transport=false;
+ game_preflight=cmp5_compression::GamePreflight{};
+ return true;
+}
 bool compression_engine_seen=false;
 char compression_engine_version[32]{};
 /* The GPL AMPR/LZ4 packer is bundled as an ELF INSIDE CleanMyPS5.
@@ -743,6 +765,62 @@ void run_embedded_engine() noexcept {
  /* A successful TCP send is NOT equivalent to an ELF having loaded.
   * The user can recheck via X after the jailbreak loader accepts it. */
 }
+/* Bounded individual game check via our embedded PS5 LZ4 engine. */
+bool game_check_request(const char*source,const char*dest,
+                        cmp5_compression::GamePreflight*out) noexcept {
+ char game_arg[600]{},dest_arg[200]{};
+ if(!cmp5_compression::form_encode_path(source,game_arg,sizeof(game_arg))||
+    !cmp5_compression::form_encode_path(dest,dest_arg,sizeof(dest_arg)))
+  return false;
+ char request[1024]{};
+ const int size=std::snprintf(request,sizeof(request),
+   "GET /api/check?path=%s&dest=%s HTTP/1.0\r\n"
+   "Host: 127.0.0.1:6973\r\nConnection: close\r\n\r\n",
+   game_arg,dest_arg);
+ if(size<=0||static_cast<std::size_t>(size)>=sizeof(request))return false;
+ const int socket=sceNetSocket("cmp5_ampr_game_check",2,1,6);
+ if(socket<0)return false;
+ const int timeout_us=10000000;
+ (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn local{16,2,
+   static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(socket,&local,sizeof(local))>=0;
+ std::size_t sent=0;
+ while(ok&&sent<static_cast<std::size_t>(size)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetSend(socket,request+sent,
+      static_cast<std::size_t>(size)-sent,0);
+  if(n<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(n);
+ }
+ char response[8192]{};
+ std::size_t used=0;
+ while(ok&&used<sizeof(response)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  const int n=sceNetRecv(socket,response+used,sizeof(response)-used,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  used+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(socket);
+ if(!ok||used==sizeof(response)||cancellation_hook(nullptr))return false;
+ cmp5_compression::HttpJson http{};
+ return cmp5_compression::parse_ampr_http(response,used,&http)&&
+   cmp5_compression::parse_game_preflight(http.body,http.size,out);
+}
+void run_game_preflight() noexcept {
+ game_preflight=cmp5_compression::GamePreflight{};
+ game_preflight_checked=false;game_preflight_transport=false;
+ char ver[32]{};
+ if(!check_local_ampr(ver)||cancellation_hook(nullptr))return;
+ cmp5_compression::GamePreflight result{};
+ if(!game_check_request(game_source_checked,game_dest_checked,&result)||
+    cancellation_hook(nullptr))return;
+ game_preflight=result;
+ game_preflight_transport=true;
+ game_preflight_checked=true;
+}
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
  game_images_checked=false;
@@ -757,7 +835,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -774,6 +852,7 @@ void* background_task(void*) noexcept {
   case Task::companions: run_companion_check(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
+  case Task::game_check: run_game_preflight(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -817,6 +896,7 @@ void* background_task(void*) noexcept {
    compression_engine_seen=false;compression_engine_version[0]=0;
   }
   if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
+  if(task_kind==Task::game_check){game_preflight_checked=false;game_preflight_transport=false;game_preflight={};}
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
