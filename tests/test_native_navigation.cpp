@@ -863,8 +863,7 @@ int main(){
  assert(!game_preflight_checked&&!game_preflight.ready());
  assert(!game_job_accepted&&mock_ampr_post_bodies==0u);
  press(cross);assert(compression_view==2u);
- press(circle);assert(compression_view==1u);
- press(r1);assert(compression_view==6u);
+ press(circle);assert(compression_view==6u);
  mock_smp_wrong_size=false;
  press(cross);
  assert(compression_view==2u);
@@ -882,8 +881,8 @@ int main(){
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
  assert(mock_ampr_gets==14u);
  press(circle);
- assert(compression_view==1u);
- press(l1);
+ assert(compression_view==6u); /* return to selected image, not folders */
+ press(r1);
  assert(compression_view==0u);
  mock_ampr_online=false;
  press(circle);

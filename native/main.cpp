@@ -1325,7 +1325,7 @@ void poll_pad() noexcept {
     continue;
    }
    if(!task_busy()&&screen==Screen::compression&&compression_view>=2u){
-    compression_view=1u;
+    compression_view=(compression_view==5u||!game_source_is_image)?1u:6u;
     game_preflight_checked=false;
     continue;
    }
@@ -1497,7 +1497,7 @@ void poll_pad() noexcept {
   if(screen==Screen::compression){
    /* Reconnect to a background job after leaving/reopening the title.
     * Monitor-only: does not implicitly claim, pause or resume that job. */
-   if(compression_view<=1u&&(pressed&triangle)){
+   if((compression_view<=1u||compression_view==6u)&&(pressed&triangle)){
     compression_view=5u;
     (void)begin_task(Task::game_progress);
     continue;
