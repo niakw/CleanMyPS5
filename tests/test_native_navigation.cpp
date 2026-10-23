@@ -54,12 +54,18 @@ int sceNetSocket(const char*label,int,int,int){
  if(std::strcmp(label,"cmp5_ampr_probe")==0)return 17;
  if(std::strcmp(label,"cmp5_ampr_game_check")==0)return 18;
  if(std::strcmp(label,"cmp5_ampr_submit")==0)return 19;
+ if(std::strcmp(label,"cmp5_ampr_progress")==0)return 20;
  return -1;
 }
-int sceNetConnect(int id,const void*,std::uint32_t){return id==17||id==18||id==19?0:-1;}
+int sceNetConnect(int id,const void*,std::uint32_t){return id>=17&&id<=20?0:-1;}
 int sceNetSend(int id,const void*data,std::size_t size,int){
- if(id!=17&&id!=18&&id!=19)return -1;
+ if(id<17||id>20)return -1;
  const std::string_view request{static_cast<const char*>(data),size};
+ if(id==20){
+  assert(request.find("GET /api/cmp5-progress HTTP/1.0")==0);
+  assert(request.find("POST")==std::string_view::npos);
+  return static_cast<int>(size);
+ }
  if(id==19){
   if(request.find("POST /api/start HTTP/1.0")==0){
    assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
@@ -85,8 +91,18 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  return static_cast<int>(size);
 }
 int sceNetRecv(int id,void*data,std::size_t capacity,int){
- if(id!=17&&id!=18&&id!=19)return -1;
+ if(id<17||id>20)return -1;
  if(mock_ampr_receive++)return 0;
+ if(id==20){
+  static constexpr char progress[]=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false})";
+  char reply[512]{};
+  int n=std::snprintf(reply,sizeof(reply),
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
+   sizeof(progress)-1,progress);
+  assert(n>0&&static_cast<std::size_t>(n)<capacity);
+  std::memcpy(data,reply,static_cast<std::size_t>(n));
+  return n;
+ }
  if(id==19){
   static constexpr char ack[]=R"({"ok":true,"position":0})";
   char reply[220]{};
@@ -695,6 +711,13 @@ int main(){
  assert(!game_job_reply_unknown&&game_job_position==0u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  scene(canvas);
+ press(cross);
+ finish_scan();
+ assert(game_progress_checked);
+ assert(game_progress.state==cmp5_compression::JobState::running);
+ assert(game_progress.percent==45u&&game_progress.bytes_done==450u);
+ assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ scene(canvas);
  press(circle);
  assert(compression_view==1u);
  mock_ampr_online=false;
@@ -709,7 +732,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==4u);
+ assert(mock_ampr_gets==5u);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
