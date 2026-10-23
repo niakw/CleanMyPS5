@@ -27,6 +27,7 @@ bool mock_ampr_foreign_running=false;
 bool mock_smp_wrong_size=false;
 bool mock_ampr_pending=false;
 bool mock_ampr_image_check=false;
+bool mock_ampr_image_bytes_inconsistent=false;
 unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
@@ -185,7 +186,9 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
    "\"duration_by_level\":[1,2,3,4,5,6,7,8,9,10,11,12],"
    "\"verify_seconds\":10,\"dest_free\":4294967296,\"dest_total\":8589934592,"
    "\"compatible\":\"%s\",\"errors\":[],\"warnings\":[]}",
-   mock_ampr_image_check?21ULL*1024ULL*1024ULL*1024ULL:0ULL,
+   mock_ampr_image_check?
+    (mock_ampr_image_bytes_inconsistent?12ULL*1024ULL*1024ULL*1024ULL:
+     21ULL*1024ULL*1024ULL*1024ULL):0ULL,
    mock_ampr_pending?"later":"yes");
   assert(body_length>0&&static_cast<std::size_t>(body_length)<sizeof(json));
   char reply[512]{};
@@ -893,8 +896,14 @@ int main(){
  press(cross);assert(compression_view==2u);
  press(circle);assert(compression_view==6u);
  mock_ampr_pending=false;
- press(cross);
- assert(compression_view==2u);
+ mock_ampr_image_bytes_inconsistent=true;
+ press(cross);assert(compression_view==2u);
+ finish_scan();
+ assert(!game_preflight_checked&&!game_preflight.ready());
+ assert(!game_job_accepted&&mock_ampr_post_bodies==0u);
+ press(circle);assert(compression_view==6u);
+ mock_ampr_image_bytes_inconsistent=false;
+ press(cross);assert(compression_view==2u);
  finish_scan();
  assert(game_source_is_image);
  assert(game_preflight_checked&&game_preflight.ready());
@@ -918,7 +927,7 @@ int main(){
  press(cross);assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==17u);
+ assert(mock_ampr_gets==18u);
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  press(r1);
