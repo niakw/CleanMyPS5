@@ -535,6 +535,13 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
   else if(!strcmp(status,"unavailable"))unavailable++;
   else other++;
  }
+ /* Separate capture-root status: successful /data access cannot imply
+  * visibility of both the native photo and video Gallery namespaces. */
+ const char*photo="not-scanned",*video="not-scanned";
+ for(size_t i=0;i<s->nc;i++){
+  if(!strcmp(s->coverage[i].id,"captures-photo"))photo=s->coverage[i].status;
+  if(!strcmp(s->coverage[i].id,"captures-video"))video=s->coverage[i].status;
+ }
  char *out=(char*)calloc(1,1024);
  if(out){
   int n=snprintf(out,1024,
@@ -545,6 +552,7 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
    "\"residuals\":%zu,\"other\":%zu},"
    "\"coverage\":{\"complete\":%zu,\"partial\":%zu,\"absent\":%zu,"
    "\"unavailable\":%zu,\"other\":%zu},"
+   "\"galleryCoverage\":{\"photo\":\"%s\",\"video\":\"%s\"},"
    "\"review\":{\"largeMedia\":%zu,\"oldMedia\":%zu,\"oldLargeMedia\":%zu,"
    "\"largeMediaNominalBytes\":%llu,\"validatedForDeletion\":false,"
    "\"minLargeBytes\":52428800,\"oldDays\":90},"
@@ -553,7 +561,7 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
    "\"note\":\"Nominal bytes only; never an estimate of deletable data\"}",
    s->items,s->visits,s->bytes,(s->stopped||s->partial)?"true":"false",
    s->media,s->logs,s->caches,s->residuals,s->other,
-   complete,part,absent,unavailable,other,
+   complete,part,absent,unavailable,other,photo,video,
    s->largeMedia,s->oldMedia,s->oldLargeMedia,s->largeMediaBytes);
   if(n<0||(size_t)n>=1024){free(out);out=NULL;}
   else *len=(size_t)n;

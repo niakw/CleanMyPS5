@@ -82,6 +82,7 @@ with tempfile.TemporaryDirectory() as temporary:
         assert overview['files']==report['stats']['items']
         assert overview['visited']==report['stats']['visited']
         assert overview['partial']==report['stats']['partial']
+        assert overview['galleryCoverage']=={'photo':'complete','video':'absent'}
         assert sum(overview['categories'].values())==overview['files']
         assert overview['nominalBytes']==sum(item['bytes'] for item in report['items'])
         assert sum(overview['coverage'].values())==len(report['coverage'])

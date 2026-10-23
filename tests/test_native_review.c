@@ -57,6 +57,7 @@ int main(int argc,char**argv){
   assert(review.partial==1u);
   assert(strstr(json,"\"partial\":true"));
   assert(strstr(json,"\"complete\":1"));
+  assert(strstr(json,"\"galleryCoverage\":{\"photo\":\"absent\",\"video\":\"absent\"}"));
   assert(strstr(json,"\"absent\":"));
   assert(!strstr(json,"\"validatedForDeletion\":true"));
   free(json);
