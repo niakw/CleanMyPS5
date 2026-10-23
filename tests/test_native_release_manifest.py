@@ -16,6 +16,11 @@ build_script = (Path(__file__).resolve().parents[1] /
                 "scripts/build_native_app.sh").read_text()
 assert ('cp "$project/src/native/game_scan_identity.h" ' +
         '"$tmp/native-toolchain/src/game_scan_identity.h"') in build_script
+# The pinned PS5 native libc has no dirfd symbol. Never accidentally
+# reintroduce it through the game scanner after host tests pass.
+scanner_source = (Path(__file__).resolve().parents[1] /
+                  "src/native/game_images.c").read_text()
+assert "dirfd(d)" not in scanner_source.split("static int total_game_tree")[1].split("static int safe_label")[0]
 assert spec.loader is not None
 spec.loader.exec_module(module)
 

@@ -99,8 +99,13 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
  if(depth>6u||stopped(a)){close(fd);return 0;}
  struct stat before,after;
  if(fstat(fd,&before)!=0){close(fd);return 0;}
+ /* PS5 payload libc does not export dirfd(). Keep a stable duplicate
+  * before fdopendir takes ownership of fd; fstat on this duplicate can
+  * revalidate the very same directory after recursive traversal. */
+ int validation_fd=dup(fd);
+ if(validation_fd<0){close(fd);return 0;}
  DIR*d=fdopendir(fd);
- if(!d){close(fd);return 0;}
+ if(!d){close(validation_fd);close(fd);return 0;}
  unsigned entries=0;
  int good=1;
  for(;;){
@@ -130,8 +135,9 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
  /* A descendant can be renamed/added while we walk it without changing
   * the root game's timestamp. Check EACH traversed directory, not only
   * the top-level game root. This is still a bounded advisory inventory. */
- if(fstat(dirfd(d),&after)!=0||
+ if(fstat(validation_fd,&after)!=0||
     !cmp5_same_game_directory(&before,&after))good=0;
+ if(close(validation_fd)!=0)good=0;
  if(closedir(d)!=0)good=0;
  return good;
 }
