@@ -92,7 +92,7 @@ static void cmp5_progress(int fd) {
     # Match an actual file image to the single ShadowMountPlus-managed
     # title ID; do NOT derive IDs from filenames, or mount an unknown image.
     # This is a read-only lookup. It refuses ambiguous/truncated inventories.
-    image_resolve = r"""/* CleanMyPS5: read-only SMP identity mapping of game images. */
+    image_resolve = """/* CleanMyPS5: read-only SMP identity mapping of game images. */
 static void cmp5_image_resolve(int fd, const char *args) {
   char path[600];
   if (form_get(args, "path", path, sizeof path) < 1 ||
