@@ -1133,7 +1133,9 @@ void run_game_submission() noexcept {
  }
  if(!game_check_request(game_source_checked,game_dest_checked,
      game_source_is_image?game_smp_title:"",&now)||
-    !now.ready()||std::strcmp(now.title_id,game_preflight.title_id)!=0||
+    !now.ready()||
+    (game_source_is_image&&now.image_bytes!=game_image_expected_bytes)||
+    std::strcmp(now.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
  /* Prevent requeue after a lost ACK or UI restart. A fresh preflight
   * alone cannot tell whether a conversion has already been queued.
@@ -1178,7 +1180,9 @@ void run_game_preflight() noexcept {
  cmp5_compression::GamePreflight result{};
  if(!game_check_request(game_source_checked,game_dest_checked,
      game_source_is_image?game_smp_title:"",&result)||
-    (game_source_is_image&&std::strcmp(result.title_id,game_smp_title)!=0)||
+    (game_source_is_image&&
+       (std::strcmp(result.title_id,game_smp_title)!=0||
+        result.image_bytes!=game_image_expected_bytes))||
     cancellation_hook(nullptr))return;
  game_preflight=result;
  game_preflight_transport=true;

@@ -55,7 +55,7 @@ inline bool parse_ampr_http(const char*wire,std::size_t n,
 }
 struct GamePreflight {
  char title_id[16]{};
- std::uint64_t source_bytes=0,need_typical=0,need_max=0,dest_free=0;
+ std::uint64_t source_bytes=0,image_bytes=0,need_typical=0,need_max=0,dest_free=0;
  unsigned errors=0,warnings=0;
  bool compatible=false,compatibility_pending=false;
  bool ready() const noexcept {
@@ -161,7 +161,7 @@ public:
      !take(',')||!field("source_bytes")||!positive(&out->source_bytes)||
      !take(',')||!field("image_bytes"))return false;
   std::uint64_t scratch=0;
-  if(!positive(&scratch)||!take(',')||!field("estimate")||
+  if(!positive(&out->image_bytes)||!take(',')||!field("estimate")||
      !string(nullptr,0)||!take(',')||!field("need_typical")||
      !positive(&out->need_typical)||!take(',')||!field("need_max")||
      !positive(&out->need_max)||!take(',')||!field("duration_by_level")||

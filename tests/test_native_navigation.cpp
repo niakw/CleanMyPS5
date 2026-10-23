@@ -26,6 +26,7 @@ bool mock_ampr_paused=false;
 bool mock_ampr_foreign_running=false;
 bool mock_smp_wrong_size=false;
 bool mock_ampr_pending=false;
+bool mock_ampr_image_check=false;
 unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
@@ -106,7 +107,8 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
   return static_cast<int>(size);
  }
  if(id==18){
-  if(request.find("GAME.exfat")!=std::string_view::npos)
+  mock_ampr_image_check=request.find("GAME.exfat")!=std::string_view::npos;
+  if(mock_ampr_image_check)
    assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FGAME.exfat&dest=%2Fmnt%2Fusb0%2Fhomebrew&smp=PPSA12345 HTTP/1.0")==0);
   else assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FPPSA12345&dest=%2Fmnt%2Fusb0%2Fhomebrew HTTP/1.0")==0);
   assert(request.find("POST")==std::string_view::npos);
@@ -178,11 +180,12 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   char json[380]{};
   const int body_length=std::snprintf(json,sizeof(json),
    "{\"title_id\":\"PPSA12345\",\"title\":\"TEST\","
-   "\"source_bytes\":4294967296,\"image_bytes\":0,\"estimate\":\"sample\","
+   "\"source_bytes\":4294967296,\"image_bytes\":%llu,\"estimate\":\"sample\","
    "\"need_typical\":1073741824,\"need_max\":2147483648,"
    "\"duration_by_level\":[1,2,3,4,5,6,7,8,9,10,11,12],"
    "\"verify_seconds\":10,\"dest_free\":4294967296,\"dest_total\":8589934592,"
    "\"compatible\":\"%s\",\"errors\":[],\"warnings\":[]}",
+   mock_ampr_image_check?21ULL*1024ULL*1024ULL*1024ULL:0ULL,
    mock_ampr_pending?"later":"yes");
   assert(body_length>0&&static_cast<std::size_t>(body_length)<sizeof(json));
   char reply[512]{};

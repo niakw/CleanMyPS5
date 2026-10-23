@@ -24,7 +24,7 @@ int main(){
  duplicate.insert(duplicate.find("\r\n\r\n"),"\r\nContent-Length: 2");
  assert(!parse_ampr_http(duplicate.data(),duplicate.size(),&framed));
 
- assert(pre.ready()&&pre.source_bytes==12345&&
+ assert(pre.ready()&&pre.image_bytes==0&&pre.source_bytes==12345&&
   pre.need_max==16000&&std::strcmp(pre.title_id,"PPSA12345")==0);
  auto bad=[](const std::string&s){GamePreflight x{};
   return !parse_game_preflight(s.data(),s.size(),&x);};
@@ -34,6 +34,7 @@ int main(){
  assert(bad(mutate("\"title_id\":\"PPSA12345\"","\"title_id\":\"ABC12345\"")));
  assert(bad(mutate("\"need_max\":16000","\"need_max\":18446744073709551616")));
  assert(bad(mutate("\"need_max\":16000","\"need_max\":00016000")));
+ assert(bad(mutate("\"image_bytes\":0","\"image_bytes\":18446744073709551616")));
  assert(bad(mutate("\"errors\":[]","\"errors\":[] ,\"errors\":[]")));
  assert(bad(mutate("\"warnings\":[]","\"warnings\":[] ,\"root\":true")));
  assert(bad(mutate("\"compatible\":\"yes\"","\"compatible\":\"maybe\"")));
