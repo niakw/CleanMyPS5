@@ -105,3 +105,17 @@ Le moteur embarqué contient bien le **véritable packer AMPR/LZ4**.
 L'interface CleanMyPS5 ne propose **pas encore** le choix des jeux et
 le déclenchement de la conversion (prochaine étape). Aucune conversion
 automatique ni suppression d'original n'est activée.
+
+## Navigation des jeux détectés
+
+Dans **Jeux et compression**, `L1/R1` bascule entre les statistiques et
+la liste des **dossiers de jeux locaux**. Les flèches haut/bas
+sélectionnent un dossier. La liste est volontairement bornée à 12
+candidats lisibles et n'inclut pas de chemins saisis par l'utilisateur.
+Les tailles incomplètes sont signalées ; une absence de jeu dans cette
+liste n'est pas une preuve de son absence sur la console.
+
+La sélection **ne déclenche aucune écriture** : le précontrôle individuel
+du jeu, le choix de destination, la confirmation et la conversion sont
+des étapes distinctes à relier et valider. Le moteur ELF **est** bien
+embarqué, mais « moteur présent » ne signifie pas « jeu compressé ».

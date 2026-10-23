@@ -90,3 +90,9 @@ Le déclenchement de conversion d'un jeu précis reste désactivé :
 une image compressée est jouable seulement avec un moteur compatible
 AMPR-EMU/LZ4 ou ShadowMountPlus/`.ffpfsc`. Le jeu original est préservé.
 Voir [les formats et prérequis](docs/GAME_COMPRESSION.md).
+
+**Navigation jeux sur PS5 :** dans le menu de compression, `L1/R1`
+affiche les dossiers de jeux homebrew détectés ; haut/bas navigue
+parmi les éléments. Aucune conversion n'est déclenchée par la
+simple sélection. `Carré` lance seulement notre propre moteur ELF
+inclus dans le package.
