@@ -31,6 +31,10 @@ make -C "$work/engine" deps
   'c9f353ae4c7951de57ae3b6f5b3be1683f72866e2137121bb548d061d04f265e' 'third_party/plugins/dlc_emu.zip' \
   | sha256sum --check --strict
 )
+# Exercise upstream's real LZ4 pack/verify/resume/crash-recovery paths on
+# disposable synthetic fixtures. No game data or PS5 is accessed here.
+# A packer that merely links is not sufficient for this release.
+make -C "$work/engine" -j2 check
 make -C "$work/engine" -j2 PS5_PAYLOAD_SDK="$sdk" \
   VERSION="CleanMyPS5-1.0" \
   exfat2ampr.elf
