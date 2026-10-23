@@ -59,6 +59,19 @@ static void write_member(int dir,const char*filename,const void*data,size_t len)
  assert(write_exact(fd,(const uint8_t*)data,len));
  assert(close(fd)==0);
 }
+/* Synthetic self-verifying capsule: no real capture files or Gallery APIs. */
+static void write_capsule(int dir,const char*filename,
+ const uint8_t*body,size_t len,const uint8_t digest[32]){
+ uint8_t header[64]={0};
+ memcpy(header,"CMP5BAK1",8);
+ u64(header+8,len);
+ memcpy(header+16,digest,32);
+ int fd=openat(dir,filename,O_CREAT|O_WRONLY|O_EXCL,0600);
+ assert(fd>=0);
+ assert(write_exact(fd,header,sizeof(header)));
+ assert(write_exact(fd,body,len));
+ assert(close(fd)==0);
+}
 int main(int argc,char**argv){
  if(argc!=2)return 2;
  const char*workspace=argv[1];
@@ -113,6 +126,20 @@ int main(int argc,char**argv){
  assert(triggered&&calls>=2u);
  assert(rename(moved,watched)==0);
  assert(cmp5_verify_restored_group(workspace,"ALBUM",&result,NULL,NULL));
+ assert(result.count==2u&&result.bytes==lens[0]+lens[1]);
+ for(unsigned i=0;i<2;i++){
+  char name[48];member_name(name,"BACKUP",i);
+  write_capsule(dir,name,data[i],lens[i],receipts[i].sha256);
+ }
+ write_member(dir,"BACKUP__COMMIT",manifest,sizeof(manifest));
+ assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ setup_watch(workspace,"BACKUP__COMMIT","BACKUP_MOVED",0);
+ calls=0;
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,
+   remove_marker_during_member_verification,&calls));
+ assert(triggered&&calls>=2u);
+ assert(rename(moved,watched)==0);
+ assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
  assert(result.count==2u&&result.bytes==lens[0]+lens[1]);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
