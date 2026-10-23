@@ -34,6 +34,8 @@ def main(root: Path):
            '  /* CleanMyPS5: use title UI; engine does not fetch covers at boot. */')
     change(mainc, '  e2a_profile_import_usb();',
            '  /* CleanMyPS5: no auto-import from USB at boot. */')
+    change(mainc, 'static void auto_queue(void) {',
+           'static void __attribute__((unused)) auto_queue(void) {')
     change(mainc, '  if (auto_mode) auto_queue();',
            '  /* CleanMyPS5: never auto-queue conversions at boot. */')
     change(mainc, '  bool auto_mode = false;',
