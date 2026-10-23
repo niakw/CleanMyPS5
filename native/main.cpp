@@ -1386,6 +1386,17 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::compression){
+   /* Reconnect to a background job after leaving/reopening the title.
+    * Monitor-only: does not implicitly claim, pause or resume that job. */
+   if(compression_view<=1u&&(pressed&triangle)){
+    compression_view=5u;
+    (void)begin_task(Task::game_progress);
+    continue;
+   }
+   if(compression_view==5u){
+    if(pressed&cross)(void)begin_task(Task::game_progress);
+    continue;
+   }
    if(compression_view<=1u&&(pressed&(l1|r1)))compression_view^=1u;
    if(compression_view==1u){
     if(game_images.shown_folders){
@@ -1991,6 +2002,40 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(compression_view==5u){
+  panel(canvas,307,"TACHE LZ4 DU MOTEUR INTEGRE",
+    "LECTURE SEULE  MEME APRES REOUVERTURE DE CLEANMYPS5");
+  if(task_busy()){
+   panel(canvas,450,"SERVICE LOCAL","INTERROGATION DU TRAVAIL EN COURS",Color::cyan);
+  }else if(!game_progress_checked){
+   panel(canvas,450,"SERVICE LOCAL",
+     "MOTEUR ARRETE OU REPONSE INVALIDE  AUCUNE ACTION ENVOYEE",
+     Color::yellow);
+  }else{
+   const char*state=game_progress.state==cmp5_compression::JobState::running?
+     "EN COURS":game_progress.state==cmp5_compression::JobState::paused?
+     "EN PAUSE":game_progress.state==cmp5_compression::JobState::done?
+     "TERMINE  VERIFIER LE JEU":game_progress.state==cmp5_compression::JobState::error?
+     "ECHEC":game_progress.state==cmp5_compression::JobState::cancelled?
+     "INTERROMPU":"INACTIF";
+   panel(canvas,450,"ETAT DU MOTEUR",state,Color::cyan);
+   panel(canvas,578,"IDENTIFIANT DE JEU",
+     game_progress.title_id[0]?game_progress.title_id:"AUCUN JEU ACTIF");
+   char detail[160]{};
+   (void)std::snprintf(detail,sizeof(detail),
+     "%u %%  |  %llu / %llu MIO  |  FILE %u",
+     game_progress.percent,
+     static_cast<unsigned long long>(game_progress.bytes_done/1048576ULL),
+     static_cast<unsigned long long>(game_progress.bytes_total/1048576ULL),
+     game_progress.queue_len);
+   panel(canvas,712,"AVANCEMENT RECU",detail,Color::cyan);
+   canvas.text(125,885,
+     "UNE TACHE TERMINEE NE GARANTIT PAS LE DEMARRAGE DU JEU",
+     2,Color::yellow);
+  }
+  footer(canvas,"X ACTUALISER  CERCLE JEUX  AUCUNE COMMANDE DE MODIFICATION");
+  return;
+ }
  if(compression_view==4u){
   panel(canvas,313,"MOTEUR LZ4 INTEGRE",
     "CONVERSION DU JEU SELECTIONNE");
