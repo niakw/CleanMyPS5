@@ -1586,10 +1586,16 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     static_cast<unsigned long long>(game_images.large_nominal_bytes/1073741824ULL));
  panel(canvas,605,"GROS FICHIERS A EXAMINER",detail,Color::yellow);
  (void)std::snprintf(detail,sizeof(detail),
+    "%u DOSSIERS JEUX  %u DOSSIERS 20 GIO+  %u INCOMPLETS",
+    game_images.folder_games,game_images.large_folders,
+    game_images.folder_partials);
+ panel(canvas,745,"JEUX EN DOSSIERS EXFAT",detail,Color::yellow);
+ (void)std::snprintf(detail,sizeof(detail),
     "%u RACINES  %u ENTREES%s",
     game_images.scanned_roots,game_images.entries_seen,
     game_images.partial?"  PARTIEL":"");
- panel(canvas,745,"COUVERTURE DES RACINES CONNUES",detail,Color::yellow);
+ /* Root coverage is retained in the testable survey data, while this
+  * panel now distinguishes exFAT DIRECTORY games from file images. */
  canvas.rectangle(95,885,1730,58,Color::panel);
  char engine_text[140]{};
  if(compression_engine_seen){
