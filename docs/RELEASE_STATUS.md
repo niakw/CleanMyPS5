@@ -80,3 +80,14 @@ suppression, d'écrasement, de forçage ou de contournement de
 vérification doit faire échouer le build. Un jeu image identifié mais
 non monté reste non éligible à la compression : le précontrôle
 différencie explicitement l'état `later` d'une compatibilité démontrée.
+
+### Barrières supplémentaires pour le moteur embarqué
+
+Les sources de jeux et les destinations du moteur AMPR sont désormais
+limitées aux racines connues de l'application. Le moteur refuse par
+défaut toutes les requêtes HTTP POST sauf démarrage, pause et reprise
+d'une compression. Il compare aussi de nouveau les métadonnées d'une
+image après précontrôle pour éviter une soumission fondée sur une
+identité devenue périmée. La suite native CI compile la version
+transformée du moteur et vérifie ces barrières, sans pouvoir
+remplacer un essai matériel PS5 13.60.

@@ -133,3 +133,9 @@ CleanMyPS5 indique que la compatibilité reste à vérifier et n'autorise
 aucune conversion. Un montage préalable et un test de compatibilité
 réel demeurent nécessaires ; ce contrôle n'est pas contourné pour
 accélérer la compression.
+
+La compression intégrée utilise une **liste blanche de sources et
+destinations de jeux**. Le service local n'autorise comme opérations
+d'écriture que le démarrage, la pause et la reprise explicites d'une
+conversion ; les opérations de nettoyage ou de remplacement d'origine
+restent bloquées. Ces règles sont testées à chaque build natif.

@@ -215,3 +215,31 @@ requête HTTP : `verify=true`, `remove_source=false`,
 
 Ces validations ne démontrent pas encore que ShadowMountPlus et AMPR
 fonctionnent ensemble sur la PS5 13.60, ni la jouabilité de la sortie.
+
+## Durcissement des opérations de compression
+
+Le moteur fourni dans le même titre CleanMyPS5 applique désormais des
+**listes blanches de chemins** avant toute mise en file :
+
+- Sources : un jeu directement sous `/data/homebrew`, `/data/etaHEN/games`,
+  les répertoires `homebrew` / `etaHEN/games` des périphériques
+  `/mnt/usb0..7` et `/mnt/ext0..7`, ou une image reconnue à la racine
+  d'un de ces périphériques. Les chemins avec traversée, sous-répertoires
+  arbitraires, fichiers système et sauvegardes sont refusés.
+- Destinations : `/data/homebrew` et les répertoires `homebrew` des
+  périphériques `usb0..7` / `ext0..7`, sous réserve que le moteur vérifie
+  aussi leur présence et leur écriture effective.
+- Pour une image gérée par ShadowMountPlus, l'ELF compare **de nouveau**
+  l'identité du fichier *après* son propre précontrôle : périphérique,
+  inode, mode, taille, date de modification et date de changement
+  jusqu'à la nanoseconde, ainsi que le nombre de liens physiques.
+- Les **seuls POST autorisés** par le serveur du moteur sont
+  `/api/start`, `/api/pause` et `/api/resume`. Tout le reste
+  est rejeté par défaut, y compris les opérations de maintenance
+  héritées et les éventuelles nouvelles routes d'écriture amont.
+
+Ces garanties sont testées en C dans la CI et vérifiées dans les
+sources modifiées *réellement compilées* dans le package PS5. Elles
+n'éliminent pas tous les changements concurrents possibles à
+l'intérieur du système de fichiers, ni les dépendances de montage
+nécessaires au fonctionnement du jeu sur console.
