@@ -120,3 +120,16 @@ endif()
 add_test(NAME group_identity_races COMMAND ${Python3_EXECUTABLE}
  ${CMAKE_SOURCE_DIR}/tests/test_group_identity_races.py
  $<TARGET_FILE:cmp5-group-identity-races>)
+
+# Bounded game image discovery: filename and stat only, NEVER game contents,
+# never rewriting disk images or claiming native LZ4 launch compatibility.
+add_executable(cmp5-game-images-tests
+ tests/test_game_images.c src/native/game_images.c)
+target_include_directories(cmp5-game-images-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-game-images-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME game_images_fixture COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_game_images.py
+ $<TARGET_FILE:cmp5-game-images-tests>)

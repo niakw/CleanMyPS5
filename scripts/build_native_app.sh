@@ -41,6 +41,9 @@ cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates
 cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 cp "$project/src/native/homebrew.c" "$tmp/native-toolchain/src/cmp5_homebrew.c"
 cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
+# Read-only game image format survey; the native title never packs/mounts.
+cp "$project/src/native/game_images.c" "$tmp/native-toolchain/src/cmp5_game_images.c"
+cp "$project/src/native/game_images.h" "$tmp/native-toolchain/src/game_images.h"
 # Shared descriptor-anchored companion discovery contains no backup/write API.
 cp "$project/src/native/capture_companions.c" "$tmp/native-toolchain/src/cmp5_capture_companions.c"
 cp "$project/src/native/capture_companions.h" "$tmp/native-toolchain/src/capture_companions.h"

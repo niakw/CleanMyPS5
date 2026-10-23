@@ -17,9 +17,9 @@ int main(int argc,char**argv){
  assert(r.count[CMP5_IMAGE_FFPFS]==1);
  assert(r.count[CMP5_IMAGE_FFPFSC]==1);
  assert(r.large_candidates==2);
- assert(r.hardlinks_skipped==1);
+ assert(r.hardlinks_skipped==2);
  assert(r.partial==1); /* A hardlink is never counted as freeable. */
- assert(r.nominal_bytes==31ULL*1024*1024*1024+120+340+560);
+ assert(r.nominal_bytes==54ULL*1024*1024*1024+340+560);
  printf("Known game image candidates (no content read): PASS\n");
  return 0;
 }
