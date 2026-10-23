@@ -10,6 +10,20 @@ int main(){
  using namespace cmp5_compression;
  GamePreflight pre{};
  auto s=good();assert(parse_game_preflight(s.data(),s.size(),&pre));
+ auto body=good();
+ std::string wire="HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+
+   std::to_string(body.size())+"\r\nConnection: close\r\n\r\n"+body;
+ HttpJson framed{};
+ assert(parse_ampr_http(wire.data(),wire.size(),&framed));
+ assert(framed.size==body.size()&&framed.body&&framed.body[0]=='{');
+ assert(!parse_ampr_http(wire.data(),wire.size()-1,&framed));
+ auto chunked=wire;
+ chunked.insert(chunked.find("\r\n\r\n"),"\r\nTransfer-Encoding: chunked");
+ assert(!parse_ampr_http(chunked.data(),chunked.size(),&framed));
+ auto duplicate=wire;
+ duplicate.insert(duplicate.find("\r\n\r\n"),"\r\nContent-Length: 2");
+ assert(!parse_ampr_http(duplicate.data(),duplicate.size(),&framed));
+
  assert(pre.ready()&&pre.source_bytes==12345&&
   pre.need_max==16000&&std::strcmp(pre.title_id,"PPSA12345")==0);
  auto bad=[](const std::string&s){GamePreflight x{};
