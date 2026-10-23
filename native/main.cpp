@@ -1657,6 +1657,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    "MOTEUR INCLUS NON ACTIF (PORT LOCAL 6973)");
  }
  canvas.text(125,900,engine_text,2,Color::cyan);
+ canvas.text(135,932,"MOTEUR MODIFIE BASE SUR EXFAT2AMPR  -  CREE PAR V-10",2,Color::cyan);
  const char*load_hint=engine_launch==EngineLaunch::loader_unavailable?
     "CHARGEUR DU JAILBREAK INDISPONIBLE":
     engine_launch==EngineLaunch::missing_file?
