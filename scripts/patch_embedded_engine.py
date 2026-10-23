@@ -89,6 +89,8 @@ static void cmp5_progress(int fd) {
      if(!local)send_json(fd,403,"{\\"error\\":\\"local only\\"}");
      else cmp5_progress(fd);
    }''')
+    change(httpd, '#include <sys/socket.h>',
+           '#include <sys/socket.h>\\n#include <sys/stat.h>')
     # Match an actual file image to the single ShadowMountPlus-managed
     # title ID; do NOT derive IDs from filenames, or mount an unknown image.
     # This is a read-only lookup. It refuses ambiguous/truncated inventories.
