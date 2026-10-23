@@ -2019,7 +2019,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    const char*state=game_progress.state==cmp5_compression::JobState::running?
      "CONVERSION EN COURS":game_progress.state==cmp5_compression::JobState::paused?
      "CONVERSION EN PAUSE":game_progress.state==cmp5_compression::JobState::done?
-     "PACK VERIFIE  TESTER LE JEU":game_progress.state==cmp5_compression::JobState::error?
+     "TRAITEMENT TERMINE  VERIFIER LE JEU":game_progress.state==cmp5_compression::JobState::error?
      "ERREUR DE COMPRESSION":game_progress.state==cmp5_compression::JobState::cancelled?
      "CONVERSION ANNULEE":"MOTEUR PRET OU EN FILE";
    char line[150]{};
