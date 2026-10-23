@@ -21,6 +21,8 @@ assert ('cp "$project/src/native/game_scan_identity.h" ' +
 scanner_source = (Path(__file__).resolve().parents[1] /
                   "src/native/game_images.c").read_text()
 assert "dirfd(d)" not in scanner_source.split("static int total_game_tree")[1].split("static int safe_label")[0]
+assert ('cp "$project/native/privilege_contract.hpp" '+
+        '"$tmp/native-toolchain/src/privilege_contract.hpp"') in build_script
 assert spec.loader is not None
 spec.loader.exec_module(module)
 
