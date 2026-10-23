@@ -25,6 +25,7 @@ unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
 bool mock_ampr_foreign_running=false;
 bool mock_smp_wrong_size=false;
+bool mock_ampr_pending=false;
 unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
@@ -174,11 +175,20 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   return n;
  }
  if(id==18){
-  static constexpr char json[]=R"({"title_id":"PPSA12345","title":"TEST","source_bytes":4294967296,"image_bytes":0,"estimate":"sample","need_typical":1073741824,"need_max":2147483648,"duration_by_level":[1,2,3,4,5,6,7,8,9,10,11,12],"verify_seconds":10,"dest_free":4294967296,"dest_total":8589934592,"compatible":"yes","errors":[],"warnings":[]})";
+  char json[380]{};
+  const int body_length=std::snprintf(json,sizeof(json),
+   "{\"title_id\":\"PPSA12345\",\"title\":\"TEST\","
+   "\"source_bytes\":4294967296,\"image_bytes\":0,\"estimate\":\"sample\","
+   "\"need_typical\":1073741824,\"need_max\":2147483648,"
+   "\"duration_by_level\":[1,2,3,4,5,6,7,8,9,10,11,12],"
+   "\"verify_seconds\":10,\"dest_free\":4294967296,\"dest_total\":8589934592,"
+   "\"compatible\":\"%s\",\"errors\":[],\"warnings\":[]}",
+   mock_ampr_pending?"later":"yes");
+  assert(body_length>0&&static_cast<std::size_t>(body_length)<sizeof(json));
   char reply[512]{};
   const int n=std::snprintf(reply,sizeof(reply),
-   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
-    sizeof(json)-1,json);
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+    body_length,json);
   assert(n>0&&static_cast<std::size_t>(n)<capacity);
   std::memcpy(data,reply,static_cast<std::size_t>(n));
   return n;
@@ -871,6 +881,15 @@ int main(){
  press(cross);assert(compression_view==2u);
  press(circle);assert(compression_view==6u);
  mock_smp_wrong_size=false;
+ mock_ampr_pending=true;
+ press(cross);assert(compression_view==2u);
+ finish_scan();
+ assert(game_preflight_checked);
+ assert(game_preflight.compatibility_pending&&!game_preflight.ready());
+ assert(!game_job_accepted&&mock_ampr_post_bodies==0u);
+ press(cross);assert(compression_view==2u);
+ press(circle);assert(compression_view==6u);
+ mock_ampr_pending=false;
  press(cross);
  assert(compression_view==2u);
  finish_scan();
@@ -885,7 +904,7 @@ int main(){
  assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==14u);
+ assert(mock_ampr_gets==15u);
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  press(r1);
