@@ -35,6 +35,7 @@ cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_p
 cp "$project/native/overview_protocol.hpp" "$tmp/native-toolchain/src/overview_protocol.hpp"
 cp "$project/native/compression_bridge.hpp" "$tmp/native-toolchain/src/compression_bridge.hpp"
 cp "$project/native/compression_preflight.hpp" "$tmp/native-toolchain/src/compression_preflight.hpp"
+cp "$project/native/compression_progress.hpp" "$tmp/native-toolchain/src/compression_progress.hpp"
 cp "$project/native/compression_stream.hpp" "$tmp/native-toolchain/src/compression_stream.hpp"
 # The read-only metadata scanner is compiled INTO the native title.
 # It inherits title permissions; it never escalates them or installs a daemon.
