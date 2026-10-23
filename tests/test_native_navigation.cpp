@@ -1220,7 +1220,11 @@ int main(){
   autoload_stats.missing=6;autoload_stats.etahen_references=1;
   autoload_stats.autostart_enabled=1;autoload_stats.unreadable=1;
   save(Screen::autoload,"07b-autoload");
+  access_page=0u;
   save(Screen::access,"08-access");
+  access_page=1u;
+  save(Screen::access,"08b-gallery-permissions");
+  access_page=0u;
   save(Screen::apps,"09-apps");
   const std::uint8_t synthetic_photo[8]={0};
   assert(cmp5_decode_preview(synthetic_photo,sizeof(synthetic_photo),&decoded_photo));
