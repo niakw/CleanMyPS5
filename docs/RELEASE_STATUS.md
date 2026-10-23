@@ -107,3 +107,14 @@ PID/Title ID, clone des credentials, validation et rollback. Il ne faut
 pas importer l'élévation générique dans un nettoyeur avant une transaction
 de sauvegarde/restauration des index PS5 réellement validée. Voir
 [la revue dédiée](PRIVILEGE_AUDIT.md).
+
+
+### Doubles liens : aucune promesse d'espace récupérable
+
+L'analyse des doublons exclut désormais **toutes** les entrées avec
+`st_nlink != 1`, même si le second lien physique se trouve hors de
+l'arborescence examinée. Elle ne déduit jamais l'espace récupérable
+à partir de deux noms identiques, et signale une couverture partielle
+lorsqu'elle a dû exclure des fichiers à liens multiples. Les tests de
+serveur simulent deux doublons réellement indépendants et plusieurs
+hardlinks, dont un vers un dossier non scanné.

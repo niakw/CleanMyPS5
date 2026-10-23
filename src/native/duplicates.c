@@ -91,15 +91,11 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
     else walk(s,child,path,depth+1);
    }else s->partial=1;
   }else if(S_ISREG(st.st_mode)&&is_image(path)&&st.st_size>0&&st.st_size<=(off_t)FILE_CAP){
-   // Multiple directory entries may point to the same inode. They are not
-   // separately reclaimable copies; never count those paths as duplicates.
-   int same_inode=0;
-   for(size_t k=0;k<s->count;k++){
-    if(s->items[k].device==st.st_dev&&s->items[k].inode==st.st_ino){
-     same_inode=1;break;
-    }
-   }
-   if(same_inode){s->hardlinksSkipped++;}
+   /* Hardlinks can exist OUTSIDE the scanned tree. An inode with more
+    * than one link is never an independent recoverable copy. Skip every
+    * such entry instead of only the second matching path we happened
+    * to encounter. This also removes the quadratic inode scan. */
+   if(st.st_nlink!=1){s->hardlinksSkipped++;}
    else{
     if(s->count>=ITEM_CAP){s->partial=1;break;}
     Item *i=&s->items[s->count++];
@@ -269,11 +265,11 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,size_t*length,Cmp5Duplic
    add(&out,"]}");
   }
  }
- if(expired(s)||s->oversizedSkipped)s->partial=1;
+ if(expired(s)||s->oversizedSkipped||s->hardlinksSkipped)s->partial=1;
  char report_stats[512];
  snprintf(report_stats,sizeof(report_stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"oversizedImagesSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
-  "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
+  "\"warning\":\"Images uniquement. Fichiers multi-liens exclus; doublons hors echantillon possibles.\"}",
   s->count,s->visits,s->hardlinksSkipped,s->oversizedSkipped,budget,s->partial?"true":"false");
  add(&out,report_stats);
  if(stats){

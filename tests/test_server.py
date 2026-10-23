@@ -19,9 +19,15 @@ with tempfile.TemporaryDirectory() as temp:
  (image/"image.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  (image/"sidecar.dat").write_text("metadata")
  (image/"same.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
+ # Two genuinely distinct inodes are still reported as exact duplicates.
+ (image/"independent.png").write_bytes(bytes([137,80,78,71,13,10,26,10])+b"A"*27)
  # A hardlink is another directory entry for the same physical bytes:
  # it must NOT increase independently recoverable duplicate space.
  (image/"hardlink.png").hardlink_to(image/"image.png")
+ # Another hardlink is outside the scan root and can never free space
+ # by unlinking the single matching entry inside the scanned subtree.
+ (image/"external.png").write_bytes(b"X"*35)
+ (other/"linked-outside.png").hardlink_to(image/"external.png")
  (image/"same-size-but-different.jpg").write_bytes(b"Z"*35)
  (clip/"clip.MP4").write_bytes(b"\x00\x00\x00\x14ftypisom"+b"B"*138)
  (clip/"not-a-real-video.mp4").write_bytes(b"Z"*64)
@@ -221,13 +227,13 @@ with tempfile.TemporaryDirectory() as temp:
   assert dup["mode"]=="read-only"
   assert len(dup["groups"])==1,dup
   match={Path(p).name for p in dup["groups"][0]["paths"]}
-  # Which path becomes the group representative depends on directory order.
-  # The independently stored copy is same.png; the image/hardlink inode appears once.
-  assert len(match)==2 and "same.png" in match and bool(match&{"image.png","hardlink.png"}),match
-  assert dup["hardlinksSkipped"]==1
+  assert match=={"same.png","independent.png"},match
+  # image.png/hardlink.png are both excluded, as is external.png whose
+  # other directory entry lives outside the photo scan root.
+  assert dup["hardlinksSkipped"]==3
   assert dup["groups"][0]["bytesEach"]==35
   assert dup["filesConsidered"]==3
-  assert dup["partial"] is False
+  assert dup["partial"] is True
   assert all("directory_link" not in p and "/data/" not in p for group in dup["groups"] for p in group["paths"])
   found={x["path"]:x for x in diag["entries"]}
   assert found["/data/ps5_autoloader/autoload.txt"]["status"]=="etaHEN-reference"
