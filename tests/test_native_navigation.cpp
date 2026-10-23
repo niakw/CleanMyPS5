@@ -60,12 +60,17 @@ int sceNetSocket(const char*label,int,int,int){
  if(std::strcmp(label,"cmp5_ampr_submit")==0)return 19;
  if(std::strcmp(label,"cmp5_ampr_progress")==0)return 20;
  if(std::strcmp(label,"cmp5_ampr_job_control")==0)return 21;
+ if(std::strcmp(label,"cmp5_ampr_image_resolve")==0)return 22;
  return -1;
 }
-int sceNetConnect(int id,const void*,std::uint32_t){return id>=17&&id<=21?0:-1;}
+int sceNetConnect(int id,const void*,std::uint32_t){return id>=17&&id<=22?0:-1;}
 int sceNetSend(int id,const void*data,std::size_t size,int){
- if(id<17||id>21)return -1;
+ if(id<17||id>22)return -1;
  const std::string_view request{static_cast<const char*>(data),size};
+ if(id==22){
+  assert(request.find("GET /api/cmp5-image?path=%2Fdata%2Fhomebrew%2FGAME.exfat HTTP/1.0")==0);
+  return static_cast<int>(size);
+ }
  if(id==21){
   if(request.find("POST /api/pause HTTP/1.0")==0){
    assert(request.find("Content-Length: 0")!=std::string_view::npos);
@@ -88,7 +93,9 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
    assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
    mock_ampr_post_headers++;
   }else{
-   assert(request.find("path=%2Fdata%2Fhomebrew%2FPPSA12345")!=std::string_view::npos);
+   if(request.find("path=%2Fdata%2Fhomebrew%2FGAME.exfat")!=std::string_view::npos)
+     assert(request.find("&smp=PPSA12345")!=std::string_view::npos);
+   else assert(request.find("path=%2Fdata%2Fhomebrew%2FPPSA12345")!=std::string_view::npos);
    assert(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew")!=std::string_view::npos);
    assert(request.find("overwrite=0&remove=0&force=0")!=std::string_view::npos);
    assert(request.find("verify=1&dedup=1")!=std::string_view::npos);
@@ -97,7 +104,9 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
   return static_cast<int>(size);
  }
  if(id==18){
-  assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FPPSA12345&dest=%2Fmnt%2Fusb0%2Fhomebrew HTTP/1.0")==0);
+  if(request.find("GAME.exfat")!=std::string_view::npos)
+   assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FGAME.exfat&dest=%2Fmnt%2Fusb0%2Fhomebrew&smp=PPSA12345 HTTP/1.0")==0);
+  else assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FPPSA12345&dest=%2Fmnt%2Fusb0%2Fhomebrew HTTP/1.0")==0);
   assert(request.find("POST")==std::string_view::npos);
   return static_cast<int>(size);
  }
@@ -108,8 +117,18 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  return static_cast<int>(size);
 }
 int sceNetRecv(int id,void*data,std::size_t capacity,int){
- if(id<17||id>21)return -1;
+ if(id<17||id>22)return -1;
  if(mock_ampr_receive++)return 0;
+ if(id==22){
+  static constexpr char body[]=R"({"title_id":"PPSA12345","image_type":"exfatfs","size":22548578304})";
+  char reply[300]{};
+  const int n=std::snprintf(reply,sizeof(reply),
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
+   sizeof(body)-1,body);
+  assert(n>0&&static_cast<std::size_t>(n)<capacity);
+  std::memcpy(data,reply,static_cast<std::size_t>(n));
+  return n;
+ }
  if(id==21){
   static constexpr char reply[]=
     "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n"
@@ -178,6 +197,15 @@ int cmp5_scan_game_images(const char*,Cmp5GameImageStats*result,
  result->scanned_roots=2u;
  result->count[CMP5_IMAGE_EXFAT]=2u;
  result->count[CMP5_IMAGE_FFPFSC]=1u;
+ result->shown_images=2u;
+ result->image[0].format=CMP5_IMAGE_EXFAT;
+ result->image[0].nominal_bytes=21ULL*1024*1024*1024;
+ std::strcpy(result->image[0].path,"/data/homebrew/GAME.exfat");
+ std::strcpy(result->image[0].label,"GAME.exfat");
+ result->image[1].format=CMP5_IMAGE_FFPFSC;
+ result->image[1].nominal_bytes=12ULL*1024*1024*1024;
+ std::strcpy(result->image[1].path,"/mnt/usb0/homebrew/PACK.ffpfsc");
+ std::strcpy(result->image[1].label,"PACK.ffpfsc");
  result->folder_games=2u;
  result->shown_folders=2u;
  result->folder[0].size_complete=1u;
