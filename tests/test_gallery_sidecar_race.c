@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,19 @@
 static const char*sidecar;
 static int tamper;
 static int injected;
+static const char *swap_root,*swap_backup,*swap_replacement;
+static int swap_armed,swapped;
+static int intercepted_open(const char*path,int flags,...){
+ int fd=open(path,flags);
+ if(fd>=0&&swap_armed&&!swapped&&!strcmp(path,swap_root)){
+  if(rename(swap_root,swap_backup)!=0||
+     rename(swap_replacement,swap_root)!=0){
+   perror("fixture swap");close(fd);exit(5);
+  }
+  swapped=1;
+ }
+ return fd;
+}
 static ssize_t intercepted_read(int fd,void*buf,size_t size){
  ssize_t n=read(fd,buf,size);
  if(n>0&&tamper&&!injected){
@@ -22,9 +36,25 @@ static ssize_t intercepted_read(int fd,void*buf,size_t size){
  return n;
 }
 #define read intercepted_read
+#define open intercepted_open
 #include "../src/native/inventory.c"
+#undef open
 #undef read
 int main(int argc,char**argv){
+ if(argc==5&&!strcmp(argv[4],"swap")){
+  swap_root=argv[1];swap_backup=argv[2];swap_replacement=argv[3];
+  swap_armed=1;
+  size_t size=0;
+  Cmp5MediaReview*result=calloc(1,sizeof(*result));
+  assert(result);
+  char*json=cmp5_overview_with_review(swap_root,&size,result);
+  assert(json&&swapped&&result->count==1&&result->partial==0);
+  assert(!strcmp(result->entries[0].title_id,"ORIGINAL"));
+  assert(strstr(json,"\"partial\":false")!=NULL);
+  free(json);free(result);
+  puts("Gallery inventory retained initial root after pathname replacement");
+  return 0;
+ }
  if(argc!=3)return 2;
  sidecar=argv[2];
  size_t n=0;

@@ -391,14 +391,24 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
   warn(s,"Erreur fermeture du dossier",path);
  }
 }
-static void root_scan(Scan*s,const char*root,const char*id,const char*rel,const char*kind){
+/* Bind the entire inventory to one directory descriptor rather than
+ * reopening an attacker-replaceable pathname between scan categories. */
+static int open_scan_root(const char*root){
+ if(!root)return -1;
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return -1;
+ struct stat st;
+ if(fstat(fd,&st)!=0||!S_ISDIR(st.st_mode)){close(fd);return -1;}
+ return fd;
+}
+static void root_scan(Scan*s,int rootfd,const char*id,const char*rel,const char*kind){
  Coverage*c=&s->coverage[s->nc++];c->id=id;c->status="not-scanned";
  snprintf(c->path,sizeof(c->path),"/%s",rel);
  if(s->stopped||cancellation_requested(s)){s->partial=1;return;}
  char copy[PATH_CAP],path[PATH_CAP];
  if(strlen(rel)>=sizeof(copy)){c->status="partial";s->partial=1;return;}
  snprintf(path,sizeof(path),"/%s",rel);memcpy(copy,rel,strlen(rel)+1);
- int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ int fd=dup(rootfd);
  if(fd<0){c->status="unavailable";s->partial=1;return;}
  char*save=NULL;
  for(char*part=strtok_r(copy,"/",&save);part;part=strtok_r(NULL,"/",&save)){
@@ -445,18 +455,21 @@ static int has_completed_gallery_root(const Scan*s){
 char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;
  if(!root||!len)return NULL;
- struct stat st;if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
- Scan*s=(Scan*)calloc(1,sizeof(Scan));if(!s)return NULL;
+ int rootfd=open_scan_root(root);
+ if(rootfd<0)return NULL;
+ Scan*s=(Scan*)calloc(1,sizeof(Scan));
+ if(!s){close(rootfd);return NULL;}
  uint64_t now=monotonic_ns();
  if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
  add(&s->b,"{\"schemaVersion\":1,\"source\":\"CleanMyPS5 (read-only)\",\"ruleVersion\":");quote(&s->b,cmp5_rule_version);
  add(&s->b,",\"mode\":\"metadata-only\",\"cleanupValidated\":false,\"items\":[");
  for(size_t i=0;i<sizeof(cmp5_roots)/sizeof(*cmp5_roots);i++)
-  root_scan(s,root,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
+  root_scan(s,rootfd,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
  for(int slot=0;slot<8;slot++){
-  char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);root_scan(s,root,"usb-homebrew",path,"application");
-  snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);root_scan(s,root,"extended-homebrew",path,"application");
+  char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);root_scan(s,rootfd,"usb-homebrew",path,"application");
+  snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);root_scan(s,rootfd,"extended-homebrew",path,"application");
  }
+ close(rootfd);
  if(!has_completed_root(s)||!has_completed_gallery_root(s))s->partial=1;
  add(&s->b,"],\"coverage\":[");
  for(size_t i=0;i<s->nc;i++){
@@ -482,9 +495,10 @@ char *cmp5_report(const char*root,size_t*len){
 char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaReview *review,Cmp5CancelCheck should_cancel,void *context){
  if(len)*len=0;
  if(!root||!len)return NULL;
- struct stat st;
- if(lstat(root,&st)||!S_ISDIR(st.st_mode))return NULL;
- Scan*s=(Scan*)calloc(1,sizeof(*s));if(!s)return NULL;
+ int rootfd=open_scan_root(root);
+ if(rootfd<0)return NULL;
+ Scan*s=(Scan*)calloc(1,sizeof(*s));
+ if(!s){close(rootfd);return NULL;}
  s->summary_only=1;
  s->review=review;
  s->should_cancel=should_cancel;
@@ -494,14 +508,15 @@ char *cmp5_overview_with_review_cancel(const char *root,size_t *len,Cmp5MediaRev
  uint64_t now=monotonic_ns();
  if(now && now<UINT64_MAX-SCAN_MAX_NANOSECONDS)s->deadline=now+SCAN_MAX_NANOSECONDS;
  for(size_t i=0;i<sizeof(cmp5_roots)/sizeof(*cmp5_roots);i++)
-  root_scan(s,root,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
+  root_scan(s,rootfd,cmp5_roots[i].id,cmp5_roots[i].path,cmp5_roots[i].kind);
  for(int slot=0;slot<8;slot++){
   char path[80];
   snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);
-  root_scan(s,root,"usb-homebrew",path,"application");
+  root_scan(s,rootfd,"usb-homebrew",path,"application");
   snprintf(path,sizeof(path),"mnt/ext%d/homebrew",slot);
-  root_scan(s,root,"extended-homebrew",path,"application");
+  root_scan(s,rootfd,"extended-homebrew",path,"application");
  }
+ close(rootfd);
  (void)cancellation_requested(s);
  if(!has_completed_root(s)||!has_completed_gallery_root(s))s->partial=1;
  size_t complete=0,part=0,absent=0,unavailable=0,other=0;
