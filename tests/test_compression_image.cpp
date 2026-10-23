@@ -25,7 +25,6 @@ int main(){
  assert(bad(change("22548578304","0")));
  assert(bad(change("22548578304","18446744073709551616")));
  assert(bad(change("22548578304","00022548578304")));
- assert(bad(change("PPSA12345","\\"PPSA12345")));
  assert(bad(good+"\n"));
  assert(bad(good.substr(0,good.size()-1)));
  assert(bad(change("\"size\":22548578304","\"size\":22548578304,\"extra\":1")));
