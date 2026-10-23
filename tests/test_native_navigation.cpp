@@ -494,6 +494,17 @@ int main(){
  coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.io_error);
  roots[2].io_error=false;
+ /* A listable /user/av_contents parent is not permission to read
+  * either child gallery directory. Keep the whole audit partial. */
+ roots[4].status=LocalAccess::denied;
+ coverage=summarize_local_coverage(roots,local_path_count,true);
+ assert(roots[3].status==LocalAccess::listable&&coverage.denied==1u);
+ assert(coverage.partial);
+ roots[4].status=LocalAccess::listable;
+ roots[5].status=LocalAccess::denied;
+ coverage=summarize_local_coverage(roots,local_path_count,true);
+ assert(coverage.denied==1u&&coverage.partial);
+ roots[5].status=LocalAccess::listable;
  assert(!summarize_local_coverage(roots,local_path_count,true).partial);
  controller=1;
  ps5::demo::Canvas canvas;
