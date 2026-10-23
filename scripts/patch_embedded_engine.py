@@ -89,6 +89,75 @@ static void cmp5_progress(int fd) {
      if(!local)send_json(fd,403,"{\\"error\\":\\"local only\\"}");
      else cmp5_progress(fd);
    }''')
+    # Match an actual file image to the single ShadowMountPlus-managed
+    # title ID; do NOT derive IDs from filenames, or mount an unknown image.
+    # This is a read-only lookup. It refuses ambiguous/truncated inventories.
+    image_resolve = r"""/* CleanMyPS5: read-only SMP identity mapping of game images. */
+static void cmp5_image_resolve(int fd, const char *args) {
+  char path[600];
+  if (form_get(args, "path", path, sizeof path) < 1 ||
+      path[0] != '/' || strstr(path, "..")) {
+    send_json(fd,400,"{\\"error\\":\\"bad_path\\"}");return;
+  }
+  const char *suffix=strrchr(path,'.');
+  if (!suffix ||
+      (strcasecmp(suffix,".exfat")&&strcasecmp(suffix,".ffpkg")&&
+       strcasecmp(suffix,".ffpfs")&&strcasecmp(suffix,".ffpfsc"))) {
+    send_json(fd,400,"{\\"error\\":\\"unsupported_image\\"}");return;
+  }
+  struct stat st;
+  if(lstat(path,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
+     st.st_size<=0) {
+    send_json(fd,409,"{\\"error\\":\\"unstable_source\\"}");return;
+  }
+  enum { LIMIT=512 };
+  smp_game *items=calloc(LIMIT,sizeof(*items));
+  if(!items){send_json(fd,500,"{\\"error\\":\\"memory\\"}");return;}
+  const int count=smp_list_games(items,LIMIT);
+  int match=-1;
+  if(count>=0&&count<LIMIT)for(int i=0;i<count;i++){
+    if(strcmp(items[i].path,path)!=0)continue;
+    if(match>=0){match=-2;break;} /* multiple owners: refuse */
+    match=i;
+  }
+  if(match<0||count==LIMIT){
+    free(items);
+    send_json(fd,409,"{\\"error\\":\\"not_unambiguously_managed\\"}");return;
+  }
+  smp_game *g=&items[match];
+  const size_t tidlen=strlen(g->title_id);
+  bool valid=tidlen==9&&g->managed&&g->source_available;
+  for(size_t i=0;i<tidlen&&valid;i++){
+    const char c=g->title_id[i];
+    valid=i<4?(c>='A'&&c<='Z'):(c>='0'&&c<='9');
+  }
+  /* Compressed PFSC sources should not be recompressed blindly. */
+  const bool type_ok=!strcmp(g->image_type,"exfatfs")||
+       !strcmp(g->image_type,"ufs")||!strcmp(g->image_type,"pfs");
+  struct stat after;
+  if(!valid||!type_ok||lstat(path,&after)!=0||
+     !S_ISREG(after.st_mode)||after.st_nlink!=1||
+     after.st_dev!=st.st_dev||after.st_ino!=st.st_ino||
+     after.st_size!=st.st_size||after.st_mtime!=st.st_mtime||
+     after.st_ctime!=st.st_ctime){
+    free(items);send_json(fd,409,"{\\"error\\":\\"image_unavailable_or_incompatible\\"}");return;
+  }
+  char response[180];
+  snprintf(response,sizeof response,
+    "{\\"title_id\\":\\"%s\\",\\"image_type\\":\\"%s\\",\\"size\\":%llu}",
+    g->title_id,g->image_type,(unsigned long long)st.st_size);
+  free(items);
+  send_json(fd,200,response);
+}
+"""
+    change(httpd, 'static void api_list(int fd, int (*fn)(char *, size_t)) {',
+           image_resolve + 'static void api_list(int fd, int (*fn)(char *, size_t)) {')
+    change(httpd,
+           'else if (strcmp(path, "/api/check") == 0) {',
+           '''else if (strcmp(path, "/api/cmp5-image") == 0 && !post) {
+     if(!local)send_json(fd,403,"{\\"error\\":\\"local only\\"}");
+     else cmp5_image_resolve(fd,args);
+   } else if (strcmp(path, "/api/check") == 0) {''')
     # All administrative destructive routes remain disabled in the
     # embedded distribution until each is separately proven reversible.
     marker = '  if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)\n'
