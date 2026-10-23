@@ -179,6 +179,17 @@ static int compare(int root_fd,const Item*a,const Item*b,size_t *budget,const Sc
  if(fstat(x,&afterA)||fstat(y,&afterB)||
     !same_snapshot(&sa,&afterA)||!same_snapshot(&sb,&afterB))
     result=-1;
+ if(result==1){
+  /* A rename/unlink after opening the two descriptors leaves fstat() and
+   * content unchanged. Re-open both names under the same anchored root:
+   * never publish a "duplicate" for a pathname that no longer identifies
+   * the compared snapshot. This is only needed for an exact match. */
+  const int still_a=open_snapshot(root_fd,a);
+  const int still_b=open_snapshot(root_fd,b);
+  if(still_a<0||still_b<0)result=-1;
+  if(still_a>=0)close(still_a);
+  if(still_b>=0)close(still_b);
+ }
  close(x);close(y);return result;
 }
 static void add(Json*b,const char*str){

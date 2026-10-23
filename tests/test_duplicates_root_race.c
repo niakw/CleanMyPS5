@@ -25,16 +25,24 @@ static int race_open(const char *path,int flags,...){
  return fd;
 }
 static char mutation_target[4096];
-static int mutate_during_read=0;
+static char renamed_target[4096];
+/* 1=change ctime/mode in place; 2=rename during read without changing inode. */
+static int mutation_mode=0;
 static ssize_t race_read(int fd,void*buffer,size_t count){
  ssize_t got=read(fd,buffer,count);
- if(got>0&&mutate_during_read){
-  struct stat st;
-  if(stat(mutation_target,&st)!=0||
-     chmod(mutation_target,(st.st_mode&07777)^S_IXUSR)!=0){
-   perror("fixture metadata mutation");exit(10);
+ if(got>0&&mutation_mode){
+  if(mutation_mode==1){
+   struct stat st;
+   if(stat(mutation_target,&st)!=0||
+      chmod(mutation_target,(st.st_mode&07777)^S_IXUSR)!=0){
+    perror("fixture metadata mutation");exit(10);
+   }
+  }else if(mutation_mode==2){
+   if(rename(mutation_target,renamed_target)!=0){
+    perror("fixture pathname mutation");exit(14);
+   }
   }
-  mutate_during_read=0;
+  mutation_mode=0;
  }
  return got;
 }
@@ -79,14 +87,29 @@ int main(int argc,char **argv){
  int n=snprintf(mutation_target,sizeof(mutation_target),
    "%s/user/av_contents/photo/NPXS99999/GAME/a.png",test_backup);
  if(n<=0||(size_t)n>=sizeof(mutation_target))return 11;
- mutate_during_read=1;
+ mutation_mode=1;
  Cmp5DuplicateStats raced={0};
  size_t raced_size=0;
  char*unsafe=cmp5_duplicates_with_stats(test_backup,&raced_size,&raced);
  if(!unsafe)return 12;
- const int rejected=!mutate_during_read&&raced.partial==1u&&
+ const int rejected=!mutation_mode&&raced.partial==1u&&
    raced.exact_groups==0u&&raced.matching_files==0u&&
    strstr(unsafe,"\"partial\":true")!=NULL;
  free(unsafe);
- return rejected?0:13;
+ if(!rejected)return 13;
+ /* Rename the first filename after its descriptor is read. The underlying
+  * bytes still match, but the old filename no longer points to the image. */
+ int next=snprintf(renamed_target,sizeof(renamed_target),
+   "%s/user/av_contents/photo/NPXS99999/GAME/a-renamed.png",test_backup);
+ if(next<=0||(size_t)next>=sizeof(renamed_target))return 15;
+ mutation_mode=2;
+ Cmp5DuplicateStats moved={0};
+ size_t moved_size=0;
+ char*lost=cmp5_duplicates_with_stats(test_backup,&moved_size,&moved);
+ if(!lost)return 16;
+ const int safe=!mutation_mode&&moved.partial==1u&&
+   moved.exact_groups==0u&&moved.matching_files==0u&&
+   strstr(lost,"\"partial\":true")!=NULL;
+ free(lost);
+ return safe?0:17;
 }
