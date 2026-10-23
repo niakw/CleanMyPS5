@@ -13,17 +13,17 @@ int main(int argc,char**argv){
  Cmp5GameImageStats r={0};
  assert(cmp5_scan_game_images(argv[1],&r,NULL,NULL));
  assert(r.scanned_roots>=3);
- assert(r.count[CMP5_IMAGE_EXFAT]==2);
+ assert(r.count[CMP5_IMAGE_EXFAT]==3);
  assert(r.count[CMP5_IMAGE_FFPKG]==1);
  assert(r.count[CMP5_IMAGE_FFPFS]==1);
  assert(r.count[CMP5_IMAGE_FFPFSC]==1);
- assert(r.shown_images==5);
+ assert(r.shown_images==6);
  assert(r.hidden_images==0);
  assert(r.image[0].format==CMP5_IMAGE_EXFAT);
  assert(!strcmp(r.image[0].label,"GAME.exfat"));
  assert(!strcmp(r.image[0].path,"/data/homebrew/GAME.exfat"));
  assert(r.image[0].nominal_bytes==21ULL*1024*1024*1024);
- assert(r.large_candidates==2);
+ assert(r.large_candidates==3);
  assert(r.folder_games==1);
  assert(r.large_folders==1);
  assert(r.folder_partials==0);
@@ -36,7 +36,7 @@ int main(int argc,char**argv){
  assert(!strcmp(r.folder[0].path,"/data/homebrew/PPSA12345"));
  assert(r.hardlinks_skipped==2);
  assert(r.partial==1); /* A hardlink is never counted as freeable. */
- assert(r.nominal_bytes==54ULL*1024*1024*1024+340+560);
+ assert(r.nominal_bytes==78ULL*1024*1024*1024+340+560);
  printf("Known game image candidates (no content read): PASS\n");
  return 0;
 }

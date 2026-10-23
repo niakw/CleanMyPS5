@@ -17,6 +17,9 @@ with tempfile.TemporaryDirectory() as tmp:
     (external/"GAME3.ffpkg").write_bytes(b"a"*120)
     (top/"EXPERIMENTAL.ffpfs").write_bytes(b"b"*340)
     (top/"COMPRESSED.ffpfsc").write_bytes(b"c"*560)
+    eta=root/"mnt/usb1/etaHEN/games"
+    eta.mkdir(parents=True)
+    with (eta/"EAGAME.exfat").open("wb") as f:f.truncate(24*1024**3)
     game=internal/"PPSA12345"
     (game/"sce_sys").mkdir(parents=True)
     (game/"eboot.bin").write_bytes(b"SYNTHETIC EBOOT")

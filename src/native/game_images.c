@@ -294,6 +294,12 @@ int cmp5_scan_game_images(const char*root,Cmp5GameImageStats*result,
   scan_one(&a,anchor,path);
   (void)snprintf(path,sizeof(path),"mnt/ext%u/homebrew",i);
   scan_one(&a,anchor,path);
+  /* Homebrew games are also commonly stored under etaHEN/games on
+   * removable exFAT devices. Enumerate these explicit known roots. */
+  (void)snprintf(path,sizeof(path),"mnt/usb%u/etaHEN/games",i);
+  scan_one(&a,anchor,path);
+  (void)snprintf(path,sizeof(path),"mnt/ext%u/etaHEN/games",i);
+  scan_one(&a,anchor,path);
   /* ShadowMount and external tools can also discover top-level images. */
   (void)snprintf(path,sizeof(path),"mnt/usb%u",i);
   scan_one(&a,anchor,path);
