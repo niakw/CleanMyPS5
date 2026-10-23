@@ -1050,7 +1050,11 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
-   if(!task_busy()&&screen==Screen::compression&&compression_view==2u){
+   if(screen==Screen::compression&&compression_view==4u&&task_busy()){
+    // A posted job cannot be "undone" by dismissing the title UI.
+    continue;
+   }
+   if(!task_busy()&&screen==Screen::compression&&compression_view>=2u){
     compression_view=1u;
     game_preflight_checked=false;
     continue;
@@ -1239,11 +1243,17 @@ void poll_pad() noexcept {
     }
    }else if(compression_view==0u&&(pressed&cross)){
     (void)begin_task(Task::images);
-   }else if(compression_view==2u&&(pressed&cross)){
-    (void)begin_task(Task::game_check);
+    }else if(compression_view==2u){
+    if((pressed&cross)&&game_preflight_checked&&game_preflight.ready())
+     compression_view=3u;  /* first affirmative action */
+    if(pressed&triangle)(void)begin_task(Task::game_check);
+   }else if(compression_view==3u&&(pressed&cross)){
+    compression_view=4u;  /* second affirmative action, no auto-submit */
+    (void)begin_task(Task::game_start);
    }
-   if(pressed&square)(void)begin_task(Task::engine_start);
-   continue; /* Conversion still blocked pending final safety review. */
+   if(compression_view<=1u&&(pressed&square))
+    (void)begin_task(Task::engine_start);
+   continue;
   }
   if(screen==Screen::official){
    if(pressed&square){
@@ -1810,6 +1820,39 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(compression_view==4u){
+  panel(canvas,313,"MOTEUR LZ4 INTEGRE",
+    "CONVERSION DU JEU SELECTIONNE");
+  panel(canvas,447,"SOURCE PRESERVEE",game_source_checked,Color::cyan);
+  panel(canvas,575,"DESTINATION",game_dest_checked);
+  if(task_busy()){
+   panel(canvas,707,"DEMANDE DE CONVERSION",
+     "RECONTROLE DU JEU / ENVOI AU MOTEUR EN COURS",Color::yellow);
+  }else if(game_job_accepted){
+   char msg[120]{};
+   (void)std::snprintf(msg,sizeof(msg),
+       "TRAVAIL ACCEPTE  POSITION FILE: %u",game_job_position);
+   panel(canvas,707,"MOTEUR A CONFIRME LA DEMANDE",msg,Color::cyan);
+  }else if(game_job_reply_unknown){
+   panel(canvas,707,"RESULTAT INCERTAIN",
+     "VERIFIER LE MOTEUR AVANT UNE NOUVELLE DEMANDE",Color::yellow);
+  }else{
+   panel(canvas,707,"AUCUN TRAVAIL CONFIRME",
+     "COMPATIBILITE / ESPACE / REPONSE A REVERIFIER",Color::yellow);
+  }
+  footer(canvas,"CERCLE RETOUR   ORIGINAL JAMAIS SUPPRIME AUTOMATIQUEMENT");
+  return;
+ }
+ if(compression_view==3u){
+  panel(canvas,314,"CONFIRMATION 2/2",
+       "ENVOYER LE JEU AU MOTEUR AMPR LZ4 ?",Color::yellow);
+  panel(canvas,460,"JEU SOURCE NON MODIFIE",game_source_checked);
+  panel(canvas,590,"DESTINATION SEPAREE",game_dest_checked);
+  panel(canvas,717,"VERIFICATION",
+       "PACK LZ4 + CONTROLE INTEGRITE  AUCUN EFFACEMENT");
+  footer(canvas,"X CONFIRMER CONVERSION  CERCLE ANNULER");
+  return;
+ }
  if(compression_view==2u){
   if(task_busy()){
    panel(canvas,337,"PRECONTROLE DU JEU","VERIFICATION DU MOTEUR EN COURS",Color::cyan);
@@ -1836,11 +1879,11 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    panel(canvas,732,"RESERVATION DE STOCKAGE",detail,
      game_preflight.ready()?Color::cyan:Color::yellow);
    canvas.text(120,885,game_preflight.ready()?
-      "PRECONTROLE FAVORABLE  PAS DE CONVERSION ACTIVE":
+      "PRECONTROLE FAVORABLE  X POUR CONFIRMER 1/2":
       "CONVERSION BLOQUEE: COMPATIBILITE OU ESPACE A VERIFIER",
       2,Color::yellow);
   }
-  footer(canvas,"X REVERIFIER  CERCLE JEUX  AUCUNE ECRITURE");
+  footer(canvas,"X SI COMPATIBLE  TRIANGLE REVERIFIER  CERCLE JEUX");
   return;
  }
  if(task_busy()){
