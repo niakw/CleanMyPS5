@@ -13,6 +13,7 @@
 #include "compression_preflight.hpp"
 #include "compression_progress.hpp"
 #include "compression_image.hpp"
+#include "privilege_contract.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -791,6 +792,9 @@ enum class EngineLaunch { untouched, active, missing_file, invalid_elf, loader_u
 EngineLaunch engine_launch=EngineLaunch::untouched;
 void run_embedded_engine() noexcept {
  engine_launch=EngineLaunch::untouched;
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+                           cmp5_privilege::Operation::request_compression))
+  return;
  char version[32]{};
  if(check_local_ampr(version)){
   compression_engine_seen=true;
@@ -936,6 +940,9 @@ bool ampr_submit_job(const char*source,const char*dest,const char*smp,
                      cmp5_compression::StartAck*out,
                      bool*could_have_started) noexcept {
  if(could_have_started)*could_have_started=false;
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+                           cmp5_privilege::Operation::request_compression))
+  return false;
  char src_encoded[600]{},dst_encoded[200]{};
  if(!cmp5_compression::form_encode_path(source,src_encoded,sizeof(src_encoded))||
     !cmp5_compression::form_encode_path(dest,dst_encoded,sizeof(dst_encoded)))
@@ -1822,6 +1829,11 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
     if(free_width)canvas.rectangle(930,y+87,free_width,12,Color::cyan);
    }
  }
+ char privilege_note[160]{};
+ (void)std::snprintf(privilege_note,sizeof(privilege_note),
+   "TITRE UID %lu EUID %lu  HELPER SEPARE  SUPPRESSION BLOQUEE",
+   static_cast<unsigned long>(getuid()),static_cast<unsigned long>(geteuid()));
+ canvas.text(125,925,privilege_note,2,Color::yellow);
  footer(canvas,"X ACTUALISER  CARRE APPS ET PLUGINS  CERCLE RETOUR");
 }
 void show_apps(ps5::demo::Canvas&canvas) noexcept {

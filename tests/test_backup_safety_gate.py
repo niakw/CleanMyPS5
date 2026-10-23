@@ -6,6 +6,15 @@ root=Path(__file__).resolve().parents[1]
 native=(root/"native/main.cpp").read_text(encoding="utf-8")
 builder=(root/"scripts/build_native_app.sh").read_text(encoding="utf-8")
 server=(root/"src/native/server.c").read_text(encoding="utf-8")
+privilege=(root/"native/privilege_contract.hpp").read_text(encoding="utf-8")
+assert '#include "privilege_contract.hpp"' in native
+assert "cmp5_privilege::Operation::request_compression" in native
+assert "default: return false;" in privilege
+assert "privilegeEscalation" in server and "delete" in server
+for token in ('#include "elevation.hpp"', 'elevation::request(',
+              'seteuid(', 'setuid(', 'setgid(', 'setegid('):
+    assert token not in native and token not in builder, \
+        f"Unreviewed native title privilege operation: {token}"
 sources=(root/"src/native/verified_backup.c").read_text(encoding="utf-8")
 
 # Permit host-only test code, but never silently package writes into the title.

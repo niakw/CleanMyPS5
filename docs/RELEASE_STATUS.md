@@ -91,3 +91,19 @@ image après précontrôle pour éviter une soumission fondée sur une
 identité devenue périmée. La suite native CI compile la version
 transformée du moteur et vérifie ces barrières, sans pouvoir
 remplacer un essai matériel PS5 13.60.
+
+
+## Audit des privilèges (24/10/2026)
+
+Le titre PS5, le helper optionnel en lecture seule et le moteur AMPR sont
+**trois acteurs séparés**. Les droits d'un helper lancé par elfldr ne
+sont pas transférés au titre installé ; UID/EUID et accès lecture ne
+sont **pas** une autorisation de suppression. Le contrat compilé
+`native/privilege_contract.hpp` distingue leurs opérations et refuse
+les écritures de Galerie, caches système, installations et autoload.
+
+NiakPS5 et Eden Encore disposent d'un élévateur ponctuel à handshake
+PID/Title ID, clone des credentials, validation et rollback. Il ne faut
+pas importer l'élévation générique dans un nettoyeur avant une transaction
+de sauvegarde/restauration des index PS5 réellement validée. Voir
+[la revue dédiée](PRIVILEGE_AUDIT.md).

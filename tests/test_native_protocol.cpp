@@ -1,5 +1,6 @@
 // Regression tests for the PS5 title's strict read-only loopback decoder.
 #include "native/loopback_protocol.hpp"
+#include "native/privilege_contract.hpp"
 #include <cassert>
 #include <string>
 
@@ -18,6 +19,23 @@ bool accepts(const std::string&http){
 }
 }
 int main(){
+ using cmp5_privilege::Actor;
+ using cmp5_privilege::Operation;
+ using cmp5_privilege::allows;
+ assert(allows(Actor::native_title,Operation::inspect_metadata));
+ assert(allows(Actor::diagnostic_helper,Operation::inspect_metadata));
+ assert(!allows(Actor::compression_engine,Operation::inspect_metadata));
+ assert(allows(Actor::native_title,Operation::request_compression));
+ assert(!allows(Actor::diagnostic_helper,Operation::request_compression));
+ assert(allows(Actor::compression_engine,Operation::execute_compression));
+ assert(!allows(Actor::native_title,Operation::execute_compression));
+ for(auto actor:{Actor::native_title,Actor::diagnostic_helper,Actor::compression_engine}){
+  assert(!cmp5_privilege::can_delete(actor));
+  for(auto op:{Operation::delete_gallery_media,Operation::clean_system_cache,
+               Operation::uninstall_title,Operation::change_autoload,
+               Operation::restore_gallery,Operation::elevate_credentials})
+   assert(!allows(actor,op));
+ }
  const std::string json="{\"schemaVersion\":1,\"mode\":\"read-only\"}";
  const auto good=response(json);
  cmp5_native::HttpBody body{};
