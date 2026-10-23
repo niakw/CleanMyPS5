@@ -213,8 +213,42 @@ with tempfile.TemporaryDirectory() as temp:
    except HTTPError as e:assert e.code in (400,404,413)
   for route in ("/","/app.js","/styles.css"):
    with urlopen(base+route,timeout=3) as r:assert r.status==200 and len(r.read())>100
-  try:urlopen(Request(base+"/api/report",method="POST"),timeout=3);raise AssertionError("write method allowed")
-  except HTTPError as e:assert e.code==405
+  # Read-only helper must never become a silent cleanup/privilege broker.
+  # Keep fixture bytes for an integrity check after the attempted writes.
+  protected = {
+   "gallery": (image/"image.png").read_bytes(),
+   "autoload": (loader/"autoload.txt").read_bytes(),
+   "config": (eta/"config.ini").read_bytes(),
+   "save": (other/"save.bin").read_bytes(),
+  }
+  hostile_routes = (
+   "/api/delete",
+   "/api/cleanup",
+   "/api/quarantine",
+   "/api/restore",
+   "/api/preflight",
+   "/api/media?file="+quote(capture["previewPath"],safe=""),
+   "/api/diagnostics",
+  )
+  for method in ("POST","PUT","PATCH","DELETE"):
+   for route in hostile_routes:
+    request = Request(base+route, method=method,
+                      data=b"path=/user/av_contents/photo/NPXS40087/GAME/image.png")
+    try:
+     urlopen(request,timeout=3)
+     raise AssertionError(f"Mutating helper request succeeded: {method} {route}")
+    except HTTPError as err:
+     assert err.code==405,(method,route,err.code)
+  for route in ("/api/delete","/api/preflight","/api/capabilities"):
+   try:
+    urlopen(Request(base+route,method="HEAD"),timeout=3)
+    raise AssertionError("Unexpected helper HEAD route: "+route)
+   except HTTPError as err:
+    assert err.code==405,(route,err.code)
+  assert (image/"image.png").read_bytes()==protected["gallery"]
+  assert (loader/"autoload.txt").read_bytes()==protected["autoload"]
+  assert (eta/"config.ini").read_bytes()==protected["config"]
+  assert (other/"save.bin").read_bytes()==protected["save"]
   for route in ("/api/delete","/data/etaHEN/config.ini"):
    try:urlopen(base+route,timeout=3);raise AssertionError("private file served")
    except HTTPError as e:assert e.code==404
