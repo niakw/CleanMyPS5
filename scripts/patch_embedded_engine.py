@@ -52,6 +52,39 @@ def main(root: Path):
            '  r.remove_source = false; /* no source deletion */')
     change(httpd, '  r.force = flag(body, "force", false);',
            '  r.force = false; /* no incompatible game bypass */')
+    # Revalidate managed image ownership INSIDE the engine immediately
+    # before enqueue. GUI checks alone cannot authorize a filesystem job:
+    # they can race with ShadowMountPlus or another loopback client.
+    # Folder jobs (without smp=) retain their existing upstream path.
+    change(httpd,
+           '  (void)queue_only;',
+           '''  /* CleanMyPS5: an SMP image must still have its exact
+   * owner and the original path at the time of queue submission. */
+  if (r.smp_title[0]) {
+    smp_game owner;
+    struct stat source_st;
+    const char *ext = strrchr(r.source, '.');
+    const bool supported = ext &&
+      (!strcasecmp(ext, ".exfat") || !strcasecmp(ext, ".ffpkg") ||
+       !strcasecmp(ext, ".ffpfs"));
+    if (!supported ||
+        smp_game_info(r.smp_title, &owner) != 0 ||
+        strcmp(owner.title_id, r.smp_title) != 0 ||
+        strcmp(owner.path, r.source) != 0 ||
+        strcmp(owner.source_type, "image") != 0 ||
+        !owner.managed || !owner.source_available ||
+        (!strcmp(owner.image_type, "pfsc") ||
+         (strcmp(owner.image_type, "exfatfs") != 0 &&
+          strcmp(owner.image_type, "ufs") != 0 &&
+          strcmp(owner.image_type, "pfs") != 0)) ||
+        lstat(r.source, &source_st) != 0 ||
+        !S_ISREG(source_st.st_mode) || source_st.st_nlink != 1 ||
+        source_st.st_size <= 0) {
+      send_json(fd, 409, "{\\"error\\":\\"image_identity_changed\\"}");
+      return;
+    }
+  }
+  (void)queue_only;''')
     # Stable, compact endpoint for the bundled DualSense frontend. The
     # upstream /api/state may include multi-megabyte logs; don't parse or
     # expose those in the title process.
