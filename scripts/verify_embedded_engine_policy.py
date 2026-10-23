@@ -22,7 +22,7 @@ def check_engine(root: Path) -> None:
         "dedup": "r.dedup = true;",
         "no spillover cache": "r.cache_mode = 0;",
         "image metadata endpoint": '"/api/cmp5-image"',
-        "require SMP for direct images": '"image_title_required"',
+        "require SMP for direct images": "image_title_required",
         "SMP image ownership": "strcmp(owner.path, r.source) != 0",
         "SMP managed source": "!owner.managed || !owner.source_available",
         "SMP identity": "strcmp(owner.title_id, r.smp_title) != 0",
