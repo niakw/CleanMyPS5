@@ -8,6 +8,7 @@
 #include "duplicates.h"
 #include "homebrew.h"
 #include "game_images.h"
+#include "compression_bridge.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -649,14 +650,60 @@ void run_autoload_check() noexcept {
 }
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
+bool compression_engine_seen=false;
+char compression_engine_version[32]{};
+/* External engine's public hello endpoint: localhost ONLY, GET ONLY.
+ * Port 6972 is owned by exFAT2AMPR, if installed. Never pair, authorize,
+ * send a path or issue /api/start, /api/delete-source, or similar writes. */
+bool check_local_ampr(char version[32]) noexcept {
+ version[0]=0;
+ const int socket=sceNetSocket("cmp5_ampr_probe",2,1,6);
+ if(socket<0)return false;
+ const int timeout_us=350000;
+ (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn local{16,2,
+  static_cast<std::uint16_t>((6972u<<8)|(6972u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(socket,&local,sizeof(local))>=0;
+ constexpr char request[]=
+  "GET /api/hello HTTP/1.0\r\nHost: 127.0.0.1:6972\r\nConnection: close\r\n\r\n";
+ std::size_t sent=0,received=0;
+ while(ok&&sent<sizeof(request)-1u){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  const int n=sceNetSend(socket,request+sent,sizeof(request)-1u-sent,0);
+  if(n<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(n);
+ }
+ char response[1024]{};
+ while(ok&&received<sizeof(response)-1u){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  const int n=sceNetRecv(socket,response+received,
+                         sizeof(response)-1u-received,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  received+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(socket);
+ if(!ok||received>=sizeof(response)-1u||
+    cancellation_hook(nullptr))return false;
+ cmp5_compression::Hello hello{};
+ if(!cmp5_compression::parse_hello_http(response,received,&hello))
+  return false;
+ std::memcpy(version,hello.version,sizeof(hello.version));
+ return true;
+}
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
  game_images_checked=false;
+ compression_engine_seen=false;
+ compression_engine_version[0]=0;
  Cmp5GameImageStats sample{};
  if(cmp5_scan_game_images("/",&sample,cancellation_hook,nullptr)&&
     !cancellation_hook(nullptr)){
   game_images=sample;game_images_checked=true;
  }
+ if(!cancellation_hook(nullptr))
+  compression_engine_seen=check_local_ampr(compression_engine_version);
 }
 enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
@@ -712,7 +759,10 @@ void* background_task(void*) noexcept {
    companion_summary=Cmp5CompanionReport{};
    companion_checked=false;
   }
-  if(task_kind==Task::images){game_images=Cmp5GameImageStats{};game_images_checked=false;}
+  if(task_kind==Task::images){
+   game_images=Cmp5GameImageStats{};game_images_checked=false;
+   compression_engine_seen=false;compression_engine_version[0]=0;
+  }
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
@@ -1541,7 +1591,16 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     game_images.partial?"  PARTIEL":"");
  panel(canvas,745,"COUVERTURE DES RACINES CONNUES",detail,Color::yellow);
  canvas.rectangle(95,885,1730,58,Color::panel);
- canvas.text(125,900,"LZ4: AMPR-EMU   FFPFSC: SHADOWMOUNT+   LANCEMENT NON GARANTI",2,Color::cyan);
+ char engine_text[140]{};
+ if(compression_engine_seen){
+  (void)std::snprintf(engine_text,sizeof(engine_text),
+   "MOTEUR AMPR LOCAL: %s (LECTURE SEULE, JEU NON VERIFIE)",
+    compression_engine_version);
+ }else{
+  (void)std::snprintf(engine_text,sizeof(engine_text),
+   "MOTEUR AMPR LOCAL: NON DETECTE (PORT 6972)");
+ }
+ canvas.text(125,900,engine_text,2,Color::cyan);
  footer(canvas,"X ACTUALISER   CERCLE RETOUR   GARDER SOURCE  ET TESTER JEU CONVERTI");
 }
 /* A generic LZ4 image cannot be mounted without compatible support. This
