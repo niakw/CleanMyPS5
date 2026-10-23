@@ -1,6 +1,7 @@
 // Synthetic ELF only: verify loader stream never handles other content.
 #include "../native/compression_stream.hpp"
 #include <cassert>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
