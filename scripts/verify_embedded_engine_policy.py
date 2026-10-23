@@ -30,6 +30,8 @@ def check_engine(root: Path) -> None:
         "source no hardlinks": "source_st.st_nlink != 1",
         "source size field": 'form_get(body, "cmp5_size"',
         "source size recheck": "(uint64_t)source_st.st_size != expected",
+        "engine live image preflight": "job_preflight(r.source, r.smp_title, r.dest_base",
+        "preflight errors must be empty": 'strstr(preflight_json, "\\"errors\\":[]")',
         "post source no deletion": '"/api/delete-source"',
         "no cancellation deleting partial pack": '"/api/cancel"',
         "protected profile writes": '"/api/profile"',

@@ -131,6 +131,19 @@ def main(root: Path):
       send_json(fd, 409, "{\\"error\\":\\"image_size_changed\\"}");
       return;
     }
+    /* The embedded worker cannot rely on the frontend's earlier GET.
+     * The same SOURCE/DESTINATION must pass the upstream live preflight
+     * immediately before enqueuing. An unmounted image is 'later', not yes.
+     * The preflight JSON comes from our own engine, not the HTTP client. */
+    char preflight_json[4096];
+    if (job_preflight(r.source, r.smp_title, r.dest_base,
+                      preflight_json, sizeof preflight_json) != 0 ||
+        !strstr(preflight_json, "\\"compatible\\":\\"yes\\"") ||
+        !strstr(preflight_json, "\\"errors\\":[]") ||
+        !strstr(preflight_json, "\\"warnings\\":[]")) {
+      send_json(fd, 409, "{\\"error\\":\\"image_preflight_required\\"}");
+      return;
+    }
   }
   (void)queue_only;''')
     # Stable, compact endpoint for the bundled DualSense frontend. The
