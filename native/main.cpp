@@ -902,7 +902,7 @@ bool game_check_request(const char*source,const char*dest,const char*smp,
 }
 /* Final explicit job submission. The title NEVER asks to overwrite,
  * delete, force conversion or operate on an unreviewed path. */
-bool ampr_submit_job(const char*source,const char*dest,
+bool ampr_submit_job(const char*source,const char*dest,const char*smp,
                      cmp5_compression::StartAck*out,
                      bool*could_have_started) noexcept {
  if(could_have_started)*could_have_started=false;
@@ -910,11 +910,20 @@ bool ampr_submit_job(const char*source,const char*dest,
  if(!cmp5_compression::form_encode_path(source,src_encoded,sizeof(src_encoded))||
     !cmp5_compression::form_encode_path(dest,dst_encoded,sizeof(dst_encoded)))
   return false;
+ char smp_arg[36]{};
+ if(smp&&smp[0]){
+  if(std::strlen(smp)!=9u)return false;
+  for(unsigned i=0;i<9;i++){
+   const char c=smp[i];
+   if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+  }
+  (void)std::snprintf(smp_arg,sizeof(smp_arg),"&smp=%s",smp);
+ }
  char body[1024]{};
  const int bytes=std::snprintf(body,sizeof(body),
   "path=%s&dest=%s&level=9&workers=4&verify=1&dedup=1&"
-  "overwrite=0&remove=0&force=0&clean=0",
-  src_encoded,dst_encoded);
+  "overwrite=0&remove=0&force=0&clean=0%s",
+  src_encoded,dst_encoded,smp_arg);
  if(bytes<=0||static_cast<std::size_t>(bytes)>=sizeof(body))return false;
  char header[280]{};
  const int header_len=std::snprintf(header,sizeof(header),
@@ -1108,7 +1117,15 @@ void run_game_submission() noexcept {
  // Re-check the source, compatibility and free space immediately before
  // POST. Disallow a source which is already the would-be output path.
  cmp5_compression::GamePreflight now{};
- if(!game_check_request(game_source_checked,game_dest_checked,&now)||
+ if(game_source_is_image){
+  cmp5_compression::ImageResolution identity{};
+  if(!resolve_managed_image(game_source_checked,&identity)||
+     identity.bytes!=game_image_expected_bytes||
+     std::strcmp(identity.title_id,game_smp_title)!=0||
+     std::strcmp(identity.image_type,game_image_type)!=0)return;
+ }
+ if(!game_check_request(game_source_checked,game_dest_checked,
+     game_source_is_image?game_smp_title:"",&now)||
     !now.ready()||std::strcmp(now.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
  /* Prevent requeue after a lost ACK or UI restart. A fresh preflight
@@ -1132,6 +1149,7 @@ void run_game_submission() noexcept {
  cmp5_compression::StartAck ack{};
  bool may_have_queued=false;
  const bool accepted=ampr_submit_job(game_source_checked,game_dest_checked,
+                                     game_source_is_image?game_smp_title:"",
                                      &ack,&may_have_queued);
  game_job_accepted=accepted;
  game_job_reply_unknown=!accepted&&may_have_queued;
@@ -1140,10 +1158,20 @@ void run_game_submission() noexcept {
 void run_game_preflight() noexcept {
  game_preflight=cmp5_compression::GamePreflight{};
  game_preflight_checked=false;game_preflight_transport=false;
+ game_smp_title[0]=0;game_image_type[0]=0;
  char ver[32]{};
  if(!check_local_ampr(ver)||cancellation_hook(nullptr))return;
+ if(game_source_is_image){
+  cmp5_compression::ImageResolution identity{};
+  if(!resolve_managed_image(game_source_checked,&identity)||
+     identity.bytes!=game_image_expected_bytes)return;
+  std::memcpy(game_smp_title,identity.title_id,sizeof(identity.title_id));
+  std::memcpy(game_image_type,identity.image_type,sizeof(identity.image_type));
+ }
  cmp5_compression::GamePreflight result{};
- if(!game_check_request(game_source_checked,game_dest_checked,&result)||
+ if(!game_check_request(game_source_checked,game_dest_checked,
+     game_source_is_image?game_smp_title:"",&result)||
+    (game_source_is_image&&std::strcmp(result.title_id,game_smp_title)!=0)||
     cancellation_hook(nullptr))return;
  game_preflight=result;
  game_preflight_transport=true;
