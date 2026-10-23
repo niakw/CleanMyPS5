@@ -250,6 +250,13 @@ static void file(Scan*s,const char*path,const struct stat*info,const char*kind){
  if(s->stopped||s->b.fail||info->st_size<0)return;
  const off_t size=info->st_size;
  if((uint64_t)size>9007199254740991ULL){s->rootPartial=1;return;}
+ /* A sum of individually safe JSON integers can exceed uint64_t.
+  * Abort rather than wrapping storage totals or showing false free space. */
+ if((uint64_t)size>UINT64_MAX-s->bytes){
+  s->stopped=1;
+  warn(s,"Volume nominal non representable",path);
+  return;
+ }
  const char *category="other",*risk="protected",*reason="Donnee inconnue : aucune regle de suppression validee";
  if((!strcmp(kind,"photo")&&(ext(path,".jpg")||ext(path,".jpeg")||ext(path,".png")||ext(path,".jxr")))||
     (!strcmp(kind,"video")&&(ext(path,".mp4")||ext(path,".webm")))){

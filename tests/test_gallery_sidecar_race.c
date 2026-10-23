@@ -40,7 +40,20 @@ static ssize_t intercepted_read(int fd,void*buf,size_t size){
 #include "../src/native/inventory.c"
 #undef open
 #undef read
+static void test_overflow_guard(void){
+ Scan*sample=calloc(1,sizeof(*sample));
+ assert(sample);
+ sample->summary_only=1;
+ sample->bytes=UINT64_MAX-4u;
+ struct stat metadata={0};
+ metadata.st_size=8;
+ file(sample,"/data/TestHomebrew/example.bin",&metadata,"application");
+ assert(sample->stopped&&sample->partial&&sample->rootPartial);
+ assert(sample->bytes==UINT64_MAX-4u&&sample->items==0u);
+ free(sample);
+}
 int main(int argc,char**argv){
+ test_overflow_guard();
  if(argc==5&&!strcmp(argv[4],"swap")){
   swap_root=argv[1];swap_backup=argv[2];swap_replacement=argv[3];
   swap_armed=1;
