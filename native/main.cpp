@@ -12,6 +12,7 @@
 #include "compression_stream.hpp"
 #include "compression_preflight.hpp"
 #include "compression_progress.hpp"
+#include "compression_image.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -670,6 +671,36 @@ bool game_progress_checked=false;
 bool game_pause_attempted=false,game_pause_accepted=false;
 bool game_resume_attempted=false,game_resume_accepted=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
+bool game_source_is_image=false;
+std::uint64_t game_image_expected_bytes=0;
+char game_smp_title[16]{},game_image_type[16]{};
+void reset_compression_job_state() noexcept {
+ game_preflight_checked=false;game_preflight_transport=false;
+ game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
+ game_job_position=0;game_progress={};game_progress_checked=false;
+ game_pause_attempted=false;game_pause_accepted=false;
+ game_resume_attempted=false;game_resume_accepted=false;
+ game_preflight=cmp5_compression::GamePreflight{};
+ game_smp_title[0]=0;game_image_type[0]=0;
+}
+bool stage_game_image_preflight() noexcept {
+ if(!game_images_checked||compression_image_selection>=game_images.shown_images||
+    compression_destination>=game_destination_count)return false;
+ const Cmp5GameImage&source=game_images.image[compression_image_selection];
+ /* PFSC is already compressed, and no filename alone is trusted as an
+  * SMP title identifier. SMP must resolve an actual managed image. */
+ if(source.format==CMP5_IMAGE_FFPFSC||source.nominal_bytes==0||
+    !source.path[0]||std::strlen(source.path)>=sizeof(game_source_checked))
+  return false;
+ const char*dest=game_destinations[compression_destination];
+ if(std::strlen(dest)>=sizeof(game_dest_checked))return false;
+ (void)std::snprintf(game_source_checked,sizeof(game_source_checked),"%s",source.path);
+ (void)std::snprintf(game_dest_checked,sizeof(game_dest_checked),"%s",dest);
+ reset_compression_job_state();
+ game_source_is_image=true;
+ game_image_expected_bytes=source.nominal_bytes;
+ return true;
+}
 bool stage_game_preflight() noexcept {
  if(!game_images_checked||compression_selection>=game_images.shown_folders||
     compression_destination>=game_destination_count)return false;
@@ -679,12 +710,9 @@ bool stage_game_preflight() noexcept {
     std::strlen(dest)>=sizeof(game_dest_checked))return false;
  (void)std::snprintf(game_source_checked,sizeof(game_source_checked),"%s",source);
  (void)std::snprintf(game_dest_checked,sizeof(game_dest_checked),"%s",dest);
- game_preflight_checked=false;game_preflight_transport=false;
- game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
- game_job_position=0;game_progress={};game_progress_checked=false;
- game_pause_attempted=false;game_pause_accepted=false;
- game_resume_attempted=false;game_resume_accepted=false;
- game_preflight=cmp5_compression::GamePreflight{};
+ reset_compression_job_state();
+ game_source_is_image=false;
+ game_image_expected_bytes=0;
  return true;
 }
 bool compression_engine_seen=false;
