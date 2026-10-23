@@ -14,7 +14,9 @@ static const std::string valid=
  R"("partial":true,"categories":{"media":2,"logs":1,"cache":0,"residuals":0},)"
  R"("review":{"largeMedia":1,"oldMedia":2,"oldLargeMedia":1,)"
  R"("largeMediaNominalBytes":40000000,"validatedForDeletion":false},)"
- R"("coverage":{"complete":2,"partial":1},"note":"Nominal only"})";
+ R"("coverage":{"complete":2,"partial":1},)"
+  R"("galleryCoverage":{"photo":"complete","video":"unavailable"},)"
+  R"("note":"Nominal only"})";
 static bool accepted(const std::string&value){
  Overview out{};
  return cmp5_native::parse_overview(value.data(),value.size(),&out);
@@ -38,6 +40,7 @@ int main(){
  CHECK(out.files==3&&out.media==2&&out.logs==1&&out.cache==0);
  CHECK(out.large==1&&out.old==2&&out.old_large==1);
  CHECK(out.bytes==50000000&&out.large_bytes==40000000&&out.partial);
+  CHECK(out.gallery_photo==1u&&out.gallery_video==4u);
  CHECK(accepted(replace_once(valid,R"("partial":true)",R"("partial":false)")));
  CHECK(accepted(replace_once(valid,R"("note":"Nominal only")",
    R"("note":"Escaped \"files\":8888 stays inside the string")")));
@@ -54,7 +57,13 @@ int main(){
    R"("cleanupValidated":true)"));
  reject(replace_once(valid,R"("validatedForDeletion":false)",
    R"("validatedForDeletion":true)"));
- reject(replace_once(valid,R"("partial":true)",R"("partial":"true")"));
+ reject(replace_once(valid,R"("galleryCoverage":{"photo":"complete","video":"unavailable"})",
+    R"("galleryCoverage":{"photo":"complete","video":"all-access"})"));
+  reject(replace_once(valid,R"("galleryCoverage":{"photo":"complete","video":"unavailable"})",
+    R"("galleryCoverage":{"photo":"complete","photo":"partial","video":"unavailable"})"));
+  reject(replace_once(valid,R"("galleryCoverage":{"photo":"complete","video":"unavailable"})",
+    R"("galleryCoverage":{"photo":"complete"})"));
+  reject(replace_once(valid,R"("partial":true)",R"("partial":"true")"));
  reject(replace_once(valid,R"("partial":true)",R"("partial":true,"partial":false)"));
  reject(replace_once(valid,R"("files":3)",R"("files":3,"files":3)"));
  reject(replace_once(valid,R"("media":2)",R"("media":2,"media":2)"));

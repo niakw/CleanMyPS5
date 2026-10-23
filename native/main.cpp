@@ -262,6 +262,18 @@ unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
 unsigned summary_large=0,summary_old=0,summary_old_large=0;
 std::uint64_t summary_bytes=0,summary_large_bytes=0;
 bool summary_partial=false;
+unsigned summary_gallery_photo=0,summary_gallery_video=0;
+const char*gallery_label(unsigned status) noexcept {
+ switch(status){
+  case 1:return "OK";
+  case 2:return "PARTIEL";
+  case 3:return "ABSENT";
+  case 4:return "INACCESSIBLE";
+  case 5:return "ALIAS";
+  case 6:return "NON PARCOURU";
+  default:return "INCONNU";
+ }
+}
 Cmp5MediaReview media_review{};
 enum class MediaType : unsigned { all, image, video };
 enum class MediaSort : unsigned { size, recent, name };
@@ -488,6 +500,8 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
  summary_old_large=parsed.old_large;
  summary_large_bytes=parsed.large_bytes;
  summary_partial=parsed.partial;
+  summary_gallery_photo=parsed.gallery_photo;
+  summary_gallery_video=parsed.gallery_video;
  summary_status=Summary::ok;
  scan_source=source;
  return true;
@@ -536,6 +550,7 @@ void run_overview() noexcept {
   game_count=game_selection=0;
   games_truncated=false;
   summary_status=Summary::unavailable;
+  summary_gallery_photo=summary_gallery_video=0;
   scan_source=ScanSource::none;
  }
  if(cancellation_hook(nullptr))return;
@@ -657,6 +672,7 @@ void* background_task(void*) noexcept {
    review_visible=review_selection=detail_index=0;
    game_count=game_selection=0;
    summary_status=Summary::unavailable;
+   summary_gallery_photo=summary_gallery_video=0;
    scan_source=ScanSource::none;
   }
   if(task_kind==Task::duplicates){
@@ -1034,8 +1050,9 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
     summary_partial?"  PARTIEL":"");
   panel(canvas,664,scan_source==ScanSource::native_title?
     "BILAN NATIF DU TITRE":"BILAN HELPER (AGREGATS)",detail,Color::cyan);
-  (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u",
-    summary_media,summary_cache,summary_logs);
+  (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u  PH %s  VID %s",
+    summary_media,summary_cache,summary_logs,
+    gallery_label(summary_gallery_photo),gallery_label(summary_gallery_video));
   panel(canvas,813,"CATEGORIES VUES",detail);
  }else{
   panel(canvas,664,"BILAN DU STOCKAGE",

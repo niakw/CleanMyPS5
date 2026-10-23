@@ -11,6 +11,7 @@ struct Overview {
  unsigned large=0,old=0,old_large=0;
  std::uint64_t bytes=0,large_bytes=0;
  bool partial=false;
+ unsigned gallery_photo=0,gallery_video=0;
 };
 struct Preflight {
  unsigned accessible=0,denied=0,absent=0,other=0;
@@ -18,7 +19,7 @@ struct Preflight {
 class OverviewReader {
  const char*at;
  const char*end;
- enum class Scope { root,categories,review,ignored };
+ enum class Scope { root,categories,review,gallery,ignored };
  struct Span { const char*data=nullptr;std::size_t size=0;bool escaped=false; };
  static bool key(Span s,const char*want) noexcept {
   const std::size_t n=std::strlen(want);
@@ -82,6 +83,18 @@ class OverviewReader {
   std::uint64_t n=0;
   if(!unsigned_number(&n)||n>UINT32_MAX)return false;
   *out=static_cast<unsigned>(n);return true;
+ }
+ bool gallery_state(unsigned*out) noexcept {
+  Span v{};
+  if(!str(&v))return false;
+  if(key(v,"complete"))*out=1u;
+  else if(key(v,"partial"))*out=2u;
+  else if(key(v,"absent"))*out=3u;
+  else if(key(v,"unavailable"))*out=4u;
+  else if(key(v,"alias-skipped"))*out=5u;
+  else if(key(v,"not-scanned"))*out=6u;
+  else return false;
+  return true;
  }
  bool number_ignored() noexcept {
   whitespace();
@@ -156,11 +169,17 @@ class OverviewReader {
      flag=1u<<6;valid=object(Scope::categories,out,depth+1);
     }else if(key(name,"review")){
      flag=1u<<7;valid=object(Scope::review,out,depth+1);
+    }else if(key(name,"galleryCoverage")){
+     flag=1u<<9;valid=object(Scope::gallery,out,depth+1);
     }else valid=ignore(depth+1);
    }else if(scope==Scope::categories){
     if(key(name,"media")){flag=1u<<0;valid=uint_field(&out->media);}
     else if(key(name,"logs")){flag=1u<<1;valid=uint_field(&out->logs);}
     else if(key(name,"cache")){flag=1u<<2;valid=uint_field(&out->cache);}
+    else valid=ignore(depth+1);
+   }else if(scope==Scope::gallery){
+    if(key(name,"photo")){flag=1u;valid=gallery_state(&out->gallery_photo);}
+    else if(key(name,"video")){flag=2u;valid=gallery_state(&out->gallery_video);}
     else valid=ignore(depth+1);
    }else if(scope==Scope::review){
     if(key(name,"largeMedia")){flag=1u<<0;valid=uint_field(&out->large);}
@@ -177,9 +196,10 @@ class OverviewReader {
    if(take('}'))break;
    if(!take(','))return false;
   }
-  return scope==Scope::root?mask==511u:
+  return scope==Scope::root?(mask&511u)==511u:
    scope==Scope::categories?mask==7u:
-   scope==Scope::review?mask==31u:true;
+   scope==Scope::review?mask==31u:
+   scope==Scope::gallery?mask==3u:true;
  }
 bool preflight_summary(Preflight*out,unsigned depth) noexcept {
   if(depth>12||!take('{'))return false;
