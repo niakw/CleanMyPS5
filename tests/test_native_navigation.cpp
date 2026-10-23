@@ -786,7 +786,7 @@ int main(){
  press(cross);
  finish_scan();
  assert(!compression_engine_seen&&!compression_engine_version[0]);
- assert(mock_ampr_gets==2u);
+ assert(mock_ampr_gets==5u); // Three extra read-only monitor checks.
  mock_ampr_online=true;
  press(r1);
  assert(compression_view==1u);
@@ -799,7 +799,7 @@ int main(){
  assert(game_preflight.ready());
  assert(std::strcmp(game_preflight.title_id,"PPSA12345")==0);
  assert(std::strcmp(game_dest_checked,"/mnt/usb0/homebrew")==0);
- assert(mock_ampr_gets==3u);
+ assert(mock_ampr_gets==6u);
  scene(canvas);
  press(cross);
  assert(compression_view==3u);
@@ -870,7 +870,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==11u);
+ assert(mock_ampr_gets==14u);
  /* A real image requires a one-to-one SMP title identity at PRE and POST. */
  mock_ampr_online=true;
  mock_ampr_post_bodies=0u;
@@ -946,7 +946,7 @@ int main(){
  press(cross);assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==18u);
+ assert(mock_ampr_gets==23u); // Two more image-tab monitor reads.
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  press(r1);
