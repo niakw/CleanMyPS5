@@ -9,6 +9,7 @@
 #include "homebrew.h"
 #include "game_images.h"
 #include "compression_bridge.hpp"
+#include "compression_stream.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -652,9 +653,9 @@ Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
 bool compression_engine_seen=false;
 char compression_engine_version[32]{};
-/* External engine's public hello endpoint: localhost ONLY, GET ONLY.
- * Port 6972 is owned by exFAT2AMPR, if installed. Never pair, authorize,
- * send a path or issue /api/start, /api/delete-source, or similar writes. */
+/* The GPL AMPR/LZ4 packer is bundled as an ELF INSIDE CleanMyPS5.
+ * Its customized, isolated listener uses 6973, loopback only.
+ * A compatible reply does not authenticate the process. */
 bool check_local_ampr(char version[32]) noexcept {
  version[0]=0;
  const int socket=sceNetSocket("cmp5_ampr_probe",2,1,6);
@@ -663,10 +664,10 @@ bool check_local_ampr(char version[32]) noexcept {
  (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
  (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
  const NetSockaddrIn local{16,2,
-  static_cast<std::uint16_t>((6972u<<8)|(6972u>>8)),0x0100007f,0,{0}};
+  static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
  bool ok=sceNetConnect(socket,&local,sizeof(local))>=0;
  constexpr char request[]=
-  "GET /api/hello HTTP/1.0\r\nHost: 127.0.0.1:6972\r\nConnection: close\r\n\r\n";
+  "GET /api/hello HTTP/1.0\r\nHost: 127.0.0.1:6973\r\nConnection: close\r\n\r\n";
  std::size_t sent=0,received=0;
  while(ok&&sent<sizeof(request)-1u){
   if(cancellation_hook(nullptr)){ok=false;break;}
@@ -687,10 +688,58 @@ bool check_local_ampr(char version[32]) noexcept {
  if(!ok||received>=sizeof(response)-1u||
     cancellation_hook(nullptr))return false;
  cmp5_compression::Hello hello{};
- if(!cmp5_compression::parse_hello_http(response,received,&hello))
+ if(!cmp5_compression::parse_hello_http(response,received,&hello)||
+    std::strcmp(hello.version,"CleanMyPS5-1.0")!=0)
   return false;
  std::memcpy(version,hello.version,sizeof(hello.version));
  return true;
+}
+enum class EngineLaunch { untouched, active, missing_file, invalid_elf, loader_unavailable, send_failed, submitted };
+EngineLaunch engine_launch=EngineLaunch::untouched;
+void run_embedded_engine() noexcept {
+ engine_launch=EngineLaunch::untouched;
+ char version[32]{};
+ if(check_local_ampr(version)){
+  compression_engine_seen=true;
+  std::memcpy(compression_engine_version,version,sizeof(version));
+  engine_launch=EngineLaunch::active;
+  return;
+ }
+ /* Only the bundled title-owned asset may be sent, never an external
+  * pathname, untrusted game file, network download or user-chosen ELF. */
+ const int fd=open_probe_target("/app0/assets/cleanmyps5-compression.elf",true);
+ if(fd<0){engine_launch=EngineLaunch::missing_file;return;}
+ struct stat st{};
+ unsigned char magic[20]{};
+ ssize_t got=read(fd,magic,sizeof(magic));
+ if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
+    st.st_size<4096||st.st_size>64LL*1024*1024||
+    got!=static_cast<ssize_t>(sizeof(magic))||
+    !cmp5_compression::elf_header(magic,sizeof(magic))||
+    lseek(fd,0,SEEK_SET)!=0){
+  (void)close(fd);engine_launch=EngineLaunch::invalid_elf;return;
+ }
+ const int socket=sceNetSocket("cmp5_embedded_loader",2,1,6);
+ if(socket<0){(void)close(fd);engine_launch=EngineLaunch::loader_unavailable;return;}
+ const int timeout_us=5000000;
+ (void)sceNetSetsockopt(socket,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(socket,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn loader{16,2,
+  static_cast<std::uint16_t>((9021u<<8)|(9021u>>8)),0x0100007f,0,{0}};
+ if(sceNetConnect(socket,&loader,sizeof(loader))<0){
+  (void)sceNetSocketClose(socket);(void)close(fd);
+  engine_launch=EngineLaunch::loader_unavailable;return;
+ }
+ std::uint64_t sent=0;
+ const bool ok=cmp5_compression::stream_embedded_elf(fd,
+  [socket](const unsigned char*bytes,std::size_t size) noexcept{
+   return sceNetSend(socket,bytes,size,0);
+  },[]{return cancellation_hook(nullptr)!=0;},&sent);
+ (void)close(fd);
+ (void)sceNetSocketClose(socket);
+ engine_launch=ok&&sent>=4096?EngineLaunch::submitted:EngineLaunch::send_failed;
+ /* A successful TCP send is NOT equivalent to an ELF having loaded.
+  * The user can recheck via X after the jailbreak loader accepts it. */
 }
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
@@ -705,7 +754,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -721,6 +770,7 @@ void* background_task(void*) noexcept {
   case Task::video_info: run_video_info(); break;
   case Task::companions: run_companion_check(); break;
   case Task::images: run_game_image_scan(); break;
+  case Task::engine_start: run_embedded_engine(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -763,6 +813,7 @@ void* background_task(void*) noexcept {
    game_images=Cmp5GameImageStats{};game_images_checked=false;
    compression_engine_seen=false;compression_engine_version[0]=0;
   }
+  if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
@@ -988,7 +1039,8 @@ void poll_pad() noexcept {
   }
   if(screen==Screen::compression){
    if(pressed&cross)(void)begin_task(Task::images);
-   continue; /* No generic compressed image writer or deletion. */
+   if(pressed&square)(void)begin_task(Task::engine_start);
+   continue; /* Game conversion/deletion not exposed until validated. */
   }
   if(screen==Screen::official){
    if(pressed&square){
@@ -1601,10 +1653,24 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     compression_engine_version);
  }else{
   (void)std::snprintf(engine_text,sizeof(engine_text),
-   "MOTEUR AMPR LOCAL: NON DETECTE (PORT 6972)");
+   "MOTEUR INCLUS NON ACTIF (PORT LOCAL 6973)");
  }
  canvas.text(125,900,engine_text,2,Color::cyan);
- footer(canvas,"X ACTUALISER   CERCLE RETOUR   GARDER SOURCE  ET TESTER JEU CONVERTI");
+ const char*load_hint=engine_launch==EngineLaunch::loader_unavailable?
+    "CHARGEUR DU JAILBREAK INDISPONIBLE":
+    engine_launch==EngineLaunch::missing_file?
+    "MOTEUR ABSENT DU PACKAGE":
+    engine_launch==EngineLaunch::invalid_elf?
+    "FICHIER MOTEUR INVALIDE":
+    engine_launch==EngineLaunch::send_failed?
+    "ENVOI DU MOTEUR ECHOUE":
+    engine_launch==EngineLaunch::submitted?
+    "MOTEUR ENVOYE AU CHARGEUR  X POUR VERIFIER":
+    engine_launch==EngineLaunch::active?
+    "MOTEUR ACTIF  AUCUNE CONVERSION EN COURS":
+    "MOTEUR LZ4 INTEGRE  APPUYER CARRE POUR LE DEMARRER";
+ canvas.text(125,957,load_hint,2,Color::white);
+ canvas.text(125,1000,"X ANALYSER  CARRE MOTEUR  CERCLE RETOUR  SOURCE PRESERVEE",2,Color::cyan);
 }
 /* A generic LZ4 image cannot be mounted without compatible support. This
  * read-only view never deletes installed titles or claims post-conversion
