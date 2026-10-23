@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <string_view>
 #include <thread>
 #include <unistd.h>
 
@@ -55,7 +56,7 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  if(id!=17)return -1;
  const std::string_view request{static_cast<const char*>(data),size};
  assert(request.find("GET /api/hello HTTP/1.0")==0);
- assert(request.find("Host: 127.0.0.1:6972")!=std::string_view::npos);
+ assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
  assert(request.find("POST")==std::string_view::npos);
  ++mock_ampr_gets;
  return static_cast<int>(size);
@@ -64,7 +65,7 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
  if(id!=17)return -1;
  if(mock_ampr_receive++)return 0;
  static constexpr char body[]=
-  R"({"paired":true,"local":true,"version":"v1.27"})";
+  R"({"paired":true,"local":true,"version":"CleanMyPS5-1.0"})";
  char reply[300]{};
  const int n=std::snprintf(reply,sizeof(reply),
   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
@@ -590,13 +591,17 @@ int main(){
  press(cross);
  finish_scan();
  assert(compression_engine_seen);
- assert(std::strcmp(compression_engine_version,"v1.27")==0);
+ assert(std::strcmp(compression_engine_version,"CleanMyPS5-1.0")==0);
  assert(mock_ampr_gets==1u);
  scene(canvas);
  mock_ampr_online=false;
  press(cross);
  finish_scan();
  assert(!compression_engine_seen&&!compression_engine_version[0]);
+ assert(mock_ampr_gets==1u);
+ press(square); /* no loader can be submitted without packaged ELF in host */
+ finish_scan();
+ assert(engine_launch==EngineLaunch::missing_file);
  assert(mock_ampr_gets==1u);
  press(circle);
  assert(screen==Screen::menu);

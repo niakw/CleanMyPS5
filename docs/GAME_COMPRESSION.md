@@ -80,3 +80,28 @@ reprise. CleanMyPS5 ne se substitue pas aujourd'hui à cette chaîne.
 Aucun essai de cette intégration sur la PS5 13.60 de l'utilisateur n'a
 été effectué. Les tests Linux/macOS et la CI PS5 ne valident ni le
 montage ni la jouabilité.
+
+## Moteur AMPR/LZ4 embarqué — une seule application
+
+Le package natif contient désormais **son propre ELF de compression**
+(`assets/cleanmyps5-compression.elf`). Il est compilé automatiquement
+à partir d'un commit source épinglé de
+[exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr), avec des
+modifications CleanMyPS5 sous GPL-3.0 :
+
+- service **local uniquement**, port **6973** (le 6972 original est libre),
+  dossier de travail isolé `/data/cleanmyps5/compression` ;
+- pas de suppression source, d'écrasement, de conversion forcée, ni de
+  mise à jour des fichiers de jeux automatique au démarrage ;
+- sources et licences du moteur accessibles depuis sa révision GitHub
+  épinglée ; NOTICE et GPL embarquées dans le package final ;
+- lancement depuis **Jeux et compression → Carré** : envoi du moteur
+  inclus au chargeur ELF **déjà fourni par le jailbreak** sur
+  `127.0.0.1:9021`. Aucune autre application à installer ;
+- la réponse locale indique uniquement qu'un service compatible répond,
+  **pas** que kstuff, ShadowMountPlus ou le jeu ont été validés.
+
+Le moteur embarqué contient bien le **véritable packer AMPR/LZ4**.
+L'interface CleanMyPS5 ne propose **pas encore** le choix des jeux et
+le déclenchement de la conversion (prochaine étape). Aucune conversion
+automatique ni suppression d'original n'est activée.

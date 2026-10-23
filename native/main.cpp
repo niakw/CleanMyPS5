@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <cstdlib>
 #include <ctime>
+#include <unistd.h>
 
 extern "C" {
  int sceUserServiceInitialize(const void*);
