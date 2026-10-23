@@ -294,3 +294,10 @@ signalée comme incomplète, et non un chiffre présenté comme certain.
 Ces contrôles n'empêchent pas tous les changements de fichiers effectués
 durant un scan : ils n'autorisent aucune écriture et ne remplacent pas
 le précontrôle du moteur au moment d'une conversion.
+
+Le harnais natif DualSense comporte également un scénario où le moteur
+renvoie une **taille source différente après la double confirmation**.
+Il vérifie, en traversant le vrai chemin de soumission du titre, que
+l'interface signale le changement de plan et que **zéro corps de
+requête POST /api/start** est émis. Le test n'utilise pas de jeu réel
+et ne remplace pas la validation sur la console.

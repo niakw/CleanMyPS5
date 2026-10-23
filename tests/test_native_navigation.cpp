@@ -28,6 +28,7 @@ bool mock_smp_wrong_size=false;
 bool mock_ampr_pending=false;
 bool mock_ampr_image_check=false;
 bool mock_ampr_image_bytes_inconsistent=false;
+bool mock_ampr_changed_source_bytes=false;
 unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
@@ -184,11 +185,12 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   char json[380]{};
   const int body_length=std::snprintf(json,sizeof(json),
    "{\"title_id\":\"PPSA12345\",\"title\":\"TEST\","
-   "\"source_bytes\":4294967296,\"image_bytes\":%llu,\"estimate\":\"sample\","
+   "\"source_bytes\":%llu,\"image_bytes\":%llu,\"estimate\":\"sample\","
    "\"need_typical\":1073741824,\"need_max\":2147483648,"
    "\"duration_by_level\":[1,2,3,4,5,6,7,8,9,10,11,12],"
    "\"verify_seconds\":10,\"dest_free\":4294967296,\"dest_total\":8589934592,"
    "\"compatible\":\"%s\",\"errors\":[],\"warnings\":[]}",
+   mock_ampr_changed_source_bytes?4294967297ULL:4294967296ULL,
    mock_ampr_image_check?
     (mock_ampr_image_bytes_inconsistent?12ULL*1024ULL*1024ULL*1024ULL:
      21ULL*1024ULL*1024ULL*1024ULL):0ULL,
@@ -949,6 +951,23 @@ int main(){
  assert(mock_ampr_gets==23u); // Two more image-tab monitor reads.
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
+ /* Full UI->engine flow: a changed source length between confirmation
+  * and submission must never result in a second AMPR POST. */
+ mock_ampr_post_bodies=0u; // Simulate engine idle, no previous active work.
+ press(cross);assert(compression_view==2u);
+ finish_scan();
+ assert(game_preflight_checked&&game_preflight.ready());
+ assert(!game_job_plan_changed);
+ press(cross);assert(compression_view==3u);
+ mock_ampr_changed_source_bytes=true;
+ press(cross);assert(compression_view==4u);
+ finish_scan();
+ assert(game_job_attempted&&!game_job_accepted&&!game_job_reply_unknown);
+ assert(game_job_plan_changed);
+ assert(mock_ampr_post_bodies==0u); // No bytes sent to /api/start.
+ scene(canvas);
+ mock_ampr_changed_source_bytes=false;
+ press(circle);assert(compression_view==6u);
  press(r1);
  assert(compression_view==0u);
  mock_ampr_online=false;
