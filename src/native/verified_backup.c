@@ -156,6 +156,16 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
  if(ok)ok=copy_body(source,stage,c->bytes,digest,cancel,ctx);
  if(ok)ok=fstat(source,&after)==0&&same(&before,&after)&&
     snapshot_matches(&after,c);
+ /* A stable file descriptor is insufficient if the selected filename has
+  * been renamed or replaced while bytes were copied. Reopen the anchored
+  * gallery path and demand the SAME inode before publishing a capsule.
+  * This only reads the source; it never touches PS5 gallery contents. */
+ if(ok){
+  struct stat current;
+  const int named=source_file(root,c,&current);
+  ok=named>=0&&same(&before,&current);
+  if(named>=0)close(named);
+ }
  close(source);
  if(ok){memcpy(header+16,digest,32);ok=lseek(stage,0,SEEK_SET)==0&&
      full_write(stage,header,sizeof(header))&&fsync(stage)==0;}
@@ -196,9 +206,18 @@ int cmp5_verify_backup(const char*workspace,const char*id,
  if(r)memset(r,0,sizeof(*r));
  if(!valid_id(id))return 0;
  int dir=private_dir(workspace);if(dir<0)return 0;
- int fd=openat(dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);close(dir);
- if(fd<0)return 0;
- int ok=verify_open(fd,r,cancel,ctx);close(fd);return ok;
+ int fd=openat(dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(fd<0){close(dir);return 0;}
+ struct stat before,after,named;
+ Cmp5BackupReceipt verified={0};
+ int ok=fstat(fd,&before)==0&&
+  verify_open(fd,&verified,cancel,ctx)&&
+  fstat(fd,&after)==0&&same(&before,&after)&&
+  fstatat(dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+  same(&before,&named)&&named.st_nlink==1;
+ close(fd);close(dir);
+ if(ok&&r)*r=verified;
+ return ok;
 }
 int cmp5_restore_backup(const char*backup,const char*id,
  const char*destination,const char*newname,Cmp5BackupReceipt*r,
@@ -207,18 +226,37 @@ int cmp5_restore_backup(const char*backup,const char*id,
  if(!valid_id(id)||!valid_id(newname)||canceled(cancel,ctx))return 0;
  int source_dir=private_dir(backup);if(source_dir<0)return 0;
  int source=openat(source_dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
- close(source_dir);if(source<0)return 0;
- Cmp5BackupReceipt verified;
- if(!verify_open(source,&verified,cancel,ctx)){close(source);return 0;}
- if(lseek(source,HEADER_SIZE,SEEK_SET)!=(off_t)HEADER_SIZE){close(source);return 0;}
+ if(source<0){close(source_dir);return 0;}
+ struct stat before,after,named,source_root,target_root;
+ Cmp5BackupReceipt verified={0};
+ if(fstat(source,&before)!=0||
+    !verify_open(source,&verified,cancel,ctx)||
+    fstat(source,&after)!=0||!same(&before,&after)){
+  close(source);close(source_dir);return 0;
+ }
  int target=private_dir(destination);
- if(target<0){close(source);return 0;}
+ if(target<0){close(source);close(source_dir);return 0;}
+ /* An alias such as /workspace/. must never qualify as independent restore
+  * storage, regardless of the spelling of source and destination paths. */
+ if(fstat(source_dir,&source_root)!=0||fstat(target,&target_root)!=0||
+    (source_root.st_dev==target_root.st_dev&&
+     source_root.st_ino==target_root.st_ino)){
+  close(source);close(source_dir);close(target);return 0;
+ }
+ if(lseek(source,HEADER_SIZE,SEEK_SET)!=(off_t)HEADER_SIZE){
+  close(source);close(source_dir);close(target);return 0;
+ }
  char temp[56];int stage=start_stage(target,newname,temp);
- if(stage<0){close(source);close(target);return 0;}
+ if(stage<0){close(source);close(source_dir);close(target);return 0;}
  uint8_t digest[32];
  int ok=copy_body(source,stage,verified.bytes,digest,cancel,ctx)&&
    memcmp(digest,verified.sha256,32)==0;
- close(source);
+ /* Hash equality does not prove that a capsule still exists under its
+  * original path. Reject source removal, link or inode replacement. */
+ if(ok)ok=fstat(source,&after)==0&&same(&before,&after)&&
+   fstatat(source_dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+   same(&before,&named)&&named.st_nlink==1;
+ close(source);close(source_dir);
  if(ok)ok=fsync(stage)==0;
  close(stage);
  if(ok&&canceled(cancel,ctx))ok=0;

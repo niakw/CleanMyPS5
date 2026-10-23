@@ -94,3 +94,15 @@ target_include_directories(cmp5-gallery-sidecar-race PRIVATE src/native ${CMAKE_
 add_test(NAME gallery_sidecar_race
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_sidecar_race.py
  $<TARGET_FILE:cmp5-gallery-sidecar-race>)
+
+# Host-only private backup capsule identity tests; no PS5 media writes.
+add_executable(cmp5-backup-identity-races
+ tests/test_backup_identity_races.c src/native/sha256.c)
+target_include_directories(cmp5-backup-identity-races PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-backup-identity-races PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME backup_identity_races COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_backup_identity_races.py
+ $<TARGET_FILE:cmp5-backup-identity-races>)
