@@ -98,12 +98,12 @@ jobs:
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
           /tmp/cmp5-native-navigation
-      - name: Render twenty preview screens without a PS5
+      - name: Render twenty-two preview screens without a PS5
         run: |
           mkdir -p dist/ui-traces
           CMP5_NATIVE_PREVIEW_DIR=dist/ui-traces /tmp/cmp5-native-navigation
           python3 tests/render_native_preview.py dist/ui-traces dist/native-ui-preview
-          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 20
+          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 22
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb

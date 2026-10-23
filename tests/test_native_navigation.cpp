@@ -1042,6 +1042,10 @@ int main(){
   save(Screen::compression,"01b-compression");
   compression_view=1;compression_selection=0;
   save(Screen::compression,"01c-compression-games");
+  compression_view=6u;compression_image_selection=0;
+  save(Screen::compression,"01e-compression-images");
+  compression_view=2u;
+  save(Screen::compression,"01f-compression-image-check");
   compression_view=5u;
   game_progress_checked=true;
   game_progress=cmp5_compression::GameProgress{};
