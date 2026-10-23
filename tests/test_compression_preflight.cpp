@@ -58,5 +58,14 @@ int main(){
  assert(!form_encode_path("/data/x\nPOST /api/start",encoded,sizeof(encoded)));
  assert(!form_encode_path("/data/homebrew/",encoded,sizeof(encoded)));
  assert(!form_encode_path("/data//PPSA",encoded,sizeof(encoded)));
+ StartAck acknowledgment{};
+ assert(parse_start_ack(R"({"ok":true,"position":0})",24,&acknowledgment));
+ assert(acknowledgment.position==0);
+ assert(parse_start_ack(R"({"ok":true,"position":15})",25,&acknowledgment));
+ assert(acknowledgment.position==15);
+ assert(!parse_start_ack(R"({"ok":true,"position":16})",25,&acknowledgment));
+ assert(!parse_start_ack(R"({"ok":false,"position":0})",25,&acknowledgment));
+ assert(!parse_start_ack(R"({"ok":true,"position":0,"remove":true})",38,&acknowledgment));
+ assert(!parse_start_ack(R"({"ok":true,"position":0})",24,nullptr));
  puts("AMPR game-specific preflight and path validation: PASS");
 }
