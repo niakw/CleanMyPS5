@@ -652,6 +652,7 @@ void run_autoload_check() noexcept {
 }
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
+unsigned compression_view=0,compression_selection=0;
 bool compression_engine_seen=false;
 char compression_engine_version[32]{};
 /* The GPL AMPR/LZ4 packer is bundled as an ELF INSIDE CleanMyPS5.
@@ -751,6 +752,7 @@ void run_game_image_scan() noexcept {
  if(cmp5_scan_game_images("/",&sample,cancellation_hook,nullptr)&&
     !cancellation_hook(nullptr)){
   game_images=sample;game_images_checked=true;
+  compression_selection=0;
  }
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
@@ -1039,6 +1041,13 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::compression){
+   if(pressed&(l1|r1))compression_view^=1u;
+   if(compression_view==1u&&game_images.shown_folders){
+    if(pressed&up)compression_selection=
+      (compression_selection+game_images.shown_folders-1u)%game_images.shown_folders;
+    if(pressed&down)compression_selection=
+      (compression_selection+1u)%game_images.shown_folders;
+   }
    if(pressed&cross)(void)begin_task(Task::images);
    if(pressed&square)(void)begin_task(Task::engine_start);
    continue; /* Game conversion/deletion not exposed until validated. */
@@ -1622,6 +1631,33 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  char detail[150]{};
+ if(compression_view==1u){
+  (void)std::snprintf(detail,sizeof(detail),
+     "%u REPERTOIRES TROUVES   %u NON AFFICHABLES",
+     game_images.folder_games,game_images.hidden_folders);
+  panel(canvas,308,"JEUX DETECTES EN DOSSIERS",detail);
+  if(game_images.shown_folders==0u){
+   panel(canvas,465,"AUCUN JEU LISTABLE",
+       "LES JEUX IMAGES SONT RECAPITULES DANS L'ONGLET STATISTIQUES",
+       Color::yellow);
+  }else{
+   const unsigned first=(compression_selection/4u)*4u;
+   for(unsigned i=first;i<game_images.shown_folders&&i<first+4u;i++){
+    const auto&candidate=game_images.folder[i];
+    const unsigned top=449u+(i-first)*112u;
+    const Color highlight=i==compression_selection?Color::cyan:Color::white;
+    char summary[150]{};
+    if(candidate.size_complete)
+     (void)std::snprintf(summary,sizeof(summary),"%llu GIO NOMINAUX",
+        static_cast<unsigned long long>(candidate.nominal_bytes/1073741824ULL));
+    else
+     (void)std::snprintf(summary,sizeof(summary),"TAILLE INCOMPLETE");
+    panel(canvas,top,candidate.label,summary,highlight);
+   }
+  }
+  footer(canvas,"L1/R1 STATISTIQUES  HAUT/BAS JEU  CARRE MOTEUR  AUCUNE CONVERSION");
+  return;
+ }
  (void)std::snprintf(detail,sizeof(detail),
     "%u EXFAT   %u FFPKG   %u FFPFS",
     game_images.count[CMP5_IMAGE_EXFAT],
@@ -1672,7 +1708,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     "MOTEUR ACTIF  AUCUNE CONVERSION EN COURS":
     "MOTEUR LZ4 INTEGRE  APPUYER CARRE POUR LE DEMARRER";
  canvas.text(125,957,load_hint,2,Color::white);
- canvas.text(125,1000,"X ANALYSER  CARRE MOTEUR  CERCLE RETOUR  SOURCE PRESERVEE",2,Color::cyan);
+ canvas.text(125,1000,"L1/R1 JEUX  X ANALYSER  CARRE MOTEUR  CERCLE RETOUR",2,Color::cyan);
 }
 /* A generic LZ4 image cannot be mounted without compatible support. This
  * read-only view never deletes installed titles or claims post-conversion
