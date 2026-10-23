@@ -45,6 +45,14 @@ static void setup_watch(const char*parent,const char*name,const char*replacement
  assert(length>0&&(size_t)length<sizeof(moved));
  action=operation;triggered=0;
 }
+static int remove_marker_during_member_verification(void*context){
+ unsigned*counter=(unsigned*)context;
+ if(++(*counter)==2u){
+  if(rename(watched,moved)!=0){perror("mid-verification rename");exit(19);}
+  triggered=1;
+ }
+ return 0; /* Do not cancel: identity checks must detect the rename. */
+}
 static void write_member(int dir,const char*filename,const void*data,size_t len){
  int fd=openat(dir,filename,O_CREAT|O_WRONLY|O_EXCL,0600);
  assert(fd>=0);
@@ -98,6 +106,14 @@ int main(int argc,char**argv){
  assert(unlink(moved)==0);
  action=0;
  assert(raw_restored(dir,"ALBUM__1",lens[0],receipts[0].sha256,NULL,NULL));
+ setup_watch(workspace,"ALBUM__RESTORED","LATE__RESTORED",0);
+ unsigned calls=0;
+ assert(!cmp5_verify_restored_group(workspace,"ALBUM",&result,
+   remove_marker_during_member_verification,&calls));
+ assert(triggered&&calls>=2u);
+ assert(rename(moved,watched)==0);
+ assert(cmp5_verify_restored_group(workspace,"ALBUM",&result,NULL,NULL));
+ assert(result.count==2u&&result.bytes==lens[0]+lens[1]);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
  return 0;

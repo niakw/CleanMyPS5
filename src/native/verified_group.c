@@ -190,7 +190,6 @@ int cmp5_verify_group(const char*workspace,const char*id,
  uint8_t marker[MARK_SIZE];Cmp5BackupReceipt part[CMP5_GROUP_MAX];
  Cmp5GroupReceipt found;uint32_t count=0;
  int ok=read_manifest(dir,id,0,marker,part,&count,&found);
- close(dir);
  for(unsigned i=0;ok&&i<count;i++){
   if(cancelled(cancel,ctx)){ok=0;break;}
   char name[48];member_name(name,id,i);
@@ -199,6 +198,18 @@ int cmp5_verify_group(const char*workspace,const char*id,
    actual.bytes==part[i].bytes&&
    memcmp(actual.sha256,part[i].sha256,32)==0;
  }
+ /* The marker may be moved after we parsed it but while member capsules
+  * were hashed. Only publish VERIFIED when the COMMIT still exists under
+  * the anchored directory and contains the same manifest. */
+ if(ok){
+  uint8_t final_marker[MARK_SIZE];
+  Cmp5BackupReceipt final_part[CMP5_GROUP_MAX];
+  uint32_t final_count=0;
+  ok=read_manifest(dir,id,0,final_marker,final_part,&final_count,NULL)&&
+   final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+   !cancelled(cancel,ctx);
+ }
+ close(dir);
  if(ok&&r)*r=found;
  return ok;
 }
@@ -288,6 +299,16 @@ int cmp5_verify_restored_group(const char*workspace,const char*id,
  for(unsigned i=0;ok&&i<count;i++){
   char name[48];member_name(name,id,i);
   ok=raw_restored(dir,name,parts[i].bytes,parts[i].sha256,cancel,ctx);
+ }
+ /* Recheck the RESTORED marker once all members have been hashed. A marker
+  * removed mid-verification invalidates an otherwise byte-identical set. */
+ if(ok){
+  uint8_t final_marker[MARK_SIZE];
+  Cmp5BackupReceipt final_parts[CMP5_GROUP_MAX];
+  uint32_t final_count=0;
+  ok=read_manifest(dir,id,1,final_marker,final_parts,&final_count,NULL)&&
+   final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+   !cancelled(cancel,ctx);
  }
  close(dir);if(ok&&r)*r=result;return ok;
 }
