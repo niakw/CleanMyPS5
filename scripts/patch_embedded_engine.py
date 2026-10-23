@@ -52,6 +52,14 @@ def main(root: Path):
            '  r.remove_source = false; /* no source deletion */')
     change(httpd, '  r.force = flag(body, "force", false);',
            '  r.force = false; /* no incompatible game bypass */')
+    change(httpd, '  r.clean_leftovers = flag(body, "clean", true);',
+           '  r.clean_leftovers = false; /* never prune unrelated files */')
+    change(httpd, '  r.verify = flag(body, "verify", true);',
+           '  r.verify = true; /* mandatory output integrity verification */')
+    change(httpd, '  r.dedup = flag(body, "dedup", true);',
+           '  r.dedup = true; /* preserve tested packer behavior */')
+    change(httpd, '  r.cache_mode = form_get(body, "cache", v, sizeof v) >= 0 && v[0] == \'1\' ? 1 : 0;',
+           '  r.cache_mode = 0; /* no optional cache on other volumes */')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
     # they can race with ShadowMountPlus or another loopback client.
