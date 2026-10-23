@@ -1028,6 +1028,19 @@ void run_game_submission() noexcept {
  if(!game_check_request(game_source_checked,game_dest_checked,&now)||
     !now.ready()||std::strcmp(now.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
+ /* Prevent requeue after a lost ACK or UI restart. A fresh preflight
+  * alone cannot tell whether a conversion has already been queued.
+  * If the live engine status cannot be read or has any queued/running/
+  * paused task, fail closed; it could be our game or another one.
+  * A completed/error status for the SAME ID also requires manual
+  * inspection instead of automatic duplicate submission. */
+ cmp5_compression::GameProgress existing{};
+ if(!ampr_read_progress(&existing)||existing.queue_len!=0u||
+    existing.state==cmp5_compression::JobState::running||
+    existing.state==cmp5_compression::JobState::paused||
+    (existing.state!=cmp5_compression::JobState::idle&&
+      std::strcmp(existing.title_id,now.title_id)==0)||
+    cancellation_hook(nullptr))return;
  char would_overwrite[256]{};
  const int n=std::snprintf(would_overwrite,sizeof(would_overwrite),
   "%s/%s",game_dest_checked,now.title_id);
