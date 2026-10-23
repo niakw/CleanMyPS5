@@ -80,11 +80,14 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
 constexpr int row_count=5;
 enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression };
 enum class Link { unchecked, ok, offline };
-const char* const local_paths[]={
- "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
+constexpr std::size_t local_path_count=6u;
+const char* const local_paths[local_path_count]={
+ "/app0/sce_sys/param.json", "/download0", "/data",
+ "/user/av_contents", "/user/av_contents/photo", "/user/av_contents/video"
 };
-const char* const local_names[]={
- "APP INSTALLEE", "STOCKAGE APP", "STOCKAGE HOMEBREW", "GALERIE PS5"
+const char* const local_names[local_path_count]={
+ "APP INSTALLEE", "STOCKAGE APP", "STOCKAGE HOMEBREW",
+ "GALERIE PS5", "PHOTOS GALERIE", "VIDEOS GALERIE"
 };
 int controller=-1,selected=0;
 Screen screen=Screen::menu;
@@ -101,8 +104,9 @@ struct LocalProbe {
  std::uint64_t available_bytes=0;
  std::uint64_t total_bytes=0;
 };
-LocalProbe local_probe[4]{};
+LocalProbe local_probe[local_path_count]{};
 bool local_checked=false;
+unsigned access_page=0;
 std::atomic<bool> scan_cancel_requested{false};
 constexpr unsigned max_entries_per_root=256;
 
@@ -228,7 +232,7 @@ struct LocalCoverage {
 LocalCoverage summarize_local_coverage(const LocalProbe*probes,
  std::size_t count,bool checked) noexcept {
  LocalCoverage coverage{};
- if(!probes||count!=4u||!checked)return coverage;
+ if(!probes||count!=local_path_count||!checked)return coverage;
  coverage.partial=false;
  for(std::size_t i=0;i<count;i++){
   const LocalProbe&probe=probes[i];
@@ -254,7 +258,7 @@ void probe_local() noexcept {
  local_checked=false;
  // Drop previously sampled rights and capacity before every new probe.
  for(auto&sample:local_probe)sample=LocalProbe{};
- for(std::size_t i=0;i<4;i++){
+ for(std::size_t i=0;i<local_path_count;i++){
   if(cancellation_hook(nullptr))return;
   local_probe[i]=probe_path(local_paths[i],i==0);
   if(cancellation_hook(nullptr))return;
@@ -1648,6 +1652,10 @@ void poll_pad() noexcept {
    if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
    continue;
   }
+  if(screen==Screen::access&&(pressed&l1||pressed&r1)){
+   access_page=access_page==0u?1u:0u;
+   continue;
+  }
   if(screen==Screen::access&&(pressed&square)){
    screen=Screen::apps;
    (void)begin_task(Task::homebrew);
@@ -1740,7 +1748,7 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
                        available,denied,absent);
   panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
  }else if(summary_status==Summary::ok){
-  const LocalCoverage scope=summarize_local_coverage(local_probe,4u,local_checked);
+  const LocalCoverage scope=summarize_local_coverage(local_probe,local_path_count,local_checked);
   const bool limited=summary_partial||scope.partial;
   panel(canvas,366,"SCAN NATIF DU TITRE",
     limited?"COUVERTURE PARTIELLE OU NON PROUVEE":"SONDAGE DES RACINES DISPONIBLE",
@@ -1749,17 +1757,17 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,366,"ANALYSE NON DISPONIBLE","DROITS OU MOTEUR LIMITES",Color::yellow);
  }
  const LocalCoverage coverage=summarize_local_coverage(
-   local_probe,4u,local_checked);
+   local_probe,local_path_count,local_checked);
  char local_result[112]{};
  if(local_checked){
   (void)std::snprintf(local_result,sizeof(local_result),
-    "%u/4 OUVERTS  %u REFUSES  %u ABSENTS%s",
+    "%u/6 OUVERTS  %u REFUSES  %u ABSENTS%s",
     coverage.opened+coverage.listable,coverage.denied,coverage.missing,
     coverage.partial?"  PARTIEL":"");
  }else{
   (void)std::snprintf(local_result,sizeof(local_result),"SONDAGE NON TERMINE");
  }
- panel(canvas,515,"COUVERTURE DES 4 SONDES",local_result,
+ panel(canvas,515,"COUVERTURE DES 6 SONDES",local_result,
    coverage.partial?Color::yellow:Color::cyan);
  char detail[112]{};
  if(summary_status==Summary::ok){
@@ -1792,7 +1800,9 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"X RETENTER    CERCLE RETOUR");
   return;
  }
- for(std::size_t i=0;i<4;i++){
+ for(unsigned slot=0;slot<4u;slot++){
+  const unsigned i=access_page*4u+slot;
+  if(i>=local_path_count)break;
   const auto&probe=local_probe[i];
   const auto state=probe.status;
   char detail[100]{};
@@ -1815,7 +1825,7 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
      "ERREUR D ACCES";
    (void)std::snprintf(detail,sizeof(detail),"%s",reason);
   }
-  const unsigned y=353+static_cast<unsigned>(i)*144;
+  const unsigned y=353+slot*144u;
    panel(canvas,y,local_names[i],detail,
      (state==LocalAccess::listable&&!probe.truncated&&!probe.io_error)||
       state==LocalAccess::opened?Color::cyan:Color::yellow);
@@ -1829,12 +1839,19 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
     if(free_width)canvas.rectangle(930,y+87,free_width,12,Color::cyan);
    }
  }
+ if(access_page==1u){
+  panel(canvas,648,"INDEX ET MINIATURES",
+    "DROITS ET RESTAURATION NON PROUVES",Color::yellow);
+  canvas.text(125,830,"LIRE PHOTO ET VIDEO NE PROUVE PAS UN DROIT D EFFACEMENT",2,Color::yellow);
+ }
  char privilege_note[160]{};
  (void)std::snprintf(privilege_note,sizeof(privilege_note),
    "TITRE UID %lu EUID %lu  HELPER SEPARE  SUPPRESSION BLOQUEE",
    static_cast<unsigned long>(getuid()),static_cast<unsigned long>(geteuid()));
  canvas.text(125,925,privilege_note,2,Color::yellow);
- footer(canvas,"X ACTUALISER  CARRE APPS ET PLUGINS  CERCLE RETOUR");
+ footer(canvas,access_page?
+   "L1/R1 STOCKAGE  X ACTUALISER  CARRE APPS  CERCLE RETOUR":
+   "L1/R1 GALERIE  X ACTUALISER  CARRE APPS  CERCLE RETOUR");
 }
 void show_apps(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){

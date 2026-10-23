@@ -43,3 +43,11 @@ Les ajouts de sources natifs non approuvés échouent avant le build SDK.
 Tests par injection de `unlinkat`, `rename`, `O_CREAT`, `seteuid` et
 une unité de sauvegarde illégitime. Contrôle structurel seulement : il ne
 remplace pas une revue d'appel indirect ni un test sur console.
+
+### Permissions de photo et vidéo : sondes séparées
+
+La vue Accès propose six sondes, dont `/user/av_contents/photo` et
+`/user/av_contents/video` séparées du parent. L1/R1 permet de passer
+entre les deux pages ; un sous-dossier refusé rend le bilan **partiel**.
+L'accès aux miniatures et aux index de la Galerie ne se déduit pas de
+l'ouverture réussie de ces répertoires.

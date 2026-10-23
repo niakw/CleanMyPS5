@@ -459,40 +459,42 @@ int main(){
  assert(unlink(direct_child)==0&&rmdir(real_parent)==0);
  assert(unlink(file_alias)==0&&unlink(alias)==0);
  assert(unlink(media)==0&&rmdir(dir)==0);
- /* Four successful probes do NOT mean a full PS5 disk inventory. A
+ /* Six successful probes do NOT mean a full PS5 disk inventory. A
   * permission error, absent mount, truncated directory or read error
   * must make the UI coverage visibly partial, even with a green scan. */
- LocalProbe roots[4]{};
+ LocalProbe roots[local_path_count]{};
  roots[0].status=LocalAccess::opened;
  roots[1].status=LocalAccess::listable;roots[1].entries=3;
  roots[2].status=LocalAccess::listable;roots[2].entries=2;
  roots[3].status=LocalAccess::listable;roots[3].entries=5;
- LocalCoverage coverage=summarize_local_coverage(roots,4u,true);
- assert(!coverage.partial&&coverage.opened==1u&&coverage.listable==3u);
+ roots[4].status=LocalAccess::listable;
+ roots[5].status=LocalAccess::listable;
+ LocalCoverage coverage=summarize_local_coverage(roots,local_path_count,true);
+ assert(!coverage.partial&&coverage.opened==1u&&coverage.listable==5u);
  assert(coverage.entries==10u&&!coverage.missing&&!coverage.denied);
- assert(summarize_local_coverage(roots,4u,false).partial);
+ assert(summarize_local_coverage(roots,local_path_count,false).partial);
  assert(summarize_local_coverage(roots,3u,true).partial);
  roots[3].status=LocalAccess::denied;
- coverage=summarize_local_coverage(roots,4u,true);
- assert(coverage.partial&&coverage.denied==1u&&coverage.listable==2u);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
+ assert(coverage.partial&&coverage.denied==1u&&coverage.listable==4u);
  roots[3].status=LocalAccess::missing;
- coverage=summarize_local_coverage(roots,4u,true);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.missing==1u);
  roots[3].status=LocalAccess::enumeration_denied;
- coverage=summarize_local_coverage(roots,4u,true);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.denied==1u);
  roots[3].status=LocalAccess::unavailable;
- coverage=summarize_local_coverage(roots,4u,true);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.other==1u);
  roots[3].status=LocalAccess::listable;roots[3].entries=5;
  roots[2].truncated=true;
- coverage=summarize_local_coverage(roots,4u,true);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.truncated&&coverage.entries==10u);
  roots[2].truncated=false;roots[2].io_error=true;
- coverage=summarize_local_coverage(roots,4u,true);
+ coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(coverage.partial&&coverage.io_error);
  roots[2].io_error=false;
- assert(!summarize_local_coverage(roots,4u,true).partial);
+ assert(!summarize_local_coverage(roots,local_path_count,true).partial);
  controller=1;
  ps5::demo::Canvas canvas;
  assert(screen==Screen::menu);
@@ -1008,7 +1010,11 @@ int main(){
  press(cross);
  assert(screen==Screen::access);
  finish_scan();
+ assert(access_page==0u);
  scene(canvas);
+ press(r1);assert(access_page==1u);
+ scene(canvas);
+ press(l1);assert(access_page==0u);
  press(square);
  assert(screen==Screen::apps);
  finish_scan();
