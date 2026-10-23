@@ -64,6 +64,16 @@ def main(root: Path):
            '  r.dedup = true; /* preserve tested packer behavior */')
     change(httpd, '  r.cache_mode = form_get(body, "cache", v, sizeof v) >= 0 && v[0] == \'1\' ? 1 : 0;',
            '  r.cache_mode = 0; /* no optional cache on other volumes */')
+    change(httpd,
+           '  if (r.dest_base[0] && !SAFE_PATH(r.dest_base)) { send_json(fd, 400, "{\\"error\\":\\"bad destination\\",\\"code\\":\\"dest_unavailable\\"}"); return; }',
+           '''  if (r.dest_base[0] && !SAFE_PATH(r.dest_base)) { send_json(fd, 400, "{\\"error\\":\\"bad destination\\",\\"code\\":\\"dest_unavailable\\"}"); return; }
+  /* Direct API calls must use exactly the game paths inventoried by
+   * CleanMyPS5, not arbitrary data, saves or system directories. */
+  if (!cmp5_game_source_allowed(r.source) ||
+      !cmp5_game_destination_allowed(r.dest_base)) {
+    send_json(fd, 400, "{\\"error\\":\\"game_path_not_allowed\\"}");
+    return;
+  }''')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
     # they can race with ShadowMountPlus or another loopback client.
@@ -207,7 +217,7 @@ static void cmp5_progress(int fd) {
      else cmp5_progress(fd);
    }''')
     change(httpd, '#include <sys/socket.h>',
-           '#include <sys/socket.h>\n#include <sys/stat.h>')
+           '#include <sys/socket.h>\n#include <sys/stat.h>\n#include "cmp5_compression_allowed_paths.h"')
     # Match an actual file image to the single ShadowMountPlus-managed
     # title ID; do NOT derive IDs from filenames, or mount an unknown image.
     # This is a read-only lookup. It refuses ambiguous/truncated inventories.

@@ -20,6 +20,8 @@ on:
       - scripts/build_embedded_compression_engine.sh
       - scripts/patch_embedded_engine.py
       - scripts/verify_embedded_engine_policy.py
+      - src/native/compression_allowed_paths.h
+      - tests/test_compression_allowed_paths.c
       - tests/test_compression_stream.cpp
       - tests/test_compression_bridge.cpp
       - tests/test_compression_preflight.cpp
@@ -71,6 +73,10 @@ jobs:
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol
           /tmp/cmp5-protocol
+      - name: Ensure embedded packer refuses arbitrary system and save paths
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror tests/test_compression_allowed_paths.c -o /tmp/cmp5-compression-paths
+          /tmp/cmp5-compression-paths
       - name: Verify managed image title identities and reject opaque formats
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_compression_image.cpp -o /tmp/cmp5-compression-image
