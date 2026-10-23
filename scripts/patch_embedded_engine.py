@@ -46,6 +46,10 @@ def main(root: Path):
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')
+    # All request flags are hard-pinned in our distribution. Keep the
+    # unused upstream helper available but quiet under -Werror.
+    change(httpd, 'static bool flag(const char *body, const char *key, bool dflt) {',
+           'static bool __attribute__((unused)) flag(const char *body, const char *key, bool dflt) {')
     change(httpd, '  r.overwrite = flag(body, "overwrite", false);',
            '  r.overwrite = false; /* CleanMyPS5 never overwrites game source */')
     change(httpd, '  r.remove_source = flag(body, "remove", false);',
