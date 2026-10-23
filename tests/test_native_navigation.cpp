@@ -51,6 +51,19 @@ int sceNetRecv(int,void*,std::size_t,int){return -1;}
 int sceNetSetsockopt(int,int,int,const void*,std::uint32_t){return -1;}
 int sceNetSocketClose(int){return 0;}
 
+int cmp5_scan_game_images(const char*,Cmp5GameImageStats*result,
+ Cmp5CancelCheck cancel,void*context){
+ *result=Cmp5GameImageStats{};
+ if(cancel&&cancel(context))return 0;
+ result->scanned_roots=2u;
+ result->count[CMP5_IMAGE_EXFAT]=2u;
+ result->count[CMP5_IMAGE_FFPFSC]=1u;
+ result->large_candidates=1u;
+ result->large_nominal_bytes=24ULL*1024*1024*1024;
+ result->nominal_bytes=38ULL*1024*1024*1024;
+ result->partial=1u;
+ return 1;
+}
 char *cmp5_overview_with_review(const char*,std::size_t*len,Cmp5MediaReview*review){
  // Synthetic fixed result: the native title can work without any helper.
  const char*response=R"({"schemaVersion":1,"mode":"metadata-only","scope":"bounded-known-roots","cleanupValidated":false,"files":2,"visited":4,"nominalBytes":40000000,"partial":true,"categories":{"media":2,"logs":0,"cache":0,"residuals":0,"other":0},"review":{"largeMedia":0,"oldMedia":2,"oldLargeMedia":0,"largeMediaNominalBytes":0,"validatedForDeletion":false}})";
@@ -541,6 +554,19 @@ int main(){
  press(down);
  assert(selected==3);
  press(cross);
+ assert(screen==Screen::compression);
+ finish_scan();
+ assert(game_images_checked);
+ assert(game_images.count[CMP5_IMAGE_EXFAT]==2u);
+ assert(game_images.count[CMP5_IMAGE_FFPFSC]==1u);
+ scene(canvas);
+ press(cross);
+ finish_scan();
+ press(circle);
+ assert(screen==Screen::menu);
+ press(down);
+ assert(selected==4);
+ press(cross);
  assert(screen==Screen::official);
  press(cross);
  assert(official_checked[0]);
@@ -564,6 +590,8 @@ int main(){
  assert(official_checked[0]&&official_checked[1]);
  press(circle);
  assert(screen==Screen::menu);
+ press(up);
+ assert(selected==3);
  press(up);
  assert(selected==2);
  press(up);
@@ -703,6 +731,7 @@ int main(){
   };
   selected=2;
   save(Screen::menu,"01-menu");
+  save(Screen::compression,"01b-compression");
   save(Screen::cleanup,"02-cleanup");
   review_query[0]=0;review_game[0]=0;
   review_type=MediaType::all;review_older=false;review_large=false;
