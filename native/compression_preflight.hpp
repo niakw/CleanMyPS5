@@ -186,6 +186,28 @@ inline bool parse_game_preflight(const char*data,std::size_t n,
  if(!PreflightParser(data,n).parse(&value))return false;
  *out=value;return true;
 }
+
+struct StartAck {unsigned position=0;};
+inline bool parse_start_ack(const char*json,std::size_t size,
+                            StartAck*out) noexcept {
+ // Upstream's 200 response is {"ok":true,"position":N}, N in 0..15.
+ // Exact framing prevents a crafted unrelated JSON nested field from
+ // masquerading as a successfully submitted conversion.
+ if(!json||!out||size<24||size>48)return false;
+ constexpr char start[]="{\"ok\":true,\"position\":";
+ constexpr auto prefix=sizeof(start)-1;
+ if(size<=prefix+1||std::memcmp(json,start,prefix)!=0||
+    json[size-1]!='}')return false;
+ unsigned pos=0;
+ for(std::size_t i=prefix;i<size-1;i++){
+  const char c=json[i];
+  if(c<'0'||c>'9'||(i==prefix&&c=='0'&&i+1!=size-1))
+   return false;
+  pos=pos*10u+static_cast<unsigned>(c-'0');
+  if(pos>=16u)return false;
+ }
+ *out={pos};return true;
+}
 /* Form component used solely with the bounded candidates returned by
  * cmp5_scan_game_images. Reject controls / traversal before encoding. */
 inline bool form_encode_path(const char*path,char*out,std::size_t cap) noexcept {
