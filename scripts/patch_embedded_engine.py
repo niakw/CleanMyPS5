@@ -28,6 +28,8 @@ def main(root: Path):
            'static void __attribute__((unused)) clean_stray_mount_dirs(void) {')
     change(mainc, '  clean_stray_mount_dirs();',
            '  /* CleanMyPS5: no unsolicited deletion of mount roots on boot. */')
+    change(mainc, '  e2a_mkdir_p(E2A_HOMEBREW_DIR);',
+           '  /* CleanMyPS5: do not create game destination on boot. */')
     change(mainc, '  plugins_start_background();   /* ShadowMountPlus\' emulator folder, then every game\'s fakelib */',
            '  /* CleanMyPS5: no unsolicited plugin/file updates on boot. */')
     change(mainc, '  covers_start();               /* every title\'s cover kept at hand, the slow ones fetched patiently */',
