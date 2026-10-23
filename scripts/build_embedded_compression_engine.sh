@@ -29,8 +29,8 @@ from pathlib import Path
 import sys
 path=Path(sys.argv[1])
 start=path.read_bytes()[:20]
-assert start[:4]==b"\\x7fELF", "Engine is not an ELF"
-assert start[4:6]==b"\\x02\\x01", "Engine is not 64-bit little-endian"
+assert start[:4]==bytes.fromhex("7f454c46"), "Engine is not an ELF"
+assert start[4:6]==bytes.fromhex("0201"), "Engine is not 64-bit little-endian"
 assert int.from_bytes(start[18:20],"little")==62, "Engine is not x86-64"
 assert path.stat().st_size<=64*1024*1024, "Unsafe oversized engine"
 print("CleanMyPS5 compressed game engine: pinned PS5 x86-64 ELF")
