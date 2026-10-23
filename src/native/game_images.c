@@ -2,6 +2,7 @@
 #define _DEFAULT_SOURCE
 #endif
 #include "game_images.h"
+#include "game_scan_identity.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -96,6 +97,8 @@ static int game_root(int parent,const char*name){
 }
 static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
  if(depth>6u||stopped(a)){close(fd);return 0;}
+ struct stat before,after;
+ if(fstat(fd,&before)!=0){close(fd);return 0;}
  DIR*d=fdopendir(fd);
  if(!d){close(fd);return 0;}
  unsigned entries=0;
@@ -124,6 +127,11 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
    }
   }else{good=0;break;} /* unexpected links or device files */
  }
+ /* A descendant can be renamed/added while we walk it without changing
+  * the root game's timestamp. Check EACH traversed directory, not only
+  * the top-level game root. This is still a bounded advisory inventory. */
+ if(fstat(dirfd(d),&after)!=0||
+    !cmp5_same_game_directory(&before,&after))good=0;
  if(closedir(d)!=0)good=0;
  return good;
 }
@@ -204,10 +212,8 @@ static void scan_game_folder(Audit*a,int parent,
  if(stable)stable=fstat(folder,&after)==0&&
   fstatat(parent,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
   S_ISDIR(named.st_mode)&&
-  before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
-  before.st_dev==named.st_dev&&before.st_ino==named.st_ino&&
-  before.st_mtime==after.st_mtime&&before.st_mtime==named.st_mtime&&
-  before.st_ctime==after.st_ctime&&before.st_ctime==named.st_ctime;
+  cmp5_same_game_directory(&before,&after)&&
+  cmp5_same_game_directory(&before,&named);
  close(folder);
  if(!stable){a->stats->partial=1;return;}
  a->stats->folder_games++;

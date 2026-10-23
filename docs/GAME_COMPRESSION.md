@@ -280,3 +280,17 @@ explicitement **« PLAN DE COMPRESSION MODIFIÉ »** au lieu d'un échec
 générique. Le retour à la sélection puis le nouveau précontrôle
 imposent de refaire les deux confirmations ; aucun nouveau POST n'est
 émis à partir de l'ancien accord.
+
+## Stabilité du scan des dossiers de jeux
+
+Les tailles de dossiers sont des mesures **indicatives en lecture seule**.
+Le scanner compare maintenant pour chaque répertoire parcouru l'inode,
+le périphérique, les permissions, le nombre de liens, la taille et les
+horodatages modification/changement à la **nanoseconde** avant et après
+son parcours. Le dossier racine du jeu est également comparé à son
+entrée parent après le scan. Un changement observé entraîne une taille
+signalée comme incomplète, et non un chiffre présenté comme certain.
+
+Ces contrôles n'empêchent pas tous les changements de fichiers effectués
+durant un scan : ils n'autorisent aucune écriture et ne remplacent pas
+le précontrôle du moteur au moment d'une conversion.
