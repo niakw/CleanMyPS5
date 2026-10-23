@@ -1,6 +1,10 @@
 #define _DEFAULT_SOURCE
 /* Deterministic host-only races against the real backup implementation.
  * Renames are injected after a successful read from the watched file. */
+/* NDEBUG must never disable regression checks in a Release runner. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <fcntl.h>
 #include <stdint.h>
