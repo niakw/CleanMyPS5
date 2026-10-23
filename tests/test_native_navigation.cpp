@@ -20,6 +20,7 @@ std::atomic<bool> corrupt_next_overview{false};
 bool mock_ampr_online=false;
 unsigned mock_ampr_gets=0;
 unsigned mock_ampr_receive=0;
+unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -52,12 +53,26 @@ int sceNetSocket(const char*label,int,int,int){
  if(!mock_ampr_online)return -1;
  if(std::strcmp(label,"cmp5_ampr_probe")==0)return 17;
  if(std::strcmp(label,"cmp5_ampr_game_check")==0)return 18;
+ if(std::strcmp(label,"cmp5_ampr_submit")==0)return 19;
  return -1;
 }
-int sceNetConnect(int id,const void*,std::uint32_t){return id==17||id==18?0:-1;}
+int sceNetConnect(int id,const void*,std::uint32_t){return id==17||id==18||id==19?0:-1;}
 int sceNetSend(int id,const void*data,std::size_t size,int){
- if(id!=17&&id!=18)return -1;
+ if(id!=17&&id!=18&&id!=19)return -1;
  const std::string_view request{static_cast<const char*>(data),size};
+ if(id==19){
+  if(request.find("POST /api/start HTTP/1.0")==0){
+   assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
+   mock_ampr_post_headers++;
+  }else{
+   assert(request.find("path=%2Fdata%2Fhomebrew%2FPPSA12345")!=std::string_view::npos);
+   assert(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew")!=std::string_view::npos);
+   assert(request.find("overwrite=0&remove=0&force=0")!=std::string_view::npos);
+   assert(request.find("verify=1&dedup=1")!=std::string_view::npos);
+   mock_ampr_post_bodies++;
+  }
+  return static_cast<int>(size);
+ }
  if(id==18){
   assert(request.find("GET /api/check?path=%2Fdata%2Fhomebrew%2FPPSA12345&dest=%2Fmnt%2Fusb0%2Fhomebrew HTTP/1.0")==0);
   assert(request.find("POST")==std::string_view::npos);
@@ -70,8 +85,18 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  return static_cast<int>(size);
 }
 int sceNetRecv(int id,void*data,std::size_t capacity,int){
- if(id!=17&&id!=18)return -1;
+ if(id!=17&&id!=18&&id!=19)return -1;
  if(mock_ampr_receive++)return 0;
+ if(id==19){
+  static constexpr char ack[]=R"({"ok":true,"position":0})";
+  char reply[220]{};
+  int n=std::snprintf(reply,sizeof(reply),
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
+    sizeof(ack)-1,ack);
+  assert(n>0&&static_cast<std::size_t>(n)<capacity);
+  std::memcpy(data,reply,static_cast<std::size_t>(n));
+  return n;
+ }
  if(id==18){
   static constexpr char json[]=R"({"title_id":"PPSA12345","title":"TEST","source_bytes":4294967296,"image_bytes":0,"estimate":"sample","need_typical":1073741824,"need_max":2147483648,"duration_by_level":[1,2,3,4,5,6,7,8,9,10,11,12],"verify_seconds":10,"dest_free":4294967296,"dest_total":8589934592,"compatible":"yes","errors":[],"warnings":[]})";
   char reply[512]{};
@@ -651,6 +676,25 @@ int main(){
  assert(std::strcmp(game_dest_checked,"/mnt/usb0/homebrew")==0);
  assert(mock_ampr_gets==2u);
  scene(canvas);
+ press(cross);
+ assert(compression_view==3u);
+ scene(canvas);
+ press(circle);
+ assert(compression_view==1u); // backing out never submits work
+ assert(mock_ampr_post_headers==0);
+ press(cross);
+ assert(compression_view==2u);
+ finish_scan();
+ assert(game_preflight.ready());
+ press(cross);
+ assert(compression_view==3u);
+ press(cross);
+ assert(compression_view==4u);
+ finish_scan();
+ assert(game_job_attempted&&game_job_accepted);
+ assert(!game_job_reply_unknown&&game_job_position==0u);
+ assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ scene(canvas);
  press(circle);
  assert(compression_view==1u);
  mock_ampr_online=false;
@@ -665,7 +709,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==2u);
+ assert(mock_ampr_gets==4u);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
