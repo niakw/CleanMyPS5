@@ -162,7 +162,7 @@ static void scan_game_folder(Audit*a,int parent,
   Cmp5GameFolder*item=&a->stats->folder[a->stats->shown_folders];
   int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,name);
   if(n>0&&(size_t)n<sizeof(item->path)){
-   (void)snprintf(item->label,sizeof(item->label),"%s",name);
+   memcpy(item->label,name,strlen(name)+1u);
    item->nominal_bytes=complete?bytes:0;
    item->size_complete=complete?1u:0u;
    a->stats->shown_folders++;
@@ -254,7 +254,7 @@ static void scan_one(Audit*a,int parent,const char*relative){
    Cmp5GameImage*item=&a->stats->image[a->stats->shown_images];
    int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,e->d_name);
    if(n>0&&(size_t)n<sizeof(item->path)){
-    (void)snprintf(item->label,sizeof(item->label),"%s",e->d_name);
+    memcpy(item->label,e->d_name,strlen(e->d_name)+1u);
     item->nominal_bytes=bytes;
     item->format=(uint32_t)kind;
     a->stats->shown_images++;
