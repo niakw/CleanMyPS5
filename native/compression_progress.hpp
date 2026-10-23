@@ -11,6 +11,7 @@ struct GameProgress {
  unsigned percent=0,queue_len=0;
  std::uint64_t bytes_done=0,bytes_total=0;
  bool launch_checked=false; /* prelaunch check, NOT tested gameplay */
+ char title_id[16]{}; /* only a validated 9-character ID can authorize pause */
 };
 class ProgressParser {
  const char*p;const char*end;
@@ -54,7 +55,16 @@ public:
   if(token("true"))value.launch_checked=true;
   else if(token("false"))value.launch_checked=false;
   else return false;
-  if(!token("}")||p!=end||
+  if(!token(",\"title_id\":\""))return false;
+  unsigned chars=0;
+  while(p<end&&*p!='"'){
+   if(chars>=9u)return false;
+   const char c=*p++;
+   if(chars<4u?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+   value.title_id[chars++]=c;
+  }
+  if(!token("\"}")||p!=end||
+     (chars!=0u&&chars!=9u)||
      (value.bytes_total&&value.bytes_done>value.bytes_total))return false;
   value.percent=static_cast<unsigned>(pct);
   value.queue_len=static_cast<unsigned>(queue);
