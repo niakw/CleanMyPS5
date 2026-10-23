@@ -144,6 +144,29 @@ def main(root: Path):
       send_json(fd, 409, "{\\"error\\":\\"image_preflight_required\\"}");
       return;
     }
+    /* Preflight can mount/read the image and takes time. A file modified,
+     * replaced or hardlinked during that operation must never be queued
+     * against the stale identity/space decision. */
+    struct stat verified_st;
+    if (lstat(r.source, &verified_st) != 0 ||
+        !S_ISREG(verified_st.st_mode) || verified_st.st_nlink != 1 ||
+        verified_st.st_dev != source_st.st_dev ||
+        verified_st.st_ino != source_st.st_ino ||
+        verified_st.st_mode != source_st.st_mode ||
+        verified_st.st_size != source_st.st_size ||
+        verified_st.st_mtime != source_st.st_mtime ||
+        verified_st.st_ctime != source_st.st_ctime ||
+#if defined(__APPLE__)
+        verified_st.st_mtimespec.tv_nsec != source_st.st_mtimespec.tv_nsec ||
+        verified_st.st_ctimespec.tv_nsec != source_st.st_ctimespec.tv_nsec ||
+#else
+        verified_st.st_mtim.tv_nsec != source_st.st_mtim.tv_nsec ||
+        verified_st.st_ctim.tv_nsec != source_st.st_ctim.tv_nsec ||
+#endif
+        (uint64_t)verified_st.st_size != expected) {
+      send_json(fd, 409, "{\\"error\\":\\"image_mutated_during_preflight\\"}");
+      return;
+    }
   }
   (void)queue_only;''')
     # Stable, compact endpoint for the bundled DualSense frontend. The
