@@ -74,6 +74,14 @@ cp "$project/THIRD_PARTY_NOTICES.md" "$tmp/native-toolchain/assets/THIRD_PARTY_N
 
 make -C "$tmp/native-toolchain" init \
   TITLE_ID="$title" APP_NAME=CleanMyPS5 APP_CATEGORY=game
+
+# Everything ships in ONE title package. Compile the pinned GPL AMPR/LZ4
+# engine as an embedded asset; do not include the upstream home-screen app.
+# The native title launches this engine through the existing jailbreak ELF
+# loader on explicit DualSense input, never at install time.
+bash "$tmp/native-toolchain/tools/setup-native-dependencies.sh" >/dev/null
+bash "$project/scripts/build_embedded_compression_engine.sh" \
+  "$tmp/native-toolchain/assets" "$tmp/native-toolchain/.deps/native/ps5-payload-sdk"
 make -C "$tmp/native-toolchain" app
 
 # Optional native-title package for compatible homebrew installers.
