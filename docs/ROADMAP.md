@@ -21,7 +21,7 @@
 | Nettoyage captures | Non | — | — | — | **Désactivé** |
 | Nettoyage caches homebrew | Non | — | — | — | **Désactivé** |
 | Orphelins PKG/DLC | Non | — | — | — | **Désactivé** |
-| Compression / compactage | Diagnostic natif des images `.exfat`, `.ffpkg`, `.ffpfs`, `.ffpfsc` en lecture seule | Fixture synthétique et navigation manette | Titre natif en CI | **À faire** | **Conversion désactivée** |
+| Compression AMPR/LZ4 | Packer GPL intégré au titre natif ; choix du dossier et stockage, précontrôle strict, double confirmation, conversion sans suppression, statut compact | Tests hôte des chemins GET/POST, progression, absence de doublon, CI titre natif | Lancement réel de jeux compressés PS5 13.60 | **À faire** | **Conversion dossiers disponible en code ; images brutes et gameplay non validés** |
 
 ## Portes restantes
 

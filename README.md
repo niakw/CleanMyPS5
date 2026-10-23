@@ -49,7 +49,7 @@ L'ancien `make package` produit toujours `dist/CleanMyPS5-elf.zip` avec le front
 
 **Fichiers compagnons de captures :** depuis une fiche native, **Carré** lance une inspection bornée des fichiers associés partageant le même nom de base (ex. image et `.dat`) sous les permissions du titre. Les contrôles de groupe sont seulement descriptifs : un résultat positif ne prouve ni l'intégralité des index PS5 ni la possibilité de déplacer ou supprimer les captures. Les accès et résultats incomplets restent signalés comme non vérifiables. Le module intégré est strictement en lecture seule ; aucune fonction de copie/restauration du prototype hôte n'est intégrée à `eboot.bin`. Le bilan distingue désormais trois états : **capture seule observée** (un fichier primaire stable), **plusieurs fichiers visibles** ou **inspection non fiable**. Une capture isolée n'est jamais assimilée à un album complet. Ce diagnostic **lecture seule** prend désormais en compte les captures de plus de 512 Mio (tailles additionnées avec garde anti-débordement), sans relever la limite **512 Mio de la sauvegarde expérimentale hôte**. En cas d'échec, l'interface distingue maintenant une limite de parcours, un compagnon ambigu, une mutation pendant le scan, une annulation et une impossibilité d'accès, **sans afficher de chemin privé ni proposer de suppression**.
 
-**Prévisualisation sans console :** la CI génère dix-sept captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
+**Prévisualisation sans console :** la CI génère dix-neuf captures PNG synthétiques à partir des vrais appels d'affichage de l'interface, dans l'artefact `CleanMyPS5-native-UI-preview-not-hardware`. Elles servent à vérifier le placement et les libellés, **pas** à valider le rendu ou le démarrage sur la PS5. **Procédure et limites :** [Application native et sécurité des permissions](docs/NATIVE_APP.md). Aucun script ne déploie silencieusement du code ou ne change le firmware de la console.
 
 ## Développement et compilation
 
@@ -86,13 +86,22 @@ jeux reconnus par `eboot.bin` et `sce_sys`. L'interface contient le véritable m
 construit avec le titre natif. **Carré** demande son lancement via
 le chargeur ELF du jailbreak et la détection se fait en lecture seule
 sur le port local 6973, sans seconde application.
-Le déclenchement de conversion d'un jeu précis reste désactivé :
-une image compressée est jouable seulement avec un moteur compatible
-AMPR-EMU/LZ4 ou ShadowMountPlus/`.ffpfsc`. Le jeu original est préservé.
+La conversion AMPR LZ4 est maintenant reliée aux **dossiers de jeux
+reconnus** (pas encore aux images brutes `.exfat` via ShadowMountPlus).
+Pour un dossier, le moteur recontrôle compatibilité, destination et espace
+disponible avant tout travail. Une sortie LZ4 n'est lançable que si
+ShadowMountPlus et l'émulateur AMPR sont réellement fonctionnels.
+L'original est toujours préservé.
 Voir [les formats et prérequis](docs/GAME_COMPRESSION.md).
 
 **Navigation jeux sur PS5 :** dans le menu de compression, `L1/R1`
 affiche les dossiers de jeux homebrew détectés ; haut/bas navigue
 parmi les éléments. Aucune conversion n'est déclenchée par la
-simple sélection. `Carré` lance seulement notre propre moteur ELF
-inclus dans le package.
+simple sélection. `Carré` lance notre propre moteur ELF intégré.
+Gauche/droite choisit une destination parmi les racines de stockage
+prédéfinies ; `X` lance le **précontrôle du jeu**, puis deux
+confirmations à la manette déclenchent la conversion vérifiée avec
+`remove=0`, `overwrite=0` et `force=0`. Une réponse ambiguë n'est
+jamais considérée comme une réussite. `X` sur l'écran du travail permet
+de relire la progression depuis le moteur. La compatibilité réelle
+des jeux sur PS5 13.60 reste à tester.

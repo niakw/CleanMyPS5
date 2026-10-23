@@ -51,8 +51,8 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Contrôle manette TV | 🟡 | Navigation DualSense native (quatre écrans) et interface navigateur historique ; compilation vérifiée, matériel 13.60 non testé |
 | Installation dans l'accueil PS5 | 🟡 | Titre homebrew natif `PPSA99784/` compilé avec `eboot.bin` et icône. Enregistrement dans le Shell par gestionnaire compatible et lancement réel sur 13.60 à vérifier |
 | Compactage / défragmentation du SSD | — | Éviter : pas de défragmentation flash, pas de gains imaginaires |
-| Jeux : images exFAT / UFS / PFS volumineuses | 🟡 | **Nouveau :** écran natif DualSense et scanner borné des images `.exfat`, `.ffpkg`, `.ffpfs`, `.ffpfsc`, ainsi que des dossiers de jeu `eboot.bin` / `sce_sys`. Détection read-only du service AMPR en loopback. Aucune conversion, estimation de gain ni garantie de lancement. Voir [compression des jeux](GAME_COMPRESSION.md). |
-| Jeux : compression LZ4 jouable | ❌ | Moteurs externes AMPR-EMU + ShadowMountPlus ou `.ffpfsc` disponibles, mais **aucune conversion embarquée** ni validation du jeu sur la console. `lz4 fichier.exfat` n'est pas un format jouable. |
+| Jeux : images exFAT / UFS / PFS volumineuses | 🟡 | **Nouveau :** écran natif DualSense et scanner borné des images `.exfat`, `.ffpkg`, `.ffpfs`, `.ffpfsc`, ainsi que des dossiers de jeu `eboot.bin` / `sce_sys`. Précontrôle individuel par moteur interne et estimation de place requise ; la conversion AMPR n'est jamais une garantie de lancement. Voir [compression des jeux](GAME_COMPRESSION.md). |
+| Jeux : moteur AMPR/LZ4 intégré | 🟡 | **Packer réel inclus dans le titre natif**, service privé 6973, conversion explicite des dossiers compatibles avec double confirmation, destination séparée et vérification forcée. Statut consultable. **Lancement gameplay PS5 13.60 non vérifié** ; images brutes via ShadowMountPlus et `.ffpfsc` restent à câbler. |
 
 ## Priorités, avec portes de sécurité
 

@@ -50,3 +50,14 @@ cosmétique, élargissement spéculatif des chemins) ; ne pas fabriquer de
 La demande de validation console ne remplace ni les tests automatisés ni
 l'implémentation des fonctions attendues. Aucun résultat « vert » de CI
 n'autorise à publier un effaceur automatique.
+
+## Compression des jeux — état du composant natif
+
+Le module AMPR/LZ4 est embarqué dans un seul titre CleanMyPS5 et son
+lancement utilise le chargeur ELF du jailbreak existant. Les dossiers
+homebrew peuvent être précontrôlés puis soumis à une conversion **après
+deux confirmations**, sans écrasement ni suppression de l'original.
+Le protocole affiche également l'avancement compact du moteur.
+**La compilation hôte/PS5 ne constitue pas une validation sur console
+13.60 ni une garantie de démarrage d'un jeu converti.** Le nettoyage
+destructeur général demeure désactivé.

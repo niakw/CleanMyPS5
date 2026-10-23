@@ -52,17 +52,27 @@ La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
   examiner » ; leur taille nominale n'est pas de l'espace récupérable.
   Un jeu installé dans un dossier plutôt qu'une image n'est pas compté.
 
-- La page effectue une **requête GET** vers
-  `http://127.0.0.1:6972/api/hello` pour repérer le service
-  exFAT2AMPR local. Elle refuse un cadrage HTTP erroné et les champs
-  JSON inattendus. La réponse est un **indice de compatibilité**,
-  pas une authentification du processus, ni une preuve du montage du jeu.
-  Aucun jeton, appairage, chemin de jeu ou ordre de conversion n'est envoyé.
+- Le titre détecte **son propre moteur embarqué**, compilé et
+  inclus dans le même package, sur le port loopback **6973**. Le
+  chargeur ELF 9021 est requis pour le démarrer depuis `Carré`.
+- Un `GET /api/check` du moteur revalide **un dossier de jeu précis**
+  et sa destination. Les réponses HTTP/JSON sont strictement bornées.
+  Une compatibilité ambiguë, un avertissement ou un espace insuffisant
+  empêchent la confirmation.
+- Deux appuis affirmatifs `X` depuis le précontrôle favorable
+  déclenchent `POST /api/start` sur le service **intégré**. Les options
+  sont forcées : `verify=1`, `dedup=1`, `remove=0`,
+  `overwrite=0`, `force=0`.
+- Après soumission, `X` interroge `GET /api/cmp5-progress` :
+  état, pourcentage, octets lus/traités. L'interface ne prétend jamais
+  qu'un simple travail « terminé » garantit le **lancement du jeu**.
+  En cas d'accusé de réception manquant, **ne pas renvoyer** la
+  conversion sans vérifier l'état du moteur.
 
-**Aucun bouton « Compresser maintenant » ne déclenche d'écriture.**
-L'outil de conversion externe dispose déjà de ses propres interfaces
-avec choix de destination, compatibilité, vérification des blocs et
-reprise. CleanMyPS5 ne se substitue pas aujourd'hui à cette chaîne.
+**Les dossiers d'origine ne sont ni renommés, ni écrasés, ni supprimés
+automatiquement.** Les images brutes `.exfat`, `.ffpkg`, `.ffpfs` et
+`.ffpfsc` restent détectées mais leur conversion individuelle via
+ShadowMountPlus n'est **pas encore** câblée depuis CleanMyPS5.
 
 ## Conditions pour une option de compression réellement sûre
 
@@ -102,9 +112,13 @@ modifications CleanMyPS5 sous GPL-3.0 :
   **pas** que kstuff, ShadowMountPlus ou le jeu ont été validés.
 
 Le moteur embarqué contient bien le **véritable packer AMPR/LZ4**.
-L'interface CleanMyPS5 ne propose **pas encore** le choix des jeux et
-le déclenchement de la conversion (prochaine étape). Aucune conversion
-automatique ni suppression d'original n'est activée.
+L'interface CleanMyPS5 propose désormais le **choix d'un dossier de jeu
+homebrew, sa destination et le précontrôle moteur**, puis une
+double confirmation pour une conversion LZ4 explicite.
+Aucune compression automatique à l'installation, ni suppression
+d'original n'est activée. L'application propriétaire du moteur
+d'origine n'est pas requise ; seules les dépendances runtime du
+jailbreak et de ShadowMountPlus restent nécessaires.
 
 ## Navigation des jeux détectés
 
@@ -115,7 +129,11 @@ candidats lisibles et n'inclut pas de chemins saisis par l'utilisateur.
 Les tailles incomplètes sont signalées ; une absence de jeu dans cette
 liste n'est pas une preuve de son absence sur la console.
 
-La sélection **ne déclenche aucune écriture** : le précontrôle individuel
-du jeu, le choix de destination, la confirmation et la conversion sont
-des étapes distinctes à relier et valider. Le moteur ELF **est** bien
-embarqué, mais « moteur présent » ne signifie pas « jeu compressé ».
+La sélection **ne déclenche aucune écriture**. Gauche/droite choisit
+une destination dans une liste fixe, `X` demande le précontrôle
+en lecture seule. Seuls les dossiers de jeux explicitement compatibles,
+sans avertissement et avec espace suffisant, permettent de poursuivre.
+Il faut deux validations distinctes avant l'envoi d'un travail au moteur.
+Après la soumission, `X` actualise le statut ; une conversion
+terminée ne garantit jamais un lancement sur console.
+Le nettoyage destructeur général reste verrouillé indépendamment.
