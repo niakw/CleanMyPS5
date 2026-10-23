@@ -71,12 +71,12 @@ static void cmp5_progress(int fd) {
   snprintf(out,sizeof out,
     "{\\"service\\":\\"CleanMyPS5-AMPR\\",\\"state\\":\\"%s\\","
     "\\"percent\\":%d,\\"bytes_done\\":%llu,\\"bytes_total\\":%llu,"
-    "\\"queue_len\\":%d,\\"launch_checked\\":%s}",
+    "\\"queue_len\\":%d,\\"launch_checked\\":%s,\\"title_id\\":\\"%.9s\\"}",
     names[index],pct,
     (unsigned long long)status.bytes_done,
     (unsigned long long)status.bytes_total,
     status.queue_len,
-    status.launch_checked?"true":"false");
+    status.launch_checked?"true":"false",status.title_id);
   send_json(fd,200,out);
 }
 """
