@@ -43,7 +43,10 @@ int main(){
  assert(bad(s+"\n"));
  assert(bad(mutate("\"title\":\"A \\\"game\\\"\"","\"title\":\"A \n game\"")));
  s=mutate("\"compatible\":\"yes\"","\"compatible\":\"no\"");
- assert(parse_game_preflight(s.data(),s.size(),&pre)&&!pre.ready());
+ assert(parse_game_preflight(s.data(),s.size(),&pre)&&!pre.ready()&&!pre.compatibility_pending);
+ s=mutate("\"compatible\":\"yes\"","\"compatible\":\"later\"");
+ assert(parse_game_preflight(s.data(),s.size(),&pre));
+ assert(pre.compatibility_pending&&!pre.compatible&&!pre.ready());
  s=mutate("\"errors\":[]","\"errors\":[\"not_ampr\"]");
  assert(parse_game_preflight(s.data(),s.size(),&pre)&&pre.errors==1&&!pre.ready());
  s=mutate("\"warnings\":[]","\"warnings\":[\"space_low\"]");

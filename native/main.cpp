@@ -2249,7 +2249,8 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   }else{
    (void)std::snprintf(detail,sizeof(detail),
      "COMPATIBLE: %s   ERREURS: %u   ALERTES: %u",
-     game_preflight.compatible?"OUI":"NON",
+     game_preflight.compatible?"OUI":
+       game_preflight.compatibility_pending?"A VERIFIER":"NON",
      game_preflight.errors,game_preflight.warnings);
    panel(canvas,585,"COMPATIBILITE AMPR",detail,
      game_preflight.ready()?Color::cyan:Color::yellow);
@@ -2261,7 +2262,9 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      game_preflight.ready()?Color::cyan:Color::yellow);
    canvas.text(120,885,game_preflight.ready()?
       "PRECONTROLE FAVORABLE  X POUR CONFIRMER 1/2":
-      "CONVERSION BLOQUEE: COMPATIBILITE OU ESPACE A VERIFIER",
+      game_preflight.compatibility_pending?
+         "JEU IMAGE NON MONTE  COMPATIBILITE NON PROUVEE":
+         "CONVERSION BLOQUEE: COMPATIBILITE OU ESPACE A VERIFIER",
       2,Color::yellow);
   }
   footer(canvas,"X SI COMPATIBLE  TRIANGLE REVERIFIER  CERCLE JEUX");

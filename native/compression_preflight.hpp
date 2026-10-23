@@ -57,7 +57,7 @@ struct GamePreflight {
  char title_id[16]{};
  std::uint64_t source_bytes=0,need_typical=0,need_max=0,dest_free=0;
  unsigned errors=0,warnings=0;
- bool compatible=false;
+ bool compatible=false,compatibility_pending=false;
  bool ready() const noexcept {
   return compatible&&title_id[0]&&source_bytes>0&&need_max>0&&
     dest_free>=need_max&&errors==0&&warnings==0;
@@ -140,12 +140,15 @@ class PreflightParser {
    if(!take(','))return false;
   }
  }
- bool compatibility(bool*out) noexcept {
+ bool compatibility(bool*out,bool*pending) noexcept {
   char v[16]{};
   if(!string(v,sizeof(v)))return false;
   if(std::strcmp(v,"yes")==0)*out=true;
   else if(std::strcmp(v,"no")==0||std::strcmp(v,"unknown")==0)
    *out=false;
+  else if(std::strcmp(v,"later")==0){
+   *out=false;*pending=true; /* no mounted source; NEVER auto-approve */
+  }
   else return false;
   return true;
  }
@@ -166,7 +169,7 @@ public:
      !integer()||!take(',')||!field("dest_free")||
      !positive(&out->dest_free)||!take(',')||!field("dest_total")||
      !positive(&scratch)||!take(',')||!field("compatible")||
-     !compatibility(&out->compatible)||!take(',')||
+     !compatibility(&out->compatible,&out->compatibility_pending)||!take(',')||
      !field("errors")||!string_list(&out->errors)||!take(',')||
      !field("warnings")||!string_list(&out->warnings)||
      !take('}')||p!=end)return false;
