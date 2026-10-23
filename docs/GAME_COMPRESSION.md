@@ -259,3 +259,18 @@ Ce contrôle est testé par des fixtures hôte. Il ne détecte pas à lui
 seul un changement de support de même capacité ni une permutation
 concurrente des fichiers, qui restent sous la responsabilité des
 vérifications du moteur et de la validation matérielle PS5 13.60.
+
+## Classement de la sélection native
+
+Lorsque le scanner trouve plus de 12 images ou de 12 dossiers de jeu,
+la liste manette conserve désormais les **12 candidats prioritaires**, au
+lieu des 12 premiers résultats arbitraires du système de fichiers.
+Les images non compressées passent devant les `.ffpfsc` déjà compressées,
+puis les fichiers les plus volumineux sont privilégiés ; les dossiers
+dont la mesure est complète passent devant les mesures incomplètes.
+Les égalités sont départagées par chemin pour un affichage stable.
+
+La taille nominale n'est **pas** une estimation d'espace libérable.
+Le scanner garde les totaux et signale explicitement une couverture
+partielle lorsque certains candidats sont masqués. La sélection ne
+donne aucune autorisation de suppression ni ne garantit la jouabilité.

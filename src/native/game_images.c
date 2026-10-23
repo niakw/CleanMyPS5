@@ -129,7 +129,7 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
 }
 static int safe_label(const char*name){
  const size_t n=strlen(name);
- if(n==0||n>=64u)return 0;
+ if(n==0||n>=64u||name[0]=='.')return 0;
  for(size_t i=0;i<n;i++){
   const unsigned char c=(unsigned char)name[i];
   if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||
@@ -137,6 +137,61 @@ static int safe_label(const char*name){
        c=='-'||c=='['||c==']'||c=='('||c==')'))return 0;
  }
  return 1;
+}
+/* Keep the largest fully known games visible when there are more than
+ * twelve candidates. Already-compressed PFSC images remain inventoried
+ * but do not displace conversion candidates in the short UI list. */
+static int image_better(const Cmp5GameImage*a,const Cmp5GameImage*b){
+ const int ac=a->format==CMP5_IMAGE_FFPFSC;
+ const int bc=b->format==CMP5_IMAGE_FFPFSC;
+ if(ac!=bc)return !ac;
+ if(a->nominal_bytes!=b->nominal_bytes)
+  return a->nominal_bytes>b->nominal_bytes;
+ return strcmp(a->path,b->path)<0;
+}
+static int folder_better(const Cmp5GameFolder*a,const Cmp5GameFolder*b){
+ if(a->size_complete!=b->size_complete)return a->size_complete>b->size_complete;
+ if(a->nominal_bytes!=b->nominal_bytes)
+  return a->nominal_bytes>b->nominal_bytes;
+ return strcmp(a->path,b->path)<0;
+}
+static void remember_image(Cmp5GameImageStats*s,Cmp5GameImage candidate){
+ if(s->shown_images<CMP5_IMAGE_LIST_CAP){
+  s->image[s->shown_images++]=candidate;return;
+ }
+ unsigned worst=0;
+ for(unsigned i=1;i<s->shown_images;i++)
+  if(image_better(&s->image[worst],&s->image[i]))worst=i;
+ if(image_better(&candidate,&s->image[worst]))s->image[worst]=candidate;
+ s->hidden_images++;s->partial=1;
+}
+static void remember_folder(Cmp5GameImageStats*s,Cmp5GameFolder candidate){
+ if(s->shown_folders<CMP5_GAME_LIST_CAP){
+  s->folder[s->shown_folders++]=candidate;return;
+ }
+ unsigned worst=0;
+ for(unsigned i=1;i<s->shown_folders;i++)
+  if(folder_better(&s->folder[worst],&s->folder[i]))worst=i;
+ if(folder_better(&candidate,&s->folder[worst]))s->folder[worst]=candidate;
+ s->hidden_folders++;s->partial=1;
+}
+static void sort_shortlist(Cmp5GameImageStats*s){
+ for(unsigned i=1;i<s->shown_images;i++){
+  Cmp5GameImage candidate=s->image[i];
+  unsigned j=i;
+  while(j>0&&image_better(&candidate,&s->image[j-1])){
+   s->image[j]=s->image[j-1];--j;
+  }
+  s->image[j]=candidate;
+ }
+ for(unsigned i=1;i<s->shown_folders;i++){
+  Cmp5GameFolder candidate=s->folder[i];
+  unsigned j=i;
+  while(j>0&&folder_better(&candidate,&s->folder[j-1])){
+   s->folder[j]=s->folder[j-1];--j;
+  }
+  s->folder[j]=candidate;
+ }
 }
 static void scan_game_folder(Audit*a,int parent,
                              const char*relative,const char*name){
@@ -158,21 +213,19 @@ static void scan_game_folder(Audit*a,int parent,
  a->stats->folder_games++;
  /* This is an advisory UI shortlist. Restrict names and length; a
   * conversion must perform a NEW independent preflight before writing. */
- if(a->stats->shown_folders<CMP5_GAME_LIST_CAP&&safe_label(name)){
-  Cmp5GameFolder*item=&a->stats->folder[a->stats->shown_folders];
-  int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,name);
-  if(n>0&&(size_t)n<sizeof(item->path)){
-   memcpy(item->label,name,strlen(name)+1u);
-   item->nominal_bytes=complete?bytes:0;
-   item->size_complete=complete?1u:0u;
-   a->stats->shown_folders++;
+ if(safe_label(name)){
+  Cmp5GameFolder candidate={0};
+  int n=snprintf(candidate.path,sizeof(candidate.path),"/%s/%s",relative,name);
+  if(n>0&&(size_t)n<sizeof(candidate.path)){
+   memcpy(candidate.label,name,strlen(name)+1u);
+   candidate.nominal_bytes=complete?bytes:0;
+   candidate.size_complete=complete?1u:0u;
+   remember_folder(a->stats,candidate);
   }else{
-   a->stats->hidden_folders++;
-   a->stats->partial=1;
+   a->stats->hidden_folders++;a->stats->partial=1;
   }
  }else{
-  a->stats->hidden_folders++;
-  a->stats->partial=1;
+  a->stats->hidden_folders++;a->stats->partial=1;
  }
  if(!complete){
   a->stats->folder_partials++;
@@ -250,21 +303,20 @@ static void scan_one(Audit*a,int parent,const char*relative){
   a->stats->count[kind]++;
   /* A limited, read-only shortlist of actual image pathnames. The scan
    * never assumes the suffix proves that ShadowMountPlus can mount it. */
-  if(a->stats->shown_images<CMP5_IMAGE_LIST_CAP&&safe_label(e->d_name)){
-   Cmp5GameImage*item=&a->stats->image[a->stats->shown_images];
-   int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,e->d_name);
-   if(n>0&&(size_t)n<sizeof(item->path)){
-    memcpy(item->label,e->d_name,strlen(e->d_name)+1u);
-    item->nominal_bytes=bytes;
-    item->format=(uint32_t)kind;
-    a->stats->shown_images++;
+  if(safe_label(e->d_name)){
+   Cmp5GameImage candidate={0};
+   int n=snprintf(candidate.path,sizeof(candidate.path),
+                  "/%s/%s",relative,e->d_name);
+   if(n>0&&(size_t)n<sizeof(candidate.path)){
+    memcpy(candidate.label,e->d_name,strlen(e->d_name)+1u);
+    candidate.nominal_bytes=bytes;
+    candidate.format=(uint32_t)kind;
+    remember_image(a->stats,candidate);
    }else{
-    a->stats->hidden_images++;
-    a->stats->partial=1;
+    a->stats->hidden_images++;a->stats->partial=1;
    }
   }else{
-   a->stats->hidden_images++;
-   a->stats->partial=1;
+   a->stats->hidden_images++;a->stats->partial=1;
   }
   if(bytes>a->stats->largest_bytes)a->stats->largest_bytes=bytes;
   if(kind!=CMP5_IMAGE_FFPFSC&&bytes>=LARGE_IMAGE){
@@ -308,6 +360,7 @@ int cmp5_scan_game_images(const char*root,Cmp5GameImageStats*result,
  }
  close(anchor);
  if(cancel&&cancel(context)){memset(result,0,sizeof(*result));return 0;}
+ sort_shortlist(result);
  if(result->scanned_roots==0)result->partial=1;
  return 1; /* A bounded survey, never an exhaustive disk inventory. */
 }

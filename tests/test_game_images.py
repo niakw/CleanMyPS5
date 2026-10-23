@@ -33,4 +33,19 @@ with tempfile.TemporaryDirectory() as tmp:
     result=subprocess.run([sys.argv[1],str(root)],capture_output=True,text=True,timeout=20)
     assert result.returncode==0,(result.stdout,result.stderr)
     assert "PASS" in result.stdout
-print("Game image bounded metadata and alias exclusions: PASS")
+    # More than twelve eligible games: top twelve must be selected by
+    # nominal size, not nondeterministic filesystem iteration order.
+    for i in range(18):
+        with (top/f"MORE{i:02d}.exfat").open("wb") as f:
+            f.truncate((i+1)*1024**3)
+    for i in range(14):
+        folder=internal/f"EXTRA{i:02d}"
+        (folder/"sce_sys").mkdir(parents=True)
+        (folder/"eboot.bin").write_bytes(b"SYNTHETIC EBOOT")
+        with (folder/"assets.bin").open("wb") as f:
+            f.truncate((i+1)*1024**3)
+    overflow=subprocess.run([sys.argv[1],str(root),"overflow"],
+                            capture_output=True,text=True,timeout=20)
+    assert overflow.returncode==0,(overflow.stdout,overflow.stderr)
+    assert "PASS" in overflow.stdout
+print("Game image bounded metadata, alias exclusions and largest-first shortlist: PASS")
