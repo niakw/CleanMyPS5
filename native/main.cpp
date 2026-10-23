@@ -655,6 +655,7 @@ void run_autoload_check() noexcept {
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
 unsigned compression_view=0,compression_selection=0,compression_destination=0;
+unsigned compression_image_selection=0;
 constexpr const char*game_destinations[]={
  "/data/homebrew","/mnt/usb0/homebrew","/mnt/ext0/homebrew",
  "/mnt/usb1/homebrew","/mnt/ext1/homebrew"
@@ -1079,6 +1080,7 @@ void run_game_image_scan() noexcept {
     !cancellation_hook(nullptr)){
   game_images=sample;game_images_checked=true;
   compression_selection=0;
+  compression_image_selection=0;
  }
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
@@ -1397,7 +1399,10 @@ void poll_pad() noexcept {
     if(pressed&cross)(void)begin_task(Task::game_progress);
     continue;
    }
-   if(compression_view<=1u&&(pressed&(l1|r1)))compression_view^=1u;
+   if(compression_view==0u||compression_view==1u||compression_view==6u){
+    if(pressed&r1)compression_view=compression_view==0u?1u:compression_view==1u?6u:0u;
+    if(pressed&l1)compression_view=compression_view==0u?6u:compression_view==6u?1u:0u;
+   }
    if(compression_view==1u){
     if(game_images.shown_folders){
      if(pressed&up)compression_selection=
@@ -1413,6 +1418,18 @@ void poll_pad() noexcept {
      compression_view=2u;
      (void)begin_task(Task::game_check);
     }
+   }else if(compression_view==6u){
+    if(game_images.shown_images){
+     if(pressed&up)compression_image_selection=
+       (compression_image_selection+game_images.shown_images-1u)%game_images.shown_images;
+     if(pressed&down)compression_image_selection=
+       (compression_image_selection+1u)%game_images.shown_images;
+    }
+    if(pressed&left)compression_destination=
+      (compression_destination+game_destination_count-1u)%game_destination_count;
+    if(pressed&right)compression_destination=
+      (compression_destination+1u)%game_destination_count;
+    /* Selecting an image does not authorize converting an unidentified file. */
    }else if(compression_view==0u&&(pressed&cross)){
     (void)begin_task(Task::images);
     }else if(compression_view==2u){
@@ -1433,7 +1450,7 @@ void poll_pad() noexcept {
        (void)begin_task(Task::game_resume);
     }
    }
-   if(compression_view<=1u&&(pressed&square))
+   if((compression_view==0u||compression_view==1u||compression_view==6u)&&(pressed&square))
     (void)begin_task(Task::engine_start);
    continue;
   }
@@ -2145,6 +2162,34 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  char detail[150]{};
+ if(compression_view==6u){
+  (void)std::snprintf(detail,sizeof(detail),
+     "%u IMAGES LISTEES  %u NON LISTEES",
+     game_images.shown_images,game_images.hidden_images);
+  panel(canvas,308,"IMAGES EXFAT / PFS / FFPKG",detail);
+  if(game_images.shown_images==0u){
+   panel(canvas,465,"AUCUNE IMAGE REPEREE",
+     "VERIFIER LES SUPPORTS ET SHADOWMOUNTPLUS",Color::yellow);
+  }else{
+   const unsigned first=(compression_image_selection/4u)*4u;
+   for(unsigned i=first;i<game_images.shown_images&&i<first+4u;i++){
+    const Cmp5GameImage&candidate=game_images.image[i];
+    const unsigned top=449u+(i-first)*112u;
+    const Color highlight=i==compression_image_selection?Color::cyan:Color::white;
+    const char*label=candidate.format==CMP5_IMAGE_EXFAT?"EXFAT":
+      candidate.format==CMP5_IMAGE_FFPKG?"FFPKG":
+      candidate.format==CMP5_IMAGE_FFPFS?"FFPFS":"FFPFSC";
+    char summary[150]{};
+    (void)std::snprintf(summary,sizeof(summary),
+       "%s   %llu GIO NOMINAUX   IDENTITE NON VERIFIEE",
+       label,static_cast<unsigned long long>(candidate.nominal_bytes/1073741824ULL));
+    panel(canvas,top,candidate.label,summary,highlight);
+   }
+  }
+  panel(canvas,897,"DESTINATION",game_destinations[compression_destination]);
+  footer(canvas,"L1/R1 ONGLETS  HAUT/BAS IMAGE  CARRE MOTEUR  AUCUNE ECRITURE");
+  return;
+ }
  if(compression_view==1u){
   (void)std::snprintf(detail,sizeof(detail),
      "%u REPERTOIRES TROUVES   %u NON AFFICHABLES",
