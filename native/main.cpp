@@ -1018,7 +1018,10 @@ void run_game_resume() noexcept {
  game_resume_accepted=ampr_safe_command("/api/resume",body);
 }
 void run_game_submission() noexcept {
- game_job_accepted=false;game_job_reply_unknown=false;game_job_attempted=true;
+ /* Never lose an accepted or ambiguous outcome by triggering the same
+  * worker twice (including an accidental duplicate controller event). */
+ if(game_job_accepted||game_job_reply_unknown)return;
+ game_job_attempted=true;
  if(!game_preflight_checked||!game_preflight.ready())return;
  char ver[32]{};
  if(!check_local_ampr(ver)||cancellation_hook(nullptr))return;
