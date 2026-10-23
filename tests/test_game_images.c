@@ -17,6 +17,10 @@ int main(int argc,char**argv){
  assert(r.count[CMP5_IMAGE_FFPFS]==1);
  assert(r.count[CMP5_IMAGE_FFPFSC]==1);
  assert(r.large_candidates==2);
+ assert(r.folder_games==1);
+ assert(r.large_folders==1);
+ assert(r.folder_partials==0);
+ assert(r.folder_nominal_bytes>=22ULL*1024*1024*1024);
  assert(r.hardlinks_skipped==2);
  assert(r.partial==1); /* A hardlink is never counted as freeable. */
  assert(r.nominal_bytes==54ULL*1024*1024*1024+340+560);

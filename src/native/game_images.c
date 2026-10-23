@@ -79,6 +79,88 @@ static int open_child_path(int anchor,const char*relative){
  }
  return fd;
 }
+/* Real exFAT homebrew dumps are commonly DIRECTORIES, not files called
+ * *.exfat. Detect an eboot + sce_sys combination without reading game data.
+ * Do not report a folder's total unless the bounded traversal completed. */
+static int game_root(int parent,const char*name){
+ int fd=openat(parent,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return -1;
+ struct stat eboot,meta;
+ if(fstatat(fd,"eboot.bin",&eboot,AT_SYMLINK_NOFOLLOW)!=0||
+    !S_ISREG(eboot.st_mode)||eboot.st_nlink!=1||
+    fstatat(fd,"sce_sys",&meta,AT_SYMLINK_NOFOLLOW)!=0||
+    !S_ISDIR(meta.st_mode)){
+  close(fd);return -1;
+ }
+ return fd;
+}
+static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
+ if(depth>6u||stopped(a)){close(fd);return 0;}
+ DIR*d=fdopendir(fd);
+ if(!d){close(fd);return 0;}
+ unsigned entries=0;
+ int good=1;
+ for(;;){
+  if(stopped(a)){good=0;break;}
+  errno=0;
+  struct dirent*entry=readdir(d);
+  if(!entry){if(errno)good=0;break;}
+  if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,".."))continue;
+  if(++entries>MAX_PER_ROOT){good=0;break;}
+  a->stats->entries_seen++;
+  struct stat st;
+  if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+   good=0;break;
+  }
+  if(S_ISREG(st.st_mode)){
+   if(st.st_nlink!=1||st.st_size<0||
+      (uint64_t)st.st_size>UINT64_MAX-*out){good=0;break;}
+   *out+=(uint64_t)st.st_size;
+  }else if(S_ISDIR(st.st_mode)){
+   if(depth==6u){good=0;break;}
+   int child=openat(fd,entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+   if(child<0||!total_game_tree(a,child,depth+1,out)){
+    good=0;break;
+   }
+  }else{good=0;break;} /* unexpected links or device files */
+ }
+ if(closedir(d)!=0)good=0;
+ return good;
+}
+static void scan_game_folder(Audit*a,int parent,const char*name){
+ const int folder=game_root(parent,name);
+ if(folder<0)return; /* Not a recognized homebrew game directory. */
+ struct stat before,after,named;
+ int stable=fstat(folder,&before)==0;
+ uint64_t bytes=0;
+ const int complete=stable&&total_game_tree(a,dup(folder),0,&bytes);
+ if(stable)stable=fstat(folder,&after)==0&&
+  fstatat(parent,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
+  S_ISDIR(named.st_mode)&&
+  before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
+  before.st_dev==named.st_dev&&before.st_ino==named.st_ino&&
+  before.st_mtime==after.st_mtime&&before.st_mtime==named.st_mtime&&
+  before.st_ctime==after.st_ctime&&before.st_ctime==named.st_ctime;
+ close(folder);
+ if(!stable){a->stats->partial=1;return;}
+ a->stats->folder_games++;
+ if(!complete){
+  a->stats->folder_partials++;
+  a->stats->partial=1;
+  return;
+ }
+ if(bytes>UINT64_MAX-a->stats->folder_nominal_bytes){
+  a->stats->partial=1;a->stats->folder_partials++;return;
+ }
+ a->stats->folder_nominal_bytes+=bytes;
+ if(bytes>=LARGE_IMAGE){
+  if(bytes>UINT64_MAX-a->stats->large_folder_nominal_bytes){
+   a->stats->partial=1;a->stats->folder_partials++;return;
+  }
+  a->stats->large_folders++;
+  a->stats->large_folder_nominal_bytes+=bytes;
+ }
+}
 static void scan_one(Audit*a,int parent,const char*relative){
  if(stopped(a))return;
  int fd=open_child_path(parent,relative);
@@ -100,7 +182,13 @@ static void scan_one(Audit*a,int parent,const char*relative){
   if(++visited>MAX_PER_ROOT){a->stats->partial=1;break;}
   a->stats->entries_seen++;
   const int kind=format(e->d_name);
-  if(kind<0)continue;
+  if(kind<0){
+   /* One level of recognized dump folders only. No blind SSD recursion. */
+   struct stat candidate;
+   if(fstatat(fd,e->d_name,&candidate,AT_SYMLINK_NOFOLLOW)==0&&
+      S_ISDIR(candidate.st_mode))scan_game_folder(a,fd,e->d_name);
+   continue;
+  }
   struct stat before,after;
   if(fstatat(fd,e->d_name,&before,AT_SYMLINK_NOFOLLOW)!=0){
    a->stats->partial=1;continue;

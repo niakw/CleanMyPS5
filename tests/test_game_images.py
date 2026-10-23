@@ -17,6 +17,11 @@ with tempfile.TemporaryDirectory() as tmp:
     (external/"GAME3.ffpkg").write_bytes(b"a"*120)
     (top/"EXPERIMENTAL.ffpfs").write_bytes(b"b"*340)
     (top/"COMPRESSED.ffpfsc").write_bytes(b"c"*560)
+    game=internal/"PPSA12345"
+    (game/"sce_sys").mkdir(parents=True)
+    (game/"eboot.bin").write_bytes(b"SYNTHETIC EBOOT")
+    (game/"sce_sys/param.json").write_bytes(b"{}")
+    with (game/"data.bin").open("wb") as f:f.truncate(22*1024**3)
     (external/"LINK.ffpkg").hardlink_to(external/"GAME3.ffpkg")
     (external/"SYMLINK.exfat").symlink_to(internal/"GAME.exfat")
     # The ffpfs tiny file is a format-name candidate, not a validated image.

@@ -16,6 +16,8 @@ typedef struct {
  uint32_t large_candidates; /* uncompressed >=20 GiB, NOT verified playable */
  uint32_t partial, hardlinks_skipped;
  uint64_t nominal_bytes,large_nominal_bytes,largest_bytes;
+ uint32_t folder_games,large_folders,folder_partials;
+ uint64_t folder_nominal_bytes,large_folder_nominal_bytes;
 } Cmp5GameImageStats;
 /* Bounded, metadata-only game IMAGE survey. Fixed roots, no filenames or
  * paths leave the scanner; no image contents, payloads or writes are opened.
