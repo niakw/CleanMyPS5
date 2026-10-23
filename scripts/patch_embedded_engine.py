@@ -94,6 +94,7 @@ static void cmp5_progress(int fd) {
     marker = '  if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)\n'
     guard = '''  /* Modified CleanMyPS5 engine: deny destruction and replacement. */
   if (post && (!strcmp(path, "/api/delete-source") ||
+               !strcmp(path, "/api/cancel") ||
                !strcmp(path, "/api/set-aside") ||
                !strcmp(path, "/api/discard") ||
                !strcmp(path, "/api/repair") ||
