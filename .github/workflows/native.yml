@@ -17,6 +17,11 @@ on:
       - scripts/embed_assets.py
       - scripts/embed_rules.py
       - scripts/build_native_app.sh
+      - scripts/build_embedded_compression_engine.sh
+      - scripts/patch_embedded_engine.py
+      - tests/test_compression_stream.cpp
+      - tests/test_compression_bridge.cpp
+      - docs/GAME_COMPRESSION.md
       - scripts/enable_verified_zlib_mirrors.py
       - tests/test_verified_zlib_mirrors.py
       - scripts/fetch_stb_decoder.sh
