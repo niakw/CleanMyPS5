@@ -658,8 +658,15 @@ bool game_images_checked=false;
 unsigned compression_view=0,compression_selection=0,compression_destination=0;
 unsigned compression_image_selection=0;
 constexpr const char*game_destinations[]={
- "/data/homebrew","/mnt/usb0/homebrew","/mnt/ext0/homebrew",
- "/mnt/usb1/homebrew","/mnt/ext1/homebrew"
+ "/data/homebrew",
+ "/mnt/usb0/homebrew","/mnt/ext0/homebrew",
+ "/mnt/usb1/homebrew","/mnt/ext1/homebrew",
+ "/mnt/usb2/homebrew","/mnt/ext2/homebrew",
+ "/mnt/usb3/homebrew","/mnt/ext3/homebrew",
+ "/mnt/usb4/homebrew","/mnt/ext4/homebrew",
+ "/mnt/usb5/homebrew","/mnt/ext5/homebrew",
+ "/mnt/usb6/homebrew","/mnt/ext6/homebrew",
+ "/mnt/usb7/homebrew","/mnt/ext7/homebrew"
 };
 constexpr unsigned game_destination_count=sizeof(game_destinations)/sizeof(game_destinations[0]);
 cmp5_compression::GamePreflight game_preflight{};
