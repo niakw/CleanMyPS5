@@ -661,6 +661,8 @@ constexpr const char*game_destinations[]={
 constexpr unsigned game_destination_count=sizeof(game_destinations)/sizeof(game_destinations[0]);
 cmp5_compression::GamePreflight game_preflight{};
 bool game_preflight_checked=false,game_preflight_transport=false;
+bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=false;
+unsigned game_job_position=0;
 char game_source_checked[192]{},game_dest_checked[48]{};
 bool stage_game_preflight() noexcept {
  if(!game_images_checked||compression_selection>=game_images.shown_folders||
@@ -672,6 +674,8 @@ bool stage_game_preflight() noexcept {
  (void)std::snprintf(game_source_checked,sizeof(game_source_checked),"%s",source);
  (void)std::snprintf(game_dest_checked,sizeof(game_dest_checked),"%s",dest);
  game_preflight_checked=false;game_preflight_transport=false;
+ game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
+ game_job_position=0;
  game_preflight=cmp5_compression::GamePreflight{};
  return true;
 }
@@ -809,6 +813,93 @@ bool game_check_request(const char*source,const char*dest,
  return cmp5_compression::parse_ampr_http(response,used,&http)&&
    cmp5_compression::parse_game_preflight(http.body,http.size,out);
 }
+/* Final explicit job submission. The title NEVER asks to overwrite,
+ * delete, force conversion or operate on an unreviewed path. */
+bool ampr_submit_job(const char*source,const char*dest,
+                     cmp5_compression::StartAck*out,
+                     bool*could_have_started) noexcept {
+ if(could_have_started)*could_have_started=false;
+ char src_encoded[600]{},dst_encoded[200]{};
+ if(!cmp5_compression::form_encode_path(source,src_encoded,sizeof(src_encoded))||
+    !cmp5_compression::form_encode_path(dest,dst_encoded,sizeof(dst_encoded)))
+  return false;
+ char body[1024]{};
+ const int bytes=std::snprintf(body,sizeof(body),
+  "path=%s&dest=%s&level=9&workers=4&verify=1&dedup=1&"
+  "overwrite=0&remove=0&force=0&clean=0",
+  src_encoded,dst_encoded);
+ if(bytes<=0||static_cast<std::size_t>(bytes)>=sizeof(body))return false;
+ char header[280]{};
+ const int header_len=std::snprintf(header,sizeof(header),
+  "POST /api/start HTTP/1.0\r\nHost: 127.0.0.1:6973\r\n"
+  "Content-Type: application/x-www-form-urlencoded\r\n"
+  "Content-Length: %d\r\nConnection: close\r\n\r\n",bytes);
+ if(header_len<=0||static_cast<std::size_t>(header_len)>=sizeof(header))return false;
+ const int fd=sceNetSocket("cmp5_ampr_submit",2,1,6);
+ if(fd<0)return false;
+ const int timeout_us=12000000;
+ (void)sceNetSetsockopt(fd,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(fd,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn host{16,2,
+  static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(fd,&host,sizeof(host))>=0;
+ auto write_all=[fd](const char*data,std::size_t count) noexcept{
+  std::size_t offset=0;
+  while(offset<count){
+   if(cancellation_hook(nullptr))return false;
+   int n=sceNetSend(fd,data+offset,count-offset,0);
+   if(n<=0)return false;
+   offset+=static_cast<std::size_t>(n);
+  }
+  return true;
+ };
+ if(ok)ok=write_all(header,static_cast<std::size_t>(header_len));
+ if(ok){
+  // The upstream HTTP server is allowed to start converting once it
+  // has the full request. After this point, an absent ACK is UNKNOWN,
+  // not proof that nothing was queued: never retry automatically.
+  if(could_have_started)*could_have_started=true;
+  ok=write_all(body,static_cast<std::size_t>(bytes));
+ }
+ char response[1024]{};
+ std::size_t used=0;
+ while(ok&&used<sizeof(response)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetRecv(fd,response+used,sizeof(response)-used,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  used+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(fd);
+ if(!ok||used==sizeof(response))return false;
+ cmp5_compression::HttpJson http{};
+ return cmp5_compression::parse_ampr_http(response,used,&http)&&
+   cmp5_compression::parse_start_ack(http.body,http.size,out);
+}
+void run_game_submission() noexcept {
+ game_job_accepted=false;game_job_reply_unknown=false;game_job_attempted=true;
+ if(!game_preflight_checked||!game_preflight.ready())return;
+ char ver[32]{};
+ if(!check_local_ampr(ver)||cancellation_hook(nullptr))return;
+ // Re-check the source, compatibility and free space immediately before
+ // POST. Disallow a source which is already the would-be output path.
+ cmp5_compression::GamePreflight now{};
+ if(!game_check_request(game_source_checked,game_dest_checked,&now)||
+    !now.ready()||std::strcmp(now.title_id,game_preflight.title_id)!=0||
+    cancellation_hook(nullptr))return;
+ char would_overwrite[256]{};
+ const int n=std::snprintf(would_overwrite,sizeof(would_overwrite),
+  "%s/%s",game_dest_checked,now.title_id);
+ if(n<=0||static_cast<std::size_t>(n)>=sizeof(would_overwrite)||
+    std::strcmp(would_overwrite,game_source_checked)==0)return;
+ cmp5_compression::StartAck ack{};
+ bool may_have_queued=false;
+ const bool accepted=ampr_submit_job(game_source_checked,game_dest_checked,
+                                     &ack,&may_have_queued);
+ game_job_accepted=accepted;
+ game_job_reply_unknown=!accepted&&may_have_queued;
+ if(accepted)game_job_position=ack.position;
+}
 void run_game_preflight() noexcept {
  game_preflight=cmp5_compression::GamePreflight{};
  game_preflight_checked=false;game_preflight_transport=false;
@@ -835,7 +926,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -853,6 +944,7 @@ void* background_task(void*) noexcept {
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
   case Task::game_check: run_game_preflight(); break;
+  case Task::game_start: run_game_submission(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -897,6 +989,9 @@ void* background_task(void*) noexcept {
   }
   if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
   if(task_kind==Task::game_check){game_preflight_checked=false;game_preflight_transport=false;game_preflight={};}
+  /* A cancelled POST may have already reached the engine: keep the
+   * uncertain result until the user checks job status. */
+  if(task_kind==Task::game_start&&!game_job_accepted)game_job_reply_unknown=game_job_attempted;
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
