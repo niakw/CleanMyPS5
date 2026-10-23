@@ -1,0 +1,71 @@
+# Compression des jeux PS5 — conserver le lancement
+
+## Recherche technique du 23 octobre 2026
+
+Une image PS5 **`.exfat` n'est pas une archive LZ4**. La compresser
+directement avec `lz4`, `zstd`, `zip` ou `7z` produit un fichier que le
+chargeur ne peut pas forcément monter. La compression transparente doit
+être comprise par le moteur de lecture utilisé **pendant le jeu**.
+
+Deux voies existent :
+
+1. **AMPR-EMU / LZ4** : les assets sont découpés en blocs et sont restitués
+   à la demande. [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr)
+   fournit une application PS5 avec conversion, vérification, reprise et
+   estimation de gain, nécessitant notamment kstuff et ShadowMountPlus 1.7+.
+   L'auteur mentionne des essais FW 12.xx/13.xx ; le titre doit être
+   compatible avec les imports `libSceAmpr`. Certains jeux, notamment
+   Unity, ne démarrent pas après conversion.
+2. **`.ffpfsc`** : format d'image PFS compressée montable par certaines
+   versions de ShadowMountPlus. Il faut **convertir** depuis un format
+   compatible et vérifier le montage ; renommer ou compresser un `.exfat`
+   en LZ4 ne suffit pas. Un repli non comprimé `.exfat`/`.ffpkg` doit
+   rester possible si la version compressée saccade ou ne se lance pas.
+
+Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
+[technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
+[formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
+
+## Réalisation actuelle dans CleanMyPS5
+
+La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
+`src/native/game_images.c` avec les propriétés suivantes :
+
+- Métadonnées uniquement : suffixes `.exfat`, `.ffpkg`, `.ffpfs`,
+  `.ffpfsc`, tailles, compteurs, couverture des chemins connus ;
+  ni vérification du contenu ni promesse que ce fichier est un vrai jeu.
+- Racines limitées à `/data/homebrew`, `/data/etaHEN/games`,
+  `/mnt/usbN/homebrew`, `/mnt/extN/homebrew` et les deux racines de
+  support pour `N=0..7`. Le sandbox du titre détermine ce qui est visible.
+- Descripteurs de répertoires `openat`/`O_NOFOLLOW`, données uniquement
+  via `fstatat`, sans lecture du fichier de jeu, écriture, création de
+  package, appel réseau ou exécution d'un moteur externe.
+- Bornes : 5 000 entrées totales, 256 par racine, 256 inodes distincts,
+  budget de 3 secondes. Les fichiers non réguliers, liens symboliques,
+  hardlinks et mutations détectables ne sont pas comptés ; couverture
+  partielle explicitement indiquée.
+- Les images non-`.ffpfsc` de **20 Gio et plus** sont seulement « à
+  examiner » ; leur taille nominale n'est pas de l'espace récupérable.
+  Un jeu installé dans un dossier plutôt qu'une image n'est pas compté.
+
+**Aucun bouton « Compresser maintenant » ne déclenche d'écriture.**
+L'outil de conversion externe dispose déjà de ses propres interfaces
+avec choix de destination, compatibilité, vérification des blocs et
+reprise. CleanMyPS5 ne se substitue pas aujourd'hui à cette chaîne.
+
+## Conditions pour une option de compression réellement sûre
+
+1. Reconnaître l'image réelle et ses métadonnées (ne pas se fonder sur
+   l'extension), identifier l'installation et le jeu en cours.
+2. Vérifier les versions de ShadowMountPlus, kstuff, AMPR-EMU, les imports
+   du titre et le format de destination.
+3. Exiger un emplacement de sortie distinct, suffisamment libre, et
+   conserver l'original durant toute la conversion.
+4. Vérifier les blocs et le montage dans ShadowMountPlus ; tester le
+   **démarrage réel du jeu et ses chargements**, sans promettre zéro lag.
+5. Ne jamais supprimer automatiquement l'original ; la suppression
+   éventuelle nécessite une décision distincte après vérification.
+
+Aucun essai de cette intégration sur la PS5 13.60 de l'utilisateur n'a
+été effectué. Les tests Linux/macOS et la CI PS5 ne valident ni le
+montage ni la jouabilité.

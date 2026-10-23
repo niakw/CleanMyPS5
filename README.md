@@ -76,3 +76,12 @@ Les règles déclaratives sont compilées dans le binaire ; elles ne télécharg
 [Livraison et limites](docs/DELIVERY.md) · [Matrice fonctionnelle](docs/FEATURE_MATRIX.md) · [Architecture](docs/ARCHITECTURE.md) · [Validation PS5](docs/VALIDATION_PS5_13_60.md) · [Audit technique des homebrews PS5](docs/PS5_HOMEBREW_TECH_AUDIT.md)
 
 Licence GPL-3.0. Les sources sont conservées dans le dépôt GPL-3.0 et les dépendances externes restent identifiées dans la documentation du port natif.
+
+## Jeux et compression (diagnostic natif)
+
+L'entrée **Jeux et compression** repère sans ouvrir les données les images
+`.exfat`, `.ffpkg`, `.ffpfs` et `.ffpfsc` visibles et signale les
+grosses candidates (20 Gio+). Ce n'est **pas** un compresseur activé :
+une image compressée est jouable seulement avec un moteur compatible
+AMPR-EMU/LZ4 ou ShadowMountPlus/`.ffpfsc`. Le jeu original est préservé.
+Voir [les formats et prérequis](docs/GAME_COMPRESSION.md).

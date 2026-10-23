@@ -21,7 +21,7 @@
 | Nettoyage captures | Non | — | — | — | **Désactivé** |
 | Nettoyage caches homebrew | Non | — | — | — | **Désactivé** |
 | Orphelins PKG/DLC | Non | — | — | — | **Désactivé** |
-| Compression / compactage | Non | — | — | — | **Désactivé** |
+| Compression / compactage | Diagnostic natif des images `.exfat`, `.ffpkg`, `.ffpfs`, `.ffpfsc` en lecture seule | Fixture synthétique et navigation manette | Titre natif en CI | **À faire** | **Conversion désactivée** |
 
 ## Portes restantes
 

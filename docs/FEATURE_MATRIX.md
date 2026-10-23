@@ -51,6 +51,8 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Contrôle manette TV | 🟡 | Navigation DualSense native (quatre écrans) et interface navigateur historique ; compilation vérifiée, matériel 13.60 non testé |
 | Installation dans l'accueil PS5 | 🟡 | Titre homebrew natif `PPSA99784/` compilé avec `eboot.bin` et icône. Enregistrement dans le Shell par gestionnaire compatible et lancement réel sur 13.60 à vérifier |
 | Compactage / défragmentation du SSD | — | Éviter : pas de défragmentation flash, pas de gains imaginaires |
+| Jeux : images exFAT / UFS / PFS volumineuses | 🟡 | **Nouveau :** écran natif DualSense et scanner borné des fichiers `.exfat`, `.ffpkg`, `.ffpfs`, `.ffpfsc`. Aucune manipulation, estimation de gain ni garantie de lancement. Voir [compression des jeux](GAME_COMPRESSION.md). |
+| Jeux : compression LZ4 jouable | ❌ | Moteurs externes AMPR-EMU + ShadowMountPlus ou `.ffpfsc` disponibles, mais **aucune conversion embarquée** ni validation du jeu sur la console. `lz4 fichier.exfat` n'est pas un format jouable. |
 
 ## Priorités, avec portes de sécurité
 
