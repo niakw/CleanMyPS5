@@ -107,3 +107,11 @@ jamais considérée comme une réussite. `X` sur l'écran du travail relit la pr
 checkpoint correspondant existe, en demande la reprise. Ces commandes
 contrôlent uniquement le moteur **intégré** et ne suppriment rien. La compatibilité réelle
 des jeux sur PS5 13.60 reste à tester.
+
+**Suivi des conversions en tâche de fond :** `Triangle` dans
+**Jeux et compression** ouvre le moniteur **en lecture seule**, qui
+retrouve l'état du moteur local sans créer une nouvelle conversion.
+Le build effectue aussi les régressions hôte du moteur AMPR/LZ4
+(compresser, vérifier, interrompre et reprendre des données synthétiques).
+La pause et la reprise depuis la page d'un travail restent limitées
+au jeu dont l'identifiant a été vérifié.

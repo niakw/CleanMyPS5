@@ -61,3 +61,8 @@ Le protocole affiche également l'avancement compact du moteur.
 **La compilation hôte/PS5 ne constitue pas une validation sur console
 13.60 ni une garantie de démarrage d'un jeu converti.** Le nettoyage
 destructeur général demeure désactivé.
+
+La compression intégrée refuse désormais une conversion si une autre
+est active ou en file, bloque la répétition d'une demande acceptée ou
+ambiguë et propose un moniteur de fond accessible par Triangle.
+Les tests hôte du moteur réel sont inclus dans le build de titre.

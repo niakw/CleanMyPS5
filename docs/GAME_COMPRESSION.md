@@ -142,3 +142,26 @@ Il faut deux validations distinctes avant l'envoi d'un travail au moteur.
 Après la soumission, `X` actualise le statut ; une conversion
 terminée ne garantit jamais un lancement sur console.
 Le nettoyage destructeur général reste verrouillé indépendamment.
+
+## Contrôle des doublons et suivi après fermeture
+
+Avant **chaque POST de conversion**, le titre lit maintenant le statut du
+moteur intégré. Il refuse de démarrer un autre travail si la file d'attente
+n'est pas vide ou si une conversion est en cours/en pause. Un travail déjà
+accepté, ou dont la réponse finale est ambiguë, reste verrouillé dans la
+session : un second appui ne renvoie jamais automatiquement la demande.
+Un résultat terminal appartenant au **même Title ID** impose de vérifier
+manuellement la sortie plutôt que de convertir à nouveau.
+
+**Triangle → Tâche LZ4 du moteur**, depuis le menu de compression, permet
+la consultation sans modification du statut local, y compris après la
+réouverture de CleanMyPS5 si le moteur tourne encore. L'écran présente
+l'identifiant déclaré, le pourcentage, les octets et la file ; il ne
+permet **pas** de s'approprier ou de suspendre une conversion soumise
+par une autre session.
+
+La construction du package lance également `make check` du moteur
+**modifié et épinglé**. Les jeux synthétiques de ces tests vérifient la
+compression/récupération LZ4, les interruptions et reprises, l'intégrité
+des manifests et le maintien des sources. C'est un test hôte, pas un
+essai réel sur PS5.
