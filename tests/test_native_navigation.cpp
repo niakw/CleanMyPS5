@@ -24,6 +24,7 @@ unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
 bool mock_ampr_foreign_running=false;
+bool mock_smp_wrong_size=false;
 unsigned mock_ampr_queued_work=0;
 
 void press(std::uint32_t mask){
@@ -120,11 +121,16 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
  if(id<17||id>22)return -1;
  if(mock_ampr_receive++)return 0;
  if(id==22){
-  static constexpr char body[]=R"({"title_id":"PPSA12345","image_type":"exfatfs","size":22548578304})";
+  char body[160]{};
+  const int body_len=std::snprintf(body,sizeof(body),
+   "{\"title_id\":\"PPSA12345\",\"image_type\":\"exfatfs\",\"size\":%llu}",
+   mock_smp_wrong_size?12ULL*1024ULL*1024ULL*1024ULL:
+   21ULL*1024ULL*1024ULL*1024ULL);
+  assert(body_len>0&&static_cast<std::size_t>(body_len)<sizeof(body));
   char reply[300]{};
   const int n=std::snprintf(reply,sizeof(reply),
-   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
-   sizeof(body)-1,body);
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+   body_len,body);
   assert(n>0&&static_cast<std::size_t>(n)<capacity);
   std::memcpy(data,reply,static_cast<std::size_t>(n));
   return n;
@@ -850,6 +856,16 @@ int main(){
  assert(compression_view==6u); /* already packed .ffpfsc cannot be repacked */
  press(up);
  assert(compression_image_selection==0u);
+ mock_smp_wrong_size=true;
+ press(cross);
+ assert(compression_view==2u);
+ finish_scan();
+ assert(!game_preflight_checked&&!game_preflight.ready());
+ assert(!game_job_accepted&&mock_ampr_post_bodies==0u);
+ press(cross);assert(compression_view==2u);
+ press(circle);assert(compression_view==1u);
+ press(r1);assert(compression_view==6u);
+ mock_smp_wrong_size=false;
  press(cross);
  assert(compression_view==2u);
  finish_scan();
@@ -864,7 +880,7 @@ int main(){
  assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==13u);
+ assert(mock_ampr_gets==14u);
  press(circle);
  assert(compression_view==1u);
  press(l1);
