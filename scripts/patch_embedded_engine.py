@@ -52,6 +52,43 @@ def main(root: Path):
            '  r.remove_source = false; /* no source deletion */')
     change(httpd, '  r.force = flag(body, "force", false);',
            '  r.force = false; /* no incompatible game bypass */')
+    # Stable, compact endpoint for the bundled DualSense frontend. The
+    # upstream /api/state may include multi-megabyte logs; don't parse or
+    # expose those in the title process.
+    progress = """/* CleanMyPS5 modified AMPR service, Copyright (C) 2026 V-10:
+ * one read-only bounded status record for the native UI. */
+static void cmp5_progress(int fd) {
+  job_status status;
+  job_get_status(&status);
+  static const char *const names[]={
+    "idle","running","done","error","cancelled","paused"};
+  int index=(int)status.state;
+  if(index<0 || index>=6)index=3;
+  int pct=status.percent;
+  if(pct<0)pct=0;
+  if(pct>100)pct=100;
+  char out[256];
+  snprintf(out,sizeof out,
+    "{\\"service\\":\\"CleanMyPS5-AMPR\\",\\"state\\":\\"%s\\","
+    "\\"percent\\":%d,\\"bytes_done\\":%llu,\\"bytes_total\\":%llu,"
+    "\\"queue_len\\":%d,\\"launch_checked\\":%s}",
+    names[index],pct,
+    (unsigned long long)status.bytes_done,
+    (unsigned long long)status.bytes_total,
+    status.queue_len,
+    status.launch_checked?"true":"false");
+  send_json(fd,200,out);
+}
+"""
+    change(httpd, 'static void api_list(int fd, int (*fn)(char *, size_t)) {',
+           progress + 'static void api_list(int fd, int (*fn)(char *, size_t)) {')
+    change(httpd,
+           'else if (strcmp(path, "/api/state") == 0) api_state(fd, args);',
+           '''else if (strcmp(path, "/api/state") == 0) api_state(fd, args);
+   else if (strcmp(path, "/api/cmp5-progress") == 0 && !post) {
+     if(!local)send_json(fd,403,"{\\"error\\":\\"local only\\"}");
+     else cmp5_progress(fd);
+   }''')
     # All administrative destructive routes remain disabled in the
     # embedded distribution until each is separately proven reversible.
     marker = '  if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)\n'
