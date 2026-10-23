@@ -70,7 +70,18 @@ def main(root: Path):
     # Folder jobs (without smp=) retain their existing upstream path.
     change(httpd,
            '  (void)queue_only;',
-           '''  /* CleanMyPS5: an SMP image must still have its exact
+           '''  /* CleanMyPS5: image paths require a real ShadowMountPlus
+   * title. A local client must not bypass checks by omitting smp=. */
+  const char *cmp5_ext = strrchr(r.source, '.');
+  if (!r.smp_title[0] && cmp5_ext &&
+      (!strcasecmp(cmp5_ext, ".exfat") ||
+       !strcasecmp(cmp5_ext, ".ffpkg") ||
+       !strcasecmp(cmp5_ext, ".ffpfs") ||
+       !strcasecmp(cmp5_ext, ".ffpfsc"))) {
+    send_json(fd, 409, "{\\"error\\":\\"image_title_required\\"}");
+    return;
+  }
+  /* CleanMyPS5: an SMP image must still have its exact
    * owner and the original path at the time of queue submission. */
   if (r.smp_title[0]) {
     smp_game owner;
