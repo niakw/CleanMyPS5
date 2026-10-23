@@ -7,6 +7,7 @@
 #include "inventory.h"
 #include "duplicates.h"
 #include "homebrew.h"
+#include "game_images.h"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -69,8 +70,8 @@ using Color=ps5::demo::Color;
 constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,right=0x20,
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
-constexpr int row_count=4;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions };
+constexpr int row_count=5;
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression };
 enum class Link { unchecked, ok, offline };
 const char* const local_paths[]={
  "/app0/sce_sys/param.json", "/download0", "/data", "/user/av_contents"
@@ -646,7 +647,18 @@ void run_autoload_check() noexcept {
   autoload_checked=!cancellation_hook(nullptr)&&autoload_stats.checked==11u;
  }
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions };
+Cmp5GameImageStats game_images{};
+bool game_images_checked=false;
+void run_game_image_scan() noexcept {
+ game_images=Cmp5GameImageStats{};
+ game_images_checked=false;
+ Cmp5GameImageStats sample{};
+ if(cmp5_scan_game_images("/",&sample,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr)){
+  game_images=sample;game_images_checked=true;
+ }
+}
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -661,6 +673,7 @@ void* background_task(void*) noexcept {
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
   case Task::companions: run_companion_check(); break;
+  case Task::images: run_game_image_scan(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -699,6 +712,7 @@ void* background_task(void*) noexcept {
    companion_summary=Cmp5CompanionReport{};
    companion_checked=false;
   }
+  if(task_kind==Task::images){game_images=Cmp5GameImageStats{};game_images_checked=false;}
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);
  }else task_state.store(2,std::memory_order_release);
@@ -922,6 +936,10 @@ void poll_pad() noexcept {
    if(pressed&cross)(void)begin_task(Task::autoload);
    continue;
   }
+  if(screen==Screen::compression){
+   if(pressed&cross)(void)begin_task(Task::images);
+   continue; /* No generic compressed image writer or deletion. */
+  }
   if(screen==Screen::official){
    if(pressed&square){
     screen=Screen::autoload;
@@ -953,10 +971,11 @@ void poll_pad() noexcept {
    if(pressed&down)selected=(selected+1)%row_count;
    if(pressed&cross){
     screen=selected==0?Screen::analyze:selected==1?Screen::access:
-      selected==2?Screen::cleanup:Screen::official;
+      selected==2?Screen::cleanup:selected==3?Screen::compression:Screen::official;
     if(screen==Screen::analyze)(void)begin_task(Task::environment);
     if(screen==Screen::cleanup)(void)begin_task(Task::overview);
     if(screen==Screen::access)(void)begin_task(Task::access);
+    if(screen==Screen::compression)(void)begin_task(Task::images);
    }
   }else if(pressed&cross){
    if(screen==Screen::analyze||screen==Screen::cleanup)(void)begin_task(Task::overview);
@@ -984,17 +1003,19 @@ void footer(ps5::demo::Canvas&canvas,const char*message) noexcept {
 }
 void show_menu(ps5::demo::Canvas&canvas) noexcept {
  static constexpr const char*items[row_count]={
-  "ANALYSE", "ACCES AU STOCKAGE", "NETTOYAGE", "RETOUR OFFICIEL"
+  "ANALYSE", "ACCES AU STOCKAGE", "NETTOYAGE",
+  "JEUX ET COMPRESSION", "RETOUR OFFICIEL"
  };
  static constexpr const char*detail[row_count]={
-  "ETAT DU MOTEUR", "DROITS REELS", "PROTECTION ACTIVE", "CONTROLES LOCAUX"
+  "ETAT DU MOTEUR", "DROITS REELS", "PROTECTION ACTIVE",
+  "IMAGES EXFAT ET LZ4", "CONTROLES LOCAUX"
  };
  for(int i=0;i<row_count;i++){
-  const unsigned top=350+static_cast<unsigned>(i)*142;
-  canvas.rectangle(95,top,1730,116,i==selected?Color::cyan:Color::panel);
-  canvas.rectangle(104,top+9,1712,98,Color::background);
-  canvas.text(145,top+30,items[i],5,i==selected?Color::cyan:Color::white);
-  canvas.text(1000,top+37,detail[i],3,Color::white);
+  const unsigned top=315+static_cast<unsigned>(i)*120;
+  canvas.rectangle(95,top,1730,105,i==selected?Color::cyan:Color::panel);
+  canvas.rectangle(104,top+8,1712,89,Color::background);
+  canvas.text(145,top+25,items[i],5,i==selected?Color::cyan:Color::white);
+  canvas.text(1000,top+34,detail[i],3,Color::white);
  }
  footer(canvas,task_busy()?
    "ANALYSE EN COURS    CERCLE POUR ANNULER":
@@ -1483,6 +1504,49 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,963,"X RECONTROLER  CERCLE GUIDE RETOUR OFFICIEL",3,Color::white);
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
+void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(task_busy()){
+  panel(canvas,345,"IMAGES DES JEUX","ANALYSE DES TAILLES EN COURS",Color::cyan);
+  panel(canvas,493,"MODE","LECTURE SEULE - AUCUNE CONVERSION");
+  footer(canvas,"CERCLE ANNULER  AUCUNE ECRITURE");
+  return;
+ }
+ if(!game_images_checked||task_failed()||task_cancelled()){
+  panel(canvas,345,"IMAGES DES JEUX",task_cancelled()?
+   "ANALYSE ANNULEE":"SCAN NON DISPONIBLE",Color::yellow);
+  panel(canvas,493,"FORMATS","EXFAT  FFPKG  FFPFS  FFPFSC");
+  footer(canvas,"X RELANCER  CERCLE RETOUR  AUCUNE MODIFICATION");
+  return;
+ }
+ char detail[150]{};
+ (void)std::snprintf(detail,sizeof(detail),
+    "%u EXFAT   %u FFPKG   %u FFPFS",
+    game_images.count[CMP5_IMAGE_EXFAT],
+    game_images.count[CMP5_IMAGE_FFPKG],
+    game_images.count[CMP5_IMAGE_FFPFS]);
+ panel(canvas,325,"IMAGES OBSERVEES",detail);
+ (void)std::snprintf(detail,sizeof(detail),
+    "%u FFPFSC   %llu GIO NOMINAUX",
+    game_images.count[CMP5_IMAGE_FFPFSC],
+    static_cast<unsigned long long>(game_images.nominal_bytes/1073741824ULL));
+ panel(canvas,465,"IMAGES COMPRESSEES / ESPACE OBSERVE",detail);
+ (void)std::snprintf(detail,sizeof(detail),
+    "%u IMAGES 20 GIO+   %llu GIO NOMINAUX",
+    game_images.large_candidates,
+    static_cast<unsigned long long>(game_images.large_nominal_bytes/1073741824ULL));
+ panel(canvas,605,"GROS FICHIERS A EXAMINER",detail,Color::yellow);
+ (void)std::snprintf(detail,sizeof(detail),
+    "%u RACINES  %u ENTREES%s",
+    game_images.scanned_roots,game_images.entries_seen,
+    game_images.partial?"  PARTIEL":"");
+ panel(canvas,745,"COUVERTURE DES RACINES CONNUES",detail,Color::yellow);
+ canvas.rectangle(95,885,1730,58,Color::panel);
+ canvas.text(125,900,"LZ4: AMPR-EMU   FFPFSC: SHADOWMOUNT+   LANCEMENT NON GARANTI",2,Color::cyan);
+ footer(canvas,"X ACTUALISER   CERCLE RETOUR   GARDER SOURCE  ET TESTER JEU CONVERTI");
+}
+/* A generic LZ4 image cannot be mounted without compatible support. This
+ * read-only view never deletes installed titles or claims post-conversion
+ * launchability. See docs/GAME_COMPRESSION.md for validated dependencies. */
 void scene(ps5::demo::Canvas&canvas) noexcept {
  poll_pad();
  release_inactive_previews();
@@ -1498,7 +1562,8 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::photo?"APERCU PHOTO":
    screen==Screen::video_info?"INFORMATIONS VIDEO":
    screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":
-   screen==Screen::companions?"FICHIERS LIES A LA CAPTURE":"RETOUR AU SYSTEME OFFICIEL";
+   screen==Screen::companions?"FICHIERS LIES A LA CAPTURE":
+   screen==Screen::compression?"JEUX ET COMPRESSION":"RETOUR AU SYSTEME OFFICIEL";
  header(canvas,subtitle);
  switch(screen){
   case Screen::menu:show_menu(canvas);break;
@@ -1515,6 +1580,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::official:show_official(canvas);break;
   case Screen::autoload:show_autoload(canvas);break;
   case Screen::companions:show_companions(canvas);break;
+  case Screen::compression:show_compression(canvas);break;
  }
 }
 }
