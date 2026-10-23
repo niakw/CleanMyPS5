@@ -274,3 +274,9 @@ La taille nominale n'est **pas** une estimation d'espace libérable.
 Le scanner garde les totaux et signale explicitement une couverture
 partielle lorsque certains candidats sont masqués. La sélection ne
 donne aucune autorisation de suppression ni ne garantit la jouabilité.
+
+En cas de plan modifié détecté après confirmation, l'écran natif affiche
+explicitement **« PLAN DE COMPRESSION MODIFIÉ »** au lieu d'un échec
+générique. Le retour à la sélection puis le nouveau précontrôle
+imposent de refaire les deux confirmations ; aucun nouveau POST n'est
+émis à partir de l'ancien accord.

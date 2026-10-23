@@ -672,6 +672,7 @@ constexpr unsigned game_destination_count=sizeof(game_destinations)/sizeof(game_
 cmp5_compression::GamePreflight game_preflight{};
 bool game_preflight_checked=false,game_preflight_transport=false;
 bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=false;
+bool game_job_plan_changed=false;
 unsigned game_job_position=0;
 cmp5_compression::GameProgress game_progress{};
 bool game_progress_checked=false;
@@ -684,6 +685,7 @@ char game_smp_title[16]{},game_image_type[16]{};
 void reset_compression_job_state() noexcept {
  game_preflight_checked=false;game_preflight_transport=false;
  game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
+ game_job_plan_changed=false;
  game_job_position=0;game_progress={};game_progress_checked=false;
  game_pause_attempted=false;game_pause_accepted=false;
  game_resume_attempted=false;game_resume_accepted=false;
@@ -1126,6 +1128,7 @@ void run_game_submission() noexcept {
   * worker twice (including an accidental duplicate controller event). */
  if(game_job_accepted||game_job_reply_unknown)return;
  game_job_attempted=true;
+ game_job_plan_changed=false;
  if(!game_preflight_checked||!game_preflight.ready())return;
  char ver[32]{};
  if(!check_local_ampr(ver)||cancellation_hook(nullptr))return;
@@ -1141,9 +1144,15 @@ void run_game_submission() noexcept {
  }
  if(!game_check_request(game_source_checked,game_dest_checked,
      game_source_is_image?game_smp_title:"",&now)||
-    !cmp5_compression::same_confirmation_snapshot(game_preflight,now)||
+    !now.ready()||
     (game_source_is_image&&now.image_bytes!=game_image_expected_bytes)||
     cancellation_hook(nullptr))return;
+ if(!cmp5_compression::same_confirmation_snapshot(game_preflight,now)){
+  // Never silently substitute a changed plan after two confirmations.
+  // Circle returns to the candidate list for a new preflight.
+  game_job_plan_changed=true;
+  return;
+ }
  /* Prevent requeue after a lost ACK or UI restart. A fresh preflight
   * alone cannot tell whether a conversion has already been queued.
   * If the live engine status cannot be read or has any queued/running/
@@ -2200,6 +2209,9 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   }else if(game_job_reply_unknown){
    panel(canvas,707,"RESULTAT INCERTAIN",
      "VERIFIER LE MOTEUR AVANT UNE NOUVELLE DEMANDE",Color::yellow);
+  }else if(game_job_plan_changed){
+   panel(canvas,707,"PLAN DE COMPRESSION MODIFIE",
+     "SOURCE OU VOLUME CHANGE  CERCLE PUIS RECONTROLER",Color::yellow);
   }else{
    panel(canvas,707,"AUCUN TRAVAIL CONFIRME",
      "COMPATIBILITE / ESPACE / REPONSE A REVERIFIER",Color::yellow);
@@ -2233,7 +2245,9 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "PAUSE REFUSEE OU NON CONFIRMEE",
      2,game_pause_accepted?Color::cyan:Color::yellow);
   }
-  footer(canvas,"X PROGRESSION  TRIANGLE PAUSE / REPRISE  CERCLE RETOUR");
+  footer(canvas,game_job_plan_changed?
+    "CERCLE RETOUR  X RECONTROLER LE JEU  2 CONFIRMATIONS":
+    "X PROGRESSION  TRIANGLE PAUSE / REPRISE  CERCLE RETOUR");
   return;
  }
  if(compression_view==3u){
