@@ -850,6 +850,12 @@ int main(){
  press(l1);
  assert(compression_view==6u);
  assert(game_images.shown_images==2u);
+ assert(game_destination_count==17u); /* internal + USB0..7 + EXT0..7 */
+ press(left);assert(compression_destination==0u);
+ press(left);assert(compression_destination==16u);
+ assert(std::strcmp(game_destinations[16],"/mnt/ext7/homebrew")==0);
+ press(right);assert(compression_destination==0u);
+ press(right);assert(compression_destination==1u);
  press(down);
  assert(compression_image_selection==1u);
  press(cross);
