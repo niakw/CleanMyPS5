@@ -19,8 +19,9 @@ typedef struct {
  uint32_t folder_games,large_folders,folder_partials;
  uint64_t folder_nominal_bytes,large_folder_nominal_bytes;
 } Cmp5GameImageStats;
-/* Bounded, metadata-only game IMAGE survey. Fixed roots, no filenames or
- * paths leave the scanner; no image contents, payloads or writes are opened.
+/* Bounded, metadata-only game IMAGE and homebrew FOLDER survey.
+ * Fixed roots, no filenames or paths leave the scanner; no image
+ * contents, payloads or writes are opened.
  * Absence of results does not prove absence of installed PS5 games.
  * A compression operation requires a separate compatible engine and an
  * actual console launch check; this API never authorizes deletion. */

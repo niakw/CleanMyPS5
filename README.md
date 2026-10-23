@@ -81,7 +81,10 @@ Licence GPL-3.0. Les sources sont conservées dans le dépôt GPL-3.0 et les dé
 
 L'entrée **Jeux et compression** repère sans ouvrir les données les images
 `.exfat`, `.ffpkg`, `.ffpfs` et `.ffpfsc` visibles et signale les
-grosses candidates (20 Gio+). Ce n'est **pas** un compresseur activé :
+grosses candidates (20 Gio+), ainsi que les dossiers de homebrews de
+jeux reconnus par `eboot.bin` et `sce_sys`. L'interface sonde
+uniquement en GET le port local 6972 si le moteur LZ4 est déjà lancé.
+Ce n'est **pas** un compresseur activé :
 une image compressée est jouable seulement avec un moteur compatible
 AMPR-EMU/LZ4 ou ShadowMountPlus/`.ffpfsc`. Le jeu original est préservé.
 Voir [les formats et prérequis](docs/GAME_COMPRESSION.md).

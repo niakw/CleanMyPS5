@@ -31,22 +31,33 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
 `src/native/game_images.c` avec les propriétés suivantes :
 
-- Métadonnées uniquement : suffixes `.exfat`, `.ffpkg`, `.ffpfs`,
-  `.ffpfsc`, tailles, compteurs, couverture des chemins connus ;
-  ni vérification du contenu ni promesse que ce fichier est un vrai jeu.
+- Métadonnées uniquement : images aux suffixes `.exfat`, `.ffpkg`,
+  `.ffpfs`, `.ffpfsc` et **dossiers de jeux homebrew** identifiés
+  par `eboot.bin` et `sce_sys`. Un support exFAT est un système de
+  fichiers : tous les jeux dessus n'ont pas une extension `.exfat`.
+  La présence de ces noms ne prouve pas qu'un jeu soit lançable.
 - Racines limitées à `/data/homebrew`, `/data/etaHEN/games`,
   `/mnt/usbN/homebrew`, `/mnt/extN/homebrew` et les deux racines de
   support pour `N=0..7`. Le sandbox du titre détermine ce qui est visible.
 - Descripteurs de répertoires `openat`/`O_NOFOLLOW`, données uniquement
   via `fstatat`, sans lecture du fichier de jeu, écriture, création de
   package, appel réseau ou exécution d'un moteur externe.
-- Bornes : 5 000 entrées totales, 256 par racine, 256 inodes distincts,
-  budget de 3 secondes. Les fichiers non réguliers, liens symboliques,
-  hardlinks et mutations détectables ne sont pas comptés ; couverture
-  partielle explicitement indiquée.
+- Bornes : 5 000 entrées totales, 256 par dossier et 256 inodes
+  d'images distincts, profondeur maximale 6 pour le calcul de la taille
+  des dossiers de jeux, budget de 3 secondes. Les liens symboliques,
+  hardlinks, mutations et dépassements de bornes rendent les données
+  partielles. Les dossiers trop grands sont comptés sans prétendre avoir
+  obtenu leur taille exacte.
 - Les images non-`.ffpfsc` de **20 Gio et plus** sont seulement « à
   examiner » ; leur taille nominale n'est pas de l'espace récupérable.
   Un jeu installé dans un dossier plutôt qu'une image n'est pas compté.
+
+- La page effectue une **requête GET** vers
+  `http://127.0.0.1:6972/api/hello` pour repérer le service
+  exFAT2AMPR local. Elle refuse un cadrage HTTP erroné et les champs
+  JSON inattendus. La réponse est un **indice de compatibilité**,
+  pas une authentification du processus, ni une preuve du montage du jeu.
+  Aucun jeton, appairage, chemin de jeu ou ordre de conversion n'est envoyé.
 
 **Aucun bouton « Compresser maintenant » ne déclenche d'écriture.**
 L'outil de conversion externe dispose déjà de ses propres interfaces

@@ -1586,21 +1586,18 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     static_cast<unsigned long long>(game_images.large_nominal_bytes/1073741824ULL));
  panel(canvas,605,"GROS FICHIERS A EXAMINER",detail,Color::yellow);
  (void)std::snprintf(detail,sizeof(detail),
-    "%u DOSSIERS JEUX  %u DOSSIERS 20 GIO+  %u INCOMPLETS",
+    "%u DOSSIERS JEUX  %u DE 20 GIO+  %u INCOMPLETS%s",
     game_images.folder_games,game_images.large_folders,
-    game_images.folder_partials);
- panel(canvas,745,"JEUX EN DOSSIERS EXFAT",detail,Color::yellow);
- (void)std::snprintf(detail,sizeof(detail),
-    "%u RACINES  %u ENTREES%s",
-    game_images.scanned_roots,game_images.entries_seen,
+    game_images.folder_partials,
     game_images.partial?"  PARTIEL":"");
- /* Root coverage is retained in the testable survey data, while this
-  * panel now distinguishes exFAT DIRECTORY games from file images. */
+ panel(canvas,745,"JEUX EN DOSSIERS EXFAT",detail,Color::yellow);
+ /* Counts are always bounded; partial scans must never imply that no
+  * other installed games or images exist outside known visible roots. */
  canvas.rectangle(95,885,1730,58,Color::panel);
  char engine_text[140]{};
  if(compression_engine_seen){
   (void)std::snprintf(engine_text,sizeof(engine_text),
-   "MOTEUR AMPR LOCAL: %s (LECTURE SEULE, JEU NON VERIFIE)",
+   "SERVICE AMPR COMPATIBLE: %s (IDENTITE NON VERIFIEE)",
     compression_engine_version);
  }else{
   (void)std::snprintf(engine_text,sizeof(engine_text),

@@ -24,9 +24,8 @@ with tempfile.TemporaryDirectory() as tmp:
     with (game/"data.bin").open("wb") as f:f.truncate(22*1024**3)
     (external/"LINK.ffpkg").hardlink_to(external/"GAME3.ffpkg")
     (external/"SYMLINK.exfat").symlink_to(internal/"GAME.exfat")
-    # The ffpfs tiny file is a format-name candidate, not a validated image.
-    # The second large candidate is the 10-GiB image? It is below 20-GiB,
-    # so count only the first large image unless we add another.
+    # Extension detection is not proof that any image really contains a game.
+    # A synthetic 23 GiB file is used to exercise the large-size threshold.
     with (top/"LARGE.ffpkg").open("wb") as f:f.truncate(23*1024**3)
     result=subprocess.run([sys.argv[1],str(root)],capture_output=True,text=True,timeout=20)
     assert result.returncode==0,(result.stdout,result.stderr)
