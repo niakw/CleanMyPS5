@@ -173,7 +173,8 @@ static void cmp5_image_resolve(int fd, const char *args) {
   }
   smp_game *g=&items[match];
   const size_t tidlen=strlen(g->title_id);
-  bool valid=tidlen==9&&g->managed&&g->source_available;
+  bool valid=tidlen==9&&g->managed&&g->source_available&&
+             !strcmp(g->source_type,"image");
   for(size_t i=0;i<tidlen&&valid;i++){
     const char c=g->title_id[i];
     valid=i<4?(c>='A'&&c<='Z'):(c>='0'&&c<='9');
@@ -182,11 +183,21 @@ static void cmp5_image_resolve(int fd, const char *args) {
   const bool type_ok=!strcmp(g->image_type,"exfatfs")||
        !strcmp(g->image_type,"ufs")||!strcmp(g->image_type,"pfs");
   struct stat after;
-  if(!valid||!type_ok||lstat(path,&after)!=0||
+  if(lstat(path,&after)!=0) {
+    free(items);send_json(fd,409,"{\\"error\\":\\"source_changed\\"}");return;
+  }
+#if defined(__APPLE__)
+  const bool subsecond_same=after.st_mtimespec.tv_nsec==st.st_mtimespec.tv_nsec&&
+      after.st_ctimespec.tv_nsec==st.st_ctimespec.tv_nsec;
+#else
+  const bool subsecond_same=after.st_mtim.tv_nsec==st.st_mtim.tv_nsec&&
+      after.st_ctim.tv_nsec==st.st_ctim.tv_nsec;
+#endif
+  if(!valid||!type_ok||!subsecond_same||
      !S_ISREG(after.st_mode)||after.st_nlink!=1||
      after.st_dev!=st.st_dev||after.st_ino!=st.st_ino||
-     after.st_size!=st.st_size||after.st_mtime!=st.st_mtime||
-     after.st_ctime!=st.st_ctime){
+     after.st_size!=st.st_size||after.st_mode!=st.st_mode||
+     after.st_mtime!=st.st_mtime||after.st_ctime!=st.st_ctime){
     free(items);send_json(fd,409,"{\\"error\\":\\"image_unavailable_or_incompatible\\"}");return;
   }
   char response[180];
