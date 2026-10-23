@@ -805,18 +805,69 @@ void run_embedded_engine() noexcept {
  /* A successful TCP send is NOT equivalent to an ELF having loaded.
   * The user can recheck via X after the jailbreak loader accepts it. */
 }
+/* A filename alone cannot identify a PS5 game. Ask the bundled engine to
+ * resolve a managed image using ShadowMountPlus and return strict metadata. */
+bool resolve_managed_image(const char*source,
+                           cmp5_compression::ImageResolution*out) noexcept {
+ char encoded[600]{};
+ if(!out||!cmp5_compression::form_encode_path(source,encoded,sizeof(encoded)))
+  return false;
+ char request[900]{};
+ const int size=std::snprintf(request,sizeof(request),
+  "GET /api/cmp5-image?path=%s HTTP/1.0\r\n"
+  "Host: 127.0.0.1:6973\r\nConnection: close\r\n\r\n",encoded);
+ if(size<=0||static_cast<std::size_t>(size)>=sizeof(request))return false;
+ const int fd=sceNetSocket("cmp5_ampr_image_resolve",2,1,6);
+ if(fd<0)return false;
+ const int timeout_us=15000000;
+ (void)sceNetSetsockopt(fd,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(fd,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn local{16,2,
+  static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(fd,&local,sizeof(local))>=0;
+ std::size_t sent=0;
+ while(ok&&sent<static_cast<std::size_t>(size)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetSend(fd,request+sent,static_cast<std::size_t>(size)-sent,0);
+  if(n<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(n);
+ }
+ char response[1024]{};
+ std::size_t used=0;
+ while(ok&&used<sizeof(response)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetRecv(fd,response+used,sizeof(response)-used,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  used+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(fd);
+ if(!ok||used==sizeof(response)||cancellation_hook(nullptr))return false;
+ cmp5_compression::HttpJson json{};
+ return cmp5_compression::parse_ampr_http(response,used,&json)&&
+  cmp5_compression::parse_image_resolution(json.body,json.size,out);
+}
 /* Bounded individual game check via our embedded PS5 LZ4 engine. */
-bool game_check_request(const char*source,const char*dest,
+bool game_check_request(const char*source,const char*dest,const char*smp,
                         cmp5_compression::GamePreflight*out) noexcept {
  char game_arg[600]{},dest_arg[200]{};
  if(!cmp5_compression::form_encode_path(source,game_arg,sizeof(game_arg))||
     !cmp5_compression::form_encode_path(dest,dest_arg,sizeof(dest_arg)))
   return false;
+ char smp_arg[36]{};
+ if(smp&&smp[0]){
+  if(std::strlen(smp)!=9u)return false;
+  for(unsigned i=0;i<9;i++){
+   const char c=smp[i];
+   if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+  }
+  (void)std::snprintf(smp_arg,sizeof(smp_arg),"&smp=%s",smp);
+ }
  char request[1024]{};
  const int size=std::snprintf(request,sizeof(request),
-   "GET /api/check?path=%s&dest=%s HTTP/1.0\r\n"
+   "GET /api/check?path=%s&dest=%s%s HTTP/1.0\r\n"
    "Host: 127.0.0.1:6973\r\nConnection: close\r\n\r\n",
-   game_arg,dest_arg);
+   game_arg,dest_arg,smp_arg);
  if(size<=0||static_cast<std::size_t>(size)>=sizeof(request))return false;
  const int socket=sceNetSocket("cmp5_ampr_game_check",2,1,6);
  if(socket<0)return false;
