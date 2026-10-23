@@ -28,4 +28,30 @@ reject(lambda:gate.check_builder(builder.replace(
  'cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"',
  'cp "$project/src/native/verified_group.c" "$tmp/native-toolchain/src/cmp5_verified_group.c"'
 )))
+for src in (
+ "linkat(fd,a,fd,b,0);","symlinkat(a,fd,b);",
+ "fchmodat(fd,name,0777,0);","fchownat(fd,name,0,0,0);",
+ "execve(path,args,env);","posix_spawn(&pid,path,0,0,args,env);",
+ "syscall(5,a,b);","kernel_copyin(buffer,kaddr,len);",
+ "sceKernelUnlink(path);","openat(fd,name,O_TMPFILE);",
+):
+ reject(lambda value=src:gate.check_reader(value,"injected-mutation"))
+gate.check_title_headers(root,builder,gate.APPROVED)
+reject(lambda:gate.check_title_headers(
+ root,builder.replace(
+ 'cp "$project/src/native/game_scan_identity.h" "$tmp/native-toolchain/src/game_scan_identity.h"',
+ '# intentionally omitted'),gate.APPROVED))
+# Reject a write hidden in a newly staged inline header, not just C sources.
+import tempfile
+with tempfile.TemporaryDirectory() as tmp:
+ sandbox=Path(tmp)
+ (sandbox/"src/native").mkdir(parents=True)
+ (sandbox/"native").mkdir()
+ (sandbox/"src/native"/"fixture.c").write_text('#include "fixture.h"\n')
+ (sandbox/"src/native"/"fixture.h").write_text(
+  'int bad(void){return unlinkat(3,"a",0);}')
+ (sandbox/"native"/"main.cpp").write_text('#include "fixture.h"\n')
+ (sandbox/"native"/"preview_decode.c").write_text("")
+ staged=builder+'\ncp "$project/src/native/fixture.h" "$tmp/native-toolchain/src/fixture.h"'
+ reject(lambda:gate.check_title_headers(sandbox,staged,{"fixture.c"}))
 print("Privilege scanner and injected write operations: PASS")

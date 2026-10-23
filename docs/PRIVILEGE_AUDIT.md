@@ -51,3 +51,18 @@ La vue Accès propose six sondes, dont `/user/av_contents/photo` et
 entre les deux pages ; un sous-dossier refusé rend le bilan **partiel**.
 L'accès aux miniatures et aux index de la Galerie ne se déduit pas de
 l'ouverture réussie de ces répertoires.
+
+### Contrôle récursif du code natif (24 octobre 2026)
+
+L'audit automatisé parcourt maintenant tous les en-têtes locaux
+atteignables depuis le titre et les scanners natifs réellement compilés.
+Un nouveau fichier inclus mais absent de la liste de staging PS5 est refusé.
+Les tests injectent également des appels d'écriture indirects via un
+faux en-tête, ainsi que `linkat`, `symlinkat`, `fchmodat`, `O_TMPFILE`,
+`posix_spawn`, appels système bruts et primitives kernel de mutation.
+
+La décision demeure : pas d'élévation globale du titre. Une éventuelle
+écriture de Galerie exigera un broker dédié, authentifié sur PID/Title ID,
+avec transactions prouvées sur console, pas la copie d'une capacité
+NiakPS5 ou Eden Encore. Ce contrôle statique n'est pas une preuve de
+sécurité absolue ni une validation matérielle.
