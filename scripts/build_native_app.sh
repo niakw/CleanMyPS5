@@ -49,6 +49,8 @@ cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
 # Read-only game image format survey; the native title never packs/mounts.
 cp "$project/src/native/game_images.c" "$tmp/native-toolchain/src/cmp5_game_images.c"
 cp "$project/src/native/game_images.h" "$tmp/native-toolchain/src/game_images.h"
+# The game's bounded directory scan needs its shared nanosecond identity check.
+cp "$project/src/native/game_scan_identity.h" "$tmp/native-toolchain/src/game_scan_identity.h"
 # Shared descriptor-anchored companion discovery contains no backup/write API.
 cp "$project/src/native/capture_companions.c" "$tmp/native-toolchain/src/cmp5_capture_companions.c"
 cp "$project/src/native/capture_companions.h" "$tmp/native-toolchain/src/capture_companions.h"

@@ -10,6 +10,12 @@ spec = importlib.util.spec_from_file_location(
     "native_release_manifest", Path(__file__).resolve().parents[1] / "scripts/native_release_manifest.py"
 )
 module = importlib.util.module_from_spec(spec)
+# Fast fail before the expensive PS5 SDK build if the title's overlay
+# omits the read-only game scanner's local dependency.
+build_script = (Path(__file__).resolve().parents[1] /
+                "scripts/build_native_app.sh").read_text()
+assert ('cp "$project/src/native/game_scan_identity.h" ' +
+        '"$tmp/native-toolchain/src/game_scan_identity.h"') in build_script
 assert spec.loader is not None
 spec.loader.exec_module(module)
 
