@@ -25,6 +25,8 @@ on:
       - native/compression_preflight.hpp
       - native/compression_progress.hpp
       - tests/test_compression_progress.cpp
+      - native/compression_image.hpp
+      - tests/test_compression_image.cpp
       - docs/GAME_COMPRESSION.md
       - scripts/enable_verified_zlib_mirrors.py
       - tests/test_verified_zlib_mirrors.py
@@ -68,6 +70,10 @@ jobs:
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_protocol.cpp -o /tmp/cmp5-protocol
           /tmp/cmp5-protocol
+      - name: Verify managed image title identities and reject opaque formats
+        run: |
+          clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_compression_image.cpp -o /tmp/cmp5-compression-image
+          /tmp/cmp5-compression-image
       - name: Validate small read-only AMPR compression-progress decoder
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_compression_progress.cpp -o /tmp/cmp5-compression-progress
