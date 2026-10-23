@@ -955,6 +955,11 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
+   if(!task_busy()&&screen==Screen::compression&&compression_view==2u){
+    compression_view=1u;
+    game_preflight_checked=false;
+    continue;
+   }
    if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
    else if(screen==Screen::photo){
     // Do not retain decoded RGBA buffers after closing the preview;
@@ -1121,16 +1126,29 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::compression){
-   if(pressed&(l1|r1))compression_view^=1u;
-   if(compression_view==1u&&game_images.shown_folders){
-    if(pressed&up)compression_selection=
-      (compression_selection+game_images.shown_folders-1u)%game_images.shown_folders;
-    if(pressed&down)compression_selection=
-      (compression_selection+1u)%game_images.shown_folders;
+   if(compression_view<=1u&&(pressed&(l1|r1)))compression_view^=1u;
+   if(compression_view==1u){
+    if(game_images.shown_folders){
+     if(pressed&up)compression_selection=
+       (compression_selection+game_images.shown_folders-1u)%game_images.shown_folders;
+     if(pressed&down)compression_selection=
+       (compression_selection+1u)%game_images.shown_folders;
+    }
+    if(pressed&left)compression_destination=
+      (compression_destination+game_destination_count-1u)%game_destination_count;
+    if(pressed&right)compression_destination=
+      (compression_destination+1u)%game_destination_count;
+    if((pressed&cross)&&stage_game_preflight()){
+     compression_view=2u;
+     (void)begin_task(Task::game_check);
+    }
+   }else if(compression_view==0u&&(pressed&cross)){
+    (void)begin_task(Task::images);
+   }else if(compression_view==2u&&(pressed&cross)){
+    (void)begin_task(Task::game_check);
    }
-   if(pressed&cross)(void)begin_task(Task::images);
    if(pressed&square)(void)begin_task(Task::engine_start);
-   continue; /* Game conversion/deletion not exposed until validated. */
+   continue; /* Conversion still blocked pending final safety review. */
   }
   if(screen==Screen::official){
    if(pressed&square){
@@ -1697,6 +1715,39 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(compression_view==2u){
+  if(task_busy()){
+   panel(canvas,337,"PRECONTROLE DU JEU","VERIFICATION DU MOTEUR EN COURS",Color::cyan);
+   footer(canvas,"CERCLE ANNULER  SOURCE PRESERVEE");
+   return;
+  }
+  panel(canvas,315,"JEU CHOISI",game_source_checked);
+  panel(canvas,448,"DESTINATION DEMANDEE",game_dest_checked);
+  char detail[180]{};
+  if(!game_preflight_checked||!game_preflight_transport){
+   panel(canvas,595,"REPONSE DU MOTEUR",
+       "MOTEUR INACTIF OU REPONSE NON VERIFIABLE",Color::yellow);
+  }else{
+   (void)std::snprintf(detail,sizeof(detail),
+     "COMPATIBLE: %s   ERREURS: %u   ALERTES: %u",
+     game_preflight.compatible?"OUI":"NON",
+     game_preflight.errors,game_preflight.warnings);
+   panel(canvas,585,"COMPATIBILITE AMPR",detail,
+     game_preflight.ready()?Color::cyan:Color::yellow);
+   (void)std::snprintf(detail,sizeof(detail),
+     "REQUIS MAX: %llu GIO   LIBRES: %llu GIO",
+     static_cast<unsigned long long>(game_preflight.need_max/1073741824ULL),
+     static_cast<unsigned long long>(game_preflight.dest_free/1073741824ULL));
+   panel(canvas,732,"RESERVATION DE STOCKAGE",detail,
+     game_preflight.ready()?Color::cyan:Color::yellow);
+   canvas.text(120,885,game_preflight.ready()?
+      "PRECONTROLE FAVORABLE  PAS DE CONVERSION ACTIVE":
+      "CONVERSION BLOQUEE: COMPATIBILITE OU ESPACE A VERIFIER",
+      2,Color::yellow);
+  }
+  footer(canvas,"X REVERIFIER  CERCLE JEUX  AUCUNE ECRITURE");
+  return;
+ }
  if(task_busy()){
   panel(canvas,345,"IMAGES DES JEUX","ANALYSE DES TAILLES EN COURS",Color::cyan);
   panel(canvas,493,"MODE","LECTURE SEULE - AUCUNE CONVERSION");
@@ -1735,7 +1786,8 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     panel(canvas,top,candidate.label,summary,highlight);
    }
   }
-  footer(canvas,"L1/R1 STATISTIQUES  HAUT/BAS JEU  CARRE MOTEUR  AUCUNE CONVERSION");
+  panel(canvas,897,"DESTINATION",game_destinations[compression_destination]);
+  footer(canvas,"X CONTROLE DU JEU  GAUCHE/DROITE DESTINATION  CARRE MOTEUR");
   return;
  }
  (void)std::snprintf(detail,sizeof(detail),
