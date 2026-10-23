@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Only bounded synthetic game image metadata; never manipulate actual titles."""
+from pathlib import Path
+import os
+import subprocess
+import sys
+import tempfile
+with tempfile.TemporaryDirectory() as tmp:
+    root=Path(tmp)
+    internal=root/"data/homebrew"
+    external=root/"mnt/usb0/homebrew"
+    top=root/"mnt/ext0"
+    for path in (internal,external,top):
+        path.mkdir(parents=True)
+    with (internal/"GAME.exfat").open("wb") as f:f.truncate(21*1024**3)
+    with (external/"GAME2.EXFAT").open("wb") as f:f.truncate(10*1024**3)
+    (external/"GAME3.ffpkg").write_bytes(b"a"*120)
+    (top/"EXPERIMENTAL.ffpfs").write_bytes(b"b"*340)
+    (top/"COMPRESSED.ffpfsc").write_bytes(b"c"*560)
+    (external/"LINK.ffpkg").hardlink_to(external/"GAME3.ffpkg")
+    (external/"SYMLINK.exfat").symlink_to(internal/"GAME.exfat")
+    # The ffpfs tiny file is a format-name candidate, not a validated image.
+    # The second large candidate is the 10-GiB image? It is below 20-GiB,
+    # so count only the first large image unless we add another.
+    with (top/"LARGE.ffpkg").open("wb") as f:f.truncate(23*1024**3)
+    result=subprocess.run([sys.argv[1],str(root)],capture_output=True,text=True,timeout=20)
+    assert result.returncode==0,(result.stdout,result.stderr)
+    assert "PASS" in result.stdout
+print("Game image bounded metadata and alias exclusions: PASS")
