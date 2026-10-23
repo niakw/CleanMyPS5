@@ -5,6 +5,20 @@
 #include <cstdint>
 #include <cstring>
 namespace cmp5_compression {
+/* At most one read-only progress poll per eight seconds while its monitor
+ * is visible. Never schedule mutations or retry ambiguous POST requests. */
+struct ProgressRefresh {
+ static constexpr std::uint64_t interval_ns=8000000000ULL;
+ std::uint64_t next_ns=0;
+ void clear() noexcept {next_ns=0;}
+ void defer(std::uint64_t now) noexcept {
+  next_ns=now&&now<=UINT64_MAX-interval_ns?now+interval_ns:0;
+ }
+ bool armed() const noexcept{return next_ns!=0;}
+ bool due(std::uint64_t now) const noexcept {
+  return next_ns!=0&&now>=next_ns;
+ }
+};
 enum class JobState { idle,running,done,error,cancelled,paused };
 struct GameProgress {
  JobState state=JobState::idle;

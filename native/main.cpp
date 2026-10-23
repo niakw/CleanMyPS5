@@ -685,6 +685,16 @@ bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=fal
 bool game_job_plan_changed=false;
 unsigned game_job_position=0;
 cmp5_compression::GameProgress game_progress{};
+cmp5_compression::ProgressRefresh game_progress_refresh{};
+std::uint64_t compression_monotonic_ns() noexcept {
+ struct timespec ts{};
+ if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0||ts.tv_sec<0||ts.tv_nsec<0||
+    ts.tv_nsec>=1000000000L)return 0;
+ const auto seconds=static_cast<std::uint64_t>(ts.tv_sec);
+ if(seconds>(UINT64_MAX-static_cast<std::uint64_t>(ts.tv_nsec))/1000000000ULL)
+  return 0;
+ return seconds*1000000000ULL+static_cast<std::uint64_t>(ts.tv_nsec);
+}
 bool game_progress_checked=false;
 bool game_pause_attempted=false,game_pause_accepted=false;
 bool game_resume_attempted=false,game_resume_accepted=false;
@@ -1540,6 +1550,7 @@ void poll_pad() noexcept {
        compression_view==6u)&&(pressed&triangle)){
     compression_monitor_return_view=compression_view;
     compression_view=5u;
+    game_progress_refresh.defer(compression_monotonic_ns());
     (void)begin_task(Task::game_progress);
     continue;
    }
@@ -1549,7 +1560,10 @@ void poll_pad() noexcept {
                                               (pressed&r1)!=0u);
      continue;
     }
-    if(pressed&cross)(void)begin_task(Task::game_progress);
+    if(pressed&cross){
+     game_progress_refresh.defer(compression_monotonic_ns());
+     (void)begin_task(Task::game_progress);
+    }
     continue;
    }
    if(compression_view==0u||compression_view==1u||compression_view==6u){
@@ -1596,9 +1610,13 @@ void poll_pad() noexcept {
     if(pressed&triangle)(void)begin_task(Task::game_check);
    }else if(compression_view==3u&&(pressed&cross)){
     compression_view=4u;  /* second affirmative action, send once */
+    game_progress_refresh.defer(compression_monotonic_ns());
     (void)begin_task(Task::game_start);
    }else if(compression_view==4u){
-    if(pressed&cross)(void)begin_task(Task::game_progress);
+    if(pressed&cross){
+     game_progress_refresh.defer(compression_monotonic_ns());
+     (void)begin_task(Task::game_progress);
+    }
     if((pressed&triangle)&&game_job_accepted&&game_progress_checked&&
        std::strcmp(game_progress.title_id,game_preflight.title_id)==0){
       if(game_progress.state==cmp5_compression::JobState::running)
@@ -2208,7 +2226,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "UNE TACHE TERMINEE NE GARANTIT PAS LE DEMARRAGE DU JEU",
      2,Color::yellow);
   }
-  footer(canvas,"X ACTUALISER  L1/R1 ONGLETS  CERCLE RETOUR  LECTURE SEULE");
+  footer(canvas,"AUTO 8 S  X ACTUALISER  L1/R1 ONGLETS  CERCLE RETOUR");
   return;
  }
  if(compression_view==4u){
@@ -2439,8 +2457,26 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
 /* A generic LZ4 image cannot be mounted without compatible support. This
  * read-only view never deletes installed titles or claims post-conversion
  * launchability. See docs/GAME_COMPRESSION.md for validated dependencies. */
+/* Read-only periodic progress refresh. The worker prevents any network I/O
+ * on the VideoOut thread, and the one-worker rule bounds concurrency. */
+void auto_refresh_compression_progress() noexcept {
+ if(screen!=Screen::compression||
+    (compression_view!=4u&&compression_view!=5u)){
+  game_progress_refresh.clear();
+  return;
+ }
+ const auto now=compression_monotonic_ns();
+ if(now==0||task_busy())return;
+ if(!game_progress_refresh.armed()){
+  game_progress_refresh.defer(now);
+  return;
+ }
+ if(game_progress_refresh.due(now)&&begin_task(Task::game_progress))
+  game_progress_refresh.defer(now);
+}
 void scene(ps5::demo::Canvas&canvas) noexcept {
  poll_pad();
+ auto_refresh_compression_progress();
  release_inactive_previews();
  const char*subtitle=screen==Screen::menu?"MAINTENANCE PS5":
    screen==Screen::analyze?"ANALYSE DE L'ENVIRONNEMENT":

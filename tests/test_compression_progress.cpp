@@ -5,6 +5,18 @@
 #include <cstdio>
 int main(){
  using namespace cmp5_compression;
+ ProgressRefresh refresh{};
+ assert(!refresh.armed()&&!refresh.due(1000));
+ refresh.defer(1000);
+ assert(refresh.armed());
+ assert(!refresh.due(1000+ProgressRefresh::interval_ns-1));
+ assert(refresh.due(1000+ProgressRefresh::interval_ns));
+ refresh.defer(1000+ProgressRefresh::interval_ns);
+ assert(!refresh.due(1000+ProgressRefresh::interval_ns));
+ refresh.clear();
+ assert(!refresh.armed()&&!refresh.due(UINT64_MAX));
+ refresh.defer(UINT64_MAX);
+ assert(!refresh.armed()); // Reject impossible monotonic timestamp overflow.
  const std::string sample=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false,"title_id":"PPSA12345"})";
  GameProgress p{};
  assert(parse_progress(sample.data(),sample.size(),&p));

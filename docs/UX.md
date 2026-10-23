@@ -116,3 +116,14 @@ l'état du service local ; L1/R1 ne provoquent ni écriture ni pause.
 
 Le parcours DualSense est couvert par une fixture hôte sur les trois
 onglets. Il reste à valider physiquement sur PS5 13.60.
+
+## Progression LZ4 : rafraîchissement borné
+
+L'écran Moniteur LZ4 et la vue d'une conversion soumise actualisent
+automatiquement **uniquement le statut GET** au maximum toutes les
+huit secondes lorsqu'ils sont affichés, sans bloquer VideoOut. X permet
+un contrôle explicite immédiat. En quittant ces vues, l'actualisation
+cesse ; ni POST de démarrage, ni pause, ni reprise ne sont déclenchés par
+le rafraîchissement. Les appels restent soumis au worker unique et
+aux limites du protocole HTTP. Le délai est testé sans attendre huit
+secondes en temps réel.
