@@ -133,6 +133,22 @@ static void gallery_title_id(const char*path,const char*kind,char out[24]){
  if(!n||mark[n]!='/'){out[0]=0;return;}
  out[n]=0;
 }
+/* Reject mid-read sidecar edits and leaf replacement. Whole-second mtime
+ * alone misses in-place modifications during the same clock second. */
+static int same_sidecar_stat(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ const int nanos=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+   a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nanos=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+   a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nanos&&S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
+   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode&&
+   a->st_nlink==1&&b->st_nlink==1;
+}
 static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  const char*path,const char*kind,const struct stat*expected){
  if(!s->review||s->sidecar_reads>=128||!ext(basename,".dat"))return;
@@ -146,16 +162,23 @@ static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  const int fd=openat(parentfd,basename,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0)return;
  struct stat st;
- if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||
-    st.st_dev!=expected->st_dev||st.st_ino!=expected->st_ino||
-    st.st_size<0x45||st.st_size>65536){
-  close(fd);return;
+ if(fstat(fd,&st)!=0||st.st_size<0x45||st.st_size>65536||
+    !same_sidecar_stat(&st,expected)){
+  close(fd);s->rootPartial=1;s->partial=1;return;
  }
  unsigned char raw[161]={0};
- if(lseek(fd,0x44,SEEK_SET)<0){close(fd);return;}
- const ssize_t got=read(fd,raw,160);
+ if(lseek(fd,0x44,SEEK_SET)<0){
+  close(fd);s->rootPartial=1;s->partial=1;return;
+ }
+ ssize_t got;
+ do{got=read(fd,raw,160);}while(got<0&&errno==EINTR);
+ struct stat after,named;
+ const int stable=got>0&&fstat(fd,&after)==0&&
+   fstatat(parentfd,basename,&named,AT_SYMLINK_NOFOLLOW)==0&&
+   same_sidecar_stat(&st,&after)&&same_sidecar_stat(&st,&named);
  close(fd);
- if(got<=0||raw[0]==0)return;
+ if(!stable){s->rootPartial=1;s->partial=1;return;}
+ if(raw[0]==0)return;
  // The last fourteen digits after an underscore identify the capture time.
  size_t len=0;
  while(len<(size_t)got&&raw[len]&&len<160)len++;

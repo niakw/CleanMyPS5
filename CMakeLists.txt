@@ -87,3 +87,10 @@ endif()
 add_test(NAME verified_group_fixture
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_group.py
  $<TARGET_FILE:cmp5-verified-group-tests>)
+
+# Deterministic metadata race while the Gallery sidecar is being inspected.
+add_executable(cmp5-gallery-sidecar-race tests/test_gallery_sidecar_race.c ${RULES})
+target_include_directories(cmp5-gallery-sidecar-race PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+add_test(NAME gallery_sidecar_race
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_sidecar_race.py
+ $<TARGET_FILE:cmp5-gallery-sidecar-race>)
