@@ -1536,7 +1536,12 @@ void poll_pad() noexcept {
       (compression_destination+game_destination_count-1u)%game_destination_count;
     if(pressed&right)compression_destination=
       (compression_destination+1u)%game_destination_count;
-    /* Selecting an image does not authorize converting an unidentified file. */
+    /* A real SMP title ID is resolved on the worker before allowing
+     * confirmation, never inferred from the .exfat filename. */
+    if((pressed&cross)&&stage_game_image_preflight()){
+     compression_view=2u;
+     (void)begin_task(Task::game_check);
+    }
    }else if(compression_view==0u&&(pressed&cross)){
     (void)begin_task(Task::images);
     }else if(compression_view==2u){
@@ -2294,7 +2299,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    }
   }
   panel(canvas,897,"DESTINATION",game_destinations[compression_destination]);
-  footer(canvas,"L1/R1 ONGLETS  HAUT/BAS IMAGE  CARRE MOTEUR  AUCUNE ECRITURE");
+  footer(canvas,"X PRECONTROLE SMP  L1/R1 ONGLETS  FFPFSC DEJA COMPRESSE");
   return;
  }
  if(compression_view==1u){
