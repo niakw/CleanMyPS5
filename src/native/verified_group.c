@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "verified_group.h"
 #include "sha256.h"
 #include <errno.h>
