@@ -7,6 +7,52 @@
 #include <cstdint>
 #include <cstring>
 namespace cmp5_compression {
+
+struct HttpJson {
+ const char*body=nullptr;
+ std::size_t size=0;
+};
+// Embedded upstream uses HTTP/1.0, strict Content-Length, no chunked.
+inline bool parse_ampr_http(const char*wire,std::size_t n,
+                            HttpJson*out) noexcept {
+ if(out)*out={};
+ if(!wire||!out||n<60||n>8192)return false;
+ constexpr char status[]="HTTP/1.0 200 OK\r\n";
+ if(n<sizeof(status)-1||std::memcmp(wire,status,sizeof(status)-1))return false;
+ std::size_t p=sizeof(status)-1,length=0;
+ bool ct=false,cl=false,done=false;
+ while(p<n&&p<1024){
+  std::size_t end=p;
+  while(end+1<n&&(wire[end]!='\r'||wire[end+1]!='\n'))++end;
+  if(end+1>=n)return false;
+  const char*line=wire+p;const std::size_t size=end-p;
+  p=end+2;
+  if(size==0){done=true;break;}
+  constexpr char type[]="Content-Type: ",len[]="Content-Length: ",
+                 enc[]="Transfer-Encoding:";
+  if(size>=sizeof(enc)-1&&!std::memcmp(line,enc,sizeof(enc)-1))
+   return false;
+  if(size>=sizeof(type)-1&&!std::memcmp(line,type,sizeof(type)-1)){
+   if(ct||size!=sizeof(type)-1+16||
+      std::memcmp(line+sizeof(type)-1,"application/json",16))return false;
+   ct=true;
+  }
+  if(size>=sizeof(len)-1&&!std::memcmp(line,len,sizeof(len)-1)){
+   if(cl||size==sizeof(len)-1)return false;
+   cl=true;
+   for(std::size_t i=sizeof(len)-1;i<size;i++){
+    if(line[i]<'0'||line[i]>'9')return false;
+    const unsigned digit=static_cast<unsigned>(line[i]-'0');
+    if(length>(4096u-digit)/10u)return false;
+    length=length*10u+digit;
+   }
+  }
+ }
+ if(!done||!ct||!cl||!length||p>=n||length!=n-p||
+    wire[p]!='{')return false;
+ *out={wire+p,length};
+ return true;
+}
 struct GamePreflight {
  char title_id[16]{};
  std::uint64_t source_bytes=0,need_typical=0,need_max=0,dest_free=0;
