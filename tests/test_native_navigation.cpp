@@ -898,13 +898,24 @@ int main(){
  assert(game_image_expected_bytes==21ULL*1024*1024*1024);
  assert(std::strcmp(game_smp_title,"PPSA12345")==0);
  assert(std::strcmp(game_image_type,"exfatfs")==0);
- press(cross);
- assert(compression_view==3u);
- press(cross);
- assert(compression_view==4u);
+ /* A file can mutate AFTER a favorable check but BEFORE confirmation.
+  * No AMPR POST should be sent, even if the button was confirmed twice. */
+ press(cross);assert(compression_view==3u);
+ mock_smp_wrong_size=true;
+ press(cross);assert(compression_view==4u);
+ finish_scan();
+ assert(game_job_attempted&&!game_job_accepted);
+ assert(mock_ampr_post_bodies==0u);
+ press(circle);assert(compression_view==6u);
+ mock_smp_wrong_size=false;
+ press(cross);assert(compression_view==2u);
+ finish_scan();
+ assert(game_preflight_checked&&game_preflight.ready());
+ press(cross);assert(compression_view==3u);
+ press(cross);assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==15u);
+ assert(mock_ampr_gets==17u);
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  press(r1);
