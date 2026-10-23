@@ -301,7 +301,15 @@ static void cmp5_image_resolve(int fd, const char *args) {
     # All administrative destructive routes remain disabled in the
     # embedded distribution until each is separately proven reversible.
     marker = '  if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)\n'
-    guard = '''  /* Modified CleanMyPS5 engine: deny destruction and replacement. */
+    guard = '''  /* The native title uses exactly three write operations: submit,
+   * pause and resume. Reject every other POST even on localhost.
+   * This also covers future upstream mutation endpoints by default. */
+  if (post && strcmp(path, "/api/start") &&
+      strcmp(path, "/api/pause") && strcmp(path, "/api/resume")) {
+    send_json(fd, 403, "{\\"error\\":\\"write_operation_not_allowed\\"}");
+    free(req);return;
+  }
+  /* Modified CleanMyPS5 engine: deny destruction and replacement. */
   if (post && (!strcmp(path, "/api/delete-source") ||
                !strcmp(path, "/api/cancel") ||
                !strcmp(path, "/api/set-aside") ||
