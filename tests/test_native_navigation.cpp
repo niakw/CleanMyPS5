@@ -21,7 +21,8 @@ bool mock_ampr_online=false;
 unsigned mock_ampr_gets=0;
 unsigned mock_ampr_receive=0;
 unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
-unsigned mock_ampr_pauses=0;
+unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
+bool mock_ampr_paused=false;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -56,7 +57,7 @@ int sceNetSocket(const char*label,int,int,int){
  if(std::strcmp(label,"cmp5_ampr_game_check")==0)return 18;
  if(std::strcmp(label,"cmp5_ampr_submit")==0)return 19;
  if(std::strcmp(label,"cmp5_ampr_progress")==0)return 20;
- if(std::strcmp(label,"cmp5_ampr_pause")==0)return 21;
+ if(std::strcmp(label,"cmp5_ampr_job_control")==0)return 21;
  return -1;
 }
 int sceNetConnect(int id,const void*,std::uint32_t){return id>=17&&id<=21?0:-1;}
@@ -64,9 +65,15 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  if(id<17||id>21)return -1;
  const std::string_view request{static_cast<const char*>(data),size};
  if(id==21){
-  assert(request.find("POST /api/pause HTTP/1.0")==0);
-  assert(request.find("Content-Length: 0")!=std::string_view::npos);
-  ++mock_ampr_pauses;
+  if(request.find("POST /api/pause HTTP/1.0")==0){
+   assert(request.find("Content-Length: 0")!=std::string_view::npos);
+   ++mock_ampr_pauses;mock_ampr_paused=true;
+  }else if(request.find("POST /api/resume HTTP/1.0")==0){
+   assert(request.find("Content-Length: ")!=std::string_view::npos);
+  }else{
+   assert(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345&level=9")==0);
+   mock_ampr_resumes++;mock_ampr_paused=false;
+  }
   return static_cast<int>(size);
  }
  if(id==20){
@@ -110,11 +117,17 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   return sizeof(reply)-1;
  }
  if(id==20){
-  static constexpr char progress[]=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false,"title_id":"PPSA12345"})";
+  char progress[320]{};
+  const int body_size=std::snprintf(progress,sizeof(progress),
+   "{\"service\":\"CleanMyPS5-AMPR\",\"state\":\"%s\","
+   "\"percent\":45,\"bytes_done\":450,\"bytes_total\":1000,"
+   "\"queue_len\":1,\"launch_checked\":false,\"title_id\":\"PPSA12345\"}",
+   mock_ampr_paused?"paused":"running");
+  assert(body_size>0&&static_cast<std::size_t>(body_size)<sizeof(progress));
   char reply[512]{};
   int n=std::snprintf(reply,sizeof(reply),
-   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
-   sizeof(progress)-1,progress);
+   "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+   body_size,progress);
   assert(n>0&&static_cast<std::size_t>(n)<capacity);
   std::memcpy(data,reply,static_cast<std::size_t>(n));
   return n;
@@ -739,6 +752,15 @@ int main(){
  assert(game_pause_attempted&&game_pause_accepted);
  assert(mock_ampr_pauses==1u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ press(cross);
+ finish_scan();
+ assert(game_progress_checked);
+ assert(game_progress.state==cmp5_compression::JobState::paused);
+ press(triangle);
+ finish_scan();
+ assert(game_resume_attempted&&game_resume_accepted);
+ assert(mock_ampr_resumes==1u);
+ assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  scene(canvas);
  press(circle);
  assert(compression_view==1u);
@@ -754,7 +776,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==6u);
+ assert(mock_ampr_gets==8u);
  press(circle);
  assert(screen==Screen::menu);
  press(down);
