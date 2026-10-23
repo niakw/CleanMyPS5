@@ -192,3 +192,26 @@ pas dans un cycle de recompression. ShadowMountPlus demeure une
 **dépendance runtime du jailbreak**, pas une deuxième application
 graphique à installer. Aucun montage ni démarrage effectif n'est
 encore prouvé sur le matériel FW 13.60.
+
+## Compatibilité différée et sûreté côté moteur
+
+Le moteur exFAT2AMPR peut retourner `compatible: later` pour une image
+ShadowMountPlus **identifiée mais non montée** : dans ce cas, la
+compatibilité AMPR n'est pas vérifiable. CleanMyPS5 affiche maintenant
+« JEU IMAGE NON MONTE — COMPATIBILITE NON PROUVEE » et **ne propose
+aucun bouton de conversion**, même lorsque le Title ID et l'espace
+libre sont connus. Le système doit d'abord permettre un contrôle de
+compatibilité concluant ; aucune procédure de montage automatique n'a
+été activée sans validation des permissions et de la réversibilité.
+
+Au moment de mettre l'image en file, **le moteur embarqué lui-même**
+redemande à ShadowMountPlus l'identité du titre et le chemin source,
+refuse une image non gérée ou déjà compressée, ainsi que les fichiers
+possédant des hardlinks. La distribution force indépendamment de toute
+requête HTTP : `verify=true`, `remove_source=false`,
+`overwrite=false`, `force=false`, `clean_leftovers=false` et
+`cache_mode=0`. Le script de build vérifie ces garanties dans les
+**sources C transformées**, puis lance les tests synthétiques du packer.
+
+Ces validations ne démontrent pas encore que ShadowMountPlus et AMPR
+fonctionnent ensemble sur la PS5 13.60, ni la jouabilité de la sortie.

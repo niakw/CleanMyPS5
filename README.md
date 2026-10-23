@@ -126,3 +126,10 @@ ambiguë, modifiée, sans place disponible ou déjà compressée ne peut
 pas être soumise au moteur AMPR. La conversion demande ensuite les
 mêmes deux confirmations que les dossiers. Le montage réel et la
 jouabilité sur PS5 13.60 restent non vérifiés.
+
+**Cas particulier d'une image non montée :** si ShadowMountPlus
+connaît le fichier mais que le moteur répond `compatible: later`,
+CleanMyPS5 indique que la compatibilité reste à vérifier et n'autorise
+aucune conversion. Un montage préalable et un test de compatibilité
+réel demeurent nécessaires ; ce contrôle n'est pas contourné pour
+accélérer la compression.

@@ -73,3 +73,10 @@ image est confirmée par une API en lecture seule du moteur AMPR
 intégré, puis vérifiée à nouveau avec la taille source avant création
 d'une sortie distincte. Les sources `.ffpfsc` déjà compressées sont
 exclues, et aucun test de gameplay PS5 13.60 n'a été effectué.
+
+La CI vérifie désormais les protections du moteur dans le **C
+transformé** avant sa compilation. Toute disparition des blocages de
+suppression, d'écrasement, de forçage ou de contournement de
+vérification doit faire échouer le build. Un jeu image identifié mais
+non monté reste non éligible à la compression : le précontrôle
+différencie explicitement l'état `later` d'une compatibilité démontrée.
