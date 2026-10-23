@@ -104,7 +104,7 @@ static void cmp5_image_resolve(int fd, const char *args) {
   const char *suffix=strrchr(path,'.');
   if (!suffix ||
       (strcasecmp(suffix,".exfat")&&strcasecmp(suffix,".ffpkg")&&
-       strcasecmp(suffix,".ffpfs")&&strcasecmp(suffix,".ffpfsc"))) {
+       strcasecmp(suffix,".ffpfs"))) {
     send_json(fd,400,"{\\"error\\":\\"unsupported_image\\"}");return;
   }
   struct stat st;
