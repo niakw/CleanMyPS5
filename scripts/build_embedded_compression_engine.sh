@@ -19,6 +19,7 @@ test "$(git -C "$work/engine" rev-parse HEAD)" = "$pin" || {
  echo "Upstream engine pin mismatch" >&2; exit 1;
 }
 python3 "$project/scripts/patch_embedded_engine.py" "$work/engine"
+python3 "$project/scripts/verify_embedded_engine_policy.py" "$work/engine"
 make -C "$work/engine" deps
 # Source commit + release-asset SHA-256 pins: a tagged URL is not by
 # itself sufficient to authenticate executable SPRX dependencies.
