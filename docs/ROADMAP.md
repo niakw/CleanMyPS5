@@ -21,7 +21,7 @@
 | Nettoyage captures | Non | — | — | — | **Désactivé** |
 | Nettoyage caches homebrew | Non | — | — | — | **Désactivé** |
 | Orphelins PKG/DLC | Non | — | — | — | **Désactivé** |
-| Compression AMPR/LZ4 | Packer GPL intégré au titre natif ; choix du dossier et stockage, précontrôle strict, double confirmation, conversion sans suppression, statut compact | Tests hôte des chemins GET/POST, progression, absence de doublon, CI titre natif | Lancement réel de jeux compressés PS5 13.60 | **À faire** | **Conversion dossiers disponible en code ; images brutes et gameplay non validés** |
+| Compression AMPR/LZ4 | Packer GPL intégré au titre natif ; choix du dossier et stockage, précontrôle strict, double confirmation, conversion sans suppression, statut compact lié au titre et pause/reprise | Tests hôte des chemins GET/POST, progression, absence de doublon, CI titre natif | Lancement réel de jeux compressés PS5 13.60 | **À faire** | **Conversion dossiers disponible en code ; images brutes et gameplay non validés** |
 
 ## Portes restantes
 

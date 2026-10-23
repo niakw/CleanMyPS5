@@ -982,6 +982,7 @@ bool ampr_safe_command(const char*route,const char*form) noexcept {
 }
 void run_game_pause() noexcept {
  game_pause_attempted=true;game_pause_accepted=false;
+ game_resume_attempted=false;game_resume_accepted=false;
  if(!game_job_accepted||!game_preflight_checked||
     !game_preflight.ready())return;
  char ver[32]{};
@@ -994,6 +995,7 @@ void run_game_pause() noexcept {
 }
 void run_game_resume() noexcept {
  game_resume_attempted=true;game_resume_accepted=false;
+ game_pause_attempted=false;
  if(!game_job_accepted||!game_pause_accepted||
     !game_preflight_checked||!game_preflight.ready())return;
  char version[32]{};
@@ -1993,7 +1995,11 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    panel(canvas,707,"AUCUN TRAVAIL CONFIRME",
      "COMPATIBILITE / ESPACE / REPONSE A REVERIFIER",Color::yellow);
   }
-  if(game_progress_checked){
+  if(game_progress_checked&&
+     std::strcmp(game_progress.title_id,game_preflight.title_id)!=0){
+   canvas.text(125,899,"MOTEUR OCCUPE PAR UN AUTRE JEU - PAS DE CONTROLE POSSIBLE",
+     2,Color::yellow);
+  }else if(game_progress_checked){
    const char*state=game_progress.state==cmp5_compression::JobState::running?
      "CONVERSION EN COURS":game_progress.state==cmp5_compression::JobState::paused?
      "CONVERSION EN PAUSE":game_progress.state==cmp5_compression::JobState::done?

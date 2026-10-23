@@ -64,8 +64,13 @@ La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
   sont forcées : `verify=1`, `dedup=1`, `remove=0`,
   `overwrite=0`, `force=0`.
 - Après soumission, `X` interroge `GET /api/cmp5-progress` :
-  état, pourcentage, octets lus/traités. L'interface ne prétend jamais
-  qu'un simple travail « terminé » garantit le **lancement du jeu**.
+  état, pourcentage, octets lus/traités et **identifiant exact du jeu
+  actif**. `Triangle` peut demander une pause (point de reprise) et,
+  si cette pause est confirmée, reprendre uniquement le checkpoint de
+  la destination calculée pour le titre courant. Un statut appartenant
+  à un autre jeu ne peut jamais autoriser pause ou reprise.
+  L'interface ne prétend jamais qu'un simple travail « terminé »
+  garantit le **lancement du jeu**.
   En cas d'accusé de réception manquant, **ne pas renvoyer** la
   conversion sans vérifier l'état du moteur.
 

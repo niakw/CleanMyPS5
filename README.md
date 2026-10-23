@@ -102,6 +102,8 @@ Gauche/droite choisit une destination parmi les racines de stockage
 prédéfinies ; `X` lance le **précontrôle du jeu**, puis deux
 confirmations à la manette déclenchent la conversion vérifiée avec
 `remove=0`, `overwrite=0` et `force=0`. Une réponse ambiguë n'est
-jamais considérée comme une réussite. `X` sur l'écran du travail permet
-de relire la progression depuis le moteur. La compatibilité réelle
+jamais considérée comme une réussite. `X` sur l'écran du travail relit la progression depuis le moteur ;
+`Triangle` met le travail correspondant au jeu en pause ou, si un
+checkpoint correspondant existe, en demande la reprise. Ces commandes
+contrôlent uniquement le moteur **intégré** et ne suppriment rien. La compatibilité réelle
 des jeux sur PS5 13.60 reste à tester.
