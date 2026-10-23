@@ -55,7 +55,7 @@ inline bool parse_ampr_http(const char*wire,std::size_t n,
 }
 struct GamePreflight {
  char title_id[16]{};
- std::uint64_t source_bytes=0,image_bytes=0,need_typical=0,need_max=0,dest_free=0;
+ std::uint64_t source_bytes=0,image_bytes=0,need_typical=0,need_max=0,dest_free=0,dest_total=0;
  unsigned errors=0,warnings=0;
  bool compatible=false,compatibility_pending=false;
  bool ready() const noexcept {
@@ -160,7 +160,6 @@ public:
      !take(',')||!field("title")||!string(nullptr,0)||
      !take(',')||!field("source_bytes")||!positive(&out->source_bytes)||
      !take(',')||!field("image_bytes"))return false;
-  std::uint64_t scratch=0;
   if(!positive(&out->image_bytes)||!take(',')||!field("estimate")||
      !string(nullptr,0)||!take(',')||!field("need_typical")||
      !positive(&out->need_typical)||!take(',')||!field("need_max")||
@@ -168,7 +167,7 @@ public:
      !duration_list()||!take(',')||!field("verify_seconds")||
      !integer()||!take(',')||!field("dest_free")||
      !positive(&out->dest_free)||!take(',')||!field("dest_total")||
-     !positive(&scratch)||!take(',')||!field("compatible")||
+     !positive(&out->dest_total)||!take(',')||!field("compatible")||
      !compatibility(&out->compatible,&out->compatibility_pending)||!take(',')||
      !field("errors")||!string_list(&out->errors)||!take(',')||
      !field("warnings")||!string_list(&out->warnings)||
@@ -179,7 +178,7 @@ public:
    char c=out->title_id[i];
    if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
   }
-  return out->dest_free<=scratch&&out->need_typical<=out->need_max;
+  return out->dest_free<=out->dest_total&&out->need_typical<=out->need_max;
  }
 };
 inline bool parse_game_preflight(const char*data,std::size_t n,
@@ -188,6 +187,26 @@ inline bool parse_game_preflight(const char*data,std::size_t n,
  GamePreflight value{};
  if(!PreflightParser(data,n).parse(&value))return false;
  *out=value;return true;
+}
+
+/* The user confirms one particular conversion plan, not merely a title ID.
+ * A second check is mandatory just before POST /api/start. Space can
+ * decrease or increase between checks; provided the new plan remains ready,
+ * it must not silently substitute a different source, estimated output or
+ * destination volume capacity for the one the user confirmed.
+ *
+ * This is a freshness/consent check, not proof of mount identity. The engine
+ * must still revalidate source inodes/permissions and output safety.
+ */
+inline bool same_confirmation_snapshot(const GamePreflight&confirmed,
+                                      const GamePreflight&current) noexcept {
+ return confirmed.ready()&&current.ready()&&
+  std::strcmp(confirmed.title_id,current.title_id)==0&&
+  confirmed.source_bytes==current.source_bytes&&
+  confirmed.image_bytes==current.image_bytes&&
+  confirmed.need_typical==current.need_typical&&
+  confirmed.need_max==current.need_max&&
+  confirmed.dest_total==current.dest_total;
 }
 
 struct StartAck {unsigned position=0;};

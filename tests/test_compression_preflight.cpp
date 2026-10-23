@@ -25,7 +25,40 @@ int main(){
  assert(!parse_ampr_http(duplicate.data(),duplicate.size(),&framed));
 
  assert(pre.ready()&&pre.image_bytes==0&&pre.source_bytes==12345&&
-  pre.need_max==16000&&std::strcmp(pre.title_id,"PPSA12345")==0);
+  pre.need_max==16000&&pre.dest_total==64000&&
+  std::strcmp(pre.title_id,"PPSA12345")==0);
+ // Revalidation at submission must preserve exactly what was confirmed.
+ // A different source length, predicted output or destination capacity is
+ // not a substitute for a second affirmative controller confirmation.
+ GamePreflight unchanged{};
+ assert(parse_game_preflight(s.data(),s.size(),&unchanged));
+ assert(same_confirmation_snapshot(pre,unchanged));
+ auto snapshot_changed=[&](const char*before,const char*after){
+  auto variant=good();
+  const auto pos=variant.find(before);
+  assert(pos!=std::string::npos);
+  variant.replace(pos,std::strlen(before),after);
+  GamePreflight different{};
+  assert(parse_game_preflight(variant.data(),variant.size(),&different));
+  assert(!same_confirmation_snapshot(pre,different));
+ };
+ snapshot_changed("\"title_id\":\"PPSA12345\"",
+                  "\"title_id\":\"PPSA12346\"");
+ snapshot_changed("\"source_bytes\":12345","\"source_bytes\":12346");
+ snapshot_changed("\"image_bytes\":0","\"image_bytes\":1");
+ snapshot_changed("\"need_typical\":8000","\"need_typical\":8001");
+ snapshot_changed("\"need_max\":16000","\"need_max\":16001");
+ snapshot_changed("\"dest_total\":64000","\"dest_total\":64001");
+ snapshot_changed("\"compatible\":\"yes\"","\"compatible\":\"no\"");
+ auto free_space=good();
+ const auto free_pos=free_space.find("\"dest_free\":32000");
+ assert(free_pos!=std::string::npos);
+ free_space.replace(free_pos,std::strlen("\"dest_free\":32000"),
+                    "\"dest_free\":18000");
+ GamePreflight remaining{};
+ assert(parse_game_preflight(free_space.data(),free_space.size(),&remaining));
+ assert(same_confirmation_snapshot(pre,remaining));
+ assert(!same_confirmation_snapshot(remaining,GamePreflight{}));
  auto bad=[](const std::string&s){GamePreflight x{};
   return !parse_game_preflight(s.data(),s.size(),&x);};
  auto mutate=[&](const char*a,const char*b){auto copy=good();

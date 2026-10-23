@@ -1141,9 +1141,8 @@ void run_game_submission() noexcept {
  }
  if(!game_check_request(game_source_checked,game_dest_checked,
      game_source_is_image?game_smp_title:"",&now)||
-    !now.ready()||
+    !cmp5_compression::same_confirmation_snapshot(game_preflight,now)||
     (game_source_is_image&&now.image_bytes!=game_image_expected_bytes)||
-    std::strcmp(now.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
  /* Prevent requeue after a lost ACK or UI restart. A fresh preflight
   * alone cannot tell whether a conversion has already been queued.

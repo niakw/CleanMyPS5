@@ -243,3 +243,19 @@ sources modifiées *réellement compilées* dans le package PS5. Elles
 n'éliminent pas tous les changements concurrents possibles à
 l'intérieur du système de fichiers, ni les dépendances de montage
 nécessaires au fonctionnement du jeu sur console.
+
+## Précontrôle renouvelé au moment de la soumission
+
+La double confirmation porte maintenant sur un **plan de conversion précis**.
+Avant chaque `POST /api/start`, CleanMyPS5 refait le précontrôle et
+refuse de soumettre le travail si le Title ID, la taille de la source,
+la taille de l'image gérée, les estimations d'espace requis ou la
+capacité totale du volume de destination ont changé. Il faut alors
+revenir au précontrôle et confirmer de nouveau. Une variation de
+l'espace *libre* seule ne bloque pas la conversion si le nouveau
+précontrôle prouve toujours la capacité suffisante.
+
+Ce contrôle est testé par des fixtures hôte. Il ne détecte pas à lui
+seul un changement de support de même capacité ni une permutation
+concurrente des fichiers, qui restent sous la responsabilité des
+vérifications du moteur et de la validation matérielle PS5 13.60.
