@@ -66,3 +66,10 @@ La compression intégrée refuse désormais une conversion si une autre
 est active ou en file, bloque la répétition d'une demande acceptée ou
 ambiguë et propose un moniteur de fond accessible par Triangle.
 Les tests hôte du moteur réel sont inclus dans le build de titre.
+
+Le parcours de compression accepte désormais, en plus des dossiers,
+les images de jeux reconnues par ShadowMountPlus. L'identité de chaque
+image est confirmée par une API en lecture seule du moteur AMPR
+intégré, puis vérifiée à nouveau avec la taille source avant création
+d'une sortie distincte. Les sources `.ffpfsc` déjà compressées sont
+exclues, et aucun test de gameplay PS5 13.60 n'a été effectué.

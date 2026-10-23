@@ -10,7 +10,7 @@ Depuis l'écran **Accès au stockage**, **Carré** ouvre un bilan natif des home
 
 **Revue native enrichie :** l'écran Nettoyage affiche le volume nominal cumulé des captures marquées (avec saturation sûre si une addition dépasse 64 bits), et le catalogue signale les éléments sélectionnés. L'écran Accès au stockage compare l'espace disponible à la capacité du **montage consulté** sans additionner des chemins qui peuvent désigner le même volume. Ces informations ne démontrent ni qu'un fichier est inutile ni qu'un octet sera récupéré.
 
-Le moteur est toujours **en lecture seule** : aucune suppression, désinstallation, purge, réparation, écriture système ou changement de configuration n'est actuellement autorisé. Dans le titre natif, **Triangle** depuis Nettoyage lance une comparaison explicite de doublons d'images (128 images, 32 Mio par fichier, 128 Mio de lectures maximum, limite indicative de six secondes), sans proposer d'effacement ou de gain d'espace. La détection de permissions n'accorde pas de privilèges et ne démontre pas qu'un effacement serait sûr.
+**Le nettoyage général reste en lecture seule** : aucune suppression, désinstallation, purge, réparation système ou changement de configuration n'est autorisé. La fonctionnalité distincte **Jeux et compression** peut écrire une nouvelle sortie de jeu après double confirmation manette, sans modifier ni supprimer l'original. Dans le titre natif, **Triangle** depuis Nettoyage lance une comparaison explicite de doublons d'images (128 images, 32 Mio par fichier, 128 Mio de lectures maximum, limite indicative de six secondes), sans proposer d'effacement ou de gain d'espace. La détection de permissions n'accorde pas de privilèges et ne démontre pas qu'un effacement serait sûr.
 
 **Préparation du nettoyage réversible :** un prototype **hôte uniquement** sait créer des copies privées SHA-256, vérifier et restaurer leur contenu dans un autre dossier privé. Il prend aussi en charge des groupes de **2 à 4 fichiers associés** (par exemple JXR/JPG/DAT) avec un marqueur de validation publié seulement après vérification de tous les éléments. La CI teste les annulations, corruptions, collisions et groupes incomplets. Il **n'est ni intégré au titre PS5 ni accessible sur la console**, tant que la cohérence des index de la Galerie n'est pas démontrée. Voir [le contrat de sauvegarde vérifiée](docs/VERIFIED_BACKUP.md).
 
@@ -87,7 +87,7 @@ construit avec le titre natif. **Carré** demande son lancement via
 le chargeur ELF du jailbreak et la détection se fait en lecture seule
 sur le port local 6973, sans seconde application.
 La conversion AMPR LZ4 est maintenant reliée aux **dossiers de jeux
-reconnus** (pas encore aux images brutes `.exfat` via ShadowMountPlus).
+reconnus** et aux **images de jeux gérées par ShadowMountPlus**, après identification stricte de leur Title ID et revalidation de la taille de l'image au dernier moment. Les `.ffpfsc` déjà compressés ne sont pas reconvertis.
 Pour un dossier, le moteur recontrôle compatibilité, destination et espace
 disponible avant tout travail. Une sortie LZ4 n'est lançable que si
 ShadowMountPlus et l'émulateur AMPR sont réellement fonctionnels.
@@ -115,3 +115,14 @@ Le build effectue aussi les régressions hôte du moteur AMPR/LZ4
 (compresser, vérifier, interrompre et reprendre des données synthétiques).
 La pause et la reprise depuis la page d'un travail restent limitées
 au jeu dont l'identifiant a été vérifié.
+
+**Images de jeux :** L1/R1 fait défiler Statistiques, Dossiers et
+Images. Sur l'onglet Images, haut/bas sélectionne un fichier
+`.exfat`, `.ffpkg` ou `.ffpfs` parmi ceux visibles dans les racines
+connues. `X` effectue d'abord la résolution du Title ID par le moteur
+intégré en consultant ShadowMountPlus ; un nom de fichier seul ne
+constitue **jamais** une identification fiable. Une image non gérée,
+ambiguë, modifiée, sans place disponible ou déjà compressée ne peut
+pas être soumise au moteur AMPR. La conversion demande ensuite les
+mêmes deux confirmations que les dossiers. Le montage réel et la
+jouabilité sur PS5 13.60 restent non vérifiés.

@@ -74,10 +74,15 @@ La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
   En cas d'accusé de réception manquant, **ne pas renvoyer** la
   conversion sans vérifier l'état du moteur.
 
-**Les dossiers d'origine ne sont ni renommés, ni écrasés, ni supprimés
-automatiquement.** Les images brutes `.exfat`, `.ffpkg`, `.ffpfs` et
-`.ffpfsc` restent détectées mais leur conversion individuelle via
-ShadowMountPlus n'est **pas encore** câblée depuis CleanMyPS5.
+**Les sources d'origine ne sont ni renommées, ni écrasées, ni
+supprimées automatiquement.** Les images `.exfat`, `.ffpkg` et
+`.ffpfs` peuvent maintenant être proposées au moteur AMPR si
+ShadowMountPlus les reconnaît explicitement et révèle un Title ID
+unique. Le moteur compare la taille et l'identité de l'image lors du
+précontrôle **puis juste avant la soumission**, et refuse les réponses
+ambiguës, les chemins inconnus et les `.ffpfsc` déjà compressés.
+L'image originale demeure intacte. Ce traitement crée une sortie AMPR
+distincte : il **ne remplace pas l'image d'origine par un `.ffpfsc`**.
 
 ## Conditions pour une option de compression réellement sûre
 
@@ -165,3 +170,25 @@ La construction du package lance également `make check` du moteur
 compression/récupération LZ4, les interruptions et reprises, l'intégrité
 des manifests et le maintien des sources. C'est un test hôte, pas un
 essai réel sur PS5.
+
+## Images ShadowMountPlus sans seconde application
+
+L'onglet **Images** ajouté à CleanMyPS5 affiche une liste bornée à
+12 fichiers de type `.exfat`, `.ffpkg`, `.ffpfs` ou `.ffpfsc`, avec
+leur taille nominale. La liste, issue du scanner local, est **indicative**.
+La conversion n'est possible qu'après une requête **lecture seule**
+`GET /api/cmp5-image` adressée au moteur AMPR **déjà embarqué**.
+Ce moteur demande à ShadowMountPlus les titres réellement gérés,
+rejette les correspondances multiples et les images non disponibles,
+et vérifie la stabilité du fichier, son type et son nombre de liens.
+
+Le Title ID validé est transmis explicitement dans `smp=` aux API
+`/api/check` puis `/api/start`, et la taille ainsi que le type
+d'image sont **revalidés avant le POST**. Les protections de double
+confirmation, d'espace libre, de file d'attente, de vérification
+intégrale et de conservation des sources restent actives. Les images
+`.ffpfsc` déjà compressées sont en lecture seule : elles ne passent
+pas dans un cycle de recompression. ShadowMountPlus demeure une
+**dépendance runtime du jailbreak**, pas une deuxième application
+graphique à installer. Aucun montage ni démarrage effectif n'est
+encore prouvé sur le matériel FW 13.60.
