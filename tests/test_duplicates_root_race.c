@@ -111,5 +111,27 @@ int main(int argc,char **argv){
    moved.exact_groups==0u&&moved.matching_files==0u&&
    strstr(lost,"\"partial\":true")!=NULL;
  free(lost);
- return safe?0:17;
+ if(!safe)return 17;
+ /* Files outside the bounded comparison are counted and cause a partial
+  * result. Other small matches should still be returned as verified. */
+ char huge[4096];
+ int written=snprintf(huge,sizeof(huge),
+   "%s/user/av_contents/photo/NPXS99999/GAME/huge.png",test_backup);
+ if(written<=0||(size_t)written>=sizeof(huge))return 18;
+ int oversized=open(huge,O_WRONLY|O_CREAT|O_EXCL,0600);
+ if(oversized<0)return 19;
+ int prepared=ftruncate(oversized,(off_t)FILE_CAP+1u)==0;
+ close(oversized);
+ if(!prepared)return 20;
+ Cmp5DuplicateStats limited={0};
+ size_t limited_size=0;
+ char*result=cmp5_duplicates_with_stats(test_backup,&limited_size,&limited);
+ if(!result)return 21;
+ const int accurate=limited.partial==1u&&
+   limited.oversized_skipped==1u&&limited.exact_groups==1u&&
+   limited.matching_files==2u&&
+   strstr(result,"\"oversizedImagesSkipped\":1")!=NULL&&
+   strstr(result,"\"partial\":true")!=NULL;
+ free(result);
+ return accurate?0:22;
 }

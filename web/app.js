@@ -766,7 +766,7 @@ function duplicatesPanel(){
    }
    panel.append(el);
   }
-  panel.append(node("p","filter-warning","La première copie de chaque groupe est conservée par convention, sans garantie qu'il s'agisse de la meilleure. Vérifiez votre sélection. "+data.filesConsidered+" images considérées, "+bytes(data.comparedBytes)+" lus en comparaison. "+(data.partial?"Analyse partielle : certains doublons n'ont pas été vérifiés.":"Limites appliquées : cette vérification n'est pas exhaustive pour toute la console.")+" Images de 32 Mio maximum, 128 images et 128 Mio de lectures au plus. Aucun fichier supprimé."));
+  panel.append(node("p","filter-warning","La première copie de chaque groupe est conservée par convention, sans garantie qu'il s'agisse de la meilleure. Vérifiez votre sélection. "+data.filesConsidered+" images considérées, "+bytes(data.comparedBytes)+" lus en comparaison. "+(data.oversizedImagesSkipped?data.oversizedImagesSkipped+" image(s) trop volumineuse(s) exclue(s). ":"")+(data.partial?"Analyse partielle : certains doublons n'ont pas été vérifiés.":"Limites appliquées : cette vérification n'est pas exhaustive pour toute la console.")+" Images de 32 Mio maximum, 128 images et 128 Mio de lectures au plus. Aucun fichier supprimé."));
  }
  return panel;
 }
@@ -786,7 +786,10 @@ async function checkDuplicates(){
    paths:Array.isArray(g.paths)?g.paths.slice(0,128).map(p=>String(p).slice(0,2048)):[]
   })).filter(g=>g.paths.length>=2);
   if(revision===state.reportRevision&&state.liveReport)
-   state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,comparedBytes:Number(data.comparedBytes)||0,partial:data.partial===true,revision};
+   state.duplicates={groups,filesConsidered:Number(data.filesConsidered)||0,
+      comparedBytes:Number(data.comparedBytes)||0,
+      oversizedImagesSkipped:Number.isSafeInteger(data.oversizedImagesSkipped)&&data.oversizedImagesSkipped>=0?data.oversizedImagesSkipped:0,
+      partial:data.partial===true,revision};
  }catch(e){announce("Comparaison impossible : "+e.message);}
  finally{state.checkingDuplicates=false;render();}
 }

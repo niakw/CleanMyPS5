@@ -44,7 +44,7 @@ static int same_snapshot(const struct stat*a,const struct stat*b){
    a->st_ctime==b->st_ctime&&a->st_nlink==b->st_nlink&&
    a->st_mode==b->st_mode;
 }
-typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped;int partial;uint64_t deadline;
+typedef struct {Item items[ITEM_CAP];size_t count,visits,hardlinksSkipped,oversizedSkipped;int partial;uint64_t deadline;
  Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static uint64_t now_ns(void){
  struct timespec ts;
@@ -107,6 +107,11 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
     i->size=st.st_size;i->device=st.st_dev;i->inode=st.st_ino;
     i->modified=st.st_mtime;i->snapshot=st;
    }
+  }else if(S_ISREG(st.st_mode)&&is_image(path)&&
+            st.st_size>(off_t)FILE_CAP){
+   /* Do not stop useful comparisons, but never report a complete sample
+    * if eligible image formats were excluded solely by the size cap. */
+   s->oversizedSkipped++;
   }
   if(s->partial)break;
  }
@@ -264,16 +269,17 @@ char *cmp5_duplicates_with_stats_cancel(const char*root,size_t*length,Cmp5Duplic
    add(&out,"]}");
   }
  }
+ if(expired(s)||s->oversizedSkipped)s->partial=1;
  char report_stats[512];
- snprintf(report_stats,sizeof(report_stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
+ snprintf(report_stats,sizeof(report_stats),"],\"filesConsidered\":%zu,\"visited\":%zu,\"hardlinksSkipped\":%zu,\"oversizedImagesSkipped\":%zu,\"comparedBytes\":%zu,\"partial\":%s,"
   "\"limits\":{\"maxImages\":128,\"maxFileBytes\":33554432,\"maxReadBytes\":134217728,\"softDurationSeconds\":6},"
   "\"warning\":\"Images uniquement. Analyse plafonnee, doublons hors echantillon possibles.\"}",
-  s->count,s->visits,s->hardlinksSkipped,budget,s->partial?"true":"false");
+  s->count,s->visits,s->hardlinksSkipped,s->oversizedSkipped,budget,s->partial?"true":"false");
  add(&out,report_stats);
- if(expired(s))s->partial=1;
  if(stats){
   stats->files_considered=(uint32_t)s->count;
   stats->hardlinks_skipped=(uint32_t)s->hardlinksSkipped;
+  stats->oversized_skipped=(uint32_t)s->oversizedSkipped;
   stats->compared_bytes=budget;
   stats->partial=s->partial?1u:0u;
  }

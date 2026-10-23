@@ -16,6 +16,7 @@ typedef struct {
  uint32_t matching_files;
  uint32_t files_considered;
  uint32_t hardlinks_skipped;
+ uint32_t oversized_skipped; /* Images >32 MiB not compared: report is partial. */
  uint32_t partial;
  uint64_t compared_bytes;
  uint64_t duplicate_nominal_bytes;
