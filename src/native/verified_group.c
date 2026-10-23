@@ -70,7 +70,8 @@ static int same_file(const struct stat*a,const struct stat*b){
 #endif
  return nsec&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
-  a->st_ctime==b->st_ctime;
+  a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode&&
+  a->st_nlink==b->st_nlink;
 }
 static int read_exact(int fd,uint8_t*p,size_t n){
  while(n){ssize_t r=read(fd,p,n);
@@ -131,11 +132,13 @@ static int read_manifest(int dir,const char*id,int restored,
  char name[48];marker_name(name,id,restored);
  int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0)return 0;
- struct stat before,after;
+ struct stat before,after,named;
  const int valid=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
   before.st_nlink==1&&before.st_size==(off_t)MARK_SIZE&&
   read_exact(fd,contents,MARK_SIZE)&&fstat(fd,&after)==0&&
-  same_file(&before,&after)&&
+  fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
+  same_file(&before,&after)&&same_file(&before,&named)&&
+  named.st_nlink==1&&
   parse_manifest(contents,receipts,count,result);
  close(fd);return valid;
 }
@@ -157,7 +160,7 @@ static int raw_restored(int dir,const char*name,uint64_t size,
  const uint8_t expected[32],Cmp5CancelCheck cancel,void*ctx){
  int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0)return 0;
- struct stat before,after;
+ struct stat before,after,named;
  int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
    before.st_nlink==1&&before.st_size>0&&(uint64_t)before.st_size==size;
  Cmp5Sha256 h;cmp5_sha256_init(&h);
@@ -171,7 +174,9 @@ static int raw_restored(int dir,const char*name,uint64_t size,
  }
  uint8_t digest[32];if(ok)cmp5_sha256_final(&h,digest);
  if(ok)ok=memcmp(digest,expected,32)==0&&fstat(fd,&after)==0&&
-  same_file(&before,&after)&&!cancelled(cancel,ctx);
+  fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
+  same_file(&before,&after)&&same_file(&before,&named)&&
+  named.st_nlink==1&&!cancelled(cancel,ctx);
  close(fd);return ok;
 }
 int cmp5_verify_group(const char*workspace,const char*id,

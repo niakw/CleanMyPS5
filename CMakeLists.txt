@@ -106,3 +106,17 @@ endif()
 add_test(NAME backup_identity_races COMMAND ${Python3_EXECUTABLE}
  ${CMAKE_SOURCE_DIR}/tests/test_backup_identity_races.py
  $<TARGET_FILE:cmp5-backup-identity-races>)
+
+# Host-only race harness: a valid SHA-256 is not enough if the private
+# manifest or restored filename changed while being read.
+add_executable(cmp5-group-identity-races
+ tests/test_group_identity_races.c
+ src/native/capture_companions.c src/native/verified_backup.c src/native/sha256.c)
+target_include_directories(cmp5-group-identity-races PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-group-identity-races PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME group_identity_races COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_group_identity_races.py
+ $<TARGET_FILE:cmp5-group-identity-races>)
