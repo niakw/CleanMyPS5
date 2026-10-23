@@ -94,7 +94,7 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
  if(id<17||id>20)return -1;
  if(mock_ampr_receive++)return 0;
  if(id==20){
-  static constexpr char progress[]=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false})";
+  static constexpr char progress[]=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false,"title_id":"PPSA12345"})";
   char reply[512]{};
   int n=std::snprintf(reply,sizeof(reply),
    "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n%s",
@@ -716,6 +716,7 @@ int main(){
  assert(game_progress_checked);
  assert(game_progress.state==cmp5_compression::JobState::running);
  assert(game_progress.percent==45u&&game_progress.bytes_done==450u);
+ assert(std::strcmp(game_progress.title_id,"PPSA12345")==0);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  scene(canvas);
  press(circle);
