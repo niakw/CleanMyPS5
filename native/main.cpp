@@ -666,6 +666,7 @@ bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=fal
 unsigned game_job_position=0;
 cmp5_compression::GameProgress game_progress{};
 bool game_progress_checked=false;
+bool game_pause_attempted=false,game_pause_accepted=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
 bool stage_game_preflight() noexcept {
  if(!game_images_checked||compression_selection>=game_images.shown_folders||
@@ -679,6 +680,7 @@ bool stage_game_preflight() noexcept {
  game_preflight_checked=false;game_preflight_transport=false;
  game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
  game_job_position=0;game_progress={};game_progress_checked=false;
+ game_pause_attempted=false;game_pause_accepted=false;
  game_preflight=cmp5_compression::GamePreflight{};
  return true;
 }
@@ -922,6 +924,56 @@ void run_game_progress() noexcept {
   game_progress=result;game_progress_checked=true;
  }
 }
+/* Pause is reversible; it checkpoints the packed output, NEVER the
+ * original game directory. Refuse to pause another title's active job. */
+bool ampr_pause_request() noexcept {
+ const int fd=sceNetSocket("cmp5_ampr_pause",2,1,6);
+ if(fd<0)return false;
+ const int timeout_us=5000000;
+ (void)sceNetSetsockopt(fd,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(fd,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn local{16,2,
+  static_cast<std::uint16_t>((6973u<<8)|(6973u>>8)),0x0100007f,0,{0}};
+ bool ok=sceNetConnect(fd,&local,sizeof(local))>=0;
+ constexpr char request[]=
+  "POST /api/pause HTTP/1.0\r\nHost: 127.0.0.1:6973\r\n"
+  "Content-Type: application/x-www-form-urlencoded\r\n"
+  "Content-Length: 0\r\nConnection: close\r\n\r\n";
+ std::size_t sent=0;
+ while(ok&&sent<sizeof(request)-1u){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetSend(fd,request+sent,sizeof(request)-1u-sent,0);
+  if(n<=0){ok=false;break;}
+  sent+=static_cast<std::size_t>(n);
+ }
+ char response[512]{};
+ std::size_t used=0;
+ while(ok&&used<sizeof(response)){
+  if(cancellation_hook(nullptr)){ok=false;break;}
+  int n=sceNetRecv(fd,response+used,sizeof(response)-used,0);
+  if(n<0){ok=false;break;}
+  if(n==0)break;
+  used+=static_cast<std::size_t>(n);
+ }
+ (void)sceNetSocketClose(fd);
+ if(!ok||used==sizeof(response))return false;
+ cmp5_compression::HttpJson body{};
+ constexpr char yes[]="{\"ok\":true}";
+ return cmp5_compression::parse_ampr_http(response,used,&body)&&
+   body.size==sizeof(yes)-1&&std::memcmp(body.body,yes,body.size)==0;
+}
+void run_game_pause() noexcept {
+ game_pause_attempted=true;game_pause_accepted=false;
+ if(!game_job_accepted||!game_preflight_checked||
+    !game_preflight.ready())return;
+ char ver[32]{};
+ cmp5_compression::GameProgress fresh{};
+ if(!check_local_ampr(ver)||!ampr_read_progress(&fresh)||
+    fresh.state!=cmp5_compression::JobState::running||
+    std::strcmp(fresh.title_id,game_preflight.title_id)!=0||
+    cancellation_hook(nullptr))return;
+ game_pause_accepted=ampr_pause_request();
+}
 void run_game_submission() noexcept {
  game_job_accepted=false;game_job_reply_unknown=false;game_job_attempted=true;
  if(!game_preflight_checked||!game_preflight.ready())return;
@@ -972,7 +1024,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start, game_progress };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start, game_progress, game_pause };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -992,6 +1044,7 @@ void* background_task(void*) noexcept {
   case Task::game_check: run_game_preflight(); break;
   case Task::game_start: run_game_submission(); break;
   case Task::game_progress: run_game_progress(); break;
+  case Task::game_pause: run_game_pause(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -1298,8 +1351,12 @@ void poll_pad() noexcept {
    }else if(compression_view==3u&&(pressed&cross)){
     compression_view=4u;  /* second affirmative action, send once */
     (void)begin_task(Task::game_start);
-   }else if(compression_view==4u&&(pressed&cross)){
-    (void)begin_task(Task::game_progress);
+   }else if(compression_view==4u){
+    if(pressed&cross)(void)begin_task(Task::game_progress);
+    if((pressed&triangle)&&game_job_accepted&&game_progress_checked&&
+       game_progress.state==cmp5_compression::JobState::running&&
+       std::strcmp(game_progress.title_id,game_preflight.title_id)==0)
+     (void)begin_task(Task::game_pause);
    }
    if(compression_view<=1u&&(pressed&square))
     (void)begin_task(Task::engine_start);
@@ -1904,7 +1961,13 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      static_cast<unsigned long long>(game_progress.bytes_total/1048576ULL));
    canvas.text(125,899,line,2,Color::cyan);
   }else canvas.text(125,899,"X: INTERROGER LA PROGRESSION DU MOTEUR",2,Color::cyan);
-  footer(canvas,"X ACTUALISER  CERCLE RETOUR  JEU ORIGINAL PRESERVE");
+  if(game_pause_attempted){
+   canvas.text(125,939,game_pause_accepted?
+     "PAUSE DEMANDEE  X POUR VERIFIER SON APPLICATION":
+     "PAUSE REFUSEE OU NON CONFIRMEE",
+     2,game_pause_accepted?Color::cyan:Color::yellow);
+  }
+  footer(canvas,"X PROGRESSION  TRIANGLE PAUSE SI JEU ACTIF  CERCLE RETOUR");
   return;
  }
  if(compression_view==3u){
