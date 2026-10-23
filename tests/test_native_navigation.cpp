@@ -770,7 +770,16 @@ int main(){
  assert(mock_ampr_gets==2u);
  scene(canvas);
  press(circle);
- assert(compression_view==1u);
+ assert(compression_view==0u); // Restore actual stats origin.
+ press(triangle);finish_scan();
+ assert(compression_view==5u&&compression_monitor_return_view==0u);
+ press(r1);assert(compression_view==1u);
+ press(triangle);finish_scan();
+ assert(compression_monitor_return_view==1u);
+ press(l1);assert(compression_view==0u);
+ press(r1);assert(compression_view==1u);
+ press(triangle);finish_scan();
+ press(circle);assert(compression_view==1u); // Folder origin preserved.
  press(l1);
  assert(compression_view==0u);
  mock_ampr_online=false;
@@ -868,6 +877,13 @@ int main(){
  mock_ampr_paused=false;
  press(l1);
  assert(compression_view==6u);
+ press(triangle);finish_scan();
+ assert(compression_view==5u&&compression_monitor_return_view==6u);
+ press(circle);assert(compression_view==6u); // Image origin preserved.
+ press(triangle);finish_scan();
+ press(l1);assert(compression_view==1u);
+ press(l1);assert(compression_view==0u);
+ press(l1);assert(compression_view==6u);
  assert(game_images.shown_images==2u);
  assert(game_destination_count==17u); /* internal + USB0..7 + EXT0..7 */
  press(left);assert(compression_destination==0u);

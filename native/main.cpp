@@ -656,6 +656,16 @@ void run_autoload_check() noexcept {
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
 unsigned compression_view=0,compression_selection=0,compression_destination=0;
+/* Monitor is read-only. Circle restores its originating tab. */
+unsigned compression_monitor_return_view=0;
+unsigned compression_adjacent_tab(unsigned from,bool forward) noexcept {
+ switch(from){
+  case 0u:return forward?1u:6u;
+  case 1u:return forward?6u:0u;
+  case 6u:return forward?0u:1u;
+  default:return 0u;
+ }
+}
 unsigned compression_image_selection=0;
 constexpr const char*game_destinations[]={
  "/data/homebrew",
@@ -1353,7 +1363,8 @@ void poll_pad() noexcept {
     continue;
    }
    if(!task_busy()&&screen==Screen::compression&&compression_view>=2u){
-    compression_view=(compression_view==5u||!game_source_is_image)?1u:6u;
+    compression_view=compression_view==5u?
+      compression_monitor_return_view:(!game_source_is_image?1u:6u);
     game_preflight_checked=false;
     continue;
    }
@@ -1525,18 +1536,25 @@ void poll_pad() noexcept {
   if(screen==Screen::compression){
    /* Reconnect to a background job after leaving/reopening the title.
     * Monitor-only: does not implicitly claim, pause or resume that job. */
-   if((compression_view<=1u||compression_view==6u)&&(pressed&triangle)){
+   if((compression_view==0u||compression_view==1u||
+       compression_view==6u)&&(pressed&triangle)){
+    compression_monitor_return_view=compression_view;
     compression_view=5u;
     (void)begin_task(Task::game_progress);
     continue;
    }
    if(compression_view==5u){
+    if(pressed&l1||pressed&r1){
+     compression_view=compression_adjacent_tab(compression_monitor_return_view,
+                                              (pressed&r1)!=0u);
+     continue;
+    }
     if(pressed&cross)(void)begin_task(Task::game_progress);
     continue;
    }
    if(compression_view==0u||compression_view==1u||compression_view==6u){
-    if(pressed&r1)compression_view=compression_view==0u?1u:compression_view==1u?6u:0u;
-    if(pressed&l1)compression_view=compression_view==0u?6u:compression_view==6u?1u:0u;
+    if(pressed&r1)compression_view=compression_adjacent_tab(compression_view,true);
+    if(pressed&l1)compression_view=compression_adjacent_tab(compression_view,false);
    }
    if(compression_view==1u){
     if(game_images.shown_folders){
@@ -2190,7 +2208,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "UNE TACHE TERMINEE NE GARANTIT PAS LE DEMARRAGE DU JEU",
      2,Color::yellow);
   }
-  footer(canvas,"X ACTUALISER  CERCLE JEUX  AUCUNE COMMANDE DE MODIFICATION");
+  footer(canvas,"X ACTUALISER  L1/R1 ONGLETS  CERCLE RETOUR  LECTURE SEULE");
   return;
  }
  if(compression_view==4u){

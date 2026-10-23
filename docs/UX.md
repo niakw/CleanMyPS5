@@ -104,3 +104,15 @@ L'accueil ajoute cinq raccourcis manette qui ouvrent directement les filtres uti
 ## Return to Live
 
 L'onglet dédié guide un retour volontaire à un état officiel. L'interface n'emploie jamais un signal de type « PSN sécurisé ». Les diagnostics sont classés « à examiner », « contrôle limité » ou « non vérifiable ». La liste de huit étapes utilise des cases cochées manuellement : aucune case ne lance de nettoyage. Le rapport JSON contient seulement les contrôles synthétiques, sans noms de fichiers privés ni contenu de configuration. L2/R2 et L1/R1 restent utilisables pour la navigation principale, Croix pour cocher, Rond pour le retour. Prévoir une validation sur WebKit 13.60.
+
+## Suivi LZ4 : retour et navigation L1/R1
+
+Le suivi LZ4 (Triangle depuis Statistiques, Dossiers ou Images) conserve
+l'onglet de départ : Cercle revient exactement à cet onglet. Sur le
+moniteur, L1/R1 ouvrent l'onglet précédent/suivant dans le parcours
+Statistiques ↔ Dossiers ↔ Images. Triangle depuis un onglet permet
+à tout moment de consulter à nouveau le moteur. X actualise uniquement
+l'état du service local ; L1/R1 ne provoquent ni écriture ni pause.
+
+Le parcours DualSense est couvert par une fixture hôte sur les trois
+onglets. Il reste à valider physiquement sur PS5 13.60.
