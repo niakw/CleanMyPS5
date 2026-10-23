@@ -248,6 +248,24 @@ static void scan_one(Audit*a,int parent,const char*relative){
   }
   a->stats->nominal_bytes+=bytes;
   a->stats->count[kind]++;
+  /* A limited, read-only shortlist of actual image pathnames. The scan
+   * never assumes the suffix proves that ShadowMountPlus can mount it. */
+  if(a->stats->shown_images<CMP5_IMAGE_LIST_CAP&&safe_label(e->d_name)){
+   Cmp5GameImage*item=&a->stats->image[a->stats->shown_images];
+   int n=snprintf(item->path,sizeof(item->path),"/%s/%s",relative,e->d_name);
+   if(n>0&&(size_t)n<sizeof(item->path)){
+    (void)snprintf(item->label,sizeof(item->label),"%s",e->d_name);
+    item->nominal_bytes=bytes;
+    item->format=(uint32_t)kind;
+    a->stats->shown_images++;
+   }else{
+    a->stats->hidden_images++;
+    a->stats->partial=1;
+   }
+  }else{
+   a->stats->hidden_images++;
+   a->stats->partial=1;
+  }
   if(bytes>a->stats->largest_bytes)a->stats->largest_bytes=bytes;
   if(kind!=CMP5_IMAGE_FFPFSC&&bytes>=LARGE_IMAGE){
    if(bytes>UINT64_MAX-a->stats->large_nominal_bytes){

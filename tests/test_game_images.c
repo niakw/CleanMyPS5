@@ -17,6 +17,12 @@ int main(int argc,char**argv){
  assert(r.count[CMP5_IMAGE_FFPKG]==1);
  assert(r.count[CMP5_IMAGE_FFPFS]==1);
  assert(r.count[CMP5_IMAGE_FFPFSC]==1);
+ assert(r.shown_images==5);
+ assert(r.hidden_images==0);
+ assert(r.image[0].format==CMP5_IMAGE_EXFAT);
+ assert(!strcmp(r.image[0].label,"GAME.exfat"));
+ assert(!strcmp(r.image[0].path,"/data/homebrew/GAME.exfat"));
+ assert(r.image[0].nominal_bytes==21ULL*1024*1024*1024);
  assert(r.large_candidates==2);
  assert(r.folder_games==1);
  assert(r.large_folders==1);
