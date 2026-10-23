@@ -98,7 +98,10 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
    mock_ampr_post_headers++;
   }else{
    if(request.find("path=%2Fdata%2Fhomebrew%2FGAME.exfat")!=std::string_view::npos)
-     assert(request.find("&smp=PPSA12345")!=std::string_view::npos);
+     {
+      assert(request.find("&smp=PPSA12345")!=std::string_view::npos);
+      assert(request.find("&cmp5_size=22548578304")!=std::string_view::npos);
+     }
    else assert(request.find("path=%2Fdata%2Fhomebrew%2FPPSA12345")!=std::string_view::npos);
    assert(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew")!=std::string_view::npos);
    assert(request.find("overwrite=0&remove=0&force=0")!=std::string_view::npos);

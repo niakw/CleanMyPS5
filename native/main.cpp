@@ -910,6 +910,7 @@ bool game_check_request(const char*source,const char*dest,const char*smp,
 /* Final explicit job submission. The title NEVER asks to overwrite,
  * delete, force conversion or operate on an unreviewed path. */
 bool ampr_submit_job(const char*source,const char*dest,const char*smp,
+                     std::uint64_t expected_image_bytes,
                      cmp5_compression::StartAck*out,
                      bool*could_have_started) noexcept {
  if(could_have_started)*could_have_started=false;
@@ -926,11 +927,18 @@ bool ampr_submit_job(const char*source,const char*dest,const char*smp,
   }
   (void)std::snprintf(smp_arg,sizeof(smp_arg),"&smp=%s",smp);
  }
+ char size_arg[48]{};
+ if(smp&&smp[0]){
+  if(expected_image_bytes==0)return false;
+  const int n=std::snprintf(size_arg,sizeof(size_arg),
+     "&cmp5_size=%llu",static_cast<unsigned long long>(expected_image_bytes));
+  if(n<=0||static_cast<std::size_t>(n)>=sizeof(size_arg))return false;
+ }
  char body[1024]{};
  const int bytes=std::snprintf(body,sizeof(body),
   "path=%s&dest=%s&level=9&workers=4&verify=1&dedup=1&"
-  "overwrite=0&remove=0&force=0&clean=0%s",
-  src_encoded,dst_encoded,smp_arg);
+  "overwrite=0&remove=0&force=0&clean=0%s%s",
+  src_encoded,dst_encoded,smp_arg,size_arg);
  if(bytes<=0||static_cast<std::size_t>(bytes)>=sizeof(body))return false;
  char header[280]{};
  const int header_len=std::snprintf(header,sizeof(header),
@@ -1159,6 +1167,7 @@ void run_game_submission() noexcept {
  bool may_have_queued=false;
  const bool accepted=ampr_submit_job(game_source_checked,game_dest_checked,
                                      game_source_is_image?game_smp_title:"",
+                                     game_source_is_image?game_image_expected_bytes:0,
                                      &ack,&may_have_queued);
  game_job_accepted=accepted;
  game_job_reply_unknown=!accepted&&may_have_queued;

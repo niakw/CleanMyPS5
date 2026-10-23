@@ -95,6 +95,31 @@ def main(root: Path):
       send_json(fd, 409, "{\\"error\\":\\"image_identity_changed\\"}");
       return;
     }
+    /* Refuse image replacement between UI approval and engine enqueue. */
+    char expected_text[32] = "";
+    if (form_get(body, "cmp5_size", expected_text,
+                 sizeof expected_text) <= 0 ||
+        expected_text[0] < '1' || expected_text[0] > '9') {
+      send_json(fd, 409, "{\\"error\\":\\"image_size_required\\"}");
+      return;
+    }
+    uint64_t expected = 0;
+    for (const char *digit = expected_text; *digit; digit++) {
+      if (*digit < '0' || *digit > '9') {
+        send_json(fd, 409, "{\\"error\\":\\"invalid_image_size\\"}");
+        return;
+      }
+      const unsigned d = (unsigned)(*digit - '0');
+      if (expected > (UINT64_MAX - d) / 10u) {
+        send_json(fd, 409, "{\\"error\\":\\"invalid_image_size\\"}");
+        return;
+      }
+      expected = expected * 10u + d;
+    }
+    if ((uint64_t)source_st.st_size != expected) {
+      send_json(fd, 409, "{\\"error\\":\\"image_size_changed\\"}");
+      return;
+    }
   }
   (void)queue_only;''')
     # Stable, compact endpoint for the bundled DualSense frontend. The

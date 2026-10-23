@@ -27,6 +27,8 @@ def check_engine(root: Path) -> None:
         "SMP identity": "strcmp(owner.title_id, r.smp_title) != 0",
         "image owner source type": 'strcmp(owner.source_type, "image") != 0',
         "source no hardlinks": "source_st.st_nlink != 1",
+        "source size field": 'form_get(body, "cmp5_size"',
+        "source size recheck": "(uint64_t)source_st.st_size != expected",
         "post source no deletion": '"/api/delete-source"',
         "no cancellation deleting partial pack": '"/api/cancel"',
         "protected profile writes": '"/api/profile"',
