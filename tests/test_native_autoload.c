@@ -26,6 +26,10 @@ static void write_fixture(const char*path,const char*body){
  CHECK(fwrite(body,1,n,f)==n);
  CHECK(fclose(f)==0);
 }
+static int cancel_at(void*context){
+ int*counter=(int*)context;return ++*counter>=8;
+}
+static int always_cancel(void*context){(void)context;return 1;}
 int main(void){
  char root[]="/tmp/cmp5-autoload-stats-XXXXXX";
  CHECK(mkdtemp(root));
@@ -67,6 +71,22 @@ int main(void){
  char*legacy=cmp5_diagnostics(root,&compatibility_len);
  CHECK(legacy&&compatibility_len==len);
  free(legacy);
- puts("Native autoload aggregate and helper backward compatibility: PASS");
+ len=55;memset(&stats,0xA5,sizeof(stats));
+ CHECK(!cmp5_diagnostics_with_stats_cancel(
+  root,&len,&stats,always_cancel,NULL));
+ CHECK(len==0);
+ Cmp5AutoloadStats zero={0};
+ CHECK(memcmp(&stats,&zero,sizeof(stats))==0);
+ int calls=0;
+ len=123;memset(&stats,0x5A,sizeof(stats));
+ CHECK(!cmp5_diagnostics_with_stats_cancel(
+  root,&len,&stats,cancel_at,&calls));
+ CHECK(calls>=8&&len==0);
+ CHECK(memcmp(&stats,&zero,sizeof(stats))==0);
+ len=0;
+ json=cmp5_diagnostics_with_stats_cancel(root,&len,&stats,NULL,NULL);
+ CHECK(json&&len==strlen(json)&&stats.checked==11);
+ free(json);
+ puts("Native autoload aggregate, cancellation and helper compatibility: PASS");
  return 0;
 }

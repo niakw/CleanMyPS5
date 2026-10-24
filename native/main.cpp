@@ -731,7 +731,8 @@ void run_autoload_check() noexcept {
  std::size_t length=0;
  // The same read-only scanner used by the optional helper runs under
  // title permissions. Drop its JSON immediately: the UI uses counts only.
- char*report=cmp5_diagnostics_with_stats("/",&length,&autoload_stats);
+ char*report=cmp5_diagnostics_with_stats_cancel(
+   "/",&length,&autoload_stats,cancellation_hook,nullptr);
  if(report){
   std::free(report);
   autoload_checked=!cancellation_hook(nullptr)&&autoload_stats.checked==11u;

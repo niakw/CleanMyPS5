@@ -410,8 +410,9 @@ char *cmp5_homebrew_with_stats(const char*,std::size_t*len,
  stats->nominal_bytes=400000000;
  return result;
 }
-char *cmp5_diagnostics_with_stats(const char*,std::size_t*len,
- Cmp5AutoloadStats*stats){
+char *cmp5_diagnostics_with_stats_cancel(const char*,std::size_t*len,
+ Cmp5AutoloadStats*stats,Cmp5CancelCheck cancel,void*context){
+ if(cancel&&cancel(context))return nullptr;
  const char fixture[]="{\"checked\":11,\"entries\":[]}";
  char*response=(char*)std::malloc(sizeof(fixture));
  assert(response);
@@ -427,6 +428,10 @@ char *cmp5_diagnostics_with_stats(const char*,std::size_t*len,
  stats->autostart_disabled=1;
  stats->unreadable=1;
  return response;
+}
+char *cmp5_diagnostics_with_stats(const char*root,std::size_t*len,
+ Cmp5AutoloadStats*stats){
+ return cmp5_diagnostics_with_stats_cancel(root,len,stats,nullptr,nullptr);
 }
 }
 

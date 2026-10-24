@@ -50,7 +50,9 @@ static int same_diagnostic_file(const struct stat*a,const struct stat*b){
    a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
    a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode;
 }
-static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
+static int safe_read(const char*root,const char*rel,char*buf,size_t cap,
+ Cmp5CancelCheck cancel,void*context){
+ if(cancel&&cancel(context))return -2;
  /* Bounded, read-only traversal. Hold the final PARENT directory open
   * until after the last byte was read, then verify the selected filename
   * still references the same inode. A stale descriptor is not sufficient.
@@ -85,11 +87,13 @@ static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
  if((uint64_t)before.st_size>cap-1){result=2;goto done;}
  size_t total=0;
  while(total<cap-1){
+  if(cancel&&cancel(context)){result=-2;goto done;}
   ssize_t got=read(fd,buf+total,cap-1-total);
   if(got<0){if(errno==EINTR)continue;goto done;}
   if(got==0)break;
   total+=(size_t)got;
  }
+ if(cancel&&cancel(context)){result=-2;goto done;}
  if(total==cap-1){
   char extra;ssize_t got;
   do{got=read(fd,&extra,1);}while(got<0&&errno==EINTR);
@@ -99,7 +103,7 @@ static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
  /* Configurations must be plain text. Embedded NUL makes all tokens
   * after it invisible to the parser and can hide a live autoload entry. */
  if(memchr(buf,0,total)!=NULL)goto done;
- if(fstat(fd,&after)==0&&
+ if((!cancel||!cancel(context))&&fstat(fd,&after)==0&&
     fstatat(parent,leaf,&named,AT_SYMLINK_NOFOLLOW)==0&&
     same_diagnostic_file(&before,&after)&&
     same_diagnostic_file(&before,&named)&&
@@ -170,11 +174,11 @@ static void diagnostic_entry(Out*out,Cmp5AutoloadStats*s,
  count_status(s,code,status);
  if(code!=0)entry(out,path,kind,status);
 }
-char *cmp5_diagnostics_with_stats(const char*root,size_t *length,
- Cmp5AutoloadStats *stats){
+char *cmp5_diagnostics_with_stats_cancel(const char*root,size_t *length,
+ Cmp5AutoloadStats *stats,Cmp5CancelCheck cancel,void*context){
  if(length)*length=0;
  if(stats)memset(stats,0,sizeof(*stats));
- if(!root||!length||!stats)return NULL;
+ if(!root||!length||!stats||(cancel&&cancel(context)))return NULL;
  Cmp5AutoloadStats counts={0};
  counts.checked=11;
  Out out={0};out.buf=(char*)calloc(1,JSON_CAP);if(!out.buf)return NULL;
@@ -183,22 +187,39 @@ char *cmp5_diagnostics_with_stats(const char*root,size_t *length,
  const char *toolbox="data/etaHEN/config.ini";
  char *contents=(char*)malloc(READ_CAP+1);if(!contents){free(out.buf);return NULL;}
  for(size_t i=0;i<2;i++){
-  int code=safe_read(root,internal[i],contents,READ_CAP+1);
+  if(cancel&&cancel(context))goto aborted;
+  int code=safe_read(root,internal[i],contents,READ_CAP+1,cancel,context);
+  if(code==-2)goto aborted;
   diagnostic_entry(&out,&counts,internal[i],"autoload",code,contents,0);
  }
  for(int i=0;i<8;i++){
+  if(cancel&&cancel(context))goto aborted;
   char path[80];snprintf(path,sizeof(path),"mnt/usb%d/ps5_autoloader/autoload.txt",i);
-  int code=safe_read(root,path,contents,READ_CAP+1);
+  int code=safe_read(root,path,contents,READ_CAP+1,cancel,context);
+  if(code==-2)goto aborted;
   diagnostic_entry(&out,&counts,path,"autoload",code,contents,0);
  }
- int code=safe_read(root,toolbox,contents,READ_CAP+1);
- diagnostic_entry(&out,&counts,toolbox,"toolbox",code,contents,1);
+ if(cancel&&cancel(context))goto aborted;
+ {
+  int code=safe_read(root,toolbox,contents,READ_CAP+1,cancel,context);
+  if(code==-2)goto aborted;
+  diagnostic_entry(&out,&counts,toolbox,"toolbox",code,contents,1);
+ }
+ if(cancel&&cancel(context))goto aborted;
  free(contents);
  put(&out,"],\"limitations\":\"Autoload par application et autres loaders non couverts. Presence != execution actuelle.\"}");
  if(out.error){free(out.buf);return NULL;}
  *length=out.size;
  *stats=counts;
  return out.buf;
+aborted:
+ free(contents);
+ free(out.buf);
+ return NULL;
+}
+char *cmp5_diagnostics_with_stats(const char*root,size_t *length,
+ Cmp5AutoloadStats *stats){
+ return cmp5_diagnostics_with_stats_cancel(root,length,stats,NULL,NULL);
 }
 char *cmp5_diagnostics(const char*root,size_t *length){
  Cmp5AutoloadStats ignored={0};

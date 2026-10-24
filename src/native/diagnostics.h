@@ -25,6 +25,14 @@ typedef struct {
  * The JSON contains fixed path labels: never display it in native UI. */
 char *cmp5_diagnostics_with_stats(const char *namespace_root, size_t *length,
                                   Cmp5AutoloadStats *stats);
+/* Cooperative cancellation without publishing an incomplete autoload report.
+ * Existing helper and JSON APIs remain compatible. */
+#ifndef CMP5_CANCEL_CHECK_TYPE
+#define CMP5_CANCEL_CHECK_TYPE
+typedef int (*Cmp5CancelCheck)(void *context);
+#endif
+char *cmp5_diagnostics_with_stats_cancel(const char *namespace_root,
+ size_t *length,Cmp5AutoloadStats *stats,Cmp5CancelCheck cancel,void*context);
 /* Backwards-compatible helper JSON interface. */
 char *cmp5_diagnostics(const char *namespace_root, size_t *length);
 #ifdef __cplusplus
