@@ -2050,14 +2050,22 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  }
  if(summary_status==Summary::ok){
   char result[120]{};
-  (void)std::snprintf(result,sizeof(result),"%u A REVOIR (PLUS DE 50 MIO)",summary_large);
+  (void)std::snprintf(result,sizeof(result),
+   "%u OBSERVEES (PLUS DE 50 MIO)%s",summary_large,
+   summary_partial?"  SCAN PARTIEL":"");
   panel(canvas,355,"CAPTURES VOLUMINEUSES",result,Color::cyan);
-  (void)std::snprintf(result,sizeof(result),"%u ANCIENNES (MTIME 90 J)",summary_old);
+  (void)std::snprintf(result,sizeof(result),
+   "%u OBSERVEES (MTIME 90 J)%s",summary_old,
+   summary_partial?"  SCAN PARTIEL":"");
   panel(canvas,503,"CAPTURES ANCIENNES",result,Color::cyan);
-  (void)std::snprintf(result,sizeof(result),"%llu MIO NOMINAUX  %u ANCIENNES ET GROSSES",
-    static_cast<unsigned long long>(summary_large_bytes/1048576ULL),summary_old_large);
-  panel(canvas,651,scan_source==ScanSource::helper?
-    "ESPACE A EXAMINER (HELPER)":"ESPACE A EXAMINER",result,Color::yellow);
+  (void)std::snprintf(result,sizeof(result),
+    "%llu MIO NOMINAUX  %u ANCIENNES/GROSSES%s",
+    static_cast<unsigned long long>(summary_large_bytes/1048576ULL),
+    summary_old_large,summary_partial?"  PARTIEL":"");
+  panel(canvas,651,summary_partial?"PERIMETRE INCOMPLET":
+    scan_source==ScanSource::helper?
+    "ESPACE A EXAMINER (HELPER)":"ESPACE A EXAMINER",
+    result,Color::yellow);
  }else{
   panel(canvas,355,"CAPTURES VOLUMINEUSES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
