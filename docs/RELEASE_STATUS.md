@@ -188,3 +188,19 @@ Les diagnostics d'autoload refusent également tout fichier texte contenant un
 conclu en ignorant silencieusement les octets qui suivent. Une fixture
 vérifie le classement « non vérifiable » de ce cas, sans modifier les
 configurations de la console.
+
+### Consultation des supports externes depuis le titre natif
+
+La page **Accès** utilise maintenant L1/R1 pour parcourir six pages de
+sondes, comprenant les racines internes ainsi que les seize montages
+`/mnt/usb0…7` et `/mnt/ext0…7`. Les montages facultatifs ne sont
+interrogés que par ouverture ancrée sans symlink et `fstatvfs`, sans
+énumération du contenu des jeux. Le libellé **CAPACITÉ SEULE** distingue
+cette mesure du nombre de fichiers réellement parcourus. L'absence
+d'un support USB ne change pas la conclusion de couverture des six
+sondes essentielles, en particulier la Galerie photo et vidéo.
+
+Le helper PS5 conserve ses seules routes agrégées autorisées : l'inventaire
+plus détaillé des volumes via `/api/volumes` reste une interface
+diagnostique hôte. Ni ce bilan ni l'UI ne constituent une preuve d'octets
+récupérables ou une autorisation d'effacement.
