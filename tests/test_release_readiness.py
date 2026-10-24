@@ -73,6 +73,10 @@ with tempfile.TemporaryDirectory() as work:
         {"files": []},
         {"files": [PACKAGE["files"][0]]},
         {"files": [PACKAGE["files"][0], PACKAGE["files"][0]]},
+        {"files": [*PACKAGE["files"], {"name": "../private.key", "bytes": 1, "sha256": "c" * 64}]},
+        {"files": [*PACKAGE["files"], {"name": "unknown.bin", "bytes": 1, "sha256": "c" * 64}]},
+        {"files": [dict(PACKAGE["files"][0], bytes=True), PACKAGE["files"][1]]},
+        {"files": [dict(PACKAGE["files"][0], name=7), PACKAGE["files"][1]]},
         {"files": [
             dict(PACKAGE["files"][0], sha256="not-a-hash"),
             PACKAGE["files"][1],

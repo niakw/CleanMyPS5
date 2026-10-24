@@ -11,7 +11,11 @@ import json
 from pathlib import Path
 import re
 import sys
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
+
+MAX_ZIP_ENTRIES = 512
+MAX_ZIP_UNCOMPRESSED = 512 * 1024 * 1024
+MAX_PARAM_BYTES = 64 * 1024
 
 REQUIRED_IN_ZIP = (
     "eboot.bin",
@@ -31,9 +35,16 @@ def validate_zip(path: Path, title: str) -> None:
     if not path.is_file() or path.is_symlink():
         raise ValueError("Native title archive missing or symlinked")
     with ZipFile(path) as package:
+        infos = package.infolist()
+        if not infos or len(infos) > MAX_ZIP_ENTRIES:
+            raise ValueError("Unbounded native title archive entries")
         names: set[str] = set()
-        for info in package.infolist():
+        total_bytes = 0
+        for info in infos:
             name = info.filename
+            total_bytes += info.file_size
+            if total_bytes > MAX_ZIP_UNCOMPRESSED:
+                raise ValueError("Unbounded native title archive expansion")
             # No traversal, absolute paths, symlink entries, Windows drive paths,
             # or additional top-level files independent of the native title.
             parts = name.split("/")
@@ -43,7 +54,8 @@ def validate_zip(path: Path, title: str) -> None:
                 or "\\" in name
                 or ":" in name
                 or info.is_dir()
-                or (info.external_attr >> 16) & 0o170000 == 0o120000
+                or info.flag_bits & 1  # encrypted member
+                or ((info.external_attr >> 16) & 0o170000) not in (0, 0o100000)
                 or name in names
             ):
                 raise ValueError("Unexpected native title archive entry")
@@ -52,9 +64,16 @@ def validate_zip(path: Path, title: str) -> None:
             name = f"{title}/{relative}"
             if name not in names or package.getinfo(name).file_size == 0:
                 raise ValueError(f"Missing native title component: {relative}")
-        with package.open(f"{title}/sce_sys/param.json") as stream:
-            params = json.load(stream)
-        if params.get("titleId") != title:
+        metadata = package.getinfo(f"{title}/sce_sys/param.json")
+        if metadata.file_size > MAX_PARAM_BYTES:
+            raise ValueError("Unbounded native title metadata")
+        # Check each member's CRC as well as the outer manifest's SHA-256.
+        # Streaming verification avoids retaining decompressed game assets.
+        if package.testzip() is not None:
+            raise ValueError("Corrupted native title archive member")
+        with package.open(metadata) as stream:
+            params = json.loads(stream.read(MAX_PARAM_BYTES + 1))
+        if not isinstance(params, dict) or params.get("titleId") != title:
             raise ValueError("Native title metadata mismatch")
 
 def expected_manifest(folder: Path, title: str, pin: str) -> dict:
@@ -116,5 +135,5 @@ if __name__ == "__main__":
         raise SystemExit("usage: native_release_manifest.py write|check DIR TITLE_ID TOOLCHAIN_SHA")
     try:
         globals()[sys.argv[1]](Path(sys.argv[2]), sys.argv[3], sys.argv[4])
-    except (ValueError, OSError, KeyError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError, KeyError, json.JSONDecodeError, BadZipFile, RuntimeError, NotImplementedError) as exc:
         raise SystemExit(f"Native release validation failed: {exc}") from exc

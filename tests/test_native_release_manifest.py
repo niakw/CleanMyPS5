@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from unittest import mock
 from zipfile import ZipFile, ZipInfo
 
 spec = importlib.util.spec_from_file_location(
@@ -70,6 +71,30 @@ with tempfile.TemporaryDirectory() as root:
     except ValueError:
         pass
     helper.write_bytes(helper.read_bytes()[:-1])
+
+    # Corrupt a stored ZIP member while preserving its header and CRC.
+    raw = (folder / f"{title}.zip").read_bytes()
+    damaged = raw.replace(b"A" * 80, b"Z" * 80, 1)
+    assert damaged != raw
+    (folder / f"{title}.zip").write_bytes(damaged)
+    try:
+        module.expected_manifest(folder, title, pin)
+        raise AssertionError("Corrupted ZIP member CRC accepted")
+    except ValueError:
+        pass
+    package(folder)
+
+    # Reject maliciously oversized central-directory claims without allocating
+    # hundreds of MiB in the regression runner.
+    oversized = ZipInfo(f"{title}/oversized.bin")
+    oversized.file_size = module.MAX_ZIP_UNCOMPRESSED + 1
+    with mock.patch.object(ZipFile, "infolist", return_value=[oversized]):
+        try:
+            module.expected_manifest(folder, title, pin)
+            raise AssertionError("Unbounded ZIP expansion accepted")
+        except ValueError:
+            pass
+    package(folder)
 
     for args in ({"traversal": True}, {"wrong_id": True},
                  {"duplicate": True}, {"symlink": True}):

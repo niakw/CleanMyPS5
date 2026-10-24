@@ -34,12 +34,17 @@ def inspect(manifest_path: Path) -> dict:
     if not isinstance(artifacts, list) or not artifacts:
         raise ValueError("No native release artifacts in manifest")
     names = [item.get("name") for item in artifacts if isinstance(item, dict)]
-    if len(names) != len(artifacts) or len(names) != len(set(names)):
+    if (len(names) != len(artifacts) or
+            any(not isinstance(name, str) for name in names) or
+            len(names) != len(set(names))):
         raise ValueError("Missing or duplicated artifact names")
+    allowed = {"PPSA99784.zip", "cleanmyps5-helper.elf", "PPSA99784.ffpkg"}
+    if set(names) - allowed:
+        raise ValueError("Unexpected artifact name in release manifest")
     if "PPSA99784.zip" not in names or "cleanmyps5-helper.elf" not in names:
         raise ValueError("Required native and separate helper outputs missing")
     for entry in artifacts:
-        if not isinstance(entry.get("bytes"), int) or entry["bytes"] <= 0:
+        if type(entry.get("bytes")) is not int or entry["bytes"] <= 0:
             raise ValueError("Invalid release artifact length")
         digest = entry.get("sha256")
         if not isinstance(digest, str) or len(digest) != 64 or any(
