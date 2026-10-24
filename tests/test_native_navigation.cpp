@@ -581,7 +581,28 @@ int main(){
  press(r1);assert(analyze_page==1u);
  press(cross);finish_scan();
  assert(general_audit_completed&&general_games.checked);
+ assert(general_audit_stage.load()==6u);
  assert(mock_ampr_gets==engine_calls);
+ /* Cancel the WHOLE general audit mid-Gallery scan, not just a standalone
+  * media scan. No prior global module totals may remain published. */
+ stall_next_scan.store(true);
+ press(cross);
+ const auto general_deadline=std::chrono::steady_clock::now()+std::chrono::seconds(6);
+ while(!entered_stalled_scan.load()&&
+       std::chrono::steady_clock::now()<general_deadline)
+  std::this_thread::yield();
+ assert(entered_stalled_scan.load()&&task_busy());
+ assert(general_audit_stage.load()==2u);
+ press(circle);assert(screen==Screen::menu);
+ finish_scan();
+ assert(task_cancelled()&&general_audit_stage.load()==0u);
+ assert(!general_audit_completed&&!general_games.checked);
+ assert(!homebrew_checked&&!autoload_checked);
+ assert(media_review.count==0u&&summary_status==Summary::unavailable);
+ assert(media_review.entries[0].preview_path[0]==0);
+ press(cross);assert(screen==Screen::analyze);
+ finish_scan();
+ assert(general_audit_completed&&general_audit_stage.load()==6u);
  press(circle);assert(screen==Screen::menu);
  analyze_page=0u;
  press(down);

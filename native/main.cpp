@@ -371,6 +371,10 @@ struct GeneralGameAudit {
 };
 GeneralGameAudit general_games{};
 bool general_audit_completed=false;
+/* Stage 0=idle, 1=permissions, 2=gallery, 3=apps,
+ * 4=autoload, 5=games, 6=finished. UI reads only this atomic
+ * while the worker publishes module results behind task_state. */
+std::atomic<unsigned> general_audit_stage{0};
 unsigned analyze_page=0;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
@@ -650,16 +654,24 @@ void run_autoload_check() noexcept;
 void run_general_games_check() noexcept;
 void run_environment_check() noexcept {
  general_audit_completed=false;
+ general_audit_stage.store(1u,std::memory_order_release);
  run_access_check();
  if(cancellation_hook(nullptr))return;
+ general_audit_stage.store(2u,std::memory_order_release);
  run_overview();
  if(cancellation_hook(nullptr))return;
+ general_audit_stage.store(3u,std::memory_order_release);
  run_homebrew_check();
  if(cancellation_hook(nullptr))return;
+ general_audit_stage.store(4u,std::memory_order_release);
  run_autoload_check();
  if(cancellation_hook(nullptr))return;
+ general_audit_stage.store(5u,std::memory_order_release);
  run_general_games_check();
- if(!cancellation_hook(nullptr))general_audit_completed=true;
+ if(!cancellation_hook(nullptr)){
+  general_audit_completed=true;
+  general_audit_stage.store(6u,std::memory_order_release);
+ }
 }
 void run_duplicate_check() noexcept {
  duplicate_stats=Cmp5DuplicateStats{};
@@ -1476,6 +1488,7 @@ void* background_task(void*) noexcept {
    compression_engine_seen=false;compression_engine_version[0]=0;
   }
   if(task_kind==Task::environment){
+   general_audit_stage.store(0u,std::memory_order_release);
    general_games=GeneralGameAudit{};
    general_audit_completed=false;
    homebrew_stats=Cmp5HomebrewStats{};homebrew_checked=false;
@@ -1495,12 +1508,16 @@ void* background_task(void*) noexcept {
 }
 bool begin_task(Task kind) noexcept {
  if(task_state.load(std::memory_order_acquire)==1)return false;
+ if(kind==Task::environment)
+  general_audit_stage.store(0u,std::memory_order_release);
  task_kind=kind;
  scan_cancel_requested.store(false,std::memory_order_release);
  task_state.store(1,std::memory_order_release);
  pthread_t worker{};
  const int rc=pthread_create(&worker,nullptr,background_task,nullptr);
  if(rc!=0){
+  if(kind==Task::environment)
+   general_audit_stage.store(0u,std::memory_order_release);
   task_state.store(3,std::memory_order_release);
   return false;
  }
@@ -1914,10 +1931,22 @@ void show_menu(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_analyze(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
-  panel(canvas,366,"ANALYSE EN COURS","LE MENU RESTE UTILISABLE",Color::cyan);
-  panel(canvas,515,"DOSSIERS ET PERMISSIONS","CONTROLES EN LECTURE SEULE");
-  panel(canvas,664,"MOTEUR DE MAINTENANCE","REPONSE EN ATTENTE");
-  footer(canvas,"CERCLE RETOUR  AUCUNE SUPPRESSION");
+  const unsigned stage=general_audit_stage.load(std::memory_order_acquire);
+  const char*detail=stage==1u?"SONDES DE DROITS ET MONTAGES":
+    stage==2u?"CAPTURES, CACHES ET JOURNAUX":
+    stage==3u?"APPLICATIONS, PLUGINS ET DONNEES":
+    stage==4u?"DEMARRAGE AUTOMATIQUE ET CONFIGURATION":
+    stage==5u?"DOSSIERS ET IMAGES DE JEUX":
+    stage==6u?"RESULTATS EN COURS DE VALIDATION":
+    "PREPARATION DES CONTROLES";
+  char progress[112]{};
+  (void)std::snprintf(progress,sizeof(progress),
+   "ETAPE %u/5  %s",stage>=1u&&stage<=5u?stage:stage==6u?5u:0u,
+   detail);
+  panel(canvas,366,"ANALYSE GENERALE",progress,Color::cyan);
+  panel(canvas,515,"PERIMETRE","MODULES INDEPENDANTS  DONNEES EN LECTURE SEULE");
+  panel(canvas,664,"STATUT","RESULTATS PUBLIES UNIQUEMENT APRES FIN DU WORKER");
+  footer(canvas,"CERCLE ANNULER   AUCUNE SUPPRESSION");
   return;
  }
  if(task_failed()||task_cancelled()){

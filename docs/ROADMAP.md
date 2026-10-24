@@ -30,7 +30,13 @@ droits/sondes, captures, homebrews/plugins, autoload, dossiers/images
 de jeux. Chaque famille conserve ses propres limites et avertissements
 pour ne pas faire croire qu'un résultat absent signifie un stockage vide.
 La page L1/R1 présente ce bilan général, et X relance le contrôle entier.
-L'annulation par Cercle empêche la publication de résultats intermédiaires.
+L'annulation par Cercle empêche la publication de résultats intermédiaires
+et rejette l'ensemble des résultats si elle intervient entre deux
+modules ou pendant la lecture autoload. L'écran en cours présente
+maintenant **l'étape réelle (1 à 5)** : accès, captures, applications,
+autoload ou jeux. Le moteur autoload supporte un callback d'annulation
+jusque dans sa boucle de lecture et renvoie un échec sans JSON ni
+compteurs partiels ; l'ancien appel du helper reste compatible.
 
 Les comparaisons de doublons restent explicites, car elles lisent les
 fichiers entiers. L'analyse générale ne démarre pas le moteur AMPR, ne
