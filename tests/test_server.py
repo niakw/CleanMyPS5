@@ -62,8 +62,6 @@ with tempfile.TemporaryDirectory() as temp:
  usb4=root/"mnt/usb4/ps5_autoloader"
  usb4.mkdir(parents=True)
  (usb4/"autoload.txt").hardlink_to(other/"save.bin")
- # Even a readable symlink mount alias must not be counted as storage.
- (root/"mnt/usb6").symlink_to(other,target_is_directory=True)
  homebrew=root/"data/homebrew/HB_DEMO"
  homebrew.mkdir(parents=True)
  (homebrew/"assets.bin").write_bytes(b"H"*137)
@@ -307,6 +305,9 @@ with tempfile.TemporaryDirectory() as temp:
   assert checks["/mnt/usb0/ps5_autoloader"]=="accessible"
   assert checks["/mnt/usb7/ps5_autoloader"]=="absent"
   assert "PRIVATE_TOKEN" not in json.dumps(preflight)
+  # Set up a symlink mount ONLY for this test: the earlier inventory
+  # is intentionally complete and must not inherit an artificial alias.
+  (root/"mnt/usb6").symlink_to(other,target_is_directory=True)
   with urlopen(base+"/api/volumes",timeout=3) as r:volumes=json.load(r)
   assert volumes["scope"]=="mounts-not-total-ssd"
   bypath={v["path"]:v for v in volumes["volumes"]}
