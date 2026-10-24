@@ -593,11 +593,18 @@ void run_overview() noexcept {
    (void)accept_helper_overview(remote);
  }
 }
-void run_environment_check() noexcept {
+void run_access_check() noexcept {
  probe_local();
  if(cancellation_hook(nullptr))return;
  engine=Link::offline;
- if(helper_is_compatible()&&!cancellation_hook(nullptr)&&get_preflight())engine=Link::ok;
+ available=denied=absent=0;
+ /* A read-only helper is a separate process. X rechecks its protocol and
+  * live path evidence; a successful loader send alone is never enough. */
+ if(helper_is_compatible()&&!cancellation_hook(nullptr)&&get_preflight())
+  engine=Link::ok;
+}
+void run_environment_check() noexcept {
+ run_access_check();
  if(!cancellation_hook(nullptr))run_overview();
 }
 void run_duplicate_check() noexcept {
@@ -1316,7 +1323,7 @@ Task task_kind=Task::none;
 void* background_task(void*) noexcept {
  switch(task_kind){
   case Task::environment: run_environment_check(); break;
-  case Task::access: probe_local(); break;
+  case Task::access: run_access_check(); break;
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
   case Task::homebrew: run_homebrew_check(); break;
@@ -1930,7 +1937,8 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    "TITRE UID %lu EUID %lu  HELPER SEPARE  SUPPRESSION BLOQUEE",
    static_cast<unsigned long>(getuid()),static_cast<unsigned long>(geteuid()));
  canvas.text(125,925,privilege_note,2,Color::yellow);
- const char*helper_hint=helper_launch==EngineLaunch::active?
+ const char*helper_hint=engine==Link::ok||
+    helper_launch==EngineLaunch::active?
   "HELPER LECTURE SEULE ACTIF":
   helper_launch==EngineLaunch::submitted?
   "HELPER ENVOYE  X POUR VERIFIER":

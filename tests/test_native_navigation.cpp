@@ -1026,6 +1026,8 @@ int main(){
  press(triangle);finish_scan();
  assert(helper_launch==EngineLaunch::missing_file);
  assert(engine!=Link::ok); // no false privilege elevation on missing asset
+ press(cross);finish_scan(); // X must probe helper again, not only local paths
+ assert(engine==Link::offline&&available==0u&&denied==0u&&absent==0u);
  scene(canvas);
  press(r1);assert(access_page==1u);
  scene(canvas);
