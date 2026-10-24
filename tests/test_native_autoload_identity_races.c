@@ -79,6 +79,15 @@ int main(void){
  action=0;
  s=inspect(root);
  assert(s.etahen_references==1&&s.unreadable==0);
+ /* Embedded binary zero would truncate parsing to the misleading prefix.
+  * It must produce an unreadable state, never "no reference". */
+ FILE*binary=fopen(watched,"wb");assert(binary);
+ static const char binary_text[]={'#','n','o','n','e','\\0',
+   'e','t','a','H','E','N','.','e','l','f','\\n'};
+ assert(fwrite(binary_text,1,sizeof(binary_text),binary)==sizeof(binary_text));
+ assert(fclose(binary)==0);
+ s=inspect(root);
+ assert(s.unreadable==1&&s.etahen_references==0&&s.no_reference==0);
  assert(unlink(watched)==0);
  assert(rmdir(pldmgr)==0&&rmdir(data)==0&&rmdir(root)==0);
  puts("Autoload name replacement and nanosecond metadata races: PASS");

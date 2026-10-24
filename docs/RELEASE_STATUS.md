@@ -182,3 +182,9 @@ devient « unreadable / non vérifiable », et non une référence active prouv�
 Deux courses déterministes sont exécutées sur les runners hôte et sanitizers :
 renommage pendant la lecture et changement de nanoseconde avant publication.
 Aucune configuration d'autoload n'est écrite par l'application.
+
+Les diagnostics d'autoload refusent également tout fichier texte contenant un
+**octet nul interne** : aucun statut « aucune référence » ne peut être
+conclu en ignorant silencieusement les octets qui suivent. Une fixture
+vérifie le classement « non vérifiable » de ce cas, sans modifier les
+configurations de la console.

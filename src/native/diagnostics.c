@@ -96,6 +96,9 @@ static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
   if(got>0){result=2;goto done;}
   if(got<0)goto done;
  }
+ /* Configurations must be plain text. Embedded NUL makes all tokens
+  * after it invisible to the parser and can hide a live autoload entry. */
+ if(memchr(buf,0,total)!=NULL)goto done;
  if(fstat(fd,&after)==0&&
     fstatat(parent,leaf,&named,AT_SYMLINK_NOFOLLOW)==0&&
     same_diagnostic_file(&before,&after)&&
