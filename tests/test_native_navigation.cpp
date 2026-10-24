@@ -614,6 +614,14 @@ int main(){
  assert(screen==Screen::cleanup);
  finish_scan();
  assert(summary_status==Summary::ok);
+ assert(general_audit_completed&&homebrew_checked&&autoload_checked&&
+   general_games.checked);
+ assert(cleanup_page==0u);
+ scene(canvas);
+ press(r1);assert(cleanup_page==1u);
+ scene(canvas);
+ press(l1);assert(cleanup_page==0u);
+ assert(!duplicates_checked);
  assert(scan_source==ScanSource::native_title);
  assert(media_review.count==2);
  scene(canvas);
@@ -1337,7 +1345,22 @@ int main(){
   save(Screen::compression,"01d-compression-monitor");
   game_progress_checked=false;
   compression_view=0;
+  cleanup_page=0u;
   save(Screen::cleanup,"02-cleanup");
+  general_audit_completed=true;
+  general_games=GeneralGameAudit{};
+  general_games.checked=true;general_games.partial=true;
+  general_games.folder_games=2u;general_games.image_files=3u;
+  general_games.unavailable_roots=1u;
+  homebrew_checked=true;homebrew_stats=Cmp5HomebrewStats{};
+  homebrew_stats.homebrew=3u;homebrew_stats.plugins=2u;
+  homebrew_stats.app_data=1u;homebrew_stats.installed=2u;
+  autoload_checked=true;autoload_stats=Cmp5AutoloadStats{};
+  autoload_stats.checked=11u;autoload_stats.present=5u;
+  autoload_stats.unreadable=1u;
+  cleanup_page=1u;
+  save(Screen::cleanup,"02b-cleanup-domains");
+  cleanup_page=0u;
   review_query[0]=0;review_game[0]=0;
   review_type=MediaType::all;review_older=false;review_large=false;
   review_sort=MediaSort::size;review_selection=0;

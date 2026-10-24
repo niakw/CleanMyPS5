@@ -44,6 +44,20 @@ convertit pas de jeu et n'effectue aucune suppression. Les permissions
 du titre, la validation console 13.60 et les index de la Galerie
 demeurent des blocages indépendants.
 
+## Bilan Nettoyage multicatégorie (25 octobre 2026)
+
+L'écran **Nettoyage** utilise désormais les cinq inventaires de l'analyse
+générale, et pas seulement le catalogue des captures. L1/R1 ouvre une
+seconde page (apps, plugins, démarrage, jeux/images, couverture des
+sondes) ; la première garde la revue des captures et le contrôle
+volontaire des doublons. Chaque ligne distingue les données observées
+des scans absents ou partiels, sans annoncer d'espace libérable.
+La navigation et les 25 aperçus natifs sont vérifiés en CI.
+
+Aucun jeu, cache, plugin, base ni sauvegarde n'est supprimé par ce
+regroupement. Seule une catégorie démontrée sûre et réversible pourra
+ensuite être éligible à une action d'écriture.
+
 ## Portes restantes
 
 **P0 — Titre natif et droits réellement accessibles** : vérifier ultérieurement le package `.ffpkg` ou le dossier `PPSA99784/` via un gestionnaire de titres compatible, la manette, les pages et les sondes natives **sans helper** ; la connexion loopback au helper devient facultative. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.

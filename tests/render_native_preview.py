@@ -64,8 +64,8 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     traces = sorted(args.traces.glob("*.trace"))
-    if len(traces) != 24:
-        raise SystemExit(f"expected twenty-four synthetic native screens, got {len(traces)}")
+    if len(traces) != 25:
+        raise SystemExit(f"expected twenty-five synthetic native screens, got {len(traces)}")
     for path in traces:
         target = args.output / f"{path.stem}.png"
         preview(path, target)

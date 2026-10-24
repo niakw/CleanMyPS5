@@ -376,6 +376,7 @@ bool general_audit_completed=false;
  * while the worker publishes module results behind task_state. */
 std::atomic<unsigned> general_audit_stage{0};
 unsigned analyze_page=0;
+unsigned cleanup_page=0;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -1846,6 +1847,10 @@ void poll_pad() noexcept {
    analyze_page^=1u;
    continue;
   }
+  if(screen==Screen::cleanup&&(pressed&l1||pressed&r1)){
+   cleanup_page^=1u;
+   continue;
+  }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
    access_page=(pressed&r1)?
      (access_page+1u)%access_page_count:
@@ -1879,13 +1884,16 @@ void poll_pad() noexcept {
     screen=selected==0?Screen::analyze:selected==1?Screen::access:
       selected==2?Screen::cleanup:selected==3?Screen::compression:Screen::official;
     if(screen==Screen::analyze)(void)begin_task(Task::environment);
-    if(screen==Screen::cleanup)(void)begin_task(Task::overview);
+    if(screen==Screen::cleanup){
+     cleanup_page=0u;
+     (void)begin_task(Task::environment);
+    }
     if(screen==Screen::access)(void)begin_task(Task::access);
     if(screen==Screen::compression)(void)begin_task(Task::images);
    }
   }else if(pressed&cross){
    if(screen==Screen::analyze)(void)begin_task(Task::environment);
-   if(screen==Screen::cleanup)(void)begin_task(Task::overview);
+   if(screen==Screen::cleanup)(void)begin_task(Task::environment);
    if(screen==Screen::access)(void)begin_task(Task::access);
    if(screen==Screen::apps)(void)begin_task(Task::homebrew);
   }
@@ -2237,16 +2245,63 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
-  panel(canvas,355,"BILAN DES CAPTURES","ANALYSE EN COURS",Color::cyan);
-  panel(canvas,503,"LE SYSTEME RESTE RESPONSIF","CERCLE POUR RETOURNER");
+  const unsigned stage=general_audit_stage.load(std::memory_order_acquire);
+  const char*phase=stage==1u?"STOCKAGE ET PERMISSIONS":
+    stage==2u?"CAPTURES ET METADONNEES":
+    stage==3u?"APPLICATIONS ET PLUGINS":
+    stage==4u?"ELEMENTS DE DEMARRAGE":
+    stage==5u?"IMAGES ET DOSSIERS DE JEUX":"PREPARATION";
+  char progress[128]{};
+  (void)std::snprintf(progress,sizeof(progress),
+    "ETAPE %u/5  %s",stage>=1u&&stage<=5u?stage:0u,phase);
+  panel(canvas,355,"BILAN GENERAL DU STOCKAGE",progress,Color::cyan);
+  panel(canvas,503,"ANALYSE NON DESTRUCTIVE",
+    "RESULTATS PUBLIES APRES FIN DES CINQ MODULES");
   panel(canvas,799,"PROTECTION","LECTURE SEULE  AUCUNE SUPPRESSION",Color::yellow);
-  footer(canvas,"ANALYSE EN COURS    CERCLE RETOUR");
+  footer(canvas,"ANALYSE EN COURS  CERCLE ANNULER ET RETOUR");
   return;
  }
  if(task_failed()||task_cancelled()){
   panel(canvas,355,task_cancelled()?"ANALYSE ANNULEE":"ANALYSE NON LANCEE",
    "AUCUN RESULTAT UTILISABLE",Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
+ if(cleanup_page==1u){
+  char result[144]{};
+  if(general_audit_completed&&homebrew_checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u APPS  %u PLUGINS  %u DONNEES  %u INSTALLES%s",
+    homebrew_stats.homebrew,homebrew_stats.plugins,
+    homebrew_stats.app_data,homebrew_stats.installed,
+    homebrew_stats.partial?"  PARTIEL":"");
+  else (void)std::snprintf(result,sizeof(result),"INVENTAIRE NON VERIFIE");
+  panel(canvas,355,"APPLICATIONS ET EXTENSIONS",result,Color::yellow);
+  if(general_audit_completed&&autoload_checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u/%u PRESENTS  %u ILLISIBLES  %u TROP GRANDS",
+    autoload_stats.present,autoload_stats.checked,
+    autoload_stats.unreadable,autoload_stats.oversized);
+  else (void)std::snprintf(result,sizeof(result),
+    "ELEMENTS DE DEMARRAGE NON VERIFIES");
+  panel(canvas,503,"DEMARRAGE ET CONFIGURATION",result,Color::yellow);
+  if(general_audit_completed&&general_games.checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u DOSSIERS  %u IMAGES  %u RACINES INACCESSIBLES%s",
+    general_games.folder_games,general_games.image_files,
+    general_games.unavailable_roots,general_games.partial?"  PARTIEL":"");
+  else (void)std::snprintf(result,sizeof(result),
+    "JEUX ET IMAGES NON VERIFIES");
+  panel(canvas,651,"JEUX ET IMAGES",result,Color::yellow);
+  const LocalCoverage scope=summarize_local_coverage(
+    local_probe,local_path_count,local_checked);
+  (void)std::snprintf(result,sizeof(result),
+    "SONDES %s  CAPTURES %s  LIBERABLE: NON ETABLI",
+    !local_checked?"INCONNUES":scope.partial?"PARTIELLES":"OBSERVEES",
+    summary_status!=Summary::ok?"NON DISPONIBLES":
+      summary_partial?"PARTIELLES":"OBSERVEES");
+  panel(canvas,799,"COUVERTURE ET ESPACE LIBERABLE",result,Color::yellow);
+  footer(canvas,"L1/R1 CAPTURES   X ANALYSE GENERALE   AUCUNE SUPPRESSION");
   return;
  }
  if(summary_status==Summary::ok){
@@ -2289,9 +2344,9 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  canvas.rectangle(95,950,1730,96,Color::panel);
  char native_catalog[110]{};
  (void)std::snprintf(native_catalog,sizeof(native_catalog),
-   "CARRE CATALOGUE (%u NATIFS)   TRIANGLE DOUBLONS   X SCAN",media_review.count);
+   "CARRE CATALOGUE (%u NATIFS)  TRIANGLE DOUBLONS  L1/R1 AUTRES",media_review.count);
  canvas.text(125,963,native_catalog,3,Color::white);
- canvas.text(125,1005,"CERCLE RETOUR   LECTURE SEULE   AUCUNE SUPPRESSION",3,Color::cyan);
+ canvas.text(125,1005,"X ANALYSE GENERALE   CERCLE RETOUR   AUCUNE SUPPRESSION",3,Color::cyan);
 }
 void show_review(ps5::demo::Canvas&canvas) noexcept {
  if(!media_review.count){
