@@ -56,6 +56,24 @@ with tempfile.TemporaryDirectory() as scratch:
         check=True,text=True,capture_output=True,timeout=20
     )
     assert "damaged sidecar does not conceal healthy captures" in damaged_result.stdout
+    # The display-name cache is intentionally capped at 128 distinct
+    # titles. The 129th must report PARTIAL, never silently lose labels
+    # while asserting a complete catalog.
+    title_root=root/"many-gallery-titles"
+    title_photo=title_root/"user/av_contents/photo/NPXS00000"
+    title_video=title_root/"user/av_contents/video"
+    title_video.mkdir(parents=True)
+    for i in range(130):
+        name_dir=title_photo/f"GAME{i:05d}"
+        name_dir.mkdir(parents=True)
+        (name_dir/"caption.dat").write_bytes(
+            b"\\x00"*0x44+f"Game {i:05d}".encode("ascii")+b"\\x00"
+        )
+    cap_result=subprocess.run(
+        [sys.argv[1],str(title_root),"sidecar-cap"],
+        check=True,text=True,capture_output=True,timeout=20
+    )
+    assert "sidecar title limit signals incomplete coverage" in cap_result.stdout
     # A fresh workspace with NONE of the configured known roots is not a
     # successful inventory with zero captures. Assert "partial" on macOS
     # and Linux, with no dependence on system permissions.
