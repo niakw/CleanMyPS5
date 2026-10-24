@@ -170,3 +170,15 @@ des snapshots périmés et liens physiques. La suite existante de lecture
 MP4/WebM, avec conteneurs malformés, complète également la matrice hôte.
 Les tests natifs incluant décodage JPEG/PNG/JXR et packaging PS5 restent
 maintenus : aucun test hôte ne remplace une preuve matérielle 13.60.
+
+### Autoload : diagnostics résistants au remplacement de fichier
+
+Le lecteur natif conserve le descripteur du répertoire parent et revalide,
+après la lecture, l'identité du fichier sous son **nom actuel**, et pas
+seulement celle du descripteur déjà ouvert. Les contrôles comparent mode,
+liens, taille, inode/périphérique ainsi que mtime et ctime à la nanoseconde.
+En cas de remplacement du chemin ou d'une modification très rapide, l'état
+devient « unreadable / non vérifiable », et non une référence active prouvée.
+Deux courses déterministes sont exécutées sur les runners hôte et sanitizers :
+renommage pendant la lecture et changement de nanoseconde avant publication.
+Aucune configuration d'autoload n'est écrite par l'application.

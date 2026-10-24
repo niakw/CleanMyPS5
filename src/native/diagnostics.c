@@ -31,62 +31,79 @@ static char*trim(char*p){
  while(n&&isspace((unsigned char)p[n-1]))p[--n]=0;
  return p;
 }
+/* Compare both an open descriptor and its directory entry, including
+ * subsecond timestamps. A successful read must still refer to the
+ * CURRENT file under the selected autoload name. */
+static int same_diagnostic_file(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ const int nanos=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+   a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nanos=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+   a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nanos&&S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
+   a->st_nlink==1&&b->st_nlink==1&&
+   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode;
+}
 static int safe_read(const char*root,const char*rel,char*buf,size_t cap){
- /* Open every descendant relative to an already opened directory. A
-  * pathname checked with lstat() and reopened later can be replaced with
-  * a symlink in between; O_NOFOLLOW at the final leaf is not enough.
-  * Return 0 for missing, 1 for valid, 2 for oversized, -1 for unsafe.
-  */
+ /* Bounded, read-only traversal. Hold the final PARENT directory open
+  * until after the last byte was read, then verify the selected filename
+  * still references the same inode. A stale descriptor is not sufficient.
+  * Return 0 missing, 1 valid, 2 oversized, -1 unsafe or changed. */
  if(!root||!rel||!buf||cap<2)return -1;
  size_t n=strlen(rel);
  if(n==0||n>=PATH_CAP||rel[0]=='/'||rel[n-1]=='/')return -1;
- char parts[PATH_CAP];
- memcpy(parts,rel,n+1);
+ for(size_t i=0;i<n;i++)
+  if(rel[i]=='\\'||(i&&rel[i]=='/'&&rel[i-1]=='/'))return -1;
+ char parts[PATH_CAP];memcpy(parts,rel,n+1);
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0)return -1;
  char*save=NULL;
  char*part=strtok_r(parts,"/",&save);
  if(!part){close(fd);return -1;}
+ int parent=-1;
+ const char*leaf=NULL;
  for(;;){
   if(part[0]=='.'){close(fd);return -1;}
   char*next=strtok_r(NULL,"/",&save);
   int child=openat(fd,part,O_RDONLY|O_NOFOLLOW|
     (next?O_DIRECTORY:O_NONBLOCK));
   const int error=errno;
-  close(fd);
-  if(child<0)return error==ENOENT?0:-1;
-  fd=child;
-  if(!next)break;
-  part=next;
+  if(child<0){close(fd);return error==ENOENT?0:-1;}
+  if(!next){parent=fd;leaf=part;fd=child;break;}
+  close(fd);fd=child;part=next;
  }
- struct stat before,after;
+ int result=-1;
+ struct stat before,after,named;
  if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
-    before.st_nlink!=1||before.st_size<0){close(fd);return -1;}
- if((uint64_t)before.st_size>cap-1){close(fd);return 2;}
+    before.st_nlink!=1||before.st_size<0)goto done;
+ if((uint64_t)before.st_size>cap-1){result=2;goto done;}
  size_t total=0;
  while(total<cap-1){
   ssize_t got=read(fd,buf+total,cap-1-total);
-  if(got<0){if(errno==EINTR)continue;close(fd);return -1;}
+  if(got<0){if(errno==EINTR)continue;goto done;}
   if(got==0)break;
   total+=(size_t)got;
  }
  if(total==cap-1){
-  char extra;
-  ssize_t got;
+  char extra;ssize_t got;
   do{got=read(fd,&extra,1);}while(got<0&&errno==EINTR);
-  if(got>0){close(fd);return 2;}
-  if(got<0){close(fd);return -1;}
+  if(got>0){result=2;goto done;}
+  if(got<0)goto done;
  }
- const int stable=fstat(fd,&after)==0&&
-   S_ISREG(after.st_mode)&&after.st_nlink==1&&
-   before.st_dev==after.st_dev&&before.st_ino==after.st_ino&&
-   before.st_size==after.st_size&&
-   before.st_mtime==after.st_mtime&&before.st_ctime==after.st_ctime&&
-   (uint64_t)after.st_size==total;
- close(fd);
- if(!stable)return -1;
- buf[total]=0;
- return 1;
+ if(fstat(fd,&after)==0&&
+    fstatat(parent,leaf,&named,AT_SYMLINK_NOFOLLOW)==0&&
+    same_diagnostic_file(&before,&after)&&
+    same_diagnostic_file(&before,&named)&&
+    (uint64_t)after.st_size==total){
+   buf[total]=0;result=1;
+ }
+done:
+ close(fd);close(parent);
+ return result;
 }
 static const char *analyze(char *bytes,int toolbox){
  const char *status=toolbox?"unknown":"no-reference";

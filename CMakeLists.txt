@@ -43,6 +43,18 @@ add_executable(cmp5-native-homebrew-tests tests/test_native_homebrew.c src/nativ
 target_include_directories(cmp5-native-homebrew-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
 add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py $<TARGET_FILE:cmp5-native-homebrew-tests>)
 
+# Deterministic identity races: replacement by rename or in-place
+# metadata mutation between read and publication must fail closed.
+add_executable(cmp5-native-autoload-identity-races
+ tests/test_native_autoload_identity_races.c)
+target_include_directories(cmp5-native-autoload-identity-races PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-native-autoload-identity-races PRIVATE
+   -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native_autoload_identity_races
+ COMMAND cmp5-native-autoload-identity-races)
+
 # Reuse the production autoload scanner in native title and helper. Verify
 # aggregate counts without exposing config contents or enabling writes.
 add_executable(cmp5-native-autoload-tests
