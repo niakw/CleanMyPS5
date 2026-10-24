@@ -14,7 +14,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
+static int simulate_abrupt_exit(void*unused){
+ (void)unused;
+ _exit(77); /* hard process exit after fsync of two-name checkpoint */
+}
+static void expect_child_crash(pid_t pid){
+ assert(pid>0);
+ int status=0;
+ assert(waitpid(pid,&status,0)==pid);
+ assert(WIFEXITED(status)&&WEXITSTATUS(status)==77);
+}
+
 static void equal(const char*a,const char*b){
  FILE*left=fopen(a,"rb"),*right=fopen(b,"rb");
  assert(left&&right);
@@ -59,6 +71,45 @@ int main(int argc,char**argv){
  assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
  assert(access(held,F_OK)!=0);equal(gallery,src);
  assert(!cmp5_private_lab_recover(lab,"ITEM",backup,"ONE"));
+ /* A hard exit after the durable two-name checkpoint must not silently
+  * pick a winner. Explicitly resolve only after verifying two equal
+  * hardlinks against the original independent SHA-256 capsule. */
+ pid_t child=fork();
+ assert(child>=0);
+ if(child==0){
+  (void)cmp5_private_lab_hold_checkpoint(lab,"ITEM",backup,"ONE",
+    trial,"TRIAL2",simulate_abrupt_exit,NULL);
+  _exit(79);
+ }
+ expect_child_crash(child);
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_AMBIGUOUS);
+ assert(!cmp5_private_lab_hold(lab,"ITEM",backup,"ONE",trial,"TRIAL3"));
+ assert(!cmp5_private_lab_recover(lab,"ITEM",backup,"ONE"));
+ assert(!cmp5_private_lab_resolve_interrupted(lab,"ITEM",backup,
+   "ONE",(Cmp5LabResolution)0));
+ assert(cmp5_private_lab_resolve_interrupted(lab,"ITEM",backup,
+   "ONE",CMP5_LAB_KEEP_SOURCE));
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
+ assert(!cmp5_private_lab_resolve_interrupted(lab,"ITEM",backup,
+   "ONE",CMP5_LAB_KEEP_HELD));
+ /* Simulate a second crash, this time during restoration back to source. */
+ assert(cmp5_private_lab_hold(lab,"ITEM",backup,"ONE",trial,"TRIAL3"));
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_HELD_ONLY);
+ child=fork();
+ assert(child>=0);
+ if(child==0){
+  (void)cmp5_private_lab_recover_checkpoint(lab,"ITEM",backup,"ONE",
+    simulate_abrupt_exit,NULL);
+  _exit(79);
+ }
+ expect_child_crash(child);
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_AMBIGUOUS);
+ assert(cmp5_private_lab_resolve_interrupted(lab,"ITEM",backup,
+   "ONE",CMP5_LAB_KEEP_HELD));
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_HELD_ONLY);
+ assert(cmp5_private_lab_recover(lab,"ITEM",backup,"ONE"));
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
+ equal(gallery,src);
  /* A changed source is not eligible to be quarantined just because
   * an old backup exists. */
  int altered=open(src,O_WRONLY|O_NOFOLLOW);

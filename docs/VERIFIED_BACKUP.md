@@ -75,6 +75,25 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
 
+## Reprise dirigée après interruption dans le laboratoire
+
+Le moteur hôte possède désormais deux points de coupure exercés avec
+`fork`/`_exit` **après synchronisation des deux liens**, pendant la mise en
+quarantaine et pendant le retour à la source. Après redémarrage, ces
+transactions sont signalées comme **ambiguës** : aucun nettoyage automatique
+ni conclusion de succès. Une API explicite de résolution accepte uniquement
+un choix du demandeur (conserver le nom source ou conserver le nom de
+quarantaine), après vérification des deux noms sur le **même inode régulier
+privé**, exactement deux liens physiques, une capsule externe SHA-256
+valide et des contenus intégralement identiques. L'autre nom est retiré
+uniquement après vérification et synchronisation. Liens symboliques,
+collisions, répertoires publics, noms divergents et sauvegardes modifiées
+restent refusés.
+
+L'API n'est liée ni au titre PS5, ni au helper ni à la Galerie. La réussite
+du scénario simulé ne prouve pas la reprise après une panne électrique sur
+le système de fichiers réel de la console.
+
 ## Transaction de quarantaine : preuve hôte isolée (25 octobre 2026)
 
 Une première chaîne **complète mais uniquement expérimentale** s'exécute

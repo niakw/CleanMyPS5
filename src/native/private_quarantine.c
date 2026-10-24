@@ -87,14 +87,14 @@ static int dir_current(int dir,const char*path){
  close(next);return ok;
 }
 static int hash_file_at(int dir,const char*name,
- const Cmp5BackupReceipt*receipt,struct stat*identity){
+ const Cmp5BackupReceipt*receipt,struct stat*identity,unsigned links){
  if(!receipt||!receipt->published||!receipt->bytes)return 0;
  int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0)return 0;
  struct stat before={0},after={0},named={0};
  int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
    before.st_uid==geteuid()&&(before.st_mode&077)==0&&
-   before.st_nlink==1&&before.st_size>0&&
+   before.st_nlink==(nlink_t)links&&before.st_size>0&&
    (uint64_t)before.st_size==receipt->bytes;
  Cmp5Sha256 sha;cmp5_sha256_init(&sha);
  unsigned char buffer[CHUNK];
@@ -122,9 +122,10 @@ static int distinct(int left,int right){
  return fstat(left,&a)==0&&fstat(right,&b)==0&&
    (a.st_dev!=b.st_dev||a.st_ino!=b.st_ino);
 }
-int cmp5_private_lab_hold(const char*lab,const char*item,
+int cmp5_private_lab_hold_checkpoint(const char*lab,const char*item,
  const char*backup,const char*backup_id,
- const char*rehearsal,const char*rehearsal_id){
+ const char*rehearsal,const char*rehearsal_id,
+ Cmp5LabCheckpoint checkpoint,void*context){
  if(!valid_id(item)||!valid_id(rehearsal_id)||
     !lab||!backup||!rehearsal||!backup_id)return 0;
  int source=open_lab(lab);
@@ -138,7 +139,7 @@ int cmp5_private_lab_hold(const char*lab,const char*item,
  if(test>=0)close(test);
  Cmp5BackupReceipt saved={0},trial={0};
  if(ok)ok=cmp5_verify_backup(backup,backup_id,&saved,NULL,NULL)&&
-   hash_file_at(source,item,&saved,NULL);
+   hash_file_at(source,item,&saved,NULL,1u);
  /* Rehearse actual content restoration before touching the lab source.
   * The separate private rehearsal is never the PS5 Gallery. */
  if(ok)ok=cmp5_restore_backup(backup,backup_id,rehearsal,rehearsal_id,
@@ -147,12 +148,12 @@ int cmp5_private_lab_hold(const char*lab,const char*item,
  int rehearsal_fd=-1;
  if(ok)rehearsal_fd=cmp5_open_private_workspace(rehearsal);
  if(ok)ok=rehearsal_fd>=0&&
-   hash_file_at(rehearsal_fd,rehearsal_id,&saved,NULL);
+   hash_file_at(rehearsal_fd,rehearsal_id,&saved,NULL,1u);
  if(rehearsal_fd>=0)close(rehearsal_fd);
  struct stat before={0},created={0},named={0};
  if(ok)ok=cmp5_verify_backup(backup,backup_id,NULL,NULL,NULL)&&
    state_at(source,item)==CMP5_LAB_SOURCE_ONLY&&
-   hash_file_at(source,item,&saved,&before)&&dir_current(source,lab);
+   hash_file_at(source,item,&saved,&before,1u)&&dir_current(source,lab);
  char held[48];held_name(held,item);
  if(ok)ok=linkat(source,item,source,held,0)==0;
  /* If an interruption happens between link and unlink, BOTH names
@@ -162,13 +163,15 @@ int cmp5_private_lab_hold(const char*lab,const char*item,
    same_inode(&before,&created)&&same_inode(&before,&named)&&
    created.st_nlink==2&&named.st_nlink==2&&
    dir_current(source,lab)&&fsync(source)==0;
+ if(ok&&checkpoint&&checkpoint(context))ok=0;
  if(ok)ok=unlinkat(source,item,0)==0&&fsync(source)==0&&
    state_at(source,item)==CMP5_LAB_HELD_ONLY&&
-   hash_file_at(source,held,&saved,NULL)&&dir_current(source,lab);
+   hash_file_at(source,held,&saved,NULL,1u)&&dir_current(source,lab);
  close(source);return ok;
 }
-int cmp5_private_lab_recover(const char*lab,const char*item,
- const char*backup,const char*backup_id){
+int cmp5_private_lab_recover_checkpoint(const char*lab,const char*item,
+ const char*backup,const char*backup_id,
+ Cmp5LabCheckpoint checkpoint,void*context){
  if(!valid_id(item)||!lab||!backup||!backup_id)return 0;
  int dir=open_lab(lab);
  if(dir<0)return 0;
@@ -180,15 +183,69 @@ int cmp5_private_lab_recover(const char*lab,const char*item,
  if(ok)ok=cmp5_verify_backup(backup,backup_id,&saved,NULL,NULL);
  char held[48];held_name(held,item);
  struct stat before={0},created={0},named={0};
- if(ok)ok=hash_file_at(dir,held,&saved,&before)&&dir_current(dir,lab);
+ if(ok)ok=hash_file_at(dir,held,&saved,&before,1u)&&dir_current(dir,lab);
  if(ok)ok=linkat(dir,held,dir,item,0)==0;
  if(ok)ok=fstatat(dir,item,&created,AT_SYMLINK_NOFOLLOW)==0&&
    fstatat(dir,held,&named,AT_SYMLINK_NOFOLLOW)==0&&
    same_inode(&before,&created)&&same_inode(&before,&named)&&
    created.st_nlink==2&&named.st_nlink==2&&
    dir_current(dir,lab)&&fsync(dir)==0;
+ if(ok&&checkpoint&&checkpoint(context))ok=0;
  if(ok)ok=unlinkat(dir,held,0)==0&&fsync(dir)==0&&
    state_at(dir,item)==CMP5_LAB_SOURCE_ONLY&&
-   hash_file_at(dir,item,&saved,NULL)&&dir_current(dir,lab);
+   hash_file_at(dir,item,&saved,NULL,1u)&&dir_current(dir,lab);
  close(dir);return ok;
+}
+
+// Normal public entrypoints require the same independent evidence but no
+// synthetic test checkpoint. They never resolve double-linked states.
+int cmp5_private_lab_hold(const char*lab,const char*item,
+ const char*backup,const char*backup_id,
+ const char*rehearsal,const char*rehearsal_id){
+ return cmp5_private_lab_hold_checkpoint(lab,item,backup,backup_id,
+   rehearsal,rehearsal_id,NULL,NULL);
+}
+int cmp5_private_lab_recover(const char*lab,const char*item,
+ const char*backup,const char*backup_id){
+ return cmp5_private_lab_recover_checkpoint(lab,item,backup,backup_id,
+   NULL,NULL);
+}
+/* A manual, explicitly directed transition resolution is permitted ONLY
+ * for two names on one same regular, private inode with EXACTLY two links.
+ * No regular alias, symlink or second inode can be "recovered" this way.
+ * It cannot be triggered by the read-only scanners or a PS5 UI event. */
+int cmp5_private_lab_resolve_interrupted(const char*lab,const char*item,
+ const char*backup,const char*backup_id,Cmp5LabResolution resolution){
+ if(!valid_id(item)||(resolution!=CMP5_LAB_KEEP_SOURCE&&
+     resolution!=CMP5_LAB_KEEP_HELD)||!lab||!backup||!backup_id)return 0;
+ int dir=open_lab(lab);
+ if(dir<0)return 0;
+ int copies=cmp5_open_private_workspace(backup);
+ int ok=copies>=0&&distinct(dir,copies)&&
+   state_at(dir,item)==CMP5_LAB_AMBIGUOUS;
+ if(copies>=0)close(copies);
+ Cmp5BackupReceipt saved={0};
+ if(ok)ok=cmp5_verify_backup(backup,backup_id,&saved,NULL,NULL);
+ char held[48];held_name(held,item);
+ struct stat initial={0},other={0};
+ if(ok)ok=hash_file_at(dir,item,&saved,&initial,2u)&&
+   hash_file_at(dir,held,&saved,&other,2u)&&
+   same_inode(&initial,&other)&&
+   initial.st_nlink==2&&other.st_nlink==2&&
+   same_snapshot(&initial,&other)&&
+   dir_current(dir,lab);
+ /* No mutation until the user-requested destination has been proved,
+  * both filenames are still identical and metadata is durable. */
+ if(ok)ok=fsync(dir)==0;
+ if(ok){
+  const char*remove_name=resolution==CMP5_LAB_KEEP_SOURCE?held:item;
+  ok=unlinkat(dir,remove_name,0)==0;
+ }
+ if(ok)ok=fsync(dir)==0&&dir_current(dir,lab)&&
+   state_at(dir,item)==(resolution==CMP5_LAB_KEEP_SOURCE?
+     CMP5_LAB_SOURCE_ONLY:CMP5_LAB_HELD_ONLY)&&
+   hash_file_at(dir,resolution==CMP5_LAB_KEEP_SOURCE?item:held,
+     &saved,NULL,1u);
+ close(dir);
+ return ok;
 }
