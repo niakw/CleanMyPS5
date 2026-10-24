@@ -12,6 +12,7 @@ on:
       - tests/test_gallery_thumbnail_denied.c
       - tests/test_gallery_thumbnail_backup.c
       - tests/test_gallery_thumbnail_backup.py
+      - tests/test_private_workspace_capacity.c
       - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
@@ -138,6 +139,11 @@ jobs:
             src/native/verified_backup.c src/native/sha256.c \
             -o /tmp/cmp5-gallery-private-backup
           python3 tests/test_gallery_thumbnail_backup.py /tmp/cmp5-gallery-private-backup
+      - name: Fail closed on insufficient space for private backup and restore
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_private_workspace_capacity.c -o /tmp/cmp5-private-capacity
+          /tmp/cmp5-private-capacity
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb
