@@ -1,6 +1,9 @@
 #define _DEFAULT_SOURCE
 /* Deterministic host-only autoload rename and subsecond mutation races.
  * The diagnostic reader never writes; only this fixture injects changes. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -12,9 +15,6 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
 static char watched[PATH_MAX],moved[PATH_MAX];
 static int action,triggered;
 static ssize_t diagnostic_race_read(int fd,void*buffer,size_t count){
