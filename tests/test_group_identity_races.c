@@ -62,6 +62,26 @@ static int remove_marker_during_member_verification(void*context){
  }
  return 0; /* Do not cancel: identity checks must detect the rename. */
 }
+/* Rename the selected workspace while a verifier still holds a valid
+ * descriptor to it, then recreate an empty directory at the OLD name. */
+typedef struct {
+ const char*original;
+ char relocated[1024];
+ unsigned calls;
+ int moved;
+} WorkspaceSwap;
+static int swap_workspace_during_verify(void*ctx){
+ WorkspaceSwap*state=(WorkspaceSwap*)ctx;
+ if(++state->calls==2u){
+  int n=snprintf(state->relocated,sizeof(state->relocated),
+    "%s.relocated",state->original);
+  assert(n>0&&(size_t)n<sizeof(state->relocated));
+  assert(rename(state->original,state->relocated)==0);
+  assert(mkdir(state->original,0700)==0);
+  state->moved=1;
+ }
+ return 0; /* Do not cancel: the verifier must see the changed path itself. */
+}
 static void write_member(int dir,const char*filename,const void*data,size_t len){
  int fd=openat(dir,filename,O_CREAT|O_WRONLY|O_EXCL,0600);
  assert(fd>=0);
@@ -136,6 +156,14 @@ int main(int argc,char**argv){
  assert(rename(moved,watched)==0);
  assert(cmp5_verify_restored_group(workspace,"ALBUM",&result,NULL,NULL));
  assert(result.count==2u&&result.bytes==lens[0]+lens[1]);
+ WorkspaceSwap swapped={0};swapped.original=workspace;
+ assert(!cmp5_verify_restored_group(workspace,"ALBUM",&result,
+    swap_workspace_during_verify,&swapped));
+ assert(swapped.moved&&swapped.calls>=2u);
+ /* Restore the exact original, never silently operate on its replacement. */
+ assert(rmdir(workspace)==0);
+ assert(rename(swapped.relocated,workspace)==0);
+ assert(cmp5_verify_restored_group(workspace,"ALBUM",&result,NULL,NULL));
  for(unsigned i=0;i<2;i++){
   char name[48];member_name(name,"BACKUP",i);
   write_capsule(dir,name,data[i],lens[i],receipts[i].sha256);

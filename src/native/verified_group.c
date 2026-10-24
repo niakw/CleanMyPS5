@@ -71,6 +71,23 @@ static int same_file(const struct stat*a,const struct stat*b){
   a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode&&
   a->st_nlink==b->st_nlink;
 }
+/* A descriptor survives rename/unlink of its pathname. Do not report a
+ * verified group for bytes in an orphaned directory when the caller's
+ * selected private workspace now names another one (or no directory). */
+static int workspace_unchanged(int dir,const char*path,
+                               const struct stat*initial){
+ struct stat anchored,current,named;
+ if(fstat(dir,&anchored)!=0||!same_file(initial,&anchored))return 0;
+ int reopened=safe_dir(path);
+ if(reopened<0)return 0;
+ const int ok=fstat(reopened,&current)==0&&
+   same_file(initial,&current)&&
+   anchored.st_dev==current.st_dev&&anchored.st_ino==current.st_ino;
+ close(reopened);
+ if(!ok)return 0;
+ /* The original fd is the trusted anchor, not a stale pathname. */
+ return fstat(dir,&named)==0&&same_file(initial,&named);
+}
 static int read_exact(int fd,uint8_t*p,size_t n){
  while(n){ssize_t r=read(fd,p,n);
   if(r<0&&errno==EINTR)continue;
@@ -188,6 +205,8 @@ int cmp5_verify_group(const char*workspace,const char*id,
  if(!valid_id(id)||cancelled(cancel,ctx))return 0;
  int dir=safe_dir(workspace);
  if(dir<0)return 0;
+ struct stat dir_before={0};
+ if(fstat(dir,&dir_before)!=0){close(dir);return 0;}
  uint8_t marker[MARK_SIZE];Cmp5BackupReceipt part[CMP5_GROUP_MAX];
  Cmp5GroupReceipt found;uint32_t count=0;
  int ok=read_manifest(dir,id,0,marker,part,&count,&found);
@@ -209,7 +228,8 @@ int cmp5_verify_group(const char*workspace,const char*id,
   ok=read_manifest(dir,id,0,final_marker,final_part,&final_count,NULL)&&
    final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
    verification_namespace_clean(dir,id,0,count)&&
-   !cancelled(cancel,ctx);
+   !cancelled(cancel,ctx)&&
+   workspace_unchanged(dir,workspace,&dir_before);
  }
  close(dir);
  if(ok&&r)*r=found;
@@ -327,6 +347,8 @@ int cmp5_verify_restored_group(const char*workspace,const char*id,
  if(r)memset(r,0,sizeof(*r));
  if(!valid_id(id)||cancelled(cancel,ctx))return 0;
  int dir=safe_dir(workspace);if(dir<0)return 0;
+ struct stat dir_before={0};
+ if(fstat(dir,&dir_before)!=0){close(dir);return 0;}
  uint8_t marker[MARK_SIZE];Cmp5BackupReceipt parts[CMP5_GROUP_MAX];
  Cmp5GroupReceipt result;uint32_t count=0;
  int ok=read_manifest(dir,id,1,marker,parts,&count,&result);
@@ -343,7 +365,8 @@ int cmp5_verify_restored_group(const char*workspace,const char*id,
   ok=read_manifest(dir,id,1,final_marker,final_parts,&final_count,NULL)&&
    final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
    verification_namespace_clean(dir,id,1,count)&&
-   !cancelled(cancel,ctx);
+   !cancelled(cancel,ctx)&&
+   workspace_unchanged(dir,workspace,&dir_before);
  }
  close(dir);if(ok&&r)*r=result;return ok;
 }

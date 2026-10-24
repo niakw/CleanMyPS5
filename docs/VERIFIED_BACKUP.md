@@ -167,3 +167,16 @@ possède un curseur indépendant ; `closedir` est également contrôlé.
 Un test hôte épuise volontairement le curseur du descripteur initial puis
 vérifie que les deux audits voient toujours les entrées supplémentaires.
 Aucun fichier de la Galerie n'est modifié par ces audits.
+
+### Identité du dossier pendant les vérifications de groupe
+
+Une vérification de capsules peut conserver un descripteur valide alors
+que le **chemin d'espace privé** a été renommé et réattribué. Les deux
+vérificateurs directs (`__COMMIT` et `__RESTORED`) enregistrent
+maintenant l'identité POSIX complète du dossier au départ, puis rouvrent
+le chemin privé sélectionné après les contrôles SHA-256, avant de rendre
+un reçu. Inode, périphérique, mode et horodatages du dossier doivent
+rester identiques à ceux du descripteur initial. Un test remplace
+réellement le répertoire privé au cours de la vérification et exige un
+refus, même si les anciens fichiers ouverts étaient encore lisibles.
+Cette vérification ne constitue pas une transaction des index Sony.
