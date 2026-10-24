@@ -473,6 +473,11 @@ int main(){
  roots[5].status=LocalAccess::listable;
  LocalCoverage coverage=summarize_local_coverage(roots,local_path_count,true);
  assert(!coverage.partial&&coverage.opened==1u&&coverage.listable==5u);
+ /* An optional missing USB port must not invalidate gallery coverage. */
+ roots[6].status=LocalAccess::missing;
+ coverage=summarize_local_coverage(roots,local_path_count,true);
+ assert(!coverage.partial&&coverage.missing==0u);
+ roots[6]=LocalProbe{};
  assert(coverage.entries==10u&&!coverage.missing&&!coverage.denied);
  assert(summarize_local_coverage(roots,local_path_count,false).partial);
  assert(summarize_local_coverage(roots,3u,true).partial);
@@ -1045,7 +1050,13 @@ int main(){
  scene(canvas);
  press(r1);assert(access_page==1u);
  scene(canvas);
+ press(r1);assert(access_page==2u);
+ scene(canvas);
+ press(l1);assert(access_page==1u);
  press(l1);assert(access_page==0u);
+ press(l1);assert(access_page==access_page_count-1u);
+ scene(canvas);
+ press(r1);assert(access_page==0u);
  press(square);
  assert(screen==Screen::apps);
  finish_scan();
