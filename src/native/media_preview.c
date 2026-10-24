@@ -44,7 +44,7 @@ uint8_t *cmp5_read_photo_snapshot(const char *root,
  const int jxr=strcasecmp(extension,".jxr")==0;
  const int png=strcasecmp(extension,".png")==0;
  const int jpeg=strcasecmp(extension,".jpg")==0||strcasecmp(extension,".jpeg")==0;
- if(!jxr&&!png&&!jpeg||
+ if((!jxr&&!png&&!jpeg)||
     candidate->bytes>(jxr?512ULL*1024ULL*1024ULL:CMP5_PREVIEW_FILE_CAP))return NULL;
  char copy[PATH_LIMIT];
  memcpy(copy,path+1,n);copy[n-1]=0;
