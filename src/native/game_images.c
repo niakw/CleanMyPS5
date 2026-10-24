@@ -83,16 +83,25 @@ static int open_child_path(int anchor,const char*relative){
 /* Real exFAT homebrew dumps are commonly DIRECTORIES, not files called
  * *.exfat. Detect an eboot + sce_sys combination without reading game data.
  * Do not report a folder's total unless the bounded traversal completed. */
-static int game_root(int parent,const char*name){
+static int game_root(Audit*a,int parent,const char*name){
  int fd=openat(parent,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(fd<0)return -1;
+ if(fd<0){
+  /* A directory visible in the parent cannot be silently skipped. */
+  a->stats->partial=1;return -1;
+ }
  struct stat eboot,meta;
- if(fstatat(fd,"eboot.bin",&eboot,AT_SYMLINK_NOFOLLOW)!=0||
-    !S_ISREG(eboot.st_mode)||eboot.st_nlink!=1||
-    fstatat(fd,"sce_sys",&meta,AT_SYMLINK_NOFOLLOW)!=0||
-    !S_ISDIR(meta.st_mode)){
+ if(fstatat(fd,"eboot.bin",&eboot,AT_SYMLINK_NOFOLLOW)!=0){
+  if(errno!=ENOENT)a->stats->partial=1;
   close(fd);return -1;
  }
+ if(!S_ISREG(eboot.st_mode)||eboot.st_nlink!=1){
+  close(fd);return -1;
+ }
+ if(fstatat(fd,"sce_sys",&meta,AT_SYMLINK_NOFOLLOW)!=0){
+  if(errno!=ENOENT)a->stats->partial=1;
+  close(fd);return -1;
+ }
+ if(!S_ISDIR(meta.st_mode)){close(fd);return -1;}
  return fd;
 }
 static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
@@ -209,7 +218,7 @@ static void sort_shortlist(Cmp5GameImageStats*s){
 }
 static void scan_game_folder(Audit*a,int parent,
                              const char*relative,const char*name){
- const int folder=game_root(parent,name);
+ const int folder=game_root(a,parent,name);
  if(folder<0)return; /* Not a recognized homebrew game directory. */
  struct stat before,after,named;
  int stable=fstat(folder,&before)==0;
@@ -280,8 +289,12 @@ static void scan_one(Audit*a,int parent,const char*relative){
   if(kind<0){
    /* One level of recognized dump folders only. No blind SSD recursion. */
    struct stat candidate;
-   if(fstatat(fd,e->d_name,&candidate,AT_SYMLINK_NOFOLLOW)==0&&
-      S_ISDIR(candidate.st_mode))scan_game_folder(a,fd,relative,e->d_name);
+   if(fstatat(fd,e->d_name,&candidate,AT_SYMLINK_NOFOLLOW)!=0){
+    /* An unrecognized suffix may hide a game directory. */
+    a->stats->partial=1;continue;
+   }
+   if(S_ISDIR(candidate.st_mode))
+    scan_game_folder(a,fd,relative,e->d_name);
    continue;
   }
   struct stat before,after;

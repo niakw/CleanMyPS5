@@ -265,6 +265,15 @@ synthétiques et le maintien des exclusions de sauvegardes/configurations.
 Les chiffres restent **nominaux et observés**, pas une quantité de stockage
 récupérable ; aucune suppression ni désinstallation n'a été activée.
 
+### Scanner de jeux : erreurs d'accès (24 octobre 2026)
+
+Une erreur de `fstatat` pour un nom sans extension ou de `openat`
+pour un dossier déjà observé peut masquer un jeu. Ces erreurs marquent
+désormais le scan **partiel** sans interrompre l'inventaire des éléments
+sains. L'absence normale de `eboot.bin` ou `sce_sys` ne suffit pas
+à marquer tous les dossiers comme défectueux. Tests hôte déterministes
+avec injection d'`EIO` et d'`EACCES`, sans écriture sur console.
+
 ### Couverture des racines essentielles d'applications (24 octobre 2026)
 
 L'inventaire natif vérifie séparément la traversée de `/data` et de
