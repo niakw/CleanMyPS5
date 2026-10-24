@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory() as work:
     matching.rmdir()
     # A symlink in an intermediate directory must not be traversed.
     thumb.rmdir()
-    thumb.symlink_to(gallery,directory=True)
+    thumb.symlink_to(gallery,target_is_directory=True)
     verify(original,relative,"unsafe")
     thumb.unlink()
     # Unreadable root isn't interpreted as an absent thumbnail.

@@ -3,6 +3,9 @@
 #endif
 #include "capture_companions.h"
 #include "media_snapshot.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
