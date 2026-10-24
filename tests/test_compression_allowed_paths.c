@@ -65,6 +65,19 @@ int main(void) {
  assert(cmp5_game_path_on_disk(sandbox,"/data/homebrew/PPSA12345",false));
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",false));
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
+ /* Refuse existing managed title output, including dangling symlinks. */
+ assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA1234A"));
+ assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew",".."));
+ char reserved[512];
+ assert(snprintf(reserved,sizeof(reserved),"%s/mnt/usb0/homebrew/PPSA12345",sandbox)>0);
+ assert(mkdir(reserved,0700)==0);
+ assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(rmdir(reserved)==0);
+ assert(symlink("/system_data",reserved)==0);
+ assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(unlink(reserved)==0);
+ assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
  assert(!cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",true));
  assert(!cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat/missing",false));
  assert(!cmp5_game_path_on_disk(sandbox,"/mnt/usb0/ABSENT.exfat",false));

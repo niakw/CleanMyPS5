@@ -29,6 +29,8 @@ def check_engine(root: Path) -> None:
         "source inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.source, false,',
         "destination inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.dest_base, true,',
         "reject source/destination replacement": "game_identity_changed_during_preflight",
+        "managed image output must be free": "game_output_already_present",
+        "managed image output must remain free": "game_output_occupied_before_enqueue",
         "no arbitrary source access": "game_path_not_allowed",
         "write endpoints default deny": "write_operation_not_allowed",
         "only explicit pause path": 'strcmp(path, "/api/pause")',
@@ -64,6 +66,8 @@ def check_engine(root: Path) -> None:
     )
     if any(http.count(fragment) != 1 for fragment in exact_checks):
         missing.append("missing initial/second path identity checks")
+    if http.count('cmp5_game_output_vacant("/", r.dest_base, r.smp_title)') != 2:
+        missing.append("managed image output missing either collision guard")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

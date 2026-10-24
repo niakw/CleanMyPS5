@@ -338,3 +338,15 @@ et d'un dossier de destination par un dossier vide de même nom.
 Le remplacement est refusé, même si l'ancien et le nouveau chemin sont tous
 deux dans la liste autorisée. Ce contrôle reste un contrôle avant mise en
 file, pas une réservation exclusive de l'emplacement pendant le pack.
+
+### Collision avec une installation existante (images SMP)
+
+Le moteur n'accepte une conversion d'image reconnue par ShadowMountPlus
+que si le chemin `destination/TitleID` n'existe pas. Cette vérification
+est ancrée sur des descripteurs avec `O_NOFOLLOW` et considère un fichier,
+un dossier ou un lien symbolique (même rompu) comme une collision.
+Le contrôle est effectué à l'admission, puis juste avant la mise en file.
+Il concerne les **images SMP** avec Title ID vérifiable ; pour les
+sources en dossiers, la protection reste actuellement celle du packer
+(`overwrite=false`). Aucune vérification préalable ne garantit à elle
+seule une création atomique/exclusive par le worker asynchrone.

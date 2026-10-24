@@ -82,6 +82,13 @@ def main(root: Path):
       !cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)) {
     send_json(fd, 409, "{\\"error\\":\\"game_path_unstable_or_aliased\\"}");
     return;
+  }
+  /* An SMP image must not reuse or overwrite a title output, even if
+   * the local HTTP client submitted overwrite=0. */
+  if (r.smp_title[0] &&
+      !cmp5_game_output_vacant("/", r.dest_base, r.smp_title)) {
+    send_json(fd, 409, "{\\"error\\":\\"game_output_already_present\\"}");
+    return;
   }''')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
@@ -195,6 +202,12 @@ def main(root: Path):
       !cmp5_game_path_still_same("/", r.dest_base, true,
                                &cmp5_dest_snapshot)) {
     send_json(fd, 409, "{\\"error\\":\\"game_identity_changed_during_preflight\\"}");
+    return;
+  }
+  /* Recheck occupancy after the potentially long SMP preflight. */
+  if (r.smp_title[0] &&
+      !cmp5_game_output_vacant("/", r.dest_base, r.smp_title)) {
+    send_json(fd, 409, "{\\"error\\":\\"game_output_occupied_before_enqueue\\"}");
     return;
   }
   (void)queue_only;''')

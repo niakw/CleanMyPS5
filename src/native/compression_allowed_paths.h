@@ -5,6 +5,7 @@
 #ifndef CMP5_COMPRESSION_ALLOWED_PATHS_H
 #define CMP5_COMPRESSION_ALLOWED_PATHS_H
 #include <stdbool.h>
+#include <errno.h>
 #include <stddef.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -141,4 +142,37 @@ static inline bool cmp5_game_path_still_same(const char*root,
         cmp5_game_same_stat(before,&current);
 }
 
+/* SMP-managed image output must be an entirely NEW title directory.
+ * A conflicting file or even dangling symlink blocks the job; no write.
+ * This check is not a substitute for atomic creation by the worker. */
+static inline bool cmp5_game_output_vacant(const char*root,const char*dest,
+                                           const char*title_id) {
+ if(!root||!*root||!dest||!title_id||
+    !cmp5_game_destination_allowed(dest)||strlen(title_id)!=9)return false;
+ for(size_t i=0;i<9;i++){
+  const char c=title_id[i];
+  if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+ }
+ int dir=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(dir<0)return false;
+ for(const char*cur=dest+1;*cur;){
+  const char*slash=strchr(cur,'/');
+  const size_t n=slash?(size_t)(slash-cur):strlen(cur);
+  char name[65];
+  if(!n||n>=sizeof(name)){close(dir);return false;}
+  memcpy(name,cur,n);name[n]=0;
+  int child=openat(dir,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(dir);
+  if(child<0)return false;
+  dir=child;
+  if(!slash)break;
+  cur=slash+1;
+ }
+ struct stat existing={0};
+ errno=0;
+ const int found=fstatat(dir,title_id,&existing,AT_SYMLINK_NOFOLLOW);
+ const int error=errno;
+ close(dir);
+ return found<0&&error==ENOENT;
+}
 #endif
