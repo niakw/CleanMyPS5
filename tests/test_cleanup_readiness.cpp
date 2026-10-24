@@ -2,6 +2,7 @@
 #include "../native/privilege_contract.hpp"
 #include <cassert>
 #include <cstdio>
+#include <initializer_list>
 using namespace cmp5_cleanup;
 int main(){
  for(unsigned i=0;i<static_cast<unsigned>(Category::count)+2u;i++){
@@ -20,7 +21,11 @@ int main(){
  assert(assess(Evidence{Category::gallery,true,false,0u,0u})
    .first_blocker==Blocker::no_observation);
  assert(assess(Evidence{Category::gallery,true,false,2u,0u})
-   .first_blocker==Blocker::owner_unverified);
+   .first_blocker==Blocker::references_unverified);
+ assert(assess(Evidence{Category::homebrew_cache,true,false,2u,0u})
+   .first_blocker==Blocker::provider_unverified);
+ assert(assess(Evidence{Category::autoload,true,false,2u,0u})
+   .first_blocker==Blocker::process_active_unknown);
  const auto gallery=assess(Evidence{Category::gallery,true,false,2u,
    owner|provider});
  assert(gallery.can_review&&!gallery.can_delete);

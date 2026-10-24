@@ -53,7 +53,15 @@ constexpr std::uint32_t required_proofs(Category category) noexcept {
  if(category==Category::autoload)return common|processes_idle;
  return common; // app cache: independent, verified owner/provider only
 }
-constexpr Blocker next_blocker(std::uint32_t missing) noexcept {
+constexpr Blocker next_blocker(Category category,std::uint32_t missing) noexcept {
+ // Prioritize the proof that is characteristic of each category.
+ if((category==Category::gallery||
+     category==Category::exact_duplicates)&&(missing&references))
+  return Blocker::references_unverified;
+ if(category==Category::homebrew_cache&&(missing&provider))
+  return Blocker::provider_unverified;
+ if(category==Category::autoload&&(missing&processes_idle))
+  return Blocker::process_active_unknown;
  return (missing&owner)?Blocker::owner_unverified:
         (missing&provider)?Blocker::provider_unverified:
         (missing&references)?Blocker::references_unverified:
@@ -82,7 +90,7 @@ constexpr Assessment assess(const Evidence&input) noexcept {
   return result;
  }
  result.missing_proofs=required_proofs(input.category)&~input.proofs;
- result.first_blocker=next_blocker(result.missing_proofs);
+ result.first_blocker=next_blocker(input.category,result.missing_proofs);
  // There is NO executable deletion/cleanup path in the installed title.
  // Runtime flags, owner=euid(0), synthetic fixture results, or an
  // authenticated helper must not turn an observation into mutation rights.

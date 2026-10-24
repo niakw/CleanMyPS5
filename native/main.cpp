@@ -14,6 +14,7 @@
 #include "compression_progress.hpp"
 #include "compression_image.hpp"
 #include "privilege_contract.hpp"
+#include "cleanup_readiness.hpp"
 #include "capture_companions.h"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -1848,7 +1849,8 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::cleanup&&(pressed&l1||pressed&r1)){
-   cleanup_page^=1u;
+   cleanup_page=(pressed&r1)?(cleanup_page+1u)%3u:
+     (cleanup_page+2u)%3u;
    continue;
   }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
@@ -2267,6 +2269,46 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"X RETENTER    CERCLE RETOUR");
   return;
  }
+ if(cleanup_page==2u){
+  // All evidence below comes from completed, read-only module results.
+  // Scanner counts NEVER attest ownership, backups or write permission.
+  using cmp5_cleanup::Category;
+  using cmp5_cleanup::Evidence;
+  using cmp5_cleanup::assess;
+  using cmp5_cleanup::reason_fr;
+  const auto gallery=assess(Evidence{Category::gallery,
+    general_audit_completed&&summary_status==Summary::ok,
+    summary_partial||media_review.partial!=0u,summary_files,0u});
+  const auto apps=assess(Evidence{Category::homebrew_cache,
+    general_audit_completed&&homebrew_checked,
+    homebrew_stats.partial!=0u||
+      homebrew_stats.data_root_state!=1u||
+      homebrew_stats.installed_root_state!=1u,
+    homebrew_stats.entries,0u});
+  const auto startup=assess(Evidence{Category::autoload,
+    general_audit_completed&&autoload_checked,
+    autoload_stats.unreadable!=0u||autoload_stats.oversized!=0u,
+    autoload_stats.present,0u});
+  const auto games=assess(Evidence{Category::game_images,
+    general_audit_completed&&general_games.checked,general_games.partial,
+    general_games.folder_games+general_games.image_files,0u});
+  char message[148]{};
+  (void)std::snprintf(message,sizeof(message),
+    "%u OBSERVATIONS  %s",summary_files,reason_fr(gallery.first_blocker));
+  panel(canvas,355,"CAPTURES ET REFERENCES GALERIE",message,Color::yellow);
+  (void)std::snprintf(message,sizeof(message),
+    "%u ELEMENTS  %s",homebrew_stats.entries,reason_fr(apps.first_blocker));
+  panel(canvas,503,"APPLICATIONS ET CACHES POTENTIELS",message,Color::yellow);
+  (void)std::snprintf(message,sizeof(message),
+    "%u CHEMINS  %s",autoload_stats.present,reason_fr(startup.first_blocker));
+  panel(canvas,651,"DEMARRAGE ET ELEMENTS ACTIFS",message,Color::yellow);
+  (void)std::snprintf(message,sizeof(message),
+    "%u DOSSIERS / %u IMAGES  %s",general_games.folder_games,
+    general_games.image_files,reason_fr(games.first_blocker));
+  panel(canvas,799,"JEUX / RESIDUS ET CACHES SYSTEME",message,Color::yellow);
+  footer(canvas,"L1/R1 BILANS   PREUVES REQUISES   AUCUNE SUPPRESSION");
+  return;
+ }
  if(cleanup_page==1u){
   char result[144]{};
   if(general_audit_completed&&homebrew_checked)
@@ -2301,7 +2343,7 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
     summary_status!=Summary::ok?"NON DISPONIBLES":
       summary_partial?"PARTIELLES":"OBSERVEES");
   panel(canvas,799,"COUVERTURE ET ESPACE LIBERABLE",result,Color::yellow);
-  footer(canvas,"L1/R1 CAPTURES   X ANALYSE GENERALE   AUCUNE SUPPRESSION");
+  footer(canvas,"L1/R1 PREUVES   X ANALYSE GENERALE   AUCUNE SUPPRESSION");
   return;
  }
  if(summary_status==Summary::ok){

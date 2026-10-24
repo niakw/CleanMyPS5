@@ -620,6 +620,11 @@ int main(){
  scene(canvas);
  press(r1);assert(cleanup_page==1u);
  scene(canvas);
+ press(r1);assert(cleanup_page==2u);
+ scene(canvas);
+ assert(!cmp5_cleanup::assess(cmp5_cleanup::Evidence{
+   cmp5_cleanup::Category::gallery,true,false,1u,0u}).can_delete);
+ press(l1);assert(cleanup_page==1u);
  press(l1);assert(cleanup_page==0u);
  assert(!duplicates_checked);
  assert(scan_source==ScanSource::native_title);
@@ -1360,6 +1365,8 @@ int main(){
   autoload_stats.unreadable=1u;
   cleanup_page=1u;
   save(Screen::cleanup,"02b-cleanup-domains");
+  cleanup_page=2u;
+  save(Screen::cleanup,"02c-cleanup-readiness");
   cleanup_page=0u;
   review_query[0]=0;review_game[0]=0;
   review_type=MediaType::all;review_older=false;review_large=false;
