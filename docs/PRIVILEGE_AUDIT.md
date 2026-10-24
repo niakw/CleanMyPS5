@@ -33,6 +33,13 @@ annoncé l'écriture autorisée : aucune tentative d'obtenir cet
 indicateur n'est alors faite. Ces données sont purement diagnostiques
 et ne donnent jamais de droit de suppression.
 
+Le décodeur natif lit maintenant `mountInfoUnknown` avec une borne
+cohérente (au maximum le nombre de racines accessibles), refuse les
+doublons et continue d'accepter les diagnostics plus anciens en les
+affichant comme **« montages non détaillés »**. Dans la vue Analyse,
+les montages dont la lecture des attributs échoue sont donc visibles,
+sans transformer ce signal en droit d'écriture.
+
 ## Prérequis avant un vrai nettoyeur
 
 1. Relever séparément sur PS5 13.60 les droits effectifs des trois acteurs et les chemins réellement accessibles.

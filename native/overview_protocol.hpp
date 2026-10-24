@@ -15,6 +15,8 @@ struct Overview {
 };
 struct Preflight {
  unsigned accessible=0,denied=0,absent=0,other=0;
+ unsigned mount_info_unknown=0;
+ bool mount_info_reported=false;
 };
 class OverviewReader {
  const char*at;
@@ -217,6 +219,9 @@ bool preflight_summary(Preflight*out,unsigned depth) noexcept {
     flag=4u;valid=uint_field(&out->absent);
    }else if(key(name,"other")){
     flag=8u;valid=uint_field(&out->other);
+   }else if(key(name,"mountInfoUnknown")){
+    flag=16u;valid=uint_field(&out->mount_info_unknown);
+    if(valid)out->mount_info_reported=true;
    }else valid=ignore(depth+1);
    if(!valid||(flag&&(mask&flag)))return false;
    mask|=flag;
@@ -260,7 +265,8 @@ public:
   if(at!=end)return false;
   const std::uint64_t n=static_cast<std::uint64_t>(out->accessible)+
     out->denied+out->absent+out->other;
-  return n>0&&n<=1024;
+  return n>0&&n<=1024&&
+    (!out->mount_info_reported||out->mount_info_unknown<=out->accessible);
  }
  bool parse(Overview*out) noexcept {
   if(!out||!object(Scope::root,out,0))return false;

@@ -103,7 +103,8 @@ int controller=-1,selected=0;
 Screen screen=Screen::menu;
 std::uint32_t previous=0;
 Link engine=Link::unchecked;
-unsigned available=0,denied=0,absent=0;
+unsigned available=0,denied=0,absent=0,mount_unknown=0;
+bool mount_reported=false;
 enum class LocalAccess { unchecked, unavailable, missing, denied, opened, listable, enumeration_denied };
 struct LocalProbe {
  LocalAccess status=LocalAccess::unchecked;
@@ -511,7 +512,8 @@ bool helper_is_compatible() noexcept {
  return cmp5_native::matches_expected_helper(json,std::strlen(json));
 }
 bool get_preflight() noexcept {
- available=denied=absent=0;
+ available=denied=absent=mount_unknown=0;
+ mount_reported=false;
  char response[18432]{};
  const char*json=nullptr;
  if(!fetch_local("/api/preflight",response,sizeof(response),&json))return false;
@@ -520,6 +522,8 @@ bool get_preflight() noexcept {
  available=parsed.accessible;
  denied=parsed.denied;
  absent=parsed.absent;
+ mount_unknown=parsed.mount_info_unknown;
+ mount_reported=parsed.mount_info_reported;
  return true;
 }
 bool accept_helper_overview(const char*json) noexcept {
@@ -620,7 +624,8 @@ void run_access_check() noexcept {
  probe_local();
  if(cancellation_hook(nullptr))return;
  engine=Link::offline;
- available=denied=absent=0;
+ available=denied=absent=mount_unknown=0;
+ mount_reported=false;
  /* A read-only helper is a separate process. X rechecks its protocol and
   * live path evidence; a successful loader send alone is never enough. */
  if(helper_is_compatible()&&!cancellation_hook(nullptr)&&get_preflight())
@@ -1861,8 +1866,14 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
  }
  if(engine==Link::ok){
   char result[112]{};
-  (void)std::snprintf(result,sizeof(result),"ACCESSIBLES %u  REFUSES %u  ABSENTS %u",
-                       available,denied,absent);
+  if(mount_reported)
+   (void)std::snprintf(result,sizeof(result),
+    "OUVERTS %u  REFUSES %u  ABSENTS %u  MONTAGES INCERTAINS %u",
+    available,denied,absent,mount_unknown);
+  else
+   (void)std::snprintf(result,sizeof(result),
+    "OUVERTS %u  REFUSES %u  ABSENTS %u  MONTAGES NON DETAILLES",
+    available,denied,absent);
   panel(canvas,366,"DIAGNOSTIC DU MOTEUR",result,Color::cyan);
  }else if(summary_status==Summary::ok){
   const LocalCoverage scope=summarize_local_coverage(local_probe,local_path_count,local_checked);

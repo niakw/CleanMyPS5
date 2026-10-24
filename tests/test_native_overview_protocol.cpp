@@ -95,11 +95,17 @@ int main(){
  const std::string preflight=
   R"({"schemaVersion":1,"mode":"read-only","scope":"known-paths-only",)"
   R"("entries":[{"path":"/data","status":"accessible","writableHint":false}],)"
-  R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0}})";
+  R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0,"mountInfoUnknown":1}})";
  cmp5_native::Preflight permissions{};
  CHECK(cmp5_native::parse_preflight(preflight.data(),preflight.size(),&permissions));
  CHECK(permissions.accessible==1&&permissions.denied==2&&
-   permissions.absent==4&&permissions.other==1);
+   permissions.absent==4&&permissions.other==1&&
+   permissions.mount_info_reported&&permissions.mount_info_unknown==1u);
+ const std::string legacy_response=replace_once(preflight,
+  R"(,"mountInfoUnknown":1)",std::string(""));
+ cmp5_native::Preflight legacy{};
+ CHECK(cmp5_native::parse_preflight(legacy_response.data(),legacy_response.size(),&legacy));
+ CHECK(!legacy.mount_info_reported);
  auto invalid_preflight=[&](const std::string&input){
   cmp5_native::Preflight original{};
   original.accessible=1234;
@@ -118,6 +124,10 @@ int main(){
    R"("summary":{"accessible":1,"denied":2,"other":1})"));
  invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0})",
    R"("result":{"summary":{"accessible":1,"denied":2,"absent":4,"other":1}})"));
+ invalid_preflight(replace_once(preflight,
+   R"("mountInfoUnknown":1)",R"("mountInfoUnknown":1,"mountInfoUnknown":1)"));
+ invalid_preflight(replace_once(preflight,
+   R"("mountInfoUnknown":1)",R"("mountInfoUnknown":2)"));
  invalid_preflight(preflight+" garbage");
  invalid_preflight(preflight.substr(0,preflight.size()-1));
  CHECK(!cmp5_native::parse_preflight(preflight.data(),preflight.size(),nullptr));
