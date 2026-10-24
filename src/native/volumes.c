@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #define PATH_CAP 2048
-#define JSON_CAP 4096
+#define JSON_CAP 8192
 
 // Never reopen a path after checking it: each directory is anchored by fd.
 static int checked_dir(const char*root,const char*relative,const char**status){
@@ -49,47 +49,84 @@ static int multiply(unsigned long long a,unsigned long long b,uint64_t*output){
 
 char *cmp5_volumes(const char*root,size_t*bytes){
  if(bytes)*bytes=0;if(!root||!bytes)return NULL;
+ /* Two internal observables and sixteen removable/extended mount roots.
+  * The roots identify VISIBLE mounts, not the complete physical SSD. */
+ enum { ROOTS=18 };
  char *json=(char*)calloc(1,JSON_CAP);if(!json)return NULL;
- const char*relatives[2]={"user/av_contents","data"};
- const char*labels[2]={"/user/av_contents","/data"};
- dev_t device[2]={0,0};int present[2]={0,0};
+ dev_t device[ROOTS]={0};
+ int first_seen[ROOTS];
+ for(int i=0;i<ROOTS;i++)first_seen[i]=-1;
  size_t len=0;
  int rc=snprintf(json,JSON_CAP,
   "{\"schemaVersion\":1,\"scope\":\"mounts-not-total-ssd\",\"volumes\":[");
- if(rc<0||(size_t)rc>=JSON_CAP){free(json);return NULL;}len=(size_t)rc;
- for(int i=0;i<2;i++){
+ if(rc<0||(size_t)rc>=JSON_CAP){free(json);return NULL;}
+ len=(size_t)rc;
+ for(int i=0;i<ROOTS;i++){
+  char rel[48],label[48];
+  if(i==0){
+   snprintf(rel,sizeof(rel),"user/av_contents");
+   snprintf(label,sizeof(label),"/user/av_contents");
+  }else if(i==1){
+   snprintf(rel,sizeof(rel),"data");
+   snprintf(label,sizeof(label),"/data");
+  }else{
+   const int number=i<10?i-2:i-10;
+   const char*mount=i<10?"usb":"ext";
+   snprintf(rel,sizeof(rel),"mnt/%s%d",mount,number);
+   snprintf(label,sizeof(label),"/mnt/%s%d",mount,number);
+  }
   uint64_t total=0,freebytes=0,available=0;
   int readonly=0;
   const char*status="unavailable";
-  int fd=checked_dir(root,relatives[i],&status);
+  int fd=checked_dir(root,rel,&status);
+  int shared_index=-1;
   if(fd>=0){
    struct statvfs fs;struct stat st;
-   if(fstat(fd,&st)==0 && fstatvfs(fd,&fs)==0){
+   if(fstat(fd,&st)==0&&fstatvfs(fd,&fs)==0){
     const unsigned long long block=fs.f_frsize?fs.f_frsize:fs.f_bsize;
-    if(multiply(fs.f_blocks,block,&total)&&multiply(fs.f_bfree,block,&freebytes)&&
-       multiply(fs.f_bavail,block,&available)){
-     device[i]=st.st_dev;present[i]=1;status="ok";
+    if(block&&multiply(fs.f_blocks,block,&total)&&
+       multiply(fs.f_bfree,block,&freebytes)&&
+       multiply(fs.f_bavail,block,&available)&&
+       total>0&&total>=freebytes&&freebytes>=available){
+     status="ok";
 #ifdef ST_RDONLY
      readonly=(fs.f_flag&ST_RDONLY)?1:0;
 #endif
-    }
+     /* Only the first observed pathname on a device is canonical.
+      * Same-device aliases MUST NOT become extra capacity totals. */
+     device[i]=st.st_dev;
+     for(int previous=0;previous<i;previous++)
+      if(first_seen[previous]>=0&&device[previous]==st.st_dev){
+       shared_index=first_seen[previous];break;
+      }
+     first_seen[i]=shared_index>=0?shared_index:i;
+    }else status="unavailable";
    }
    close(fd);
   }
-  const char*shared=(i==1&&present[0]&&present[1]&&device[0]==device[1])?labels[0]:NULL;
+  char shared_path[48]={0};
+  if(shared_index==0)snprintf(shared_path,sizeof(shared_path),"/user/av_contents");
+  else if(shared_index==1)snprintf(shared_path,sizeof(shared_path),"/data");
+  else if(shared_index>=2){
+   const int index=shared_index<10?shared_index-2:shared_index-10;
+   snprintf(shared_path,sizeof(shared_path),"/mnt/%s%d",
+     shared_index<10?"usb":"ext",index);
+  }
+  const char*shared=shared_index>=0?shared_path:NULL;
   rc=snprintf(json+len,JSON_CAP-len,
    "%s{\"path\":\"%s\",\"status\":\"%s\",\"totalBytes\":%" PRIu64 ","
    "\"freeBytes\":%" PRIu64 ",\"availableBytes\":%" PRIu64 ","
    "\"readOnlyMount\":%s%s%s%s}",
-   i?",":"",labels[i],status,total,freebytes,available,
+   i?",":"",label,status,total,freebytes,available,
    readonly?"true":"false",
    shared?",\"sharedWith\":\"":"",shared?shared:"",shared?"\"":"");
   if(rc<0||(size_t)rc>=JSON_CAP-len){free(json);return NULL;}
   len+=(size_t)rc;
  }
  rc=snprintf(json+len,JSON_CAP-len,
-  "],\"note\":\"Mesures effectuees sur des descripteurs de dossiers ancres sans suivre les liens. "
-  "Les montages visibles ne representent pas le SSD total. Ces mesures ne donnent aucun droit d'effacement.\"}");
+  "],\"note\":\"Mount capacities and available space are observations only. "
+  "Aliases sharing the same filesystem are not additional free space. "
+  "No value here authorizes deleting data or predicts recoverable bytes.\"}");
  if(rc<0||(size_t)rc>=JSON_CAP-len){free(json);return NULL;}
  len+=(size_t)rc;*bytes=len;return json;
 }
