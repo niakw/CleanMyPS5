@@ -34,6 +34,7 @@ typedef struct {Buffer b;size_t visits,items;int stopped,partial,rootPartial,sum
  Cmp5MediaReview *review;
  GalleryTitle gallery_titles[128];
  unsigned gallery_title_count,sidecar_reads;
+ unsigned sidecar_cap_noted;
  Cmp5CancelCheck should_cancel;void *cancel_context;} Scan;
 static int listed(const char *name,const char *const *names,size_t count){
  for(size_t i=0;i<count;i++)if(!strcasecmp(name,names[i]))return 1;
@@ -152,13 +153,22 @@ static int same_sidecar_stat(const struct stat*a,const struct stat*b){
 }
 static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  const char*path,const char*kind,const struct stat*expected){
- if(!s->review||s->sidecar_reads>=128||!ext(basename,".dat"))return;
+ if(!s->review||!ext(basename,".dat"))return;
  char id[24];
  gallery_title_id(path,kind,id);
  if(!id[0])return;
  for(unsigned i=0;i<s->gallery_title_count;i++)
   if(!strcmp(s->gallery_titles[i].title_id,id))return;
- if(s->gallery_title_count>=128)return;
+ if(s->sidecar_reads>=128||s->gallery_title_count>=128){
+  /* A bounded metadata cache must not silently imply full game-name
+   * coverage. Continue scanning media, but never certify full coverage. */
+  if(!s->sidecar_cap_noted){
+   s->sidecar_cap_noted=1;
+   warn(s,"Limite des titres de capture atteinte",path);
+  }
+  s->partial=1;s->rootPartial=1;
+  return;
+ }
  s->sidecar_reads++;
  const int fd=openat(parentfd,basename,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0)return;
