@@ -120,9 +120,9 @@ int main(){
  invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":-1)"));
  invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":99999999999)"));
  invalid_preflight(replace_once(preflight,R"("accessible":1)",R"("accessible":1025)"));
- invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0})",
+ invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0,"mountInfoUnknown":1})",
    R"("summary":{"accessible":1,"denied":2,"other":1})"));
- invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0})",
+ invalid_preflight(replace_once(preflight,R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0,"mountInfoUnknown":1})",
    R"("result":{"summary":{"accessible":1,"denied":2,"absent":4,"other":1}})"));
  invalid_preflight(replace_once(preflight,
    R"("mountInfoUnknown":1)",R"("mountInfoUnknown":1,"mountInfoUnknown":1)"));
