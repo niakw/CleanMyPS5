@@ -204,3 +204,16 @@ Le helper PS5 conserve ses seules routes agrégées autorisées : l'inventaire
 plus détaillé des volumes via `/api/volumes` reste une interface
 diagnostique hôte. Ni ce bilan ni l'UI ne constituent une preuve d'octets
 récupérables ou une autorisation d'effacement.
+
+### Galerie : une métadonnée corrompue ne masque plus les captures suivantes
+
+Le scanner de la Galerie conservait `rootPartial=true` pour signaler un
+`.dat` corrompu, puis utilisait **ce même état** pour arrêter toute la
+traversée du dossier parent. Une métadonnée illisible pouvait donc masquer
+des captures saines situées après elle. Désormais, une erreur récupérable
+marque bien l'inventaire **partiel**, mais le parcours borné continue :
+les photos et vidéos encore lisibles demeurent consultables. Seuls une
+annulation, une limite de budget ou un échec de la sortie JSON arrêtent
+la traversée. La fixture hôte crée une métadonnée de trois octets,
+suivie de deux photos et d'une vidéo, et exige de retrouver les trois
+médias tout en conservant `cleanupValidated=false`.
