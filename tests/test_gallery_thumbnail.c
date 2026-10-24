@@ -17,7 +17,7 @@ int main(int argc,char**argv){
  else if(!strcmp(argv[4],"unreadable"))desired=CMP5_THUMBNAIL_INACCESSIBLE;
  else if(!strcmp(argv[4],"not-checked"))desired=CMP5_THUMBNAIL_NOT_CHECKED;
  else return 3;
- struct stat st{};
+ struct stat st={0};
  assert(stat(media,&st)==0);
  Cmp5MediaCandidate primary={0};
  assert(strlen(relative)<sizeof(primary.preview_path));

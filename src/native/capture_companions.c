@@ -73,7 +73,7 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
   close(fd);fd=child;
  }
  if(cancelled(cancel,context)){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
- struct stat parent_before{},parent_after{},named{},opened{};
+ struct stat parent_before={0},parent_after={0},named={0},opened={0};
  if(fstat(fd,&parent_before)!=0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
  if(fstatat(fd,leaf,&named,AT_SYMLINK_NOFOLLOW)!=0){
   const int error=errno;close(fd);
