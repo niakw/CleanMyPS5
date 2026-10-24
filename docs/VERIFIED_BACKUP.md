@@ -146,3 +146,12 @@ copie des autres membres. Même avec toutes les empreintes valides, la
 restauration refuse le marqueur `__RESTORED`, classe la source comme
 `INVALID` et la sortie sans marqueur comme `INCOMPLETE`. Cette preuve
 couvre la seconde inspection, et pas seulement le précontrôle initial.
+
+### Cohérence des contrôles de groupes
+
+La vérification directe des groupes et celle de restauration privée
+refusent désormais les fichiers `.part`, les membres dépassant le nombre
+signé et les éléments inattendus du même espace de noms, même lorsque
+les SHA-256 et `__COMMIT` concordent. Un reçu `VERIFIED` ne peut plus
+être obtenu à travers une API moins stricte que l'inspection de
+récupération. Cette règle n'active pas la restauration des index PS5.

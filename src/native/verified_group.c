@@ -179,6 +179,9 @@ static int raw_restored(int dir,const char*name,uint64_t size,
   named.st_nlink==1&&!cancelled(cancel,ctx);
  close(fd);return ok;
 }
+/* All direct receipts must reject incomplete or ambiguous namespaces. */
+static int verification_namespace_clean(int dir,const char*id,
+                                        int restored,uint32_t count);
 int cmp5_verify_group(const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
@@ -205,6 +208,7 @@ int cmp5_verify_group(const char*workspace,const char*id,
   uint32_t final_count=0;
   ok=read_manifest(dir,id,0,final_marker,final_part,&final_count,NULL)&&
    final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+   verification_namespace_clean(dir,id,0,count)&&
    !cancelled(cancel,ctx);
  }
  close(dir);
@@ -334,6 +338,7 @@ int cmp5_verify_restored_group(const char*workspace,const char*id,
   uint32_t final_count=0;
   ok=read_manifest(dir,id,1,final_marker,final_parts,&final_count,NULL)&&
    final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+   verification_namespace_clean(dir,id,1,count)&&
    !cancelled(cancel,ctx);
  }
  close(dir);if(ok&&r)*r=result;return ok;
@@ -461,6 +466,31 @@ static int inspect_namespace(int dir,const char*id,int restored,
  }
  closedir(scan);
  return ok;
+}
+/* SHA equality cannot turn an interrupted or surplus-containing
+ * group into a verified backup. All stage names and members above the
+ * manifest count must be ABSENT, including symlinks. */
+static int verification_namespace_clean(int dir,const char*id,
+                                        int restored,uint32_t count){
+ if(count>CMP5_GROUP_MAX)return 0;
+ uint32_t unexpected=0;
+ if(!inspect_namespace(dir,id,restored,&unexpected)||unexpected)return 0;
+ for(unsigned i=0;i<=CMP5_GROUP_MAX;i++){
+  char name[48],stage[64];
+  if(i==CMP5_GROUP_MAX)marker_name(name,id,restored);
+  else member_name(name,id,i);
+  (void)snprintf(stage,sizeof(stage),".%s.part",name);
+  struct stat st;
+  errno=0;
+  if(fstatat(dir,stage,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)
+   return 0;
+  if(i>=count&&i<CMP5_GROUP_MAX){
+   errno=0;
+   if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)
+    return 0;
+  }
+ }
+ return 1;
 }
 static int inspect_recovery(const char*workspace,const char*id,int restored,
  Cmp5RecoveryReport*report){
