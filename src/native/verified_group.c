@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -240,7 +241,8 @@ int cmp5_verify_group(const char*workspace,const char*id,
  * 1 and 2 before discovering the conflict. This is a private, read-only
  * preflight: it does not delete, repair or rename residual files.
  * Changes by another process after the scan are still handled by O_EXCL
- * and fail-closed recovery; this is not a whole-group atomic lock. */
+ * and fail-closed recovery. The caller holds a directory-wide,
+ * nonblocking exclusive lock through COMMIT and final verification. */
 static int empty_group_namespace(int dir,const char*id){
  const size_t len=strlen(id);
  /* dup(dir) shares a directory stream offset with the caller. An
@@ -307,13 +309,20 @@ static int matches_visible_companions(const char*root,
  memset(visible,0,sizeof(visible));
  return ok&&!cancelled(cancel,ctx);
 }
+/* Entire grouped transaction is serialized by one advisory, nonblocking
+ * lock on the private workspace inode. Hold it through the COMMIT verify.
+ * The lock covers ALL group IDs here, not only a single requested ID.
+ * External programs ignoring flock are still untrusted writers. */
 int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  uint32_t count,const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
  if(!r||!valid_id(id)||!matches_visible_companions(root,parts,count,
       cancel,ctx))return 0;
- int dir=safe_dir(workspace);if(dir<0)return 0;
+ int dir=safe_dir(workspace);
+ if(dir<0)return 0;
+ if(flock(dir,LOCK_EX|LOCK_NB)!=0){close(dir);return 0;}
+ int ok=0;
  char commit_name[48];marker_name(commit_name,id,0);
  struct stat st;
  int clear=empty_group_namespace(dir,id)&&
@@ -324,31 +333,28 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
   else total+=parts[i].bytes;
  }
  if(clear)clear=cmp5_workspace_has_capacity(dir,total,count+1u);
- close(dir);
- if(!clear)return 0;
+ if(!clear)goto backup_done;
  Cmp5BackupReceipt pieces[CMP5_GROUP_MAX]={{0}};
  for(unsigned i=0;i<count;i++){
-  if(cancelled(cancel,ctx))return 0;
+  if(cancelled(cancel,ctx))goto backup_done;
   char name[48];member_name(name,id,i);
   if(!cmp5_backup_media(root,&parts[i],workspace,name,&pieces[i],cancel,ctx))
-   return 0; /* Uncommitted components stay isolated, never reported ready. */
+   goto backup_done; /* No COMMIT for incomplete groups. */
  }
  for(unsigned i=0;i<count;i++){
   char name[48];member_name(name,id,i);
   Cmp5BackupReceipt check;
   if(!cmp5_verify_backup(workspace,name,&check,cancel,ctx)||
      check.bytes!=pieces[i].bytes||
-     memcmp(check.sha256,pieces[i].sha256,32)!=0)return 0;
+     memcmp(check.sha256,pieces[i].sha256,32)!=0)goto backup_done;
  }
- /* Re-enumerate before COMMIT: copying can take time, and a new
-  * visible variant or inode replacement must leave this transaction
-  * uncommitted rather than proclaiming a complete group. */
- if(!matches_visible_companions(root,parts,count,cancel,ctx))return 0;
+ if(!matches_visible_companions(root,parts,count,cancel,ctx))
+  goto backup_done;
  uint8_t manifest[MARK_SIZE];manifest_header(manifest,pieces,count);
- dir=safe_dir(workspace);if(dir<0)return 0;
- int ok=publish_manifest(dir,id,0,manifest,cancel,ctx);
- close(dir);
+ ok=publish_manifest(dir,id,0,manifest,cancel,ctx);
  if(ok)ok=cmp5_verify_group(workspace,id,r,cancel,ctx);
+backup_done:
+ close(dir); /* releases flock after verification */
  return ok;
 }
 int cmp5_verify_restored_group(const char*workspace,const char*id,
@@ -379,32 +385,35 @@ int cmp5_verify_restored_group(const char*workspace,const char*id,
  }
  close(dir);if(ok&&r)*r=result;return ok;
 }
+/* Coordinate with grouped backups using a shared source lock and an
+ * exclusive target lock. Both are nonblocking, so reversed concurrent
+ * operations cannot deadlock. Never write inside source or PS5 roots. */
 int cmp5_restore_group(const char*backup,const char*id,const char*target,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
  if(!r||!valid_id(id)||!backup||!target||
     strcmp(backup,target)==0||cancelled(cancel,ctx))return 0;
- /* A correct COMMIT hash alone is not enough: surplus capsules or
-  * interrupted .part stages make the source namespace ambiguous. Check
-  * the full recovery state BEFORE writing to the private destination. */
- Cmp5RecoveryReport source_state={0};
- if(!cmp5_inspect_group_recovery(backup,id,&source_state)||
-    source_state.state!=CMP5_RECOVERY_VERIFIED||cancelled(cancel,ctx))
-  return 0;
- int from=safe_dir(backup);if(from<0)return 0;
- uint8_t manifest[MARK_SIZE];Cmp5BackupReceipt pieces[CMP5_GROUP_MAX];
- uint32_t count=0;
- int ok=read_manifest(from,id,0,manifest,pieces,&count,NULL);
- close(from);if(!ok)return 0;
+ int from=safe_dir(backup);
+ if(from<0)return 0;
  int dest=safe_dir(target);
- if(dest<0)return 0;
- /* Inspect the entire named group before the FIRST private output:
-  * a residue in a later member otherwise causes a partial new restore. */
- if(!empty_group_namespace(dest,id)){close(dest);return 0;}
- /* Any previous complete or partial restore with these IDs fails closed.
-  * We NEVER remove an existing private file automatically. */
+ if(dest<0){close(from);return 0;}
+ struct stat src_dir={0},dst_dir={0};
+ int ok=fstat(from,&src_dir)==0&&fstat(dest,&dst_dir)==0&&
+   !(src_dir.st_dev==dst_dir.st_dev&&src_dir.st_ino==dst_dir.st_ino)&&
+   flock(from,LOCK_SH|LOCK_NB)==0&&flock(dest,LOCK_EX|LOCK_NB)==0;
+ if(!ok)goto restore_done;
+ Cmp5RecoveryReport source_state={0};
+ ok=cmp5_inspect_group_recovery(backup,id,&source_state)&&
+   source_state.state==CMP5_RECOVERY_VERIFIED&&!cancelled(cancel,ctx);
+ if(!ok)goto restore_done;
+ uint8_t manifest[MARK_SIZE];
+ Cmp5BackupReceipt pieces[CMP5_GROUP_MAX];
+ uint32_t count=0;
+ ok=read_manifest(from,id,0,manifest,pieces,&count,NULL);
+ if(!ok)goto restore_done;
+ if(!empty_group_namespace(dest,id)){ok=0;goto restore_done;}
  char commit[48];marker_name(commit,id,1);
- struct stat st;
+ struct stat st={0};
  ok=fstatat(dest,commit,&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT;
  for(unsigned i=0;ok&&i<count;i++){
   char name[48];member_name(name,id,i);
@@ -418,42 +427,40 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
   }
   if(ok)ok=cmp5_workspace_has_capacity(dest,total,count+1u);
  }
- close(dest);if(!ok)return 0;
+ if(!ok)goto restore_done;
  for(unsigned i=0;i<count;i++){
-  if(cancelled(cancel,ctx))return 0;
+  if(cancelled(cancel,ctx)){ok=0;goto restore_done;}
   char name[48];member_name(name,id,i);
   Cmp5BackupReceipt receipt;
   if(!cmp5_restore_backup(backup,name,target,name,&receipt,cancel,ctx)||
      receipt.bytes!=pieces[i].bytes||
-     memcmp(receipt.sha256,pieces[i].sha256,32)!=0)return 0;
+     memcmp(receipt.sha256,pieces[i].sha256,32)!=0){
+   ok=0;goto restore_done;
+  }
  }
- dest=safe_dir(target);if(dest<0)return 0;
  for(unsigned i=0;ok&&i<count;i++){
   char name[48];member_name(name,id,i);
   ok=raw_restored(dest,name,pieces[i].bytes,pieces[i].sha256,cancel,ctx);
  }
- /* The backup workspace can change after the initial recovery scan
-  * and while member capsules are being read. Re-audit the complete source
-  * namespace AND the original manifest before publishing RESTORED. */
+ /* Re-audit source while locked, before the final target RESTORED marker. */
  if(ok){
   Cmp5RecoveryReport stable={0};
-  int source_again=safe_dir(backup);
   uint8_t current_manifest[MARK_SIZE];
   Cmp5BackupReceipt current_pieces[CMP5_GROUP_MAX];
   uint32_t current_count=0;
-  ok=source_again>=0&&
-     cmp5_inspect_group_recovery(backup,id,&stable)&&
+  ok=cmp5_inspect_group_recovery(backup,id,&stable)&&
      stable.state==CMP5_RECOVERY_VERIFIED&&
-     read_manifest(source_again,id,0,current_manifest,current_pieces,
+     read_manifest(from,id,0,current_manifest,current_pieces,
                    &current_count,NULL)&&
      current_count==count&&
      memcmp(current_manifest,manifest,MARK_SIZE)==0&&
      !cancelled(cancel,ctx);
-  if(source_again>=0)close(source_again);
  }
  if(ok)ok=publish_manifest(dest,id,1,manifest,cancel,ctx);
- close(dest);
  if(ok)ok=cmp5_verify_restored_group(target,id,r,cancel,ctx);
+restore_done:
+ close(dest);
+ close(from);
  return ok;
 }
 
