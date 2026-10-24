@@ -858,7 +858,7 @@ void run_embedded_engine() noexcept {
  const int fd=open_probe_target("/app0/assets/cleanmyps5-compression.elf",true);
  if(fd<0){engine_launch=EngineLaunch::missing_file;return;}
  struct stat st{};
- unsigned char magic[20]{};
+ unsigned char magic[64]{};
  ssize_t got=read(fd,magic,sizeof(magic));
  if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
     st.st_size<4096||st.st_size>64LL*1024*1024||
@@ -898,7 +898,7 @@ void run_embedded_readonly_helper() noexcept {
  const int fd=open_probe_target("/app0/assets/cleanmyps5-helper.elf",true);
  if(fd<0){helper_launch=EngineLaunch::missing_file;return;}
  struct stat st{};
- unsigned char magic[20]{};
+ unsigned char magic[64]{};
  const ssize_t got=read(fd,magic,sizeof(magic));
  if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
     st.st_size<4096||st.st_size>64LL*1024*1024||

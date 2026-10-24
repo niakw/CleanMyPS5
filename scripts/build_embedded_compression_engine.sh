@@ -46,11 +46,19 @@ python3 - "$work/engine/exfat2ampr.elf" <<'PY'
 from pathlib import Path
 import sys
 path=Path(sys.argv[1])
-start=path.read_bytes()[:20]
-assert start[:4]==bytes.fromhex("7f454c46"), "Engine is not an ELF"
-assert start[4:6]==bytes.fromhex("0201"), "Engine is not 64-bit little-endian"
-assert int.from_bytes(start[18:20],"little")==62, "Engine is not x86-64"
-assert path.stat().st_size<=64*1024*1024, "Unsafe oversized engine"
+with path.open("rb") as handle:
+    start=handle.read(64)
+size=path.stat().st_size
+assert 4096 <= size <= 64*1024*1024, "Unsafe engine size"
+assert start[:7]==bytes.fromhex("7f454c46020101"), "Invalid ELF identity"
+assert int.from_bytes(start[16:18],"little") in (2,3), "Non-loadable ELF"
+assert int.from_bytes(start[18:20],"little")==62, "Not x86-64"
+assert int.from_bytes(start[20:24],"little")==1, "Invalid ELF version"
+assert int.from_bytes(start[52:54],"little")==64, "Invalid ELF header"
+assert int.from_bytes(start[54:56],"little")==56, "Invalid PHDR size"
+phoff=int.from_bytes(start[32:40],"little")
+phnum=int.from_bytes(start[56:58],"little")
+assert phoff>=64 and phnum>0 and phoff+56*phnum<=size, "PHDR outside ELF"
 print("CleanMyPS5 compressed game engine: pinned PS5 x86-64 ELF")
 PY
 cp "$work/engine/exfat2ampr.elf" "$target/cleanmyps5-compression.elf"

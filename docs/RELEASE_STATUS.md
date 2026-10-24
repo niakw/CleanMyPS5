@@ -4,6 +4,17 @@ L'application n'a **pas encore atteint la fin du développement**. Distinguer
 explicitement deux objectifs évite de faire passer un build CI pour une
 application PS5 validée.
 
+## ELF intégrés : prévalidation renforcée (24 octobre 2026)
+
+Avant toute transmission au chargeur local, le titre contrôle l'identité
+x86-64, le type exécutable, la version, la taille de l'en-tête et la
+table des segments des deux ELF intégrés. Une lecture partielle ou un
+fichier malformé ne transmet aucun octet. Le validateur du titre et le
+build du packer appliquent les mêmes contraintes, avec des lectures
+d'en-tête bornées plutôt que charger tout l'exécutable en RAM. Les
+fixtures injectent objets non chargeables et table de segments invalide.
+Cela ne constitue pas une preuve de chargement réel sur FW 13.60.
+
 ## Deux livraisons distinctes
 
 | Livraison | État du code | État de preuve | Verdict |

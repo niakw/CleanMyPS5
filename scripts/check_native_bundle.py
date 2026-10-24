@@ -9,6 +9,26 @@ import sys
 
 REQUIRED = ("eboot.bin", "sce_sys/icon0.png", "sce_sys/param.json", "sce_module/libc.prx")
 
+def validate_embedded_elf(path: Path, label: str) -> None:
+    if path.is_symlink() or not path.is_file():
+        raise SystemExit(label + ": missing or linked asset")
+    size = path.stat().st_size
+    with path.open("rb") as stream:
+        head = stream.read(64)
+    if (not 4096 <= size <= 64 * 1024 * 1024
+            or len(head) != 64
+            or head[:7] != bytes.fromhex("7f454c46020101")
+            or int.from_bytes(head[16:18], "little") not in (2, 3)
+            or int.from_bytes(head[18:20], "little") != 62
+            or int.from_bytes(head[20:24], "little") != 1
+            or int.from_bytes(head[52:54], "little") != 64
+            or int.from_bytes(head[54:56], "little") != 56):
+        raise SystemExit(label + ": not a loadable x86-64 ELF")
+    phoff = int.from_bytes(head[32:40], "little")
+    phnum = int.from_bytes(head[56:58], "little")
+    if phoff < 64 or phnum == 0 or phoff + 56 * phnum > size:
+        raise SystemExit(label + ": program headers outside the ELF")
+
 def validate(base: Path, expected_id: str) -> None:
     if not re.fullmatch(r"PPSA[0-9]{5}", expected_id):
         raise SystemExit("Invalid expected title ID")
@@ -28,7 +48,8 @@ def validate(base: Path, expected_id: str) -> None:
     ).get("titleName")
     if title != "CleanMyPS5":
         raise SystemExit("Wrong native application title")
-    header = (base / "eboot.bin").read_bytes()[:4]
+    with (base / "eboot.bin").open("rb") as handle:
+        header = handle.read(4)
     if header not in (bytes.fromhex("4f153d1d"), bytes.fromhex("5441f5ee")):
         raise SystemExit("Output is not the expected signed development SELF container")
     icon = (base / "sce_sys/icon0.png").read_bytes()[:24]
@@ -42,23 +63,13 @@ def validate(base: Path, expected_id: str) -> None:
     helper = base / "assets/cleanmyps5-helper.elf"
     if not helper.is_file():
         raise SystemExit("Missing bundled read-only diagnostic helper")
-    with helper.open("rb") as handle:
-        probe = handle.read(20)
-    if (probe[:6] != bytes.fromhex("7f454c460201")
-            or int.from_bytes(probe[18:20], "little") != 62
-            or not 4096 <= helper.stat().st_size <= 64 * 1024 * 1024):
-        raise SystemExit("Bundled diagnostic helper is not x86-64 ELF")
+    validate_embedded_elf(helper, "Bundled diagnostic helper")
     # This is a real ELF packer included in this SAME installable homebrew,
     # not a promise that a separately installed title provides compression.
     embedded = base / "assets/cleanmyps5-compression.elf"
     if not embedded.is_file():
         raise SystemExit("Missing embedded LZ4 compression engine")
-    with embedded.open("rb") as stream:
-        header = stream.read(20)
-    if (header[:6] != bytes.fromhex("7f454c460201")
-            or int.from_bytes(header[18:20], "little") != 62
-            or not 4096 <= embedded.stat().st_size <= 64 * 1024 * 1024):
-        raise SystemExit("Bundled compression engine is not valid x86-64 ELF")
+    validate_embedded_elf(embedded, "Bundled compression engine")
     for filename in ("compression-upstream.NOTICE",
                      "compression-GPL-3.COPYING",
                      "compression-engine-credits.txt",

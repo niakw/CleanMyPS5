@@ -8,10 +8,25 @@
 #include <sys/stat.h>
 #include <unistd.h>
 namespace cmp5_compression {
+/* Validate a loadable executable, not just ELF magic and machine. */
 inline bool elf_header(const unsigned char*head,std::size_t n) noexcept {
- return n>=20&&head[0]==0x7f&&head[1]=='E'&&head[2]=='L'&&
-  head[3]=='F'&&head[4]==2&&head[5]==1&&
-  head[18]==0x3e&&head[19]==0;
+ return head&&n>=64&&head[0]==0x7f&&head[1]=='E'&&head[2]=='L'&&
+  head[3]=='F'&&head[4]==2&&head[5]==1&&head[6]==1&&
+  (head[16]==2||head[16]==3)&&head[17]==0&&
+  head[18]==0x3e&&head[19]==0&&
+  head[20]==1&&head[21]==0&&head[22]==0&&head[23]==0&&
+  head[52]==64&&head[53]==0&&head[54]==56&&head[55]==0&&
+  (head[56]!=0||head[57]!=0);
+}
+inline bool elf_program_headers_fit(const unsigned char*head,
+                                    std::uint64_t size) noexcept {
+ if(!elf_header(head,64))return false;
+ std::uint64_t offset=0;
+ for(unsigned i=0;i<8;i++)
+  offset|=static_cast<std::uint64_t>(head[32+i])<<(i*8u);
+ const std::uint64_t count=static_cast<std::uint64_t>(head[56])|
+                           (static_cast<std::uint64_t>(head[57])<<8u);
+ return offset>=64u&&offset<=size&&count<=(size-offset)/56u;
 }
 inline bool same_file(const struct stat&a,const struct stat&b) noexcept {
 #if defined(__APPLE__)
@@ -36,10 +51,15 @@ bool stream_embedded_elf(int fd,Sink sink,Cancel cancelled,
  if(fstat(fd,&before)<0||!S_ISREG(before.st_mode)||before.st_nlink!=1||
     before.st_size<4096||static_cast<std::uint64_t>(before.st_size)>64u*1024u*1024u)
   return false;
- unsigned char header[20]{};
+ unsigned char header[64]{};
  ssize_t r;
- do{r=read(fd,header,sizeof(header));}while(r<0&&errno==EINTR);
- if(r!=static_cast<ssize_t>(sizeof(header))||!elf_header(header,sizeof(header))||
+ std::size_t filled=0;
+ while(filled<sizeof(header)){
+  do{r=read(fd,header+filled,sizeof(header)-filled);}while(r<0&&errno==EINTR);
+  if(r<=0)return false;
+  filled+=static_cast<std::size_t>(r);
+ }
+ if(!elf_program_headers_fit(header,static_cast<std::uint64_t>(before.st_size))||
     lseek(fd,0,SEEK_SET)!=0)return false;
  unsigned char block[32768]{};
  std::uint64_t amount=0;
