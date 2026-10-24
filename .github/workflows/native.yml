@@ -15,6 +15,8 @@ on:
       - tests/test_gallery_thumbnail_backup.c
       - tests/test_gallery_thumbnail_backup.py
       - tests/test_private_workspace_capacity.c
+      - tests/test_group_transaction_lock.c
+      - tests/test_group_transaction_lock.py
       - tests/test_private_quarantine.c
       - tests/test_private_quarantine.py
       - src/native/private_quarantine.c
@@ -155,6 +157,13 @@ jobs:
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_private_workspace_capacity.c -o /tmp/cmp5-private-capacity
           /tmp/cmp5-private-capacity
+      - name: Verify independent group backups and restores cannot overlap
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_group_transaction_lock.c src/native/verified_group.c \
+            src/native/capture_companions.c src/native/verified_backup.c \
+            src/native/sha256.c -o /tmp/cmp5-group-locks
+          python3 tests/test_group_transaction_lock.py /tmp/cmp5-group-locks
       - name: Verify private-only quarantine and recovery lifecycle
         run: |
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \

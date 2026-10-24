@@ -75,6 +75,28 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
 
+## Transactions groupées sérialisées (25 octobre 2026)
+
+Le moteur hôte de sauvegarde multi-fichiers verrouille maintenant
+**tout le dossier privé** du précontrôle jusqu'à la vérification du
+marqueur COMMIT final. La restauration tient un verrou partagé sur
+sa source et un verrou exclusif sur sa destination jusqu'à la
+validation RESTORED ; les deux acquisitions sont non bloquantes pour
+éviter les interblocages. Ces verrous couvrent des groupes **aux IDs
+différents** dans le même dossier, au lieu de se limiter à une capsule
+nommée. Une tentative concurrente échoue sans commencer de nouvelle
+transaction. Tous les descripteurs sont fermés en sortie, même en cas
+d'erreur ou d'annulation.
+
+La CI exécute deux processus réels sur deux groupes valides, bloque
+le premier après la création du premier membre et vérifie que le
+second ne peut démarrer ni une autre sauvegarde dans ce dossier, ni
+une restauration concurrente. Après libération, les deux transactions
+réussissent et leurs manifestes sont vérifiés. **Ce verrou est
+coopératif** : une écriture extérieure au protocole reste possible ;
+les identités et empreintes continuent d'être contrôlées. Le titre
+PS5 et son helper n'exécutent toujours pas ces transactions hôte.
+
 ## Concurrence des transactions privées (25 octobre 2026)
 
 Les trois chemins de mutation du laboratoire (mise en quarantaine,
