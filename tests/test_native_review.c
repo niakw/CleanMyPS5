@@ -17,7 +17,8 @@ int main(int argc,char**argv){
  const int empty=argc==3&&strcmp(argv[2],"empty")==0;
  const int no_gallery=argc==3&&strcmp(argv[2],"no-gallery")==0;
  const int damaged=argc==3&&strcmp(argv[2],"damaged-sidecar")==0;
- const unsigned expected=argc==3&&!cancel&&!longpath&&!empty&&!no_gallery&&!damaged?
+ const int sidecar_cap=argc==3&&strcmp(argv[2],"sidecar-cap")==0;
+ const unsigned expected=argc==3&&!cancel&&!longpath&&!empty&&!no_gallery&&!damaged&&!sidecar_cap?
    (unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
@@ -70,6 +71,18 @@ int main(int argc,char**argv){
   assert(strstr(details,"\"status\":\"complete\""));
   free(details);
   puts("Native media review: readable app root cannot mask missing Gallery");
+  return 0;
+ }
+ if(sidecar_cap){
+  /* 130 distinct game names exceed the bounded 128-title metadata cache.
+   * Scan must continue but must NOT advertise complete gallery coverage. */
+  assert(review.count==0u&&review.media_scanned==0u);
+  assert(review.partial==1u);
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"galleryCoverage\":{\"photo\":\"partial\",\"video\":\"complete\"}"));
+  assert(strstr(json,"\"validatedForDeletion\":false"));
+  free(json);
+  puts("Native media review: sidecar title limit signals incomplete coverage");
   return 0;
  }
  if(damaged){
