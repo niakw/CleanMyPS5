@@ -9,6 +9,9 @@ with tempfile.TemporaryDirectory() as tmp:
     root=Path(tmp)
     folder=root/"user/av_contents/photo/NPXS00000/GAME123"
     folder.mkdir(parents=True)
+    # The baseline must cover both Gallery media roots to be complete;
+    # the race below then makes it partial for the intended reason.
+    (root/"user/av_contents/video").mkdir(parents=True)
     sidecar=folder/"sample.dat"
     sidecar.write_bytes(b"\x00"*0x44+b"Synthetic Game_20261022105000\x00")
     (folder/"sample.jpg").write_bytes(b"JPEG TEST DATA")
@@ -23,6 +26,7 @@ with tempfile.TemporaryDirectory() as tmp:
     for parent,title in ((original,"ORIGINAL"),(replacement,"FOREIGN")):
         gallery=parent/f"user/av_contents/photo/NPXS00000/{title}"
         gallery.mkdir(parents=True)
+        (parent/"user/av_contents/video").mkdir(parents=True)
         (gallery/"capture.jpg").write_bytes(b"JPEG TEST DATA")
     moved=subprocess.run([sys.argv[1],str(original),str(backup),
                           str(replacement),"swap"],
