@@ -37,7 +37,7 @@ int main(void){
  const uint64_t payload=1048576u;
  const uint64_t reserve=4096u*2u+1048576u+576u;
  const uint64_t blocks=(payload+reserve+4095u)/4096u;
- simulated.f_bfree=UINT64_MAX;
+ simulated.f_bfree=UINT32_MAX;
  simulated.f_bavail=blocks-1u;
  assert(!cmp5_workspace_has_capacity(7,payload,2u));
  simulated.f_bavail=blocks;
@@ -51,7 +51,7 @@ int main(void){
  simulated.f_frsize=0u;
  assert(!cmp5_workspace_has_capacity(7,payload,2u));
  simulated.f_frsize=UINT64_MAX;
- simulated.f_bavail=UINT64_MAX;
+ simulated.f_bavail=UINT32_MAX;
  assert(!cmp5_workspace_has_capacity(7,payload,5u));
  puts("Backup and restore capacity safety gate: PASS");
  return 0;
