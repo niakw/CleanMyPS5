@@ -422,13 +422,24 @@ static int validate_capture_group_limit(const Cmp5MediaCandidate *parts,
  const char*first_ext=NULL,*first_rel=NULL;
  size_t stem=0;
  if(!valid_group_component(&parts[0],&first_ext,&stem,&first_rel))return 0;
+ /* Equivalent relative names in photo/ and video/ are NOT one album.
+  * The external thumbnail belongs to photo only. */
+ const char*video_root="/user/av_contents/video/";
+ const size_t video_len=strlen(video_root);
+ const int first_video=parts[0].media_type==2u||
+   (parts[0].media_type==3u&&
+    !strncmp(parts[0].preview_path,video_root,video_len));
  uint64_t sum=0;
  unsigned media=0,sidecars=0,thumbnails=0;
  for(unsigned i=0;i<count;i++){
   const Cmp5MediaCandidate*c=&parts[i];
   const char*ext=NULL,*rel=NULL;
   size_t current_stem=0;
-  if(!valid_group_component(c,&ext,&current_stem,&rel)||
+  const int member_video=c->media_type==2u||
+    (c->media_type==3u&&
+     !strncmp(c->preview_path,video_root,video_len));
+  if(member_video!=first_video||
+     !valid_group_component(c,&ext,&current_stem,&rel)||
      current_stem!=stem||memcmp(first_rel,rel,stem)!=0||
      !c->bytes||c->bytes>max_total-sum)return 0;
   if(c->media_type==3u)sidecars++;

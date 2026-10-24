@@ -52,6 +52,14 @@ int main(int argc,char**argv){
  assert(count==3u&&cmp5_validate_capture_group(group,count));
  assert(group[0].media_type==3u&&group[1].media_type==1u&&
         group[2].media_type==4u);
+ /* Same relative recording name does not permit mixing photo and video
+  * metadata into a misleading "complete" private restore group. */
+ Cmp5MediaCandidate mixed[3];
+ memcpy(mixed,group,sizeof(mixed));
+ mixed[1].media_type=2u;
+ strcpy(mixed[1].preview_path,
+  "/user/av_contents/video/NPXS00000/GAME123/REC_001.mp4");
+ assert(!cmp5_validate_capture_group(mixed,3u));
  assert(strcmp(group[2].preview_path,
   "/user/av_contents/thumbnails/photo/NPXS00000/GAME123/REC_001.jpg.jpeg")==0);
  Cmp5GroupReceipt result={0},verified={0};
@@ -60,6 +68,14 @@ int main(int argc,char**argv){
  assert(result.count==0u);
  assert(cmp5_backup_group(root,group,count,backup,"THUMB",&result,NULL,NULL));
  assert(result.count==3u);
+ /* Member order must not affect which photo is selected for coverage. */
+ Cmp5MediaCandidate reordered[3]={group[2],group[0],group[1]};
+ assert(cmp5_validate_capture_group(reordered,3u));
+ Cmp5GroupReceipt reordered_receipt={0};
+ assert(cmp5_backup_group(root,reordered,3u,backup,"REORDER",
+   &reordered_receipt,NULL,NULL));
+ assert(reordered_receipt.count==3u);
+ assert(cmp5_verify_group(backup,"REORDER",NULL,NULL));
  assert(cmp5_verify_group(backup,"THUMB",&verified,NULL,NULL));
  assert(verified.count==3u&&verified.bytes==result.bytes&&
         memcmp(verified.manifest_sha256,result.manifest_sha256,32)==0);
