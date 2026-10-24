@@ -62,6 +62,8 @@ with tempfile.TemporaryDirectory() as temp:
  usb4=root/"mnt/usb4/ps5_autoloader"
  usb4.mkdir(parents=True)
  (usb4/"autoload.txt").hardlink_to(other/"save.bin")
+ # Even a readable symlink mount alias must not be counted as storage.
+ (root/"mnt/usb6").symlink_to(other,target_is_directory=True)
  homebrew=root/"data/homebrew/HB_DEMO"
  homebrew.mkdir(parents=True)
  (homebrew/"assets.bin").write_bytes(b"H"*137)
@@ -308,10 +310,22 @@ with tempfile.TemporaryDirectory() as temp:
   with urlopen(base+"/api/volumes",timeout=3) as r:volumes=json.load(r)
   assert volumes["scope"]=="mounts-not-total-ssd"
   bypath={v["path"]:v for v in volumes["volumes"]}
-  assert set(bypath)=={"/user/av_contents","/data"}
-  assert all(v["status"]=="ok" for v in bypath.values())
-  assert all(v["totalBytes"]>=v["freeBytes"]>=v["availableBytes"]>=0 for v in bypath.values())
+  expected_mounts={"/user/av_contents","/data"}|{
+   f"/mnt/{kind}{number}" for kind in ("usb","ext") for number in range(8)
+  }
+  assert set(bypath)==expected_mounts,bypath
+  visible={"/user/av_contents","/data","/mnt/usb0","/mnt/usb1",
+           "/mnt/usb2","/mnt/usb3","/mnt/usb4"}
+  assert all(bypath[p]["status"]=="ok" for p in visible),bypath
+  assert all(v["totalBytes"]>=v["freeBytes"]>=v["availableBytes"]>=0
+             for v in bypath.values())
   assert bypath["/data"]["sharedWith"]=="/user/av_contents"
+  assert bypath["/mnt/usb0"]["sharedWith"]=="/user/av_contents"
+  assert bypath["/mnt/usb6"]["status"]=="symlink"
+  assert bypath["/mnt/usb7"]["status"]=="absent"
+  assert bypath["/mnt/ext0"]["status"]=="absent"
+  assert bypath["/mnt/usb6"]["totalBytes"]==0
+  assert all(v["readOnlyMount"] in (True,False) for v in bypath.values())
   assert all("directory_link" not in r["path"] for r in report["items"])
   assert all("/data/prosperoeden/" not in r["path"] for r in report["items"])
  finally:
