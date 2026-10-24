@@ -41,6 +41,21 @@ static off_t racing_lseek(int fd,off_t n,int whence){
  if(restore_only&&position==64&&whence==SEEK_SET)armed=1;
  return position;
 }
+typedef struct{
+ const char*old_path;
+ const char*new_path;
+ unsigned calls;
+ int changed;
+} SwapWorkspace;
+static int change_workspace_during_read(void*ctx){
+ SwapWorkspace*state=(SwapWorkspace*)ctx;
+ if(++state->calls==2u){
+  assert(rename(state->old_path,state->new_path)==0);
+  assert(mkdir(state->old_path,0700)==0);
+  state->changed=1;
+ }
+ return 0;
+}
 #define read racing_read
 #define lseek racing_lseek
 #define fsync intercepted_fsync
@@ -76,6 +91,11 @@ int main(int argc,char**argv){
   armed=1;
   assert(!cmp5_verify_backup(backup,"GOOD",&receipt,NULL,NULL));
   assert(triggered&&!receipt.published);
+ }else if(!strcmp(action,"verify-workspace-swap")){
+  SwapWorkspace state={backup,new_path,0u,0};
+  assert(!cmp5_verify_backup(backup,"GOOD",&receipt,
+    change_workspace_during_read,&state));
+  assert(state.changed&&state.calls>=2u&&!receipt.published);
  }else if(!strcmp(action,"restore-rename")){
   (void)snprintf(watching,sizeof(watching),"%s/GOOD",backup);
   (void)snprintf(moved,sizeof(moved),"%s",new_path);

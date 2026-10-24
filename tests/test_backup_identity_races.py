@@ -33,6 +33,12 @@ with tempfile.TemporaryDirectory() as temp:
     run("verify-rename",moved_backup)
     assert moved_backup.is_file() and not (backup/"GOOD").exists()
     moved_backup.rename(backup/"GOOD")
+    replaced_workspace=Path(temp)/"private-backup-relocated"
+    run("verify-workspace-swap",replaced_workspace)
+    assert replaced_workspace.is_dir() and (replaced_workspace/"GOOD").is_file()
+    assert backup.is_dir() and not (backup/"GOOD").exists()
+    backup.rmdir()
+    replaced_workspace.rename(backup)
     run("restore-rename",moved_backup)
     # The rename is real; no successful result or completed restored file.
     assert moved_backup.is_file() and not (restored/"SAVED").exists()

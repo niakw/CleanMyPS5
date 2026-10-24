@@ -43,6 +43,34 @@ static int same(const struct stat*a,const struct stat*b){
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime;
 }
+/* A valid opened descriptor can outlive a rename of its directory.
+ * Recheck that the selected private workspace still names the same
+ * directory before returning a verified capsule receipt. */
+static int same_private_directory(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ const int nanos=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+                 a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const int nanos=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+                 a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nanos&&S_ISDIR(a->st_mode)&&S_ISDIR(b->st_mode)&&
+   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime;
+}
+static int private_directory_current(int dir,const char*path,
+                                     const struct stat*initial){
+ struct stat held,current;
+ if(fstat(dir,&held)!=0||!same_private_directory(initial,&held))return 0;
+ int reopened=private_dir(path);
+ if(reopened<0)return 0;
+ const int ok=fstat(reopened,&current)==0&&
+   same_private_directory(initial,&current);
+ close(reopened);
+ return ok;
+}
 static int snapshot_matches(const struct stat*s,const Cmp5MediaCandidate*c){
  return cmp5_snapshot_matches(c,s);
 }
@@ -203,6 +231,8 @@ int cmp5_verify_backup(const char*workspace,const char*id,
  if(r)memset(r,0,sizeof(*r));
  if(!valid_id(id))return 0;
  int dir=private_dir(workspace);if(dir<0)return 0;
+ struct stat dir_before={0};
+ if(fstat(dir,&dir_before)!=0){close(dir);return 0;}
  int fd=openat(dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(fd<0){close(dir);return 0;}
  struct stat before,after,named;
@@ -211,7 +241,8 @@ int cmp5_verify_backup(const char*workspace,const char*id,
   verify_open(fd,&verified,cancel,ctx)&&
   fstat(fd,&after)==0&&same(&before,&after)&&
   fstatat(dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
-  same(&before,&named)&&named.st_nlink==1;
+  same(&before,&named)&&named.st_nlink==1&&
+  private_directory_current(dir,workspace,&dir_before);
  close(fd);close(dir);
  if(ok&&r)*r=verified;
  return ok;

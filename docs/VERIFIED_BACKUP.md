@@ -180,3 +180,14 @@ rester identiques à ceux du descripteur initial. Un test remplace
 réellement le répertoire privé au cours de la vérification et exige un
 refus, même si les anciens fichiers ouverts étaient encore lisibles.
 Cette vérification ne constitue pas une transaction des index Sony.
+
+### Vérification d'une capsule isolée et remplacement du dossier
+
+Le vérificateur hôte d'une capsule individuelle ne valide plus les
+empreintes SHA-256 à partir d'un descripteur de répertoire devenu orphelin.
+Il mémorise le dossier privé (périphérique, inode, mode, taille, mtime et
+ctime à la nanoseconde), puis contrôle **à la fin de l'inspection** que
+le chemin choisi désigne toujours exactement ce même dossier. Une fixture
+renomme le dossier après un bloc de lecture et en recrée un vide sous le
+nom initial : le reçu doit être refusé malgré le contenu intact de
+l'ancien dossier. Cela reste sans écriture dans la Galerie PS5.
