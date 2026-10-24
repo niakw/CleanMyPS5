@@ -301,3 +301,18 @@ Il vérifie, en traversant le vrai chemin de soumission du titre, que
 l'interface signale le changement de plan et que **zéro corps de
 requête POST /api/start** est émis. Le test n'utilise pas de jeu réel
 et ne remplace pas la validation sur la console.
+
+## Contrôle des chemins au moment d'admettre une conversion
+
+En complément de la liste fermée de chemins de jeux et destinations, le
+moteur vérifie désormais le chemin **sur disque** avant l'admission d'un job :
+chaque composant est ouvert relativement à un descripteur de dossier avec
+`O_DIRECTORY` et `O_NOFOLLOW`; les fichiers finaux doivent être réguliers,
+non vides et sans lien physique ambigu, les destinations de vrais dossiers.
+Cela refuse notamment les liens symboliques placés dans `homebrew/` ou dans
+un répertoire parent. Des fixtures synthétiques couvrent ces cas et un faux
+support USB, sans accéder aux fichiers de la console.
+
+C'est un contrôle d'admission, **pas un verrouillage** du parcours futur par
+le moteur LZ4, ni une validation du montage et lancement sous FW 13.60.
+Les conversions restent explicites, sans suppression des originaux.
