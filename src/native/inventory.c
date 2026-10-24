@@ -333,7 +333,11 @@ static int cancellation_requested(Scan*s){
  return 0;
 }
 static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
- if(s->stopped||s->b.fail||s->rootPartial||cancellation_requested(s)){close(fd);return;}
+ /* A recoverable error in a sibling (.dat, unreadable leaf, missing
+  * directory) makes coverage partial, but must not hide other healthy
+  * captures in the same root. Only hard limits, cancellation or an
+  * unusable JSON buffer terminate the walk. */
+ if(s->stopped||s->b.fail||cancellation_requested(s)){close(fd);return;}
  // Keep the directory descriptor supplied by the caller for anchored
  // openat/fstatat. The native-title toolchain does not export dirfd().
  // fdopendir takes ownership and closedir closes the same descriptor.
@@ -391,7 +395,7 @@ static void walk(Scan*s,int fd,const char*path,const char*kind,int depth){
     read_gallery_sidecar(s,anchored_fd,e->d_name,child,kind,&st);
    file(s,child,&st,kind);
   }
-  if(s->stopped||s->b.fail||s->rootPartial)break;
+  if(s->stopped||s->b.fail)break;
  }
  if(closedir(d)!=0){
   s->rootPartial=1;
