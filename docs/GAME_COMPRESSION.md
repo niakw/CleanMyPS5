@@ -431,3 +431,17 @@ correspondent exactement au job repris. Les formats précompressés ou
 inconnus sont refusés. Il ne suffit plus de fabriquer un checkpoint
 avec un Title ID de forme plausible. L'absence de réponse SMP entraîne
 un refus sans écriture, jamais une autorisation implicite.
+
+### Reprise volontaire depuis le titre après une erreur
+
+La conservation des fichiers partiels serait inutilisable si le titre
+permettait uniquement de reprendre un travail en pause. Dans l'écran
+DualSense d'une conversion déjà acceptée, **Triangle** permet désormais
+de demander une reprise lorsque le dernier état du moteur est `error`
+ou `cancelled`, en réutilisant exclusivement le jeu et la destination
+de la double confirmation initiale. Une image SMP est à nouveau vérifiée
+avant l'envoi ; le worker ne fait confiance ni au checkpoint ni aux
+autres paramètres de la requête. Une sortie sans checkpoint valide entraîne
+un refus ; la reprise n'efface jamais automatiquement les fichiers partiels.
+Le test natif simule une erreur et prouve qu'une reprise n'émet aucun
+nouveau POST de conversion.

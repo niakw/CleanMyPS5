@@ -23,6 +23,7 @@ unsigned mock_ampr_receive=0;
 unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
+bool mock_ampr_failed=false;
 bool mock_ampr_foreign_running=false;
 bool mock_smp_wrong_size=false;
 bool mock_ampr_pending=false;
@@ -154,7 +155,8 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
  if(id==20){
   char progress[320]{};
   const bool idle=mock_ampr_post_bodies==0u&&!mock_ampr_foreign_running;
-  const char*state=idle?"idle":mock_ampr_paused?"paused":"running";
+  const char*state=idle?"idle":mock_ampr_failed?"error":
+   mock_ampr_paused?"paused":"running";
   const char*title=idle?"":mock_ampr_foreign_running?"PPSA98765":"PPSA12345";
   const int body_size=std::snprintf(progress,sizeof(progress),
    "{\"service\":\"CleanMyPS5-AMPR\",\"state\":\"%s\","
@@ -870,6 +872,18 @@ int main(){
  assert(game_resume_attempted&&game_resume_accepted);
  assert(mock_ampr_resumes==1u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ /* A recoverable error now keeps the partial directory intact.
+  * Triangle may request a resume for THIS previously approved title;
+  * it must not enqueue a fresh /api/start or delete the source. */
+ mock_ampr_failed=true;
+ press(cross);finish_scan();
+ assert(game_progress_checked&&
+   game_progress.state==cmp5_compression::JobState::error);
+ press(triangle);finish_scan();
+ assert(game_resume_attempted&&game_resume_accepted);
+ assert(mock_ampr_resumes==2u);
+ assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ mock_ampr_failed=false;
  scene(canvas);
  press(circle);
  assert(compression_view==1u);

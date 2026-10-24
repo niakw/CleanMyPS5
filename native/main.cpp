@@ -1198,14 +1198,28 @@ void run_game_pause() noexcept {
 void run_game_resume() noexcept {
  game_resume_attempted=true;game_resume_accepted=false;
  game_pause_attempted=false;
- if(!game_job_accepted||!game_pause_accepted||
-    !game_preflight_checked||!game_preflight.ready())return;
+ /* Paused jobs and explicitly interrupted jobs may have a private
+  * checkpoint. Only resume the originally confirmed game and destination;
+  * the PS5 worker separately revalidates its source, owner and flags. */
+ if(!game_job_accepted||!game_preflight_checked||
+    !game_preflight.ready())return;
  char version[32]{};
  cmp5_compression::GameProgress fresh{};
  if(!check_local_ampr(version)||!ampr_read_progress(&fresh)||
-    fresh.state!=cmp5_compression::JobState::paused||
     std::strcmp(fresh.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
+ const bool paused=fresh.state==cmp5_compression::JobState::paused&&
+                   game_pause_accepted;
+ const bool interrupted=fresh.state==cmp5_compression::JobState::error||
+                        fresh.state==cmp5_compression::JobState::cancelled;
+ if(!paused&&!interrupted)return;
+ if(interrupted&&game_source_is_image){
+  cmp5_compression::ImageResolution current{};
+  if(!resolve_managed_image(game_source_checked,&current)||
+     current.bytes!=game_image_expected_bytes||
+     std::strcmp(current.title_id,game_smp_title)!=0||
+     std::strcmp(current.image_type,game_image_type)!=0)return;
+ }
  // Resume the fixed output created by THIS UI, never an arbitrary
  // checkpoint or source folder entered by another process.
  char dest[256]{};
@@ -1699,8 +1713,10 @@ void poll_pad() noexcept {
        std::strcmp(game_progress.title_id,game_preflight.title_id)==0){
       if(game_progress.state==cmp5_compression::JobState::running)
        (void)begin_task(Task::game_pause);
-      else if(game_progress.state==cmp5_compression::JobState::paused&&
-              game_pause_accepted)
+      else if((game_progress.state==cmp5_compression::JobState::paused&&
+               game_pause_accepted)||
+              game_progress.state==cmp5_compression::JobState::error||
+              game_progress.state==cmp5_compression::JobState::cancelled)
        (void)begin_task(Task::game_resume);
     }
    }
@@ -2418,7 +2434,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,(game_progress_checked&&
     (game_progress.state==cmp5_compression::JobState::error||
      game_progress.state==cmp5_compression::JobState::cancelled))?
-    "SORTIE NON EFFACEE  VERIFIER L'ETAT AVANT TOUTE REPRISE":
+    "SORTIE CONSERVEE  TRIANGLE TENTER REPRISE  X VERIFIER":
     game_job_plan_changed?
     "CERCLE RETOUR  X RECONTROLER LE JEU  2 CONFIRMATIONS":
     "X PROGRESSION  TRIANGLE PAUSE / REPRISE  CERCLE RETOUR");
