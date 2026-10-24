@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "diagnostics.h"
 #include <ctype.h>
 #include <errno.h>
