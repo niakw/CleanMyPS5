@@ -85,6 +85,31 @@ int main(void) {
  assert(link(image,alias)==0);
  assert(!cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",false));
  assert(unlink(alias)==0);
+ /* The name may stay syntactically valid while a different real file
+  * replaces it; a second allowlist check alone would accept that file. */
+ struct stat game_before={0},dest_before={0};
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/GAME.exfat",false,&game_before));
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/homebrew",true,&dest_before));
+ assert(cmp5_game_path_still_same(sandbox,"/mnt/usb0/GAME.exfat",false,&game_before));
+ assert(cmp5_game_path_still_same(sandbox,"/mnt/usb0/homebrew",true,&dest_before));
+ char old_image[512];
+ assert(snprintf(old_image,sizeof(old_image),"%s/mnt/usb0/GAME.old",sandbox)>0);
+ assert(rename(image,old_image)==0);
+ FILE*replacement=fopen(image,"wb");assert(replacement);
+ assert(fputs("SYNTHETIC_GAME_IMAGE",replacement)>=0);
+ assert(fclose(replacement)==0);
+ assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",false));
+ assert(!cmp5_game_path_still_same(sandbox,"/mnt/usb0/GAME.exfat",false,&game_before));
+ assert(unlink(old_image)==0);
+ /* A directory of the same permitted name but different inode is
+  * not the destination the user approved. */
+ char old_dest[512];
+ assert(snprintf(old_dest,sizeof(old_dest),"%s/mnt/usb0/homebrew_old",sandbox)>0);
+ assert(rename(alias,old_dest)==0);
+ assert(mkdir(alias,0700)==0);
+ assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
+ assert(!cmp5_game_path_still_same(sandbox,"/mnt/usb0/homebrew",true,&dest_before));
+ assert(rmdir(old_dest)==0);
  assert(unlink(image)==0);
  assert(rmdir(folder)==0);
  /* All other directories are removed by the reverse-order fixture loop. */

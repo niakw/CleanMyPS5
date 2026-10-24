@@ -324,3 +324,17 @@ Le vérificateur du moteur transformé exige explicitement les deux passages.
 Cette double vérification réduit le risque de remplacement entre étapes,
 mais ne rend pas le travail asynchrone du packer atomique : le contrôle
 n'autorise ni suppression des originaux ni écriture dans les données système.
+
+### Refus d'une substitution pendant le précontrôle
+
+Un chemin initialement autorisé peut toujours pointer vers un **autre**
+fichier ou répertoire lors de la vérification suivante. Le moteur capture
+désormais les identités POSIX de la source et de la destination lors de
+l'admission : périphérique, inode, type/mode, liens, taille, dates mtime et
+ctime avec précision nanoseconde. Après le précontrôle, il ouvre à nouveau
+les mêmes chemins composant par composant et exige la même identité.
+Des tests simulent le remplacement d'une image par une autre image valide
+et d'un dossier de destination par un dossier vide de même nom.
+Le remplacement est refusé, même si l'ancien et le nouveau chemin sont tous
+deux dans la liste autorisée. Ce contrôle reste un contrôle avant mise en
+file, pas une réservation exclusive de l'emplacement pendant le pack.

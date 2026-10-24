@@ -72,11 +72,14 @@ static inline bool cmp5_game_destination_allowed(const char *path) {
  * This is a read-only admission precheck, not a lock on later packer IO.
  * 'root' is "/" in the actual engine and a fake console tree in tests.
  */
-static inline bool cmp5_game_path_on_disk(const char *root,const char *path,
-                                         bool destination) {
- if (!root || !path || !*root || path[0]!='/' ||
-     !(destination?cmp5_game_destination_allowed(path):
-                   cmp5_game_source_allowed(path))) return false;
+/* Obtain a snapshot only from an explicitly allowed root, using an
+ * O_NOFOLLOW descriptor for EVERY component, not a pathname-based stat. */
+static inline bool cmp5_game_path_stat(const char*root,const char*path,
+                                      bool destination,struct stat*out) {
+ if(out)memset(out,0,sizeof(*out));
+ if(!root||!path||!out||!*root||path[0]!='/'||
+    !(destination?cmp5_game_destination_allowed(path):
+                   cmp5_game_source_allowed(path)))return false;
  int dir=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(dir<0)return false;
  const char*cur=path+1;
@@ -86,26 +89,56 @@ static inline bool cmp5_game_path_on_disk(const char *root,const char *path,
   const size_t len=slash?(size_t)(slash-cur):strlen(cur);
   char segment[65];
   if(len==0||len>=sizeof(segment))break;
-  memcpy(segment,cur,len);
-  segment[len]=0;
-  const int child=openat(dir,segment,O_RDONLY|O_NOFOLLOW|
+  memcpy(segment,cur,len);segment[len]=0;
+  int child=openat(dir,segment,O_RDONLY|O_NOFOLLOW|
     (slash?O_DIRECTORY:O_NONBLOCK));
   if(child<0)break;
-  struct stat meta;
+  struct stat meta={0};
   const int success=fstat(child,&meta)==0;
   if(!slash){
    ok=success&&
       (destination?S_ISDIR(meta.st_mode):
-        (S_ISDIR(meta.st_mode)||
+         (S_ISDIR(meta.st_mode)||
          (S_ISREG(meta.st_mode)&&meta.st_nlink==1&&meta.st_size>0)));
+   if(ok)*out=meta;
    close(child);
    break;
   }
   if(!success||!S_ISDIR(meta.st_mode)){close(child);break;}
-  close(dir);dir=child;
-  cur=slash+1;
+  close(dir);dir=child;cur=slash+1;
  }
  close(dir);
  return ok;
 }
+static inline bool cmp5_game_path_on_disk(const char*root,const char*path,
+                                          bool destination) {
+ struct stat snapshot={0};
+ return cmp5_game_path_stat(root,path,destination,&snapshot);
+}
+/* Compare complete POSIX identity with subsecond timestamp precision.
+ * This detects replacements by another REGULAR file or directory while
+ * SMP is calculating compatibility. It does not lock the later worker. */
+static inline bool cmp5_game_same_stat(const struct stat*a,
+                                       const struct stat*b){
+ if(!a||!b)return false;
+#if defined(__APPLE__)
+ const bool nanos=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+                  a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const bool nanos=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+                  a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nanos&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime;
+}
+static inline bool cmp5_game_path_still_same(const char*root,
+                                             const char*path,bool destination,
+                                             const struct stat*before) {
+ struct stat current={0};
+ return cmp5_game_path_stat(root,path,destination,&current)&&
+        cmp5_game_same_stat(before,&current);
+}
+
 #endif

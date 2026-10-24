@@ -23,10 +23,12 @@ def check_engine(root: Path) -> None:
         "no spillover cache": "r.cache_mode = 0;",
         "strict source root whitelist": "cmp5_game_source_allowed(r.source)",
         "strict destination whitelist": "cmp5_game_destination_allowed(r.dest_base)",
-        "source descriptor-anchored admission": 'cmp5_game_path_on_disk("/", r.source, false)',
-        "destination descriptor-anchored admission": 'cmp5_game_path_on_disk("/", r.dest_base, true)',
+        "source descriptor-anchored admission": 'cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)',
+        "destination descriptor-anchored admission": 'cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)',
         "reject aliases and disappeared games": "game_path_unstable_or_aliased",
-        "rerun descriptor admission before queue": "game_path_changed_before_enqueue",
+        "source inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.source, false,',
+        "destination inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.dest_base, true,',
+        "reject source/destination replacement": "game_identity_changed_during_preflight",
         "no arbitrary source access": "game_path_not_allowed",
         "write endpoints default deny": "write_operation_not_allowed",
         "only explicit pause path": 'strcmp(path, "/api/pause")',
@@ -54,9 +56,11 @@ def check_engine(root: Path) -> None:
     missing = [label for label, fragment in required.items() if fragment not in http]
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
-    if http.count('cmp5_game_path_on_disk("/", r.source, false)') < 2 or (
-        http.count('cmp5_game_path_on_disk("/", r.dest_base, true)') < 2):
-        missing.append("missing second anchored pre-enqueue check")
+    if http.count('cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)') != 1 or (
+        http.count('cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)') != 1 or (
+        http.count('cmp5_game_path_still_same("/", r.source, false,') != 1 or (
+        http.count('cmp5_game_path_still_same("/", r.dest_base, true,') != 1:
+        missing.append("missing initial/second path identity checks")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

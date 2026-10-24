@@ -77,11 +77,12 @@ def main(root: Path):
   /* A permitted name must ALSO resolve through real directories.
    * This rejects a homebrew/ or USB symlink alias of savedata/system
    * before a separate local client can enqueue conversion work. */
-  if (!cmp5_game_path_on_disk("/", r.source, false) ||
-      !cmp5_game_path_on_disk("/", r.dest_base, true)) {
+  struct stat cmp5_source_snapshot, cmp5_dest_snapshot;
+  if (!cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot) ||
+      !cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)) {
     send_json(fd, 409, "{\\"error\\":\\"game_path_unstable_or_aliased\\"}");
     return;
-  }''')
+  }'')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
     # they can race with ShadowMountPlus or another loopback client.
@@ -189,9 +190,11 @@ def main(root: Path):
   /* Repeat the anchored admission immediately before enqueue. An SMP
    * preflight may have taken long enough for source/destination aliases
    * to be replaced. This is NOT a filesystem transaction or lock. */
-  if (!cmp5_game_path_on_disk("/", r.source, false) ||
-      !cmp5_game_path_on_disk("/", r.dest_base, true)) {
-    send_json(fd, 409, "{\\"error\\":\\"game_path_changed_before_enqueue\\"}");
+  if (!cmp5_game_path_still_same("/", r.source, false,
+                               &cmp5_source_snapshot) ||
+      !cmp5_game_path_still_same("/", r.dest_base, true,
+                               &cmp5_dest_snapshot)) {
+    send_json(fd, 409, "{\\"error\\":\\"game_identity_changed_during_preflight\\"}");
     return;
   }
   (void)queue_only;''')
