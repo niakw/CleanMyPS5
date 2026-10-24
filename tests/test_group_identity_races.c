@@ -8,6 +8,7 @@
 #endif
 #include <assert.h>
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,10 +43,23 @@ static ssize_t race_read(int fd,void*out,size_t n){
  }
  return got;
 }
+static int directory_scan_swap;
+static char scan_old_dir[1024],scan_new_dir[1024];
+static struct dirent*racing_readdir(DIR*dir){
+ struct dirent*entry=readdir(dir);
+ if(directory_scan_swap&&entry){
+  assert(rename(scan_old_dir,scan_new_dir)==0);
+  assert(mkdir(scan_old_dir,0700)==0);
+  directory_scan_swap=0;
+ }
+ return entry;
+}
 #define read race_read
+#define readdir racing_readdir
 #define unlinkat racing_unlinkat
 #include "../src/native/verified_group.c"
 #undef unlinkat
+#undef readdir
 #undef read
 static void setup_watch(const char*parent,const char*name,const char*replacement,int operation){
  int length=snprintf(watched,sizeof(watched),"%s/%s",parent,name);
@@ -205,6 +219,21 @@ int main(int argc,char**argv){
  assert(!empty_group_namespace(dir,"ALBUM"));
  assert(unlinkat(dir,"BACKUP__5",0)==0);
  assert(unlinkat(dir,"ALBUM__5",0)==0);
+ /* A scan of an empty group can otherwise return EMPTY for an orphaned
+  * directory that is no longer present under the caller's workspace name. */
+ int n=snprintf(scan_old_dir,sizeof(scan_old_dir),"%s",workspace);
+ assert(n>0&&(size_t)n<sizeof(scan_old_dir));
+ n=snprintf(scan_new_dir,sizeof(scan_new_dir),"%s.moved",workspace);
+ assert(n>0&&(size_t)n<sizeof(scan_new_dir));
+ directory_scan_swap=1;
+ Cmp5RecoveryReport scan_report={0};
+ assert(!cmp5_inspect_group_recovery(workspace,"UNKNOWN",&scan_report));
+ assert(!directory_scan_swap);
+ assert(scan_report.state==0);
+ assert(rmdir(workspace)==0);
+ assert(rename(scan_new_dir,workspace)==0);
+ assert(cmp5_inspect_group_recovery(workspace,"UNKNOWN",&scan_report));
+ assert(scan_report.state==CMP5_RECOVERY_EMPTY);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
  return 0;

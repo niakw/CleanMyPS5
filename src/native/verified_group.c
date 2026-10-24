@@ -530,6 +530,8 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
  if(!valid_id(id))return 0;
  int dir=safe_dir(workspace);
  if(dir<0)return 0;
+ struct stat dir_before={0};
+ if(fstat(dir,&dir_before)!=0){close(dir);return 0;}
  Cmp5RecoveryReport result={0};
  int unsafe=0,present=0,ok=1;
  char name[48],stage[64];
@@ -551,8 +553,7 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
   result.staged_parts+=(uint32_t)present;
  }
  if(ok)ok=inspect_namespace(dir,id,restored,&result.unexpected_entries);
- close(dir);
- if(!ok)return 0;
+ if(!ok){close(dir);return 0;}
  if(unsafe||result.unexpected_entries)result.state=CMP5_RECOVERY_INVALID;
  else if(result.marker_present){
   Cmp5GroupReceipt verified={0};
@@ -567,6 +568,12 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
  }else if(result.published_parts||result.staged_parts)
   result.state=CMP5_RECOVERY_INCOMPLETE;
  else result.state=CMP5_RECOVERY_EMPTY;
+ /* Even EMPTY is an identity-sensitive claim: an attacker may replace the
+  * directory while readdir consumes the original anchored descriptor.
+  * Do not report EMPTY/VERIFIED for a different workspace at the path. */
+ const int stable=workspace_unchanged(dir,workspace,&dir_before);
+ close(dir);
+ if(!stable)return 0;
  *report=result;
  return 1;
 }

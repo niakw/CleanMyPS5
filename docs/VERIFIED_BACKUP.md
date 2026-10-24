@@ -191,3 +191,14 @@ le chemin choisi désigne toujours exactement ce même dossier. Une fixture
 renomme le dossier après un bloc de lecture et en recrée un vide sous le
 nom initial : le reçu doit être refusé malgré le contenu intact de
 l'ancien dossier. Cela reste sans écriture dans la Galerie PS5.
+
+### Un état EMPTY ou VERIFIED n'est jamais fondé sur un dossier remplacé
+
+L'inspection read-only de récupération (`cmp5_inspect_group_recovery` et
+`cmp5_inspect_restored_group_recovery`) vérifie maintenant l'identité de
+son espace privé avant et **après** la recherche d'entrées et la validation
+des marqueurs. Même une réponse `EMPTY` est refusée si le dossier a
+été renommé puis remplacé pendant `readdir`. Une fixture intercepte
+l'énumération, déplace le dossier et en crée un autre sous son ancien
+chemin ; l'appel doit refuser de produire un état. Aucun index système
+n'est modifié et les validations PS5 13.60 restent nécessaires.
