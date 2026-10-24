@@ -242,6 +242,21 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 add_test(NAME private_workspace_capacity COMMAND cmp5-private-workspace-capacity)
 
+# Strictly isolated host-only lifecycle proof: verified capsule, independent
+# restore rehearsal, quarantined private item and exact private recovery.
+# NEVER link the implementation into the PS5 title or helper.
+add_executable(cmp5-private-quarantine-tests
+ tests/test_private_quarantine.c src/native/private_quarantine.c
+ src/native/verified_backup.c src/native/sha256.c)
+target_include_directories(cmp5-private-quarantine-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-private-quarantine-tests PRIVATE
+   -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME private_quarantine_lifecycle COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_private_quarantine.py
+ $<TARGET_FILE:cmp5-private-quarantine-tests>)
+
 # Host-only private transaction workspaces: reject privileged PS5 roots,
 # parent symlink swaps, path traversal and directories not owned as 0700.
 add_executable(cmp5-private-workspace-guard tests/test_private_workspace_guard.c)

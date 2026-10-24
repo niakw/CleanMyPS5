@@ -75,6 +75,28 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
 
+## Transaction de quarantaine : preuve hôte isolée (25 octobre 2026)
+
+Une première chaîne **complète mais uniquement expérimentale** s'exécute
+dans un dossier temporaire privé nommé `cmp5-quarantine-lab` (0700),
+jamais dans les données de la console : vérifier la capsule SHA-256,
+effectuer une véritable restauration de répétition dans un second
+espace privé indépendant, revérifier la source, placer l'item en
+quarantaine **sans effacer ses octets**, puis restaurer le nom initial
+sans écraser un fichier existant.
+
+Les transitions utilisent uniquement des noms fixes dans la même
+arborescence privée. Un état intermédiaire avec deux noms présents,
+une collision, un lien symbolique, une source modifiée ou une capsule
+absente est **ambigu / refusé**, sans tentative d'effacement automatique.
+La CI teste une transaction complète, une restauration et ces refus,
+avec les vraies routines de sauvegarde et SHA-256.
+
+**Ce test ne libère pas d'espace disque**, n'établit ni l'autorisation
+de nettoyer des caches PS5 ni les relations avec les index Sony.
+L'implémentation reste EXCLUE du titre PS5 et du helper privilégié,
+et ne propose aucun endpoint permettant de muter une console.
+
 ## Contrôle commun d'espace libre (hôte uniquement)
 
 Avant de créer la première capsule de sauvegarde ou le premier fichier

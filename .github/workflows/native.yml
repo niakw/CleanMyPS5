@@ -15,6 +15,10 @@ on:
       - tests/test_gallery_thumbnail_backup.c
       - tests/test_gallery_thumbnail_backup.py
       - tests/test_private_workspace_capacity.c
+      - tests/test_private_quarantine.c
+      - tests/test_private_quarantine.py
+      - src/native/private_quarantine.c
+      - src/native/private_quarantine.h
       - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
@@ -151,6 +155,13 @@ jobs:
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_private_workspace_capacity.c -o /tmp/cmp5-private-capacity
           /tmp/cmp5-private-capacity
+      - name: Verify private-only quarantine and recovery lifecycle
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_private_quarantine.c src/native/private_quarantine.c \
+            src/native/verified_backup.c src/native/sha256.c \
+            -o /tmp/cmp5-private-quarantine
+          python3 tests/test_private_quarantine.py /tmp/cmp5-private-quarantine
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb
