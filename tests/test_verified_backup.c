@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "verified_backup.h"
+#include "media_snapshot.h"
 #include "sha256.h"
 /* Test invariants must run even when CMake uses -DNDEBUG (Release). */
 #ifdef NDEBUG
@@ -23,10 +24,17 @@ int main(int argc,char**argv){
  const char*relative="/user/av_contents/photo/NPXS00000/GAME123/CAPTURE.JPG";
  Cmp5MediaCandidate media={0};struct stat st;
  assert(stat(original,&st)==0);
- media.media_type=1;media.bytes=(uint64_t)st.st_size;media.modified_at=st.st_mtime;
- media.snapshot_device=st.st_dev;media.snapshot_inode=st.st_ino;
+ media.media_type=1;media.bytes=(uint64_t)st.st_size;
+ cmp5_snapshot_capture(&media,&st);
  strcpy(media.preview_path,relative);
  Cmp5BackupReceipt a={0},b={0};
+ Cmp5MediaCandidate stale=media;
+ stale.snapshot_mtime_nsec=(stale.snapshot_mtime_nsec+1u)%1000000000u;
+ assert(!cmp5_backup_media(root,&stale,backup,"STALE_MTIME",&a,NULL,NULL));
+ stale=media;stale.snapshot_ctime_nsec=(stale.snapshot_ctime_nsec+1u)%1000000000u;
+ assert(!cmp5_backup_media(root,&stale,backup,"STALE_CTIME",&a,NULL,NULL));
+ stale=media;stale.snapshot_ctime++;
+ assert(!cmp5_backup_media(root,&stale,backup,"STALE_CTIME_S",&a,NULL,NULL));
  assert(!cmp5_backup_media(root,&media,backup,"ONE",&a,always_cancel,NULL));
  assert(!cmp5_verify_backup(backup,"ONE",&a,NULL,NULL));
  assert(!cmp5_backup_media(root,&media,backup,"BAD/NAME",&a,NULL,NULL));

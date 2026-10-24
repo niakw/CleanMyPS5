@@ -4,6 +4,7 @@
 #include "verified_backup.h"
 #include "sha256.h"
 #include "private_workspace_guard.h"
+#include "media_snapshot.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -43,11 +44,7 @@ static int same(const struct stat*a,const struct stat*b){
   a->st_ctime==b->st_ctime;
 }
 static int snapshot_matches(const struct stat*s,const Cmp5MediaCandidate*c){
- return S_ISREG(s->st_mode)&&s->st_nlink==1&&s->st_size>0&&
-  (uint64_t)s->st_size==c->bytes&&
-  (uint64_t)s->st_dev==c->snapshot_device&&
-  (uint64_t)s->st_ino==c->snapshot_inode&&
-  (s->st_mtime>0?(int64_t)s->st_mtime:0)==c->modified_at;
+ return cmp5_snapshot_matches(c,s);
 }
 static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*out){
  if(!root||!c||!out||c->bytes==0||c->bytes>CMP5_BACKUP_LIMIT)return -1;

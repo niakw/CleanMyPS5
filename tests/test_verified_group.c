@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "verified_group.h"
+#include "media_snapshot.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -62,9 +63,7 @@ static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  struct stat st;assert(stat(absolute,&st)==0);
  memset(c,0,sizeof(*c));c->media_type=type;
  c->bytes=(uint64_t)st.st_size;
- c->modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
- c->snapshot_device=(uint64_t)st.st_dev;
- c->snapshot_inode=(uint64_t)st.st_ino;
+ cmp5_snapshot_capture(c,&st);
  assert(strlen(relative)<sizeof(c->preview_path));
  strcpy(c->preview_path,relative);
 }
@@ -274,6 +273,13 @@ int main(int argc,char**argv){
  assert(unlink(suspicious_path)==0);
  assert(unlink(single_path)==0);
 
+ /* Reject stale subsecond primary identity before creating any capsule. */
+ Cmp5MediaCandidate nanos[3];memcpy(nanos,media,sizeof(nanos));
+ nanos[0].snapshot_mtime_nsec=(nanos[0].snapshot_mtime_nsec+1u)%1000000000u;
+ assert(!cmp5_backup_group(root,nanos,3,private,"NANO_STALE",&a,NULL,NULL));
+ char nanofile[512];
+ (void)snprintf(nanofile,sizeof(nanofile),"%s/NANO_STALE__1",private);
+ assert(access(nanofile,F_OK)!=0);
  /* The backup API, not only its pure validator, must reject an
   * unterminated gallery locator before opening/creating any private files. */
  memcpy(malformed,media,sizeof(malformed));

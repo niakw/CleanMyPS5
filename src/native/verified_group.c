@@ -4,6 +4,7 @@
 #include "verified_group.h"
 #include "sha256.h"
 #include "private_workspace_guard.h"
+#include "media_snapshot.h"
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -265,10 +266,7 @@ static int matches_visible_companions(const char*root,
   for(uint32_t j=0;j<count;j++){
    const Cmp5MediaCandidate*a=&parts[i],*b=&visible[j];
    if(strcmp(a->preview_path,b->preview_path)==0&&
-      a->media_type==b->media_type&&a->bytes==b->bytes&&
-      a->modified_at==b->modified_at&&
-      a->snapshot_device==b->snapshot_device&&
-      a->snapshot_inode==b->snapshot_inode){
+      a->media_type==b->media_type&&cmp5_snapshot_same(a,b)){
     if(matched&(1u<<j)){ok=0;break;}
     matched|=1u<<j;found=1u;break;
    }

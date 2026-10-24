@@ -112,3 +112,15 @@ au dernier composant est refusé. Ce contrôle n'est pas une protection
 contre un processus ayant déjà accès à un répertoire privé et capable
 d'en modifier le contenu ; les validations de transactions restent
 nécessaires. Aucun code de sauvegarde n'est chargé sur PS5.
+
+## Identité de capture à la nanoseconde
+
+Le catalogue natif mémorise maintenant mtime, ctime et leurs fractions
+nanoseconde en plus de la taille, de l'inode et du périphérique. Les
+scanners de compagnons, la sauvegarde hôte et la correspondance des
+groupes partagent exactement ces snapshots. Un fichier réécrit à taille,
+inode et seconde inchangés n'est plus considéré comme l'ancienne capture
+lorsque le changement est visible dans mtime ou ctime à la nanoseconde.
+Les tests injectent des identités dont seule la nanoseconde ou la seconde
+ctime diffère et imposent le refus avant toute capsule privée. Aucune
+suppression ou restauration des index Sony sur PS5 n'est autorisée.

@@ -58,9 +58,7 @@ int main(int argc,char**argv){
  assert(stat(original,&st)==0);
  item.media_type=1;
  item.bytes=(uint64_t)st.st_size;
- item.modified_at=st.st_mtime;
- item.snapshot_device=(uint64_t)st.st_dev;
- item.snapshot_inode=(uint64_t)st.st_ino;
+ cmp5_snapshot_capture(&item,&st);
  strcpy(item.preview_path,"/user/av_contents/photo/NPXS00000/GAME123/CAPTURE.JPG");
  Cmp5BackupReceipt receipt={0};
  if(!strcmp(action,"create")){
