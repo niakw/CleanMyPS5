@@ -82,7 +82,7 @@ def main(root: Path):
       !cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)) {
     send_json(fd, 409, "{\\"error\\":\\"game_path_unstable_or_aliased\\"}");
     return;
-  }'')
+  }''')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
     # they can race with ShadowMountPlus or another loopback client.
