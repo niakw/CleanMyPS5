@@ -585,6 +585,7 @@ int main(){
  assert(mock_ampr_gets==engine_calls);
  /* Cancel the WHOLE general audit mid-Gallery scan, not just a standalone
   * media scan. No prior global module totals may remain published. */
+ entered_stalled_scan.store(false);
  stall_next_scan.store(true);
  press(cross);
  const auto general_deadline=std::chrono::steady_clock::now()+std::chrono::seconds(6);
@@ -1168,6 +1169,7 @@ int main(){
  // or exposing a half-published result, and must not authorize another scan
  // until it has acknowledged the cancellation.
  selected=2;
+ entered_stalled_scan.store(false);
  stall_next_scan.store(true);
  press(cross);
  assert(screen==Screen::cleanup);
