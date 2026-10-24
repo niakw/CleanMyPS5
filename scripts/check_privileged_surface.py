@@ -74,6 +74,16 @@ def check_builder(content: str) -> set[str]:
   raise ValueError("Native compiler source list differs from reviewed readers")
  if 'cp "$project/native/preview_decode.c"' not in content:
   raise ValueError("Native preview decoder source missing")
+ # Any extra or renamed C/C++ overlay changes what executes inside
+ # the app. Treat it as a security boundary, not a loose file count.
+ overlays = re.findall(
+  r'cp "\$project/(src/native|native)/([A-Za-z0-9_]+\.(?:c|cc|cpp|cxx))" '
+  r'"\$tmp/native-toolchain/src/([A-Za-z0-9_]+\.(?:c|cc|cpp|cxx))"',content)
+ expected = {("src/native",name,"cmp5_"+name) for name in APPROVED}
+ expected.update({("native","main.cpp","main.cpp"),
+                  ("native","preview_decode.c","cmp5_preview_decode.c")})
+ if len(overlays)!=len(expected) or set(overlays)!=expected:
+  raise ValueError("Unreviewed or renamed C/C++ native title overlay")
  if "verified_group.c" in content or "verified_backup.c" in content:
   raise ValueError("Unvalidated host-only backup/restore linked into PS5")
  return set(sources)

@@ -54,4 +54,11 @@ with tempfile.TemporaryDirectory() as tmp:
  (sandbox/"native"/"preview_decode.c").write_text("")
  staged=builder+'\ncp "$project/src/native/fixture.h" "$tmp/native-toolchain/src/fixture.h"'
  reject(lambda:gate.check_title_headers(sandbox,staged,{"fixture.c"}))
+reject(lambda:gate.check_builder(builder+
+ '\ncp "$project/native/elevation.cpp" "$tmp/native-toolchain/src/elevation.cpp"'))
+reject(lambda:gate.check_builder(builder+
+ '\ncp "$project/src/native/secret_writer.c" "$tmp/native-toolchain/src/cmp5_secret_writer.c"'))
+reject(lambda:gate.check_builder(builder.replace(
+ 'cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"',
+ 'cp "$project/native/main.cpp" "$tmp/native-toolchain/src/unsafe.cpp"')))
 print("Privilege scanner and injected write operations: PASS")

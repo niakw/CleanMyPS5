@@ -66,3 +66,12 @@ La décision demeure : pas d'élévation globale du titre. Une éventuelle
 avec transactions prouvées sur console, pas la copie d'une capacité
 NiakPS5 ou Eden Encore. Ce contrôle statique n'est pas une preuve de
 sécurité absolue ni une validation matérielle.
+
+### Liste blanche des unités de compilation
+
+Le contrôle de packaging refuse dorénavant toute unité supplémentaire
+`.c`, `.cc`, `.cpp` ou `.cxx` et toute substitution/renommage
+d'une unité source dans le titre natif. Seuls les neuf scanners de lecture
+révisés, `native/main.cpp` et `native/preview_decode.c` peuvent être
+copiés dans le modèle de compilation épinglé. Les tests injectent une
+fausse implémentation d'élévation ou de nettoyage pour vérifier le refus.
