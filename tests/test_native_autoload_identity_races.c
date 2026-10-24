@@ -82,8 +82,8 @@ int main(void){
  /* Embedded binary zero would truncate parsing to the misleading prefix.
   * It must produce an unreadable state, never "no reference". */
  FILE*binary=fopen(watched,"wb");assert(binary);
- static const char binary_text[]={'#','n','o','n','e','\\0',
-   'e','t','a','H','E','N','.','e','l','f','\\n'};
+ static const char binary_text[]={'#','n','o','n','e','\0',
+   'e','t','a','H','E','N','.','e','l','f','\n'};
  assert(fwrite(binary_text,1,sizeof(binary_text),binary)==sizeof(binary_text));
  assert(fclose(binary)==0);
  s=inspect(root);
