@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory() as scratch:
         name_dir=title_photo/f"GAME{i:05d}"
         name_dir.mkdir(parents=True)
         (name_dir/"caption.dat").write_bytes(
-            b"\\x00"*0x44+f"Game {i:05d}".encode("ascii")+b"\\x00"
+            b"\x00"*0x44+f"Game {i:05d}".encode("ascii")+b"\x00"
         )
     cap_result=subprocess.run(
         [sys.argv[1],str(title_root),"sidecar-cap"],
