@@ -583,6 +583,9 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_VERIFIED);
  assert(!cmp5_inspect_restored_group_recovery(restored,"BAD/ID",&recovery));
+ /* Negative verification clears the output receipt by contract. Refresh it
+  * only after the namespace has returned to a verified, clean state. */
+ assert(cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(b.count==3);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  Cmp5MediaCandidate wrong[3];memcpy(wrong,media,sizeof(wrong));
