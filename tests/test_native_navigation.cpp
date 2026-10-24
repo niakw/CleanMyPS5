@@ -1295,11 +1295,11 @@ int main(){
   detail_index=0;
   save(Screen::detail,"06-details");
   companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_MULTIPLE,CMP5_COMPANION_FAILURE_NONE,
-    2u,1u,1u,30ULL*1024*1024+256u};
+    CMP5_THUMBNAIL_CANDIDATE_FOUND,2u,1u,1u,30ULL*1024*1024+256u};
   companion_checked=true;
   save(Screen::companions,"06b-companions");
   companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_SINGLE,CMP5_COMPANION_FAILURE_NONE,
-    1u,1u,0u,10ULL*1024*1024};
+    CMP5_THUMBNAIL_KNOWN_PATH_ABSENT,1u,1u,0u,10ULL*1024*1024};
   save(Screen::companions,"06c-single-capture");
   companion_summary=Cmp5CompanionReport{};
   companion_summary.failure=CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT;

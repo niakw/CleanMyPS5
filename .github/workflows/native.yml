@@ -7,6 +7,8 @@ on:
       - tests/test_native_protocol.cpp
       - tests/test_native_overview_protocol.cpp
       - tests/test_native_navigation.cpp
+      - tests/test_gallery_thumbnail.c
+      - tests/test_gallery_thumbnail.py
       - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
@@ -115,6 +117,12 @@ jobs:
           CMP5_NATIVE_PREVIEW_DIR=dist/ui-traces /tmp/cmp5-native-navigation
           python3 tests/render_native_preview.py dist/ui-traces dist/native-ui-preview
           test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 22
+      - name: Validate cross-directory gallery thumbnail evidence without writes
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_gallery_thumbnail.c src/native/capture_companions.c \
+            -o /tmp/cmp5-gallery-thumbnail
+          python3 tests/test_gallery_thumbnail.py /tmp/cmp5-gallery-thumbnail
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb
