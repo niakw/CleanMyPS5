@@ -468,6 +468,34 @@ int main(int argc,char**argv){
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  assert(access(destination_first,F_OK)!=0);
  assert(unlink(ambiguous)==0);
+ /* Insert a stale .part into the SOURCE namespace after member 1
+  * has reached a private restore workspace. The final source audit must
+  * refuse RESTORED even though all capsule digests are still valid. */
+ char late_restore_dir[512],late_restored_mark[512];
+ assert(snprintf(late_restore_dir,sizeof(late_restore_dir),
+   "%s/late-private-restore",root)>0);
+ assert(mkdir(late_restore_dir,0700)==0);
+ LateCompanion late_source={0};
+ assert(snprintf(late_source.first_published,
+   sizeof(late_source.first_published),"%s/ALBUM__1",late_restore_dir)>0);
+ assert(snprintf(late_source.late_variant,
+   sizeof(late_source.late_variant),"%s/.ALBUM__4.part",private)>0);
+ assert(snprintf(late_restored_mark,sizeof(late_restored_mark),
+   "%s/ALBUM__RESTORED",late_restore_dir)>0);
+ assert(!cmp5_restore_group(private,"ALBUM",late_restore_dir,&b,
+   add_companion_during_backup,&late_source));
+ assert(late_source.created);
+ assert(access(late_source.first_published,F_OK)==0);
+ assert(access(late_restored_mark,F_OK)!=0);
+ Cmp5RecoveryReport late_source_report={0},late_dest_report={0};
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&late_source_report));
+ assert(late_source_report.state==CMP5_RECOVERY_INVALID);
+ assert(cmp5_inspect_restored_group_recovery(late_restore_dir,
+   "ALBUM",&late_dest_report));
+ assert(late_dest_report.state==CMP5_RECOVERY_INCOMPLETE);
+ assert(unlink(late_source.late_variant)==0);
+ assert(cmp5_inspect_group_recovery(private,"ALBUM",&late_source_report));
+ assert(late_source_report.state==CMP5_RECOVERY_VERIFIED);
  /* A leftover later member must block the entire restore before the
   * first restored file appears, without touching the older partial. */
  char stale_restore[512],early_restored_member[512];

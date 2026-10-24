@@ -139,3 +139,10 @@ Cela empêche de finaliser une restauration privée à partir d'une source
 devenue ambiguë pendant la copie ; le refus peut laisser des membres
 partiels dans la destination, jamais un groupe officiellement restauré.
 Ces gardes restent hôte uniquement et ne restaurent pas les index Sony.
+
+Une fixture supplémentaire injecte un `.ALBUM__4.part` dans le **dossier
+de sauvegarde après publication du premier membre restauré**, pendant la
+copie des autres membres. Même avec toutes les empreintes valides, la
+restauration refuse le marqueur `__RESTORED`, classe la source comme
+`INVALID` et la sortie sans marqueur comme `INCOMPLETE`. Cette preuve
+couvre la seconde inspection, et pas seulement le précontrôle initial.
