@@ -445,3 +445,13 @@ autres paramètres de la requête. Une sortie sans checkpoint valide entraîne
 un refus ; la reprise n'efface jamais automatiquement les fichiers partiels.
 Le test natif simule une erreur et prouve qu'une reprise n'émet aucun
 nouveau POST de conversion.
+
+### Vérifier le dossier avant de lire le checkpoint
+
+Une reprise PS5 exige désormais un répertoire de sortie `TitleID` réellement
+existant, situé directement sous une racine `homebrew` autorisée et sans
+symlink à aucun niveau. Le répertoire doit conserver la même identité
+POSIX pendant le chargement des options `.e2a-state`; les chemins
+arbitraires, montages imbriqués et répertoires remplacés sont refusés.
+La CI couvre le remplacement et les chemins malformés dans une arborescence
+synthétique, ainsi que l'ordre des contrôles dans le moteur transformé.

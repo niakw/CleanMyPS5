@@ -175,4 +175,33 @@ static inline bool cmp5_game_output_vacant(const char*root,const char*dest,
  close(dir);
  return found<0&&error==ENOENT;
 }
+/* Resume reads persisted job options: first ensure this is an allowed,
+ * direct Title ID output directory with no symlinks or nested mounts. */
+static inline bool cmp5_game_resume_path_stat(const char*root,
+                                              const char*path,
+                                              struct stat*out){
+ if(out)memset(out,0,sizeof(*out));
+ if(!root||!path||!out||strlen(path)>=192)return false;
+ const char*slash=strrchr(path,'/');
+ if(!slash||slash==path||strlen(slash+1)!=9)return false;
+ for(size_t i=0;i<9;i++){
+  const char c=slash[1+i];
+  if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+ }
+ char parent[192];
+ const size_t n=(size_t)(slash-path);
+ if(!n||n>=sizeof(parent))return false;
+ memcpy(parent,path,n);parent[n]=0;
+ struct stat root_stat={0};
+ return cmp5_game_path_stat(root,parent,true,&root_stat)&&
+   cmp5_game_path_stat(root,path,false,out)&&
+   S_ISDIR(out->st_mode)&&root_stat.st_dev==out->st_dev;
+}
+static inline bool cmp5_game_resume_path_still_same(const char*root,
+                                                     const char*path,
+                                                     const struct stat*before){
+ struct stat current={0};
+ return before&&cmp5_game_resume_path_stat(root,path,&current)&&
+        cmp5_game_same_stat(before,&current);
+}
 #endif

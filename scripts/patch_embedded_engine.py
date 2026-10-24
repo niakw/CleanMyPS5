@@ -145,6 +145,22 @@ def main(root: Path):
 #endif
   if (!normalized.dest_base[0])''')
 
+    # A resume reads a checkpoint BEFORE job_enqueue can reject paths.
+    # Require a real allowlisted output directory on PS5 before that read.
+    change(jobc,
+           '  job_request r;\n  if (request_load(state_dir, &r) != 0) return -1;',
+           '''#ifndef E2A_HOST
+  struct stat cmp5_resume_snapshot = {0};
+  if (!cmp5_game_resume_path_stat("/", dest, &cmp5_resume_snapshot))
+    return -1;
+#endif
+  job_request r;
+  if (request_load(state_dir, &r) != 0) return -1;
+#ifndef E2A_HOST
+  if (!cmp5_game_resume_path_still_same(
+        "/", dest, &cmp5_resume_snapshot)) return -1;
+#endif''')
+
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')

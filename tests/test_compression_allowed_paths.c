@@ -73,9 +73,31 @@ int main(void) {
  assert(snprintf(reserved,sizeof(reserved),"%s/mnt/usb0/homebrew/PPSA12345",sandbox)>0);
  assert(mkdir(reserved,0700)==0);
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ struct stat resume_snapshot={0};
+ assert(cmp5_game_resume_path_stat(sandbox,
+   "/mnt/usb0/homebrew/PPSA12345",&resume_snapshot));
+ assert(cmp5_game_resume_path_still_same(sandbox,
+   "/mnt/usb0/homebrew/PPSA12345",&resume_snapshot));
+ assert(!cmp5_game_resume_path_stat(sandbox,
+   "/mnt/usb0/homebrew/PPSA1234A",&resume_snapshot));
+ assert(!cmp5_game_resume_path_stat(sandbox,
+   "/mnt/usb0/savedata/PPSA12345",&resume_snapshot));
+ assert(!cmp5_game_resume_path_stat(sandbox,
+   "/mnt/usb0/homebrew/../PPSA12345",&resume_snapshot));
+ char moved_title[512];
+ assert(snprintf(moved_title,sizeof(moved_title),
+   "%s/mnt/usb0/homebrew/PPSA12345.moved",sandbox)>0);
+ assert(rename(reserved,moved_title)==0);
+ assert(mkdir(reserved,0700)==0);
+ assert(!cmp5_game_resume_path_still_same(sandbox,
+   "/mnt/usb0/homebrew/PPSA12345",&resume_snapshot));
+ assert(rmdir(reserved)==0);
+ assert(rename(moved_title,reserved)==0);
  assert(rmdir(reserved)==0);
  assert(symlink("/system_data",reserved)==0);
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(!cmp5_game_resume_path_stat(sandbox,
+   "/mnt/usb0/homebrew/PPSA12345",&resume_snapshot));
  assert(unlink(reserved)==0);
  assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
  assert(!cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",true));

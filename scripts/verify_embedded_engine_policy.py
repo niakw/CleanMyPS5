@@ -124,6 +124,18 @@ def check_engine(root: Path) -> None:
                 missing.append(label)
         if "#ifndef E2A_HOST" not in queue or "#endif" not in queue:
             missing.append("missing isolated PS5 queue admission contract")
+    # The saved request must not be read from arbitrary user/system paths.
+    resume_start = job.find("int job_resume_level(")
+    resume_end = job.find("int job_resume(", resume_start)
+    if resume_start < 0 or resume_end < 0:
+        missing.append("cannot inspect resume checkpoint reader")
+    else:
+        resume = job[resume_start:resume_end]
+        before = resume.find('cmp5_game_resume_path_stat("/", dest, &cmp5_resume_snapshot)')
+        read = resume.find("request_load(state_dir, &r)")
+        after = resume.find('cmp5_game_resume_path_still_same(')
+        if before < 0 or read < 0 or after < 0 or not before < read < after:
+            missing.append("checkpoint read not guarded by anchored resume identity")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {
