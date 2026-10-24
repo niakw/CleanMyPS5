@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "homebrew.h"
 #include "scan_rules.h"
 #include <strings.h>
