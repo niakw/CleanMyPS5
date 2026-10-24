@@ -23,6 +23,16 @@ int main(int argc,char**argv){
  /* No plugin/homebrew directory is counted twice via /data. The
   * protected config and saves directories remain excluded. */
  assert(stats.nominal_bytes==24u); /* includes ordinary config.json (2 B) */
+ assert(stats.top_count==4u);
+ for(unsigned i=0;i<stats.top_count;i++){
+  const Cmp5HomebrewTop*item=&stats.top[i];
+  assert(item->category>=1u&&item->category<=4u);
+  assert(item->label[0]&&strlen(item->label)<sizeof(item->label));
+  assert(!strchr(item->label,'/'));
+  assert(item->nominal_bytes>0);
+  if(i)assert(stats.top[i-1u].nominal_bytes>=item->nominal_bytes);
+ }
+ assert(stats.top[0].nominal_bytes==6u);
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
@@ -34,6 +44,7 @@ int main(int argc,char**argv){
  assert(interrupted.partial==1);
  assert(strstr(report,"\"partial\":true"));
  assert(interrupted.entries==0);
+ assert(interrupted.top_count==0);
  free(report);
  puts("Native homebrew summary and cancellation: PASS");
  return 0;

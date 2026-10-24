@@ -9,6 +9,16 @@ extern "C" {
 #define CMP5_CANCEL_CHECK_TYPE
 typedef int (*Cmp5CancelCheck)(void *context);
 #endif
+#define CMP5_HOMEBREW_TOP_CAP 4u
+/* Categories: 1=homebrew, 2=plugin, 3=app-data, 4=installed.
+ * Labels are local-only, printable ASCII (not paths or identifiers of users). */
+typedef struct {
+ uint64_t nominal_bytes;
+ uint32_t files;
+ uint32_t partial;
+ uint32_t category;
+ char label[48];
+} Cmp5HomebrewTop;
 typedef struct {
  uint32_t entries;
  uint32_t homebrew;
@@ -17,6 +27,8 @@ typedef struct {
  uint32_t installed;
  uint32_t partial;
  uint64_t nominal_bytes; /* Seen data only, NOT reclaimable space. */
+ uint32_t top_count;
+ Cmp5HomebrewTop top[CMP5_HOMEBREW_TOP_CAP];
 } Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);

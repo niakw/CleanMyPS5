@@ -264,3 +264,16 @@ recompter `plugins`. Un test contrôle le total exact sur des fichiers
 synthétiques et le maintien des exclusions de sauvegardes/configurations.
 Les chiffres restent **nominaux et observés**, pas une quantité de stockage
 récupérable ; aucune suppression ni désinstallation n'a été activée.
+
+### Plus grosses installations observées (lecture seule)
+
+L'écran natif **Apps et plugins** offre deux pages par L1/R1. La première
+présente les totaux par catégorie et la seconde les **quatre éléments de
+premier niveau les plus volumineux** (homebrew, plugin, données d'app ou
+installation). Le scanner calcule le classement à partir des tailles
+nominales de fichiers visibles dans ses budgets, en ignorant les dossiers
+et fichiers privés déjà exclus. Le titre ne reçoit que quatre libellés
+ASCII assainis, leur catégorie, leur taille nominale et le statut partiel,
+jamais les chemins complets. Une taille ne démontre pas qu'un fichier peut
+être supprimé. L'écran reste en lecture seule, sans désinstallation ni
+nettoyage automatique.

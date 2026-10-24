@@ -107,6 +107,47 @@ static int open_dir(const char*root,const char*relative){
  }
  return fd;
 }
+/* Retain only four top-level app/plugin/installation observations.
+ * Never store full paths in the native app summary. Keep a deterministic
+ * rank for equal sizes; do not treat nominal bytes as reclaimable. */
+static void record_top(Audit*a,const char*basename,const char*kind,
+                       uint64_t bytes,size_t files,int partial){
+ Cmp5HomebrewStats*stats=a->stats;
+ if(!stats)return;
+ Cmp5HomebrewTop item={0};
+ item.nominal_bytes=bytes;
+ item.files=files>UINT32_MAX?UINT32_MAX:(uint32_t)files;
+ item.partial=partial?1u:0u;
+ item.category=!strcmp(kind,"homebrew")?1u:
+   !strcmp(kind,"plugin")?2u:!strcmp(kind,"app-data")?3u:4u;
+ size_t len=0;
+ for(const unsigned char*p=(const unsigned char*)basename;*p&&len<sizeof(item.label)-1u;p++){
+  const unsigned char ch=*p;
+  if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||
+     (ch>='0'&&ch<='9')||ch=='-'||ch=='_'||ch=='.')
+   item.label[len++]=(char)ch;
+  else if(ch==' '&&len&&item.label[len-1]!=' ')
+   item.label[len++]=' ';
+ }
+ while(len&&item.label[len-1]==' ')len--;
+ if(!len){memcpy(item.label,"ELEMENT",8);len=7;}
+ item.label[len]=0;
+ unsigned where=0;
+ for(;where<stats->top_count;where++){
+  const Cmp5HomebrewTop*previous=&stats->top[where];
+  if(item.nominal_bytes>previous->nominal_bytes)break;
+  if(item.nominal_bytes==previous->nominal_bytes){
+   if(item.category<previous->category)break;
+   if(item.category==previous->category&&
+      strcmp(item.label,previous->label)<0)break;
+  }
+ }
+ if(where>=CMP5_HOMEBREW_TOP_CAP)return;
+ if(stats->top_count<CMP5_HOMEBREW_TOP_CAP)stats->top_count++;
+ for(unsigned i=stats->top_count-1u;i>where;i--)
+  stats->top[i]=stats->top[i-1u];
+ stats->top[where]=item;
+}
 static void audit_root(Audit*a,const char*root,const char*relative,const char*kind){
  int fd=open_dir(root,relative);if(fd<0){if(errno!=ENOENT)a->partial=1;return;}
  const int anchored_fd=fd;
@@ -147,6 +188,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    if(child<0)partial=1;
    else count_tree(a,child,0,&bytes,&files,&partial);
   }
+  record_top(a,e->d_name,kind,bytes,files,partial);
   if(a->stats){
    a->stats->entries++;
    if(!strcmp(kind,"homebrew"))a->stats->homebrew++;

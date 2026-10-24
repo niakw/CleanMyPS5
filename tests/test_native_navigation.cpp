@@ -1065,7 +1065,12 @@ int main(){
  assert(homebrew_stats.homebrew==3&&homebrew_stats.plugins==2);
  assert(homebrew_stats.installed==2&&homebrew_stats.app_data==1);
  assert(homebrew_stats.partial==1);
+ assert(homebrew_stats.top_count<=CMP5_HOMEBREW_TOP_CAP);
  scene(canvas);
+ assert(homebrew_page==0u);
+ press(r1);assert(homebrew_page==1u);
+ scene(canvas);
+ press(l1);assert(homebrew_page==0u);
  press(circle);
  assert(screen==Screen::access);
  press(circle);

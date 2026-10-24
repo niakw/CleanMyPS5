@@ -356,6 +356,7 @@ Cmp5DuplicateStats duplicate_stats{};
 bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
 bool homebrew_checked=false;
+unsigned homebrew_page=0;
 Cmp5AutoloadStats autoload_stats{};
 bool autoload_checked=false;
 constexpr unsigned game_capacity=256;
@@ -1756,6 +1757,10 @@ void poll_pad() noexcept {
    if(pressed&cross)official_checked[official_selection]=!official_checked[official_selection];
    continue;
   }
+  if(screen==Screen::apps&&(pressed&l1||pressed&r1)){
+   homebrew_page^=1u;
+   continue;
+  }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
    access_page=(pressed&r1)?
      (access_page+1u)%access_page_count:
@@ -1768,6 +1773,7 @@ void poll_pad() noexcept {
   }
   if(screen==Screen::access&&(pressed&square)){
    screen=Screen::apps;
+   homebrew_page=0;
    (void)begin_task(Task::homebrew);
    continue;
   }
@@ -2016,22 +2022,51 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"X REESSAYER   CERCLE RETOUR");
   return;
  }
- const unsigned counts[4]={
-  homebrew_stats.homebrew,homebrew_stats.plugins,
-  homebrew_stats.app_data,homebrew_stats.installed
- };
- static constexpr const char*labels[4]={
-  "HOMEBREWS","PLUGINS","DONNEES APPS","INSTALLATIONS"
- };
- for(unsigned i=0;i<4;i++){
-  char detail[95]{};
-  (void)std::snprintf(detail,sizeof(detail),"%u ELEMENTS PROTEGES",counts[i]);
-  panel(canvas,355+i*144,labels[i],detail,Color::cyan);
+ if(homebrew_page==0u){
+  const unsigned counts[4]={
+   homebrew_stats.homebrew,homebrew_stats.plugins,
+   homebrew_stats.app_data,homebrew_stats.installed
+  };
+  static constexpr const char*labels[4]={
+   "HOMEBREWS","PLUGINS","DONNEES APPS","INSTALLATIONS"
+  };
+  for(unsigned i=0;i<4;i++){
+   char detail[95]{};
+   (void)std::snprintf(detail,sizeof(detail),"%u ELEMENTS PROTEGES",counts[i]);
+   panel(canvas,355+i*144,labels[i],detail,Color::cyan);
+  }
+ }else{
+  static constexpr const char*categories[4]={
+   "HOMEBREW","PLUGIN","DONNEES APP","INSTALLATION"
+  };
+  for(unsigned i=0;i<4;i++){
+   if(i>=homebrew_stats.top_count){
+    panel(canvas,355+i*144,"AUCUN AUTRE ELEMENT","INVENTAIRE BORNE");
+    continue;
+   }
+   const auto&item=homebrew_stats.top[i];
+   const char*category=item.category>=1u&&item.category<=4u?
+     categories[item.category-1u]:"INCONNU";
+   char title[85]{},detail[115]{};
+   (void)std::snprintf(title,sizeof(title),"%u  %s",i+1u,item.label);
+   if(item.nominal_bytes>=1048576ULL)
+    (void)std::snprintf(detail,sizeof(detail),
+      "%s  %llu MIO NOMINAUX  %u FICHIERS%s",category,
+      static_cast<unsigned long long>(item.nominal_bytes/1048576ULL),
+      item.files,item.partial?"  PARTIEL":"");
+   else
+    (void)std::snprintf(detail,sizeof(detail),
+      "%s  %llu KIO NOMINAUX  %u FICHIERS%s",category,
+      static_cast<unsigned long long>(item.nominal_bytes/1024ULL),
+      item.files,item.partial?"  PARTIEL":"");
+   panel(canvas,355+i*144,title,detail,Color::cyan);
+  }
  }
  char footer_message[150]{};
  (void)std::snprintf(footer_message,sizeof(footer_message),
-  "X ACTUALISER  %s  CERCLE RETOUR  AUCUN EFFACEMENT",
-  homebrew_stats.partial?"SCAN PARTIEL":"PERIMETRE CONNU");
+  "PAGE %u/2  L1/R1  X ACTUALISER  %s  AUCUN EFFACEMENT",
+  homebrew_page+1u,
+  homebrew_stats.partial?"SCAN PARTIEL":"LECTURE PROTEGEE");
  footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
