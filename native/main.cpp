@@ -361,6 +361,17 @@ bool homebrew_checked=false;
 unsigned homebrew_page=0;
 Cmp5AutoloadStats autoload_stats{};
 bool autoload_checked=false;
+/* Coordinated read-only audit: only aggregate game counts persist here.
+ * Never run compression or read full file bodies automatically. */
+struct GeneralGameAudit {
+ bool checked=false;
+ bool partial=true;
+ unsigned image_files=0,folder_games=0;
+ unsigned missing_roots=0,unavailable_roots=0,scanned_roots=0;
+};
+GeneralGameAudit general_games{};
+bool general_audit_completed=false;
+unsigned analyze_page=0;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -564,6 +575,9 @@ void run_overview() noexcept {
  // installed title's ability to read and select individual Gallery files.
  helper_summary=cmp5_native::Overview{};
  helper_summary_checked=false;
+ // An overview rescan invalidates any older coordinated global audit.
+ general_games=GeneralGameAudit{};
+ general_audit_completed=false;
  // Any new scan invalidates all review indices and saved per-game totals.
  // In particular, an unavailable/invalid scan MUST NOT expose stale media
  // through the Square catalogue shortcut or detail view. Wipe the private
@@ -631,9 +645,21 @@ void run_access_check() noexcept {
  if(helper_is_compatible()&&!cancellation_hook(nullptr)&&get_preflight())
   engine=Link::ok;
 }
+void run_homebrew_check() noexcept;
+void run_autoload_check() noexcept;
+void run_general_games_check() noexcept;
 void run_environment_check() noexcept {
+ general_audit_completed=false;
  run_access_check();
- if(!cancellation_hook(nullptr))run_overview();
+ if(cancellation_hook(nullptr))return;
+ run_overview();
+ if(cancellation_hook(nullptr))return;
+ run_homebrew_check();
+ if(cancellation_hook(nullptr))return;
+ run_autoload_check();
+ if(cancellation_hook(nullptr))return;
+ run_general_games_check();
+ if(!cancellation_hook(nullptr))general_audit_completed=true;
 }
 void run_duplicate_check() noexcept {
  duplicate_stats=Cmp5DuplicateStats{};
@@ -710,6 +736,31 @@ void run_autoload_check() noexcept {
   std::free(report);
   autoload_checked=!cancellation_hook(nullptr)&&autoload_stats.checked==11u;
  }
+}
+void run_general_games_check() noexcept {
+ general_games=GeneralGameAudit{};
+ Cmp5GameImageStats found{};
+ if(cmp5_scan_game_images("/",&found,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr)){
+  unsigned images=0;
+  bool valid=true;
+  for(unsigned i=0;i<CMP5_IMAGE_FORMATS;i++){
+   if(UINT32_MAX-images<found.count[i]){valid=false;break;}
+   images+=found.count[i];
+  }
+  if(valid){
+   general_games.image_files=images;
+   general_games.folder_games=found.folder_games;
+   general_games.scanned_roots=found.scanned_roots;
+   general_games.missing_roots=found.missing_roots;
+   general_games.unavailable_roots=found.unavailable_roots;
+   general_games.partial=found.partial!=0u||
+     found.unavailable_roots!=0u||found.folder_partials!=0u;
+   general_games.checked=true;
+  }
+ }
+ /* Do not persist game filepaths from the general inventory. */
+ std::memset(&found,0,sizeof(found));
 }
 Cmp5GameImageStats game_images{};
 bool game_images_checked=false;
@@ -1423,6 +1474,12 @@ void* background_task(void*) noexcept {
    game_images=Cmp5GameImageStats{};game_images_checked=false;
    compression_engine_seen=false;compression_engine_version[0]=0;
   }
+  if(task_kind==Task::environment){
+   general_games=GeneralGameAudit{};
+   general_audit_completed=false;
+   homebrew_stats=Cmp5HomebrewStats{};homebrew_checked=false;
+   autoload_stats=Cmp5AutoloadStats{};autoload_checked=false;
+  }
   if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
   if(task_kind==Task::helper_start)helper_launch=EngineLaunch::untouched;
   if(task_kind==Task::game_check){game_preflight_checked=false;game_preflight_transport=false;game_preflight={};}
@@ -1767,6 +1824,10 @@ void poll_pad() noexcept {
    homebrew_page^=1u;
    continue;
   }
+  if(screen==Screen::analyze&&(pressed&l1||pressed&r1)){
+   analyze_page^=1u;
+   continue;
+  }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
    access_page=(pressed&r1)?
      (access_page+1u)%access_page_count:
@@ -1805,7 +1866,8 @@ void poll_pad() noexcept {
     if(screen==Screen::compression)(void)begin_task(Task::images);
    }
   }else if(pressed&cross){
-   if(screen==Screen::analyze||screen==Screen::cleanup)(void)begin_task(Task::overview);
+   if(screen==Screen::analyze)(void)begin_task(Task::environment);
+   if(screen==Screen::cleanup)(void)begin_task(Task::overview);
    if(screen==Screen::access)(void)begin_task(Task::access);
    if(screen==Screen::apps)(void)begin_task(Task::homebrew);
   }
@@ -1862,6 +1924,53 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
     task_cancelled()?"RESULTAT PARTIEL REJETE":"ECHEC DE CREATION DU WORKER",
     Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
+ if(analyze_page==1u){
+  const LocalCoverage scope=summarize_local_coverage(
+    local_probe,local_path_count,local_checked);
+  char result[132]{};
+  if(summary_status==Summary::ok)
+   (void)std::snprintf(result,sizeof(result),
+    "%u FICHIERS  ACCES %s  CAPTURES %s",
+    summary_files,!local_checked?"INCONNUS":scope.partial?"PARTIELS":"SONDES OK",
+    summary_partial?"PARTIELLES":"OBSERVEES");
+  else
+   (void)std::snprintf(result,sizeof(result),
+    "MEDIAS NON DISPONIBLES  ACCES %s",
+    local_checked?"SONDES DISPONIBLES":"NON VERIFIES");
+  panel(canvas,366,"COUVERTURE ET CAPTURES",result,
+    summary_status!=Summary::ok||summary_partial||scope.partial?
+       Color::yellow:Color::cyan);
+  if(homebrew_checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u APPS  %u PLUGINS  %u DONNEES  %u INSTALLES%s",
+    homebrew_stats.homebrew,homebrew_stats.plugins,
+    homebrew_stats.app_data,homebrew_stats.installed,
+    homebrew_stats.partial?"  PARTIEL":"");
+  else (void)std::snprintf(result,sizeof(result),"INVENTAIRE NON DISPONIBLE");
+  panel(canvas,515,"APPLICATIONS ET EXTENSIONS",result,
+    !homebrew_checked||homebrew_stats.partial?Color::yellow:Color::cyan);
+  if(autoload_checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u/%u CHEMINS PRESENTS  %u ILLISIBLES  %u TROP GRANDS",
+    autoload_stats.present,autoload_stats.checked,
+    autoload_stats.unreadable,autoload_stats.oversized);
+  else (void)std::snprintf(result,sizeof(result),"AUTOLOAD NON VERIFIE");
+  panel(canvas,664,"DEMARRAGE ET AUTOLOAD",result,
+    !autoload_checked||autoload_stats.unreadable||autoload_stats.oversized?
+       Color::yellow:Color::cyan);
+  if(general_games.checked)
+   (void)std::snprintf(result,sizeof(result),
+    "%u DOSSIERS  %u IMAGES  %u RACINES INACCESSIBLES%s",
+    general_games.folder_games,general_games.image_files,
+    general_games.unavailable_roots,general_games.partial?"  PARTIEL":"");
+  else (void)std::snprintf(result,sizeof(result),"JEUX NON VERIFIES");
+  panel(canvas,813,"JEUX ET IMAGES DE COMPRESSION",result,
+    !general_games.checked||general_games.partial?Color::yellow:Color::cyan);
+  footer(canvas,general_audit_completed?
+    "L1/R1 SYNTHESE   X RELANCER TOUT   CERCLE RETOUR":
+    "L1/R1 SYNTHESE   X ANALYSE GENERALE   AUCUNE SUPPRESSION");
   return;
  }
  if(engine==Link::ok){
@@ -1931,7 +2040,7 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
    panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
   }
  }
- footer(canvas,"X ANALYSE APPROFONDIE    CERCLE RETOUR");
+ footer(canvas,"X ANALYSE GENERALE   L1/R1 TOUS LES MODULES   CERCLE RETOUR");
 }
 void show_access(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
