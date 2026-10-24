@@ -1,4 +1,8 @@
 #include "homebrew.h"
+/* Exercise correctness assertions in release-mode CI as well as sanitizer builds. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +22,7 @@ int main(int argc,char**argv){
  assert(stats.entries==5);
  /* No plugin/homebrew directory is counted twice via /data. The
   * protected config and saves directories remain excluded. */
- assert(stats.nominal_bytes==22u);
+ assert(stats.nominal_bytes==24u); /* includes ordinary config.json (2 B) */
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
