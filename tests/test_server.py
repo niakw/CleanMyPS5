@@ -62,6 +62,8 @@ with tempfile.TemporaryDirectory() as temp:
  usb4=root/"mnt/usb4/ps5_autoloader"
  usb4.mkdir(parents=True)
  (usb4/"autoload.txt").hardlink_to(other/"save.bin")
+ # Empty but accessible installed-title storage is a valid zero count.
+ (root/"user/app").mkdir(parents=True)
  homebrew=root/"data/homebrew/HB_DEMO"
  homebrew.mkdir(parents=True)
  (homebrew/"assets.bin").write_bytes(b"H"*137)
@@ -288,6 +290,7 @@ with tempfile.TemporaryDirectory() as temp:
   assert indexed["/data/homebrew/HB_DEMO"]["risk"]=="protected"
   assert indexed["/data/etaHEN/plugins/plugin-note.txt"]["nominalBytes"]==73
   assert not any("linked-save" in x["path"] for x in hb["items"])
+  assert hb["rootCoverage"]=={"appData":"readable","installedTitles":"readable"}
   assert not hb["partial"] and "DO NOT TOUCH" not in json.dumps(hb)
   with urlopen(base+"/api/preflight",timeout=3) as r:preflight=json.load(r)
   assert preflight["schemaVersion"]==1
