@@ -1947,6 +1947,9 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
        static_cast<unsigned long long>(probe.total_bytes/1073741824ULL),
        probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
    }
+   else if(probe.capacity_only)
+    (void)std::snprintf(detail,sizeof(detail),
+      "MONTAGE LISIBLE  CAPACITE INCONNUE");
    else
     (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
       probe.entries,probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
