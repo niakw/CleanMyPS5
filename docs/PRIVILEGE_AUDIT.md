@@ -110,3 +110,18 @@ contournerait la variable `NATIVE` contrôlée. Les unités supplémentaires
 `media.c`, `video.c`, `volumes.c` et `preflight.c` sont comprises.
 Ces contrôles sont des protections structurelles de CI, non une preuve
 d'exécution ou de droits suffisants sur la PS5 13.60.
+
+### En-têtes et routes HTTP PS5 réellement accessibles
+
+Le diagnostic embarqué sur **PS5** accepte seulement les requêtes GET
+`/api/status`, `/api/capabilities`, `/api/preflight` et
+`/api/overview`. Il refuse les routes de streaming vidéo et image,
+le rapport détaillé de fichiers, les chemins de plugins, les fichiers
+autoload et toute route inconnue. L'interface native n'utilise aucun
+de ces chemins détaillés du helper. Le serveur hôte de développement
+conserve les prévisualisations pour ses fixtures synthétiques.
+
+**Limite connue :** le port loopback demeure non authentifié et les
+résumés agrégés restent visibles aux processus locaux capables d'y accéder.
+Il serait incorrect d'y ajouter de la suppression ou un broker de droits
+tant qu'une authentification forte du titre appelant n'est pas en place.

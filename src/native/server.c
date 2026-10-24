@@ -275,6 +275,20 @@ static void handle(int fd,const char*root,int port){
  if(strcmp(method,"GET")!=0&&!is_head){plain(fd,405,"GET and video HEAD only");return;}
  if(strncmp(proto,"HTTP/1.",7)!=0){plain(fd,400,"Bad HTTP version");return;}
  if(is_head && strncmp(path,"/api/video?file=",16)!=0){plain(fd,405,"HEAD is limited to video metadata");return;}
+#ifdef PS5
+ /* Do not turn a possibly more privileged helper process into a general
+  * media browser for unrelated local processes. The installed native title
+  * uses only fixed aggregate GET routes, never file bytes or raw paths.
+  * Host fixtures retain the standalone read-only preview interfaces. */
+ if(is_head||
+    (strcmp(path,"/api/status")!=0&&
+     strcmp(path,"/api/capabilities")!=0&&
+     strcmp(path,"/api/preflight")!=0&&
+     strcmp(path,"/api/overview")!=0)){
+  plain(fd,404,"Diagnostic endpoint unavailable in PS5 helper");
+  return;
+ }
+#endif
  if(strcmp(path,"/")==0||strcmp(path,"/index.html")==0)
   reply(fd,200,"text/html; charset=utf-8",cmp5_index,cmp5_index_len);
  else if(strcmp(path,"/styles.css")==0)

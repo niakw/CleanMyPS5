@@ -149,6 +149,19 @@ def check(root: Path) -> None:
   raise ValueError("Optional diagnostic helper no longer limits GET/HEAD")
  if "privilegeEscalation" not in helper or "delete" not in helper:
   raise ValueError("Helper capability identity no longer read-only")
+ if '#ifdef PS5\n /* Do not turn a possibly more privileged helper' not in helper:
+  raise ValueError("Missing PS5-only diagnostic helper route restriction")
+ routes = (
+  'strcmp(path,"/api/status")!=0',
+  'strcmp(path,"/api/capabilities")!=0',
+  'strcmp(path,"/api/preflight")!=0',
+  'strcmp(path,"/api/overview")!=0',
+ )
+ for route in routes:
+  if route not in helper:
+   raise ValueError("PS5 diagnostic route allowlist changed")
+ if 'plain(fd,404,"Diagnostic endpoint unavailable in PS5 helper")' not in helper:
+  raise ValueError("PS5 helper denies no unsupported routes")
  if '#include "elevation.hpp"' in title or "elevation::request(" in title:
   raise ValueError("Unreviewed native process elevation")
 

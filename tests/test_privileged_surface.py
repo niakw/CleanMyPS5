@@ -14,6 +14,10 @@ def reject(action):
  except ValueError: return
  raise AssertionError("Dangerous native operation incorrectly accepted")
 gate.check(root)
+helper_source=(root/"src/native/server.c").read_text()
+assert "Diagnostic endpoint unavailable in PS5 helper" in helper_source
+assert "if(is_head||" in helper_source
+assert 'strcmp(path,"/api/overview")!=0' in helper_source
 gate.check_reader("int inspect(void){return 0;}","safe")
 for src in ("unlinkat(fd,name,0);","rename(a,b);",
             "open(path,O_CREAT|O_WRONLY);","seteuid(0);",
