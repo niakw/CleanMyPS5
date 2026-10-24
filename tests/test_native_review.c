@@ -16,7 +16,8 @@ int main(int argc,char**argv){
  const int longpath=argc==3&&strcmp(argv[2],"longpath")==0;
  const int empty=argc==3&&strcmp(argv[2],"empty")==0;
  const int no_gallery=argc==3&&strcmp(argv[2],"no-gallery")==0;
- const unsigned expected=argc==3&&!cancel&&!longpath&&!empty&&!no_gallery?
+ const int damaged=argc==3&&strcmp(argv[2],"damaged-sidecar")==0;
+ const unsigned expected=argc==3&&!cancel&&!longpath&&!empty&&!no_gallery&&!damaged?
    (unsigned)strtoul(argv[2],NULL,10):4u;
  size_t json_size=0;
  Cmp5MediaReview review={0};
@@ -69,6 +70,24 @@ int main(int argc,char**argv){
   assert(strstr(details,"\"status\":\"complete\""));
   free(details);
   puts("Native media review: readable app root cannot mask missing Gallery");
+  return 0;
+ }
+ if(damaged){
+  /* Invalid but ordinary .dat must mark photo coverage PARTIAL, without
+   * losing other healthy captures in either gallery directory. */
+  assert(review.partial==1u&&review.count==3u);
+  assert(review.media_scanned==3u);
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"galleryCoverage\":{\"photo\":\"partial\",\"video\":\"complete\"}"));
+  assert(strstr(json,"\"validatedForDeletion\":false"));
+  unsigned images=0,videos=0;
+  for(unsigned i=0;i<review.count;i++){
+   images+=review.entries[i].media_type==1u;
+   videos+=review.entries[i].media_type==2u;
+  }
+  assert(images==2u&&videos==1u);
+  free(json);
+  puts("Native media review: damaged sidecar does not conceal healthy captures");
   return 0;
  }
  if(longpath){
