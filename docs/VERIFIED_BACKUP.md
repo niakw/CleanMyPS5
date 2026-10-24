@@ -155,3 +155,15 @@ signé et les éléments inattendus du même espace de noms, même lorsque
 les SHA-256 et `__COMMIT` concordent. Un reçu `VERIFIED` ne peut plus
 être obtenu à travers une API moins stricte que l'inspection de
 récupération. Cette règle n'active pas la restauration des index PS5.
+
+### Répétition fiable des audits de répertoire
+
+Les balayages privés `empty_group_namespace` et `inspect_namespace`
+rouvrent maintenant le dossier **par `openat(dir, \".\", O_DIRECTORY | O_NOFOLLOW)`**,
+au lieu de `dup(dir)` : ce dernier partageait la position de lecture du
+dossier avec son appelant. Un appel ultérieur pouvait commencer à la fin du
+répertoire et ignorer `ALBUM__5` ou un `.part` présent. Le nouveau descripteur
+possède un curseur indépendant ; `closedir` est également contrôlé.
+Un test hôte épuise volontairement le curseur du descripteur initial puis
+vérifie que les deux audits voient toujours les entrées supplémentaires.
+Aucun fichier de la Galerie n'est modifié par ces audits.

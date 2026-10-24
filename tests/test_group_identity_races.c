@@ -160,6 +160,23 @@ int main(int argc,char**argv){
  assert(fstatat(dir,".STAGE__COMMIT.part",&st,AT_SYMLINK_NOFOLLOW)==0);
  assert(unlinkat(dir,".STAGE__COMMIT.part",0)==0);
  assert(unlinkat(dir,"STAGE__COMMIT",0)==0);
+ /* Regression: the private workspace's anchored descriptor was already
+  * used for a complete directory scan and has a shared cursor at EOF.
+  * Repeating the audit MUST start at the beginning independently, or a
+  * surplus capsule can evade detection.
+  * The test deliberately drains a DUP of the SAME descriptor. */
+ write_member(dir,"BACKUP__5","unknown",7);
+ write_member(dir,"ALBUM__5","unknown",7);
+ int cursor=dup(dir);assert(cursor>=0);
+ DIR*cursor_stream=fdopendir(cursor);assert(cursor_stream);
+ while(readdir(cursor_stream)){}
+ assert(closedir(cursor_stream)==0);
+ uint32_t unexpected=0;
+ assert(inspect_namespace(dir,"BACKUP",0,&unexpected));
+ assert(unexpected==1u);
+ assert(!empty_group_namespace(dir,"ALBUM"));
+ assert(unlinkat(dir,"BACKUP__5",0)==0);
+ assert(unlinkat(dir,"ALBUM__5",0)==0);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
  return 0;

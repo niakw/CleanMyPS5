@@ -223,7 +223,11 @@ int cmp5_verify_group(const char*workspace,const char*id,
  * and fail-closed recovery; this is not a whole-group atomic lock. */
 static int empty_group_namespace(int dir,const char*id){
  const size_t len=strlen(id);
- int duplicate=dup(dir);
+ /* dup(dir) shares a directory stream offset with the caller. An
+  * earlier scan may have left that offset at EOF and allowed unknown
+  * capsules or leftover .part entries to go unnoticed. Open a separate
+  * descriptor for this SAME anchored directory, with its own cursor. */
+ int duplicate=openat(dir,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(duplicate<0)return 0;
  DIR*scan=fdopendir(duplicate);
  if(!scan){close(duplicate);return 0;}
@@ -442,7 +446,11 @@ static int inspect_namespace(int dir,const char*id,int restored,
  uint32_t*unexpected){
  *unexpected=0;
  const size_t length=strlen(id);
- int duplicate=dup(dir);
+ /* dup(dir) shares a directory stream offset with the caller. An
+  * earlier scan may have left that offset at EOF and allowed unknown
+  * capsules or leftover .part entries to go unnoticed. Open a separate
+  * descriptor for this SAME anchored directory, with its own cursor. */
+ int duplicate=openat(dir,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(duplicate<0)return 0;
  DIR*scan=fdopendir(duplicate);
  if(!scan){close(duplicate);return 0;}
@@ -464,7 +472,7 @@ static int inspect_namespace(int dir,const char*id,int restored,
    (*unexpected)++;
   }
  }
- closedir(scan);
+ if(closedir(scan)!=0)ok=0;
  return ok;
 }
 /* SHA equality cannot turn an interrupted or surplus-containing
