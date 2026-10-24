@@ -43,7 +43,8 @@ with tempfile.TemporaryDirectory() as scratch:
         ],cwd=repo,check=True,timeout=40)
     args=[str(binary),str(root),*(str(gallery/name) for name in contents),
           str(backup),str(restore),str(large_video),str(large_sidecar)]
-    result=subprocess.run(args,cwd=repo,check=True,capture_output=True,text=True,timeout=35)
+    result=subprocess.run(args,cwd=repo,check=False,capture_output=True,text=True,timeout=35)
+    assert result.returncode==0, (result.returncode,result.stdout,result.stderr)
     assert "multi-file capture group" in result.stdout
     assert large_video.stat().st_size==large_size
     assert large_sidecar.read_bytes()==b"VIDEO-METADATA"
