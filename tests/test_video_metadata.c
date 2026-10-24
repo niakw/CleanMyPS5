@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "video_metadata.h"
+#include "media_snapshot.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,9 +32,7 @@ int main(int argc,char**argv){
  Cmp5MediaCandidate c={0};
  c.media_type=2;
  c.bytes=(uint64_t)st.st_size;
- c.modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
- c.snapshot_device=(uint64_t)st.st_dev;
- c.snapshot_inode=(uint64_t)st.st_ino;
+ cmp5_snapshot_capture(&c,&st);
  if(strlen(relative)>=sizeof(c.preview_path))return 4;
  strcpy(c.preview_path,relative);
  Cmp5VideoMetadata found={0};
@@ -43,6 +42,16 @@ int main(int argc,char**argv){
   assert(found.width==1920&&found.height==1080);
   assert(found.duration_ms==expected_ms);
   assert(found.boxes_visited>=4&&found.boxes_visited<=384);
+  /* Reject changed media between inventory and metadata inspection,
+   * even when inode, size and whole-second mtime are identical. */
+  Cmp5MediaCandidate stale=c;
+  stale.snapshot_mtime_nsec=(stale.snapshot_mtime_nsec+1u)%1000000000u;
+  assert(!cmp5_probe_video_snapshot(root,&stale,&found,NULL,NULL));
+  assert(found.duration_ms==0);
+  stale=c;
+  stale.snapshot_ctime_nsec=(stale.snapshot_ctime_nsec+1u)%1000000000u;
+  assert(!cmp5_probe_video_snapshot(root,&stale,&found,NULL,NULL));
+  assert(found.duration_ms==0);
   // Even successful metadata must be invalidated by inode mismatch.
   c.snapshot_inode++;
   assert(!cmp5_probe_video_snapshot(root,&c,&found,NULL,NULL));

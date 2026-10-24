@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "media_preview.h"
+#include "media_snapshot.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -25,11 +26,7 @@ static int same_file(const struct stat *a,const struct stat *b){
    a->st_mode==b->st_mode;
 }
 static int matches(const struct stat *st,const Cmp5MediaCandidate *c){
- return S_ISREG(st->st_mode)&&st->st_nlink==1&&st->st_size>0&&
-  (uint64_t)st->st_size==c->bytes &&
-  (uint64_t)st->st_dev==c->snapshot_device &&
-  (uint64_t)st->st_ino==c->snapshot_inode &&
-  (st->st_mtime>0?(int64_t)st->st_mtime:0)==c->modified_at;
+ return cmp5_snapshot_matches(c,st);
 }
 uint8_t *cmp5_read_photo_snapshot(const char *root,
  const Cmp5MediaCandidate *candidate,size_t *length){

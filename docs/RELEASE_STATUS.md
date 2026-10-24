@@ -148,3 +148,15 @@ supplémentaires du helper, un UID nul ou une validation CI ne prouvent
 ni la sûreté du nettoyage ni une récupération d'espace. **Nettoyeur
 réversible toujours bloqué** sans validation matérielle des transactions
 et de la reconstruction des index Galerie sur PS5 13.60.
+
+### Aperçus photo et métadonnées vidéo : identité cohérente
+
+Les lecteurs natifs `media_preview.c` et `video_metadata.c` comparent
+maintenant le **snapshot complet** produit par l'inventaire
+(périphérique/inode/taille, secondes et nanosecondes `mtime` et `ctime`)
+avant toute lecture. Les vérifications de stabilité existantes continuent
+après lecture, y compris pour les fichiers JPEG compagnons des JXR.
+Les tests de lecture refusent les snapshots artificiellement périmés à
+la nanoseconde, même lorsque la taille et l'heure à la seconde sont
+identiques. Cela ne représente pas une preuve de suppression/restauration
+sûre des captures de la Galerie PS5.

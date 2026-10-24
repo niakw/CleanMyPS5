@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "media_preview.h"
+#include "media_snapshot.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,9 +17,7 @@ int main(int argc,char**argv){
  Cmp5MediaCandidate c={0};
  c.media_type=1;
  c.bytes=(uint64_t)st.st_size;
- c.modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
- c.snapshot_device=(uint64_t)st.st_dev;
- c.snapshot_inode=(uint64_t)st.st_ino;
+ cmp5_snapshot_capture(&c,&st);
  assert(strlen(relative)<sizeof(c.preview_path));
  strcpy(c.preview_path,relative);
  size_t read_count=0;

@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "media_preview.h"
+#include "media_snapshot.h"
 #include "preview_decode.h"
 #include <assert.h>
 #include <stdio.h>
@@ -15,9 +16,7 @@ int main(int argc,char**argv){
  Cmp5MediaCandidate snapshot={0};
  snapshot.media_type=1u;
  snapshot.bytes=(uint64_t)st.st_size;
- snapshot.modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
- snapshot.snapshot_device=(uint64_t)st.st_dev;
- snapshot.snapshot_inode=(uint64_t)st.st_ino;
+ cmp5_snapshot_capture(&snapshot,&st);
  assert(strlen(relative)<sizeof(snapshot.preview_path));
  strcpy(snapshot.preview_path,relative);
  size_t length=0;
@@ -27,6 +26,17 @@ int main(int argc,char**argv){
  assert(cmp5_decode_preview(bytes,length,&image));
  assert(image.width>0&&image.height>0&&image.pixels);
  assert(image.width<=1100&&image.height<=620);
+ /* The initial gallery snapshot is retained across the UI selection.
+  * A rewrite within that same second must invalidate the preview. */
+ Cmp5MediaCandidate stale=snapshot;
+ stale.snapshot_mtime_nsec=(stale.snapshot_mtime_nsec+1u)%1000000000u;
+ size_t rejected_length=99;
+ assert(!cmp5_read_photo_snapshot(root,&stale,&rejected_length));
+ assert(rejected_length==0u);
+ stale=snapshot;
+ stale.snapshot_ctime_nsec=(stale.snapshot_ctime_nsec+1u)%1000000000u;
+ assert(!cmp5_read_photo_snapshot(root,&stale,&rejected_length));
+ assert(rejected_length==0u);
  cmp5_release_preview(&image);
  assert(image.pixels==NULL&&image.width==0);
  /* A gallery photo with multiple hardlinks cannot be treated as an
