@@ -860,6 +860,46 @@ void run_embedded_engine() noexcept {
  /* A successful TCP send is NOT equivalent to an ELF having loaded.
   * The user can recheck via X after the jailbreak loader accepts it. */
 }
+/* Optional, manually started diagnostic process. This is NOT a
+ * credentials elevation for the installed title. Its API is read-only. */
+EngineLaunch helper_launch=EngineLaunch::untouched;
+void run_embedded_readonly_helper() noexcept {
+ helper_launch=EngineLaunch::untouched;
+ if(helper_is_compatible()){helper_launch=EngineLaunch::active;return;}
+ const int fd=open_probe_target("/app0/assets/cleanmyps5-helper.elf",true);
+ if(fd<0){helper_launch=EngineLaunch::missing_file;return;}
+ struct stat st{};
+ unsigned char magic[20]{};
+ const ssize_t got=read(fd,magic,sizeof(magic));
+ if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
+    st.st_size<4096||st.st_size>64LL*1024*1024||
+    got!=static_cast<ssize_t>(sizeof(magic))||
+    !cmp5_compression::elf_header(magic,sizeof(magic))||
+    lseek(fd,0,SEEK_SET)!=0){
+  (void)close(fd);helper_launch=EngineLaunch::invalid_elf;return;
+ }
+ const int sock=sceNetSocket("cmp5_readonly_helper_loader",2,1,6);
+ if(sock<0){(void)close(fd);helper_launch=EngineLaunch::loader_unavailable;return;}
+ const int timeout_us=5000000;
+ (void)sceNetSetsockopt(sock,0xffff,0x1105,&timeout_us,sizeof(timeout_us));
+ (void)sceNetSetsockopt(sock,0xffff,0x1106,&timeout_us,sizeof(timeout_us));
+ const NetSockaddrIn loader{16,2,
+  static_cast<std::uint16_t>((9021u<<8)|(9021u>>8)),0x0100007f,0,{0}};
+ if(sceNetConnect(sock,&loader,sizeof(loader))<0){
+  (void)sceNetSocketClose(sock);(void)close(fd);
+  helper_launch=EngineLaunch::loader_unavailable;return;
+ }
+ std::uint64_t sent=0;
+ const bool ok=cmp5_compression::stream_embedded_elf(fd,
+  [sock](const unsigned char*bytes,std::size_t size) noexcept{
+   return sceNetSend(sock,bytes,size,0);
+  },[]{return cancellation_hook(nullptr)!=0;},&sent);
+ (void)close(fd);
+ (void)sceNetSocketClose(sock);
+ helper_launch=ok&&sent>=4096?EngineLaunch::submitted:EngineLaunch::send_failed;
+ /* Success here only means bytes reached elfldr, not helper availability.
+  * Only a separate verified /api/capabilities check identifies the service. */
+}
 /* A filename alone cannot identify a PS5 game. Ask the bundled engine to
  * resolve a managed image using ShadowMountPlus and return strict metadata. */
 bool resolve_managed_image(const char*source,
@@ -1269,7 +1309,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, game_check, game_start, game_progress, game_pause, game_resume };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1286,6 +1326,7 @@ void* background_task(void*) noexcept {
   case Task::companions: run_companion_check(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
+  case Task::helper_start: run_embedded_readonly_helper(); break;
   case Task::game_check: run_game_preflight(); break;
   case Task::game_start: run_game_submission(); break;
   case Task::game_progress: run_game_progress(); break;
@@ -1334,6 +1375,7 @@ void* background_task(void*) noexcept {
    compression_engine_seen=false;compression_engine_version[0]=0;
   }
   if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
+  if(task_kind==Task::helper_start)helper_launch=EngineLaunch::untouched;
   if(task_kind==Task::game_check){game_preflight_checked=false;game_preflight_transport=false;game_preflight={};}
   /* A cancelled POST may have already reached the engine: keep the
    * uncertain result until the user checks job status. */
@@ -1674,6 +1716,10 @@ void poll_pad() noexcept {
    access_page=access_page==0u?1u:0u;
    continue;
   }
+  if(screen==Screen::access&&(pressed&triangle)){
+   (void)begin_task(Task::helper_start);
+   continue;
+  }
   if(screen==Screen::access&&(pressed&square)){
    screen=Screen::apps;
    (void)begin_task(Task::homebrew);
@@ -1884,9 +1930,23 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    "TITRE UID %lu EUID %lu  HELPER SEPARE  SUPPRESSION BLOQUEE",
    static_cast<unsigned long>(getuid()),static_cast<unsigned long>(geteuid()));
  canvas.text(125,925,privilege_note,2,Color::yellow);
+ const char*helper_hint=helper_launch==EngineLaunch::active?
+  "HELPER LECTURE SEULE ACTIF":
+  helper_launch==EngineLaunch::submitted?
+  "HELPER ENVOYE  X POUR VERIFIER":
+  helper_launch==EngineLaunch::missing_file?
+  "HELPER ABSENT DU PACKAGE":
+  helper_launch==EngineLaunch::invalid_elf?
+  "HELPER ELF INVALIDE":
+  helper_launch==EngineLaunch::loader_unavailable?
+  "CHARGEUR ELF INDISPONIBLE":
+  helper_launch==EngineLaunch::send_failed?
+  "ENVOI DU HELPER ECHOUE":
+  "TRIANGLE LANCER HELPER LECTURE SEULE";
+ canvas.text(125,904,helper_hint,2,Color::cyan);
  footer(canvas,access_page?
-   "L1/R1 STOCKAGE  X ACTUALISER  CARRE APPS  CERCLE RETOUR":
-   "L1/R1 GALERIE  X ACTUALISER  CARRE APPS  CERCLE RETOUR");
+   "L1/R1 STOCKAGE  X ACTUALISER  TRIANGLE HELPER  CERCLE RETOUR":
+   "L1/R1 GALERIE  X ACTUALISER  TRIANGLE HELPER  CARRE APPS");
 }
 void show_apps(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){

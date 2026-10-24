@@ -1023,6 +1023,10 @@ int main(){
  finish_scan();
  assert(access_page==0u);
  scene(canvas);
+ press(triangle);finish_scan();
+ assert(helper_launch==EngineLaunch::missing_file);
+ assert(engine!=Link::ok); // no false privilege elevation on missing asset
+ scene(canvas);
  press(r1);assert(access_page==1u);
  scene(canvas);
  press(l1);assert(access_page==0u);

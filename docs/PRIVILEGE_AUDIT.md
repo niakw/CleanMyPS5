@@ -87,3 +87,14 @@ séparée. Il ne fournit jamais de chemin de sélection natif, n'augmente
 pas le nombre de médias sélectionnables et ne déverrouille aucune
 suppression. Un test natif injecte volontairement 120 fichiers côté
 helper tout en confirmant que le catalogue du titre reste identique.
+
+### Helper inclus sans second titre ni élévation globale
+
+Le titre contient maintenant le helper ELF en lecture seule. La page Accès
+permet de l'envoyer **manuellement avec Triangle** au chargeur de payload
+local existant, sans installation d'une seconde application. Le helper
+dispose de son propre processus ; le titre ne copie jamais ses droits.
+Un envoi réussi n'est pas présenté comme un démarrage confirmé : X permet
+ensuite de relancer les sondes et vérifier la réponse du helper.
+Le mode reste lecture seule, sans suppression de captures ou de caches.
+L'exécution effective sur PS5 13.60 devra être vérifiée sur console.
