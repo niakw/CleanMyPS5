@@ -398,3 +398,20 @@ peut laisser un dossier partiel qui nécessite une intervention distincte,
 mais **ne supprime jamais automatiquement une installation lors d'un
 arrêt de conversion**. Le nettoyage de l'état temporaire d'une conversion
 achevée, dans la sortie produite par le moteur, demeure distinct.
+
+### Le checkpoint de reprise ne peut pas contourner les restrictions
+
+La fonction `/api/resume` charge un `job_request` conservé dans un
+`.e2a-state`, ce qui évitait le filtrage des champs effectué uniquement
+lors du POST `/api/start`. Désormais **toutes** les entrées dans la file du
+worker PS5 (nouveau job, reprise ou tentative après erreur) remettent à
+zéro `remove_source`, `overwrite`, `force`, `clean_leftovers` et
+`cache_mode` et imposent `verify` et `dedup`. Chaque source et destination
+est contrôlée par descripteurs, le Title ID de sortie est dérivé des
+métadonnées du jeu ou de l'identifiant SMP, et un ancien nom qui ne lui
+correspond pas provoque un refus. Les Title IDs sont vérifiés au format
+quatre lettres et cinq chiffres. Sur l'environnement hôte de test
+`E2A_HOST`, les fixtures de crash/reprise historiques conservent leurs
+chemins relatifs et leurs scénarios spécifiques ; le garde PS5 est
+contrôlé dans le C généré avant compilation native. Cela n'établit pas
+encore la sûreté de toutes les interactions avec ShadowMountPlus sur console.

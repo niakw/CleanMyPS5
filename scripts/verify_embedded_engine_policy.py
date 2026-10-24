@@ -91,6 +91,32 @@ def check_engine(root: Path) -> None:
         if "cancelled: preserving private conversion output" not in cleanup_section or (
             "failed: preserving conversion output" not in cleanup_section):
             missing.append("missing cancellation and error preservation branches")
+    # Resume and retry bypass the POST parser. Inspect the actual patched
+    # job_enqueue function so a compromised checkpoint cannot re-enable
+    # original deletion, overwrites, force or arbitrary output placement.
+    queue_start = job.find("int job_enqueue(const job_request *req) {")
+    queue_end = job.find("int job_resume_level(", queue_start)
+    if queue_start < 0 or queue_end < 0:
+        missing.append("cannot inspect job enqueue and resume boundary")
+    else:
+        queue = job[queue_start:queue_end]
+        for label, fragment in {
+            "queue always preserves source": "normalized.remove_source = false;",
+            "queue forbids overwrite": "normalized.overwrite = false;",
+            "queue forbids force": "normalized.force = false;",
+            "queue disables automated pruning": "normalized.clean_leftovers = false;",
+            "queue enforces verification": "normalized.verify = true;",
+            "queue enforces deduplication": "normalized.dedup = true;",
+            "queue disables disk spill cache": "normalized.cache_mode = 0;",
+            "queue source descriptor check": 'cmp5_game_path_stat("/", normalized.source, false, &source_identity)',
+            "queue destination descriptor check": 'cmp5_game_path_on_disk("/", normalized.dest_base, true)',
+            "queue rejects stale saved title": 'strcmp(normalized.name, trusted_id) != 0',
+            "queue derives title ID": 'snprintf(normalized.name, sizeof normalized.name, "%s", trusted_id);',
+        }.items():
+            if fragment not in queue:
+                missing.append(label)
+        if "#ifndef E2A_HOST" not in queue or "#endif" not in queue:
+            missing.append("missing isolated PS5 queue admission contract")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

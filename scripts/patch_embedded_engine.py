@@ -83,6 +83,58 @@ def main(root: Path):
       if (dest[0] && created)
         e2a_log("failed: preserving conversion output %s", dest);''')
 
+    # A RESUME or RETRY rehydrates a job_request from .e2a-state rather than
+    # parsing /api/start. Pin every dangerous field again at the *last*
+    # enqueue boundary, and derive a trusted Title ID from source metadata.
+    # Existing saved names must match: reject, never silently redirect.
+    change(jobc, '#include "job.h"',
+           '''#include "job.h"
+#ifndef E2A_HOST
+#include "cmp5_compression_allowed_paths.h"
+#endif''')
+    change(jobc,
+           '  job_request normalized = *req;\n  if (!normalized.dest_base[0])',
+           '''  job_request normalized = *req;
+#ifndef E2A_HOST
+  /* Never trust flags or output paths from an old/fabricated checkpoint. */
+  normalized.clean_leftovers = false;
+  normalized.overwrite = false;
+  normalized.remove_source = false;
+  normalized.force = false;
+  normalized.verify = true;
+  normalized.dedup = true;
+  normalized.cache_mode = 0;
+  normalized.test_pause_after = 0;
+  if (!normalized.dest_base[0])
+    snprintf(normalized.dest_base, sizeof normalized.dest_base, "%s",
+             E2A_HOMEBREW_DIR);
+  struct stat source_identity = {0};
+  if (!cmp5_game_path_stat("/", normalized.source, false, &source_identity) ||
+      !cmp5_game_path_on_disk("/", normalized.dest_base, true))
+    return -1;
+  char trusted_id[16] = {0};
+  if (normalized.smp_title[0]) {
+    if (!S_ISREG(source_identity.st_mode) ||
+        strlen(normalized.smp_title) != 9) return -1;
+    snprintf(trusted_id, sizeof trusted_id, "%s", normalized.smp_title);
+  } else {
+    if (!S_ISDIR(source_identity.st_mode)) return -1;
+    e2a_game verified_game;
+    if (e2a_read_game(normalized.source, &verified_game) != 0) return -1;
+    snprintf(trusted_id, sizeof trusted_id, "%s", verified_game.title_id);
+  }
+  if (strlen(trusted_id) != 9) return -1;
+  for (unsigned i = 0; i < 9; i++) {
+    const char c = trusted_id[i];
+    if (i < 4 ? (c < 'A' || c > 'Z') : (c < '0' || c > '9'))
+      return -1;
+  }
+  if (normalized.name[0] && strcmp(normalized.name, trusted_id) != 0)
+    return -1; /* a resume filename may not redirect its output */
+  snprintf(normalized.name, sizeof normalized.name, "%s", trusted_id);
+#endif
+  if (!normalized.dest_base[0])''')
+
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')
