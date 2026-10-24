@@ -28,7 +28,8 @@ with tempfile.TemporaryDirectory() as temp:
                         '-o',str(binary)],cwd=root,check=True,timeout=30)
     completed=subprocess.run([str(binary),str(base),str(source),str(backup),
                               str(restore),'tamper',str(alias)],capture_output=True,text=True,
-                              check=True,timeout=30)
+                              check=False,timeout=30)
+    assert completed.returncode==0,(completed.stdout,completed.stderr)
     assert hashlib.sha256(data).hexdigest() in completed.stdout
     assert source.read_bytes()==data
     assert (restore/'SAVED').read_bytes()==data

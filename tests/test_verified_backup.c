@@ -54,6 +54,10 @@ int main(int argc,char**argv){
  assert(link(original,alias)==0); // Test hardlinks are rejected, never unlinked.
  assert(!cmp5_backup_media(root,&media,backup,"HARDLINK",&a,NULL,NULL));
  assert(unlink(alias)==0);
+ /* Link/unlink changes ctime even though bytes, size and inode stay fixed.
+  * Re-read the snapshot after this deliberate fixture mutation. */
+ assert(stat(original,&st)==0);
+ cmp5_snapshot_capture(&media,&st);
  assert(cmp5_backup_media(root,&media,backup,"ONE",&a,NULL,NULL));
  assert(a.published&&a.bytes==media.bytes);
  assert(cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
