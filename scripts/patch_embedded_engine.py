@@ -43,6 +43,21 @@ def main(root: Path):
     change(mainc, '  bool auto_mode = false;',
            '  bool auto_mode = false; /* retained for diagnostic log only */')
 
+    # The worker creates the new title folder itself, atomically.
+    # mkdir_p(state_dir) on a pre-existing path could otherwise traverse a
+    # replaced/dangling symlink or a renamed directory after the HTTP check.
+    # Keep the resume branch unchanged: it deliberately reuses checkpoints.
+    jobc = root / "src/job.c"
+    change(jobc,
+           '    if (e2a_mkdir_p(state_dir) != 0) FAIL("dest_create", "cannot create destination (storage not mounted or read-only?)");',
+           '''    /* CleanMyPS5: exclusive creation of a new title output. No
+     * directory reuse, no symlink following, no implicit overwrite. */
+    if (mkdir(dest, 0777) != 0)
+      FAIL("dest_exists_or_unavailable", "destination is occupied or unavailable");
+    created = true;
+    if (e2a_mkdir_p(state_dir) != 0)
+      FAIL("dest_create", "cannot initialize private output state");''')
+
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')

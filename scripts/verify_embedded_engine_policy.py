@@ -12,6 +12,7 @@ import sys
 def check_engine(root: Path) -> None:
     http = (root / "src/httpd.c").read_text()
     main = (root / "src/main.c").read_text()
+    job = (root / "src/job.c").read_text()
     required = {
         "loopback-only listener": "addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);",
         "no automated pruning": "r.clean_leftovers = false;",
@@ -71,6 +72,9 @@ def check_engine(root: Path) -> None:
         missing.append("managed image output missing either collision guard")
     if 'form_get(body, "name", r.name' in http:
         missing.append("caller-selected output directory still accepted")
+    if 'if (mkdir(dest, 0777) != 0)' not in job or (
+        'created = true;\n    if (e2a_mkdir_p(state_dir) != 0)' not in job):
+        missing.append("new output title must be created exclusively before state")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

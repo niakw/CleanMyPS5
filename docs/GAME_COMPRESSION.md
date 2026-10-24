@@ -362,3 +362,17 @@ images, ou depuis les métadonnées du jeu source pour les dossiers.
 Le contrôleur de build vérifie à la fois cette neutralisation et
 l'absence de l'ancien paramètre `name` dans le moteur transformé.
 Cela n'autorise toujours aucun effacement d'une sortie préexistante.
+
+### Création exclusive par le worker
+
+Le contrôle au moment du POST et la confirmation de destination libre
+ne suffisent pas à protéger les secondes qui précèdent l'exécution d'un
+travail en file. Dans le moteur de conversion, la création initiale du
+dossier `destination/TitleID` passe désormais par **`mkdir` sans
+réutilisation** : une entrée existante, notamment un répertoire, fichier
+ou lien symbolique, entraîne un échec plutôt qu'une traversée par la
+création récursive de l'état de conversion. L'état de reprise n'est créé
+qu'après la création du dossier neuf. La branche de reprise reste séparée.
+Le contrôle des sources transformées fait échouer le build si cette
+règle disparaît ; les tests amont de conversion/reprise s'exécutent dans
+le workflow natif. Aucun nettoyage destructeur du SSD n'est ainsi activé.
