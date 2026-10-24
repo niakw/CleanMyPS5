@@ -37,6 +37,13 @@ fantôme dans l'interface Sony.
   entrée suspecte. Aucun chemin, nom ni identifiant n'est remonté dans
   l'interface ; aucune de ces observations n'est assimilée à une
   dépendance définitivement liée à la capture.
+- Une miniature extérieure inaccessible ou suspecte rend **toute
+  inspection du groupe non fiable** : aucun compteur de fichiers ni
+  volume n'est publié. Le prototype de sauvegarde **hôte uniquement**
+  refuse un groupe photo dès qu'une miniature extérieure est trouvée
+  ou ne peut pas être vérifiée. La CI injecte `EACCES` sur le fichier
+  miniature et vérifie le refus ainsi que l'effacement des résultats
+  de planification. Aucune écriture sur PS5 n'est déverrouillée.
 - Même si les compagnons visibles réussissent, aucun bit ni résultat
   `verified` n'autorise une suppression, puisque la cartographie
   **inter-répertoires et index système** manque encore.

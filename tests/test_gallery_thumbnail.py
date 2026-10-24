@@ -6,6 +6,7 @@ import sys
 import tempfile
 
 binary = Path(sys.argv[1])
+denied_binary = Path(sys.argv[2])
 with tempfile.TemporaryDirectory() as work:
     root=Path(work)
     gallery=root/"user/av_contents/photo/NPXS00000/GAME123"
@@ -25,6 +26,10 @@ with tempfile.TemporaryDirectory() as work:
     thumb.mkdir(parents=True)
     matching.write_bytes(b"JPEG-CANDIDATE-ONLY")
     verify(original,relative,"found")
+    denied=subprocess.run(
+        [str(denied_binary),str(root),str(original),relative],
+        capture_output=True,text=True,timeout=10)
+    assert denied.returncode==0,(denied.stdout,denied.stderr)
     matching.unlink()
     verify(original,relative,"missing")
     matching.symlink_to(original)

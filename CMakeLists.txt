@@ -148,9 +148,17 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
  target_compile_options(cmp5-gallery-thumbnail-tests PRIVATE
   -Wall -Wextra -Wpedantic -Werror)
 endif()
+add_executable(cmp5-gallery-thumbnail-denied
+ tests/test_gallery_thumbnail_denied.c)
+target_include_directories(cmp5-gallery-thumbnail-denied PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-gallery-thumbnail-denied PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
 add_test(NAME gallery_thumbnail_contract
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_thumbnail.py
-  $<TARGET_FILE:cmp5-gallery-thumbnail-tests>)
+  $<TARGET_FILE:cmp5-gallery-thumbnail-tests>
+  $<TARGET_FILE:cmp5-gallery-thumbnail-denied>)
 
 # Deterministic metadata race while the Gallery sidecar is being inspected.
 add_executable(cmp5-gallery-sidecar-race tests/test_gallery_sidecar_race.c ${RULES})

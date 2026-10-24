@@ -9,6 +9,7 @@ on:
       - tests/test_native_navigation.cpp
       - tests/test_gallery_thumbnail.c
       - tests/test_gallery_thumbnail.py
+      - tests/test_gallery_thumbnail_denied.c
       - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
@@ -122,7 +123,11 @@ jobs:
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_gallery_thumbnail.c src/native/capture_companions.c \
             -o /tmp/cmp5-gallery-thumbnail
-          python3 tests/test_gallery_thumbnail.py /tmp/cmp5-gallery-thumbnail
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_gallery_thumbnail_denied.c \
+            -o /tmp/cmp5-gallery-thumbnail-denied
+          python3 tests/test_gallery_thumbnail.py \
+            /tmp/cmp5-gallery-thumbnail /tmp/cmp5-gallery-thumbnail-denied
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb

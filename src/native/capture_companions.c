@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "capture_companions.h"
 #include "media_snapshot.h"
 #include <dirent.h>
