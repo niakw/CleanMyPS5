@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory() as tmp:
     unsafe=base/"ordinary-workspace"
     for d in (lab,backup,rehearsal,unsafe):d.mkdir(mode=0o700)
     (lab/"ITEM").write_bytes(contents)
+    (lab/"ITEM").chmod(0o600)
     args=[str(binary),str(base),str(item),str(lab),str(backup),
           str(rehearsal),str(unsafe)]
     result=subprocess.run(args,capture_output=True,text=True,timeout=35)
