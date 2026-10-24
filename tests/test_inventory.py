@@ -83,6 +83,8 @@ with tempfile.TemporaryDirectory() as temporary:
         assert overview['visited']==report['stats']['visited']
         assert overview['partial']==report['stats']['partial']
         assert overview['galleryCoverage']=={'photo':'complete','video':'absent'}
+        # Photo-only access never proves that video captures do not exist.
+        assert overview['partial'] is True and report['stats']['partial'] is True
         assert sum(overview['categories'].values())==overview['files']
         assert overview['nominalBytes']==sum(item['bytes'] for item in report['items'])
         assert sum(overview['coverage'].values())==len(report['coverage'])
@@ -108,7 +110,7 @@ with tempfile.TemporaryDirectory() as temporary:
         assert report['stats']['symlinksSkipped']==1
         assert report['stats']['aliasesSkipped']==1
         assert report['stats']['privateEntriesExcluded']>=3
-        assert not report['stats']['partial'],report
+        assert report['stats']['partial'],report
         assert len(report['coverage'])==30
         assert all(item['path'].startswith('/') and temporary not in item['path'] for item in report['items'])
         assert sum(item['bytes'] for item in report['items'])==sum(row['nominalBytes'] for row in report['coverage'])
@@ -120,6 +122,15 @@ with tempfile.TemporaryDirectory() as temporary:
         combined=json.dumps([report,catalogue])
         assert 'PRIVATE' not in combined and 'redis.sock' not in combined and 'retroachievements' not in combined
         assert snapshot()==before,'metadata scans changed fixture contents or modification times'
+        # A second, empty but actually readable Gallery category is distinct
+        # from an absent category and can close this particular coverage gap.
+        (root/'user/av_contents/video').mkdir(parents=True)
+        both=get('/api/overview')
+        both_report=get('/api/report')
+        assert both['galleryCoverage']=={'photo':'complete','video':'complete'}
+        assert both['partial'] is False
+        assert both_report['stats']['partial'] is False
+        assert both['files']==overview['files']
         # Truncation of one root is explicit, and later roots are still visited.
         photos=root/'user/av_contents/photo/many'
         photos.mkdir()

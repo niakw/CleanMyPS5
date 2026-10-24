@@ -445,19 +445,19 @@ static int has_completed_root(const Scan*s){
   if(!strcmp(s->coverage[i].status,"complete"))return 1;
  return 0;
 }
-/* A readable application or USB root is not evidence that the title can
- * inspect ANY PS5 Gallery capture directory. Require an independently
- * traversed photo or video root before reporting a gallery inventory as
- * complete. Missing roots alone are ambiguous: galleries can be absent,
- * inaccessible, or simply have no content. No deletion is authorized. */
+/* A readable application or USB root cannot validate the Gallery.
+ * Neither can a lone photo OR video directory. Both categories must have
+ * actually completed a bounded scan; 'absent' cannot mean 'empty and safe'.
+ * This is only a conservative completeness signal, not delete approval. */
 static int has_completed_gallery_root(const Scan*s){
+ int photo=0,video=0;
  for(size_t i=0;i<s->nc;i++){
   const Coverage*c=&s->coverage[i];
   if(strcmp(c->status,"complete"))continue;
-  if(!strcmp(c->id,"captures-photo")||!strcmp(c->id,"captures-video"))
-   return 1;
+  if(!strcmp(c->id,"captures-photo"))photo=1;
+  if(!strcmp(c->id,"captures-video"))video=1;
  }
- return 0;
+ return photo&&video;
 }
 char *cmp5_report(const char*root,size_t*len){
  if(len)*len=0;

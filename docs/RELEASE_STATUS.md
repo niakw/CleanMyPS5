@@ -118,3 +118,15 @@ l'arborescence examinée. Elle ne déduit jamais l'espace récupérable
 lorsqu'elle a dû exclure des fichiers à liens multiples. Les tests de
 serveur simulent deux doublons réellement indépendants et plusieurs
 hardlinks, dont un vers un dossier non scanné.
+
+### Couverture galerie : photos ET vidéos
+
+Le scanner exige maintenant deux observations indépendantes **complètes**
+des répertoires `/user/av_contents/photo` et
+`/user/av_contents/video` pour déclarer la couverture de la Galerie
+non partielle. Une seule famille accessible, l'autre absente ou refusée,
+ne peut plus aboutir à `partial=false`, même si les répertoires
+homebrew ou système sont lisibles. Une fixture vérifie le passage de
+photos seules (couverture partielle) à photos + vidéos lisibles (non
+partielle), puis l'effet d'un scan tronqué. Ce contrôle ne couvre pas
+les index Sony ni leur restauration et n'autorise aucune suppression.
