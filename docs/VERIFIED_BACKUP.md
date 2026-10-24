@@ -91,3 +91,24 @@ processus et ne rend pas le nettoyage de la Galerie PS5 fonctionnel :
 les données système et leurs index n'ont toujours aucune transaction
 restaurable validée sur console. Le code reste volontairement hors du titre
 natif et du helper de diagnostic.
+
+## Enracinement des espaces privés de sauvegarde (prototype hôte)
+
+Un garde partagé entre sauvegarde et restauration refuse désormais les
+chemins relatifs, les composants `.` et `..`, les chemins ambigus ou
+terminés par `/`, les cibles canoniques dans `/user`, `/system`,
+`/system_ex`, `/data/etaHEN` et `/data/pldmgr`. Le chemin canonique est
+parcouru par descripteurs avec `openat(O_DIRECTORY|O_NOFOLLOW)` sur
+**tous les composants**, puis son inode/périphérique comparé à la
+résolution du chemin d'origine. Le répertoire final doit toujours
+appartenir au processus et ne laisser aucun accès groupe ou autres.
+Cette précaution évite de prendre un dossier sensible ou une cible
+remplacée par lien symbolique pour un espace de stockage privé.
+
+Le garde tolère les alias des **répertoires parents**, utiles notamment
+pour les chemins temporaires sur macOS, seulement s'ils résolvent et
+restent identiques à un répertoire privé autorisé. Un lien symbolique
+au dernier composant est refusé. Ce contrôle n'est pas une protection
+contre un processus ayant déjà accès à un répertoire privé et capable
+d'en modifier le contenu ; les validations de transactions restent
+nécessaires. Aucun code de sauvegarde n'est chargé sur PS5.

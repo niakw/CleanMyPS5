@@ -3,6 +3,7 @@
 #endif
 #include "verified_group.h"
 #include "sha256.h"
+#include "private_workspace_guard.h"
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -54,13 +55,7 @@ static void marker_name(char out[48],const char*id,int restored){
  (void)snprintf(out,48,"%s__%s",id,restored?"RESTORED":"COMMIT");
 }
 static int safe_dir(const char*path){
- if(!path)return -1;
- int fd=open(path,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(fd<0)return -1;
- struct stat st;
- if(fstat(fd,&st)!=0||!S_ISDIR(st.st_mode)||
-    st.st_uid!=geteuid()||(st.st_mode&077)!=0){close(fd);return -1;}
- return fd;
+ return cmp5_open_private_workspace(path);
 }
 static int same_file(const struct stat*a,const struct stat*b){
 #if defined(__APPLE__)
