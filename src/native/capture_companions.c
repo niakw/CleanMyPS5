@@ -38,7 +38,9 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  static const char photo[]="/user/av_contents/photo/";
  if(!root||!primary||primary->media_type!=1u)return CMP5_THUMBNAIL_NOT_CHECKED;
  const char*path=primary->preview_path;
- const size_t plen=strlen(photo)-1u;
+ /* Advance past the full photo/ prefix. Keeping its last slash would
+  * produce a double slash in a candidate backup locator. */
+ const size_t plen=strlen(photo);
  const size_t path_len=strnlen(path,sizeof(primary->preview_path));
  if(path_len>=sizeof(primary->preview_path)||path_len<=plen||
     memcmp(path,photo,plen)!=0)return CMP5_THUMBNAIL_UNSAFE;
