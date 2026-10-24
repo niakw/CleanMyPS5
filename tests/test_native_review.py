@@ -40,6 +40,22 @@ with tempfile.TemporaryDirectory() as scratch:
     result=subprocess.run([sys.argv[1],str(root)],
                           check=True,text=True,capture_output=True,timeout=20)
     assert "Media review:" in result.stdout
+    # Malformed metadata is a recoverable local failure: show both photos
+    # and videos that remain readable, but label the whole scan partial.
+    damaged_root=root/"damaged-sidecar-scan"
+    damaged_photo=damaged_root/"user/av_contents/photo/NPXS00000/BADGAME"
+    damaged_video=damaged_root/"user/av_contents/video/NPXS00000/BADGAME"
+    damaged_photo.mkdir(parents=True)
+    damaged_video.mkdir(parents=True)
+    (damaged_photo/"early_corrupt.dat").write_bytes(b"BAD")
+    (damaged_photo/"still_visible_1.jpg").write_bytes(b"A"*1024)
+    (damaged_photo/"still_visible_2.png").write_bytes(b"B"*2048)
+    (damaged_video/"still_visible_3.mp4").write_bytes(b"C"*3072)
+    damaged_result=subprocess.run(
+        [sys.argv[1],str(damaged_root),"damaged-sidecar"],
+        check=True,text=True,capture_output=True,timeout=20
+    )
+    assert "damaged sidecar does not conceal healthy captures" in damaged_result.stdout
     # A fresh workspace with NONE of the configured known roots is not a
     # successful inventory with zero captures. Assert "partial" on macOS
     # and Linux, with no dependence on system permissions.
