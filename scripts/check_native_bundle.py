@@ -39,6 +39,15 @@ def validate(base: Path, expected_id: str) -> None:
         raise SystemExit("Unexpected template artwork was packaged")
     if not (base / "assets/native-readme.txt").is_file():
         raise SystemExit("Application assets missing")
+    helper = base / "assets/cleanmyps5-helper.elf"
+    if not helper.is_file():
+        raise SystemExit("Missing bundled read-only diagnostic helper")
+    with helper.open("rb") as handle:
+        probe = handle.read(20)
+    if (probe[:6] != bytes.fromhex("7f454c460201")
+            or int.from_bytes(probe[18:20], "little") != 62
+            or not 4096 <= helper.stat().st_size <= 64 * 1024 * 1024):
+        raise SystemExit("Bundled diagnostic helper is not x86-64 ELF")
     # This is a real ELF packer included in this SAME installable homebrew,
     # not a promise that a separately installed title provides compression.
     embedded = base / "assets/cleanmyps5-compression.elf"

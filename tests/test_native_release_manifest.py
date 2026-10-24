@@ -9,6 +9,10 @@ from zipfile import ZipFile, ZipInfo
 spec = importlib.util.spec_from_file_location(
     "native_release_manifest", Path(__file__).resolve().parents[1] / "scripts/native_release_manifest.py"
 )
+builder=(Path(__file__).resolve().parents[1] /
+         "scripts/build_native_app.sh").read_text()
+assert builder.index('"$tmp/native-toolchain/assets/cleanmyps5-helper.elf"') < (
+       builder.index('make -C "$tmp/native-toolchain" app'))
 module = importlib.util.module_from_spec(spec)
 # Fast fail before the expensive PS5 SDK build if the title's overlay
 # omits the read-only game scanner's local dependency.

@@ -87,6 +87,12 @@ make -C "$tmp/native-toolchain" init \
 # The native title launches this engine through the existing jailbreak ELF
 # loader on explicit DualSense input, never at install time.
 bash "$tmp/native-toolchain/tools/setup-native-dependencies.sh" >/dev/null
+# Same home-screen title: stage optional READ-ONLY helper as an inert asset.
+# It is never launched automatically, nor does it elevate the GUI process.
+PS5_PAYLOAD_SDK="$tmp/native-toolchain/.deps/native/ps5-payload-sdk" \
+  make -C "$project" ps5-helper
+cp "$project/cleanmyps5-helper.elf" \
+   "$tmp/native-toolchain/assets/cleanmyps5-helper.elf"
 bash "$project/scripts/build_embedded_compression_engine.sh" \
   "$tmp/native-toolchain/assets" "$tmp/native-toolchain/.deps/native/ps5-payload-sdk"
 make -C "$tmp/native-toolchain" app
@@ -101,11 +107,8 @@ if [[ ${CMP5_BUILD_FFPKG:-0} == 1 ]]; then
   test -s "$tmp/native-toolchain/dist/$title.ffpkg"
 fi
 
-# Keep privileged filesystem inspection in the separately launched payload,
-# never in the installed title's sandbox, and never open WebKit.
-PS5_PAYLOAD_SDK="$tmp/native-toolchain/.deps/native/ps5-payload-sdk" \
-  make -C "$project" ps5-helper
-
+# The bundled helper is still a separate read-only process with its own
+# runtime rights. Retain the ELF as a standalone debugging artifact.
 python3 "$project/scripts/check_native_bundle.py" \
   "$tmp/native-toolchain/dist/$title" "$title"
 
