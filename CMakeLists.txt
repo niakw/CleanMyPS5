@@ -54,6 +54,24 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 add_test(NAME native_autoload_fixture COMMAND cmp5-native-autoload-tests)
 
+# Fast native photo snapshot gate on every host and sanitizer runner;
+# no full PS5 toolchain or image decoder required.
+add_executable(cmp5-photo-snapshot-tests
+ tests/test_photo_snapshot.c src/native/media_preview.c)
+target_include_directories(cmp5-photo-snapshot-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-photo-snapshot-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME photo_snapshot_identity COMMAND
+ ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_photo_snapshot.py
+ $<TARGET_FILE:cmp5-photo-snapshot-tests>)
+
+# Ensure the real MP4/WebM snapshot reader and its malformed-format
+# fixtures also execute on the faster host/macOS and sanitizer gates.
+add_test(NAME detailed_video_snapshot_identity COMMAND
+ ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_video_metadata.py)
+
 # Safely read MP4 container metadata using a generated fake gallery.
 # Does not require ffmpeg, a PS5 or user media.
 add_test(NAME native_video_metadata_fixture

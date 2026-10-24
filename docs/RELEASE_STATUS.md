@@ -160,3 +160,13 @@ Les tests de lecture refusent les snapshots artificiellement périmés à
 la nanoseconde, même lorsque la taille et l'heure à la seconde sont
 identiques. Cela ne représente pas une preuve de suppression/restauration
 sûre des captures de la Galerie PS5.
+
+### Tests de couverture avant packaging natif
+
+Les lecteurs photo et vidéo partagent la même identité à la nanoseconde.
+La CI Linux, macOS et sanitizers exécute maintenant une fixture photo PNG
+minimaliste sans dépendance à Pillow, qui couvre lecture actuelle, refus
+des snapshots périmés et liens physiques. La suite existante de lecture
+MP4/WebM, avec conteneurs malformés, complète également la matrice hôte.
+Les tests natifs incluant décodage JPEG/PNG/JXR et packaging PS5 restent
+maintenus : aucun test hôte ne remplace une preuve matérielle 13.60.
