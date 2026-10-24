@@ -74,7 +74,16 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
  const int anchored_fd=fd; // fdopendir owns fd; dirfd is unavailable in native PS5 libc.
  DIR*d=fdopendir(fd);if(!d){close(fd);s->partial=1;return;}
  struct dirent*entry;
- while((entry=readdir(d))!=NULL){
+ for(;;){
+  /* POSIX uses NULL for both EOF and a read error. Other syscalls in
+   * this loop can change errno, so clear it just before every readdir.
+   * An I/O error must never yield a "complete" duplicate sample. */
+  errno=0;
+  entry=readdir(d);
+  if(!entry){
+   if(errno!=0)s->partial=1;
+   break;
+  }
   if(expired(s)){s->partial=1;break;}
   if(strcmp(entry->d_name,".")==0||strcmp(entry->d_name,"..")==0)continue;
   if(++s->visits>VISIT_CAP){s->partial=1;break;}
@@ -111,7 +120,7 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
   }
   if(s->partial)break;
  }
- closedir(d);
+ if(closedir(d)!=0)s->partial=1;
 }
 // Open only within the capture namespace; verify that the file is the one
 // snapshotted during enumeration, not a replacement after the scan.
