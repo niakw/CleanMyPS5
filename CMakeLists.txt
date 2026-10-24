@@ -139,6 +139,19 @@ add_test(NAME verified_group_fixture
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_group.py
  $<TARGET_FILE:cmp5-verified-group-tests>)
 
+# Metadata-only cross-tree gallery thumbnail observation with symlink and
+# unknown-path fixtures; never modifies user media or reads image bodies.
+add_executable(cmp5-gallery-thumbnail-tests
+ tests/test_gallery_thumbnail.c src/native/capture_companions.c)
+target_include_directories(cmp5-gallery-thumbnail-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-gallery-thumbnail-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME gallery_thumbnail_contract
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_thumbnail.py
+  $<TARGET_FILE:cmp5-gallery-thumbnail-tests>)
+
 # Deterministic metadata race while the Gallery sidecar is being inspected.
 add_executable(cmp5-gallery-sidecar-race tests/test_gallery_sidecar_race.c ${RULES})
 target_include_directories(cmp5-gallery-sidecar-race PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)

@@ -2327,7 +2327,17 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
  (void)std::snprintf(nominal,sizeof(nominal),"%llu MIO NOMINAUX",
    static_cast<unsigned long long>(companion_summary.nominal_bytes/1048576ULL));
  panel(canvas,656,"TAILLE OBSERVEE",nominal);
- panel(canvas,804,"LIMITATION","INDEX GALERIE ET MINIATURES NON PROUVES",Color::yellow);
+ const char*thumbnail_detail=
+   companion_summary.thumbnail==CMP5_THUMBNAIL_CANDIDATE_FOUND?
+    "CANDIDAT JPG.JPEG OBSERVE  ASSOCIATION NON PROUVEE":
+   companion_summary.thumbnail==CMP5_THUMBNAIL_KNOWN_PATH_ABSENT?
+    "ABSENT AU CHEMIN CONNU  AUTRES FORMATS POSSIBLES":
+   companion_summary.thumbnail==CMP5_THUMBNAIL_INACCESSIBLE?
+    "CHEMIN MINIATURE INACCESSIBLE":
+   companion_summary.thumbnail==CMP5_THUMBNAIL_UNSAFE?
+    "MINIATURE OU CHEMIN SUSPECT  VERIFICATION BLOQUEE":
+    "MINIATURE NON VERIFIEE";
+ panel(canvas,804,"MINIATURE HORS DOSSIER",thumbnail_detail,Color::yellow);
  canvas.rectangle(95,950,1730,96,Color::panel);
  canvas.text(125,968,"CERCLE DETAIL  AUCUNE SUPPRESSION NI SAUVEGARDE",3,Color::white);
  canvas.text(125,1006,"FICHIERS VISIBLES SEULEMENT - LECTURE SEULE",3,Color::cyan);

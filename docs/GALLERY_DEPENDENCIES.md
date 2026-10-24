@@ -28,6 +28,15 @@ fantôme dans l'interface Sony.
   comme **dépendance non prise en charge** ; l'interface l'indique sans chemin
   privé. Les `.jpg.jpeg`, extensions inconnues ou compagnons cachés font
   échouer la validation au lieu de déclarer une sauvegarde complète.
+- Le contrôle complémentaire recherche maintenant, en lecture seule, un
+  **candidat** `/user/av_contents/thumbnails/photo/<relatif>/<stem>.jpg.jpeg`
+  quand une capture photo a été validée. Il ouvre chaque composant avec
+  `O_NOFOLLOW`, vérifie l'identité du fichier et du dossier et ne lit
+  aucun pixel. Le résultat natif distingue une présence probable,
+  l'absence **à ce seul chemin**, une impossibilité d'accès et une
+  entrée suspecte. Aucun chemin, nom ni identifiant n'est remonté dans
+  l'interface ; aucune de ces observations n'est assimilée à une
+  dépendance définitivement liée à la capture.
 - Même si les compagnons visibles réussissent, aucun bit ni résultat
   `verified` n'autorise une suppression, puisque la cartographie
   **inter-répertoires et index système** manque encore.

@@ -25,6 +25,73 @@ static int same_file(const struct stat*a,const struct stat*b){
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime;
 }
+/* Read-only cross-directory evidence, never a complete dependency graph.
+ * Some gallery implementations reference <stem>.jpg.jpeg thumbnails under
+ * /user/av_contents/thumbnails/photo/ with the same relative directory.
+ * Other layouts are explicitly UNKNOWN, including index/database links. */
+static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
+ const Cmp5MediaCandidate*primary,Cmp5CancelCheck cancel,void*context){
+ static const char photo[]="/user/av_contents/photo/";
+ if(!root||!primary||primary->media_type!=1u)return CMP5_THUMBNAIL_NOT_CHECKED;
+ const char*path=primary->preview_path;
+ const size_t plen=strlen(photo)-1u;
+ const size_t path_len=strnlen(path,sizeof(primary->preview_path));
+ if(path_len>=sizeof(primary->preview_path)||path_len<=plen||
+    memcmp(path,photo,plen)!=0)return CMP5_THUMBNAIL_UNSAFE;
+ const char*slash=strrchr(path,'/');
+ const char*dot=strrchr(path,'.');
+ if(!slash||!dot||dot<=slash+1||dot+1>=path+path_len)
+  return CMP5_THUMBNAIL_UNSAFE;
+ /* The prefix has already been snapshot-checked by scan_capture_group. */
+ const char*rel=path+plen;
+ const size_t stem_len=(size_t)(dot-rel);
+ char candidate[sizeof(primary->preview_path)+64u];
+ const int length=snprintf(candidate,sizeof(candidate),
+    "user/av_contents/thumbnails/photo/%.*s.jpg.jpeg",(int)stem_len,rel);
+ if(length<=0||(size_t)length>=sizeof(candidate))
+  return CMP5_THUMBNAIL_UNSAFE;
+ if(cancelled(cancel,context))return CMP5_THUMBNAIL_INACCESSIBLE;
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return CMP5_THUMBNAIL_INACCESSIBLE;
+ char*leaf=strrchr(candidate,'/');
+ if(!leaf){close(fd);return CMP5_THUMBNAIL_UNSAFE;}
+ *leaf++=0;
+ char*save=NULL;
+ for(char*part=strtok_r(candidate,"/",&save);part;
+     part=strtok_r(NULL,"/",&save)){
+  if(!*part||part[0]=='.'||cancelled(cancel,context)){
+   close(fd);return CMP5_THUMBNAIL_UNSAFE;
+  }
+  int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(child<0){
+   const int error=errno;
+   close(fd);
+   return error==ENOENT?CMP5_THUMBNAIL_KNOWN_PATH_ABSENT:
+    (error==ELOOP||error==ENOTDIR)?CMP5_THUMBNAIL_UNSAFE:
+    CMP5_THUMBNAIL_INACCESSIBLE;
+  }
+  close(fd);fd=child;
+ }
+ if(cancelled(cancel,context)){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
+ struct stat parent_before{},parent_after{},named{},opened{};
+ if(fstat(fd,&parent_before)!=0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
+ if(fstatat(fd,leaf,&named,AT_SYMLINK_NOFOLLOW)!=0){
+  const int error=errno;close(fd);
+  return error==ENOENT?CMP5_THUMBNAIL_KNOWN_PATH_ABSENT:
+    CMP5_THUMBNAIL_INACCESSIBLE;
+ }
+ if(!S_ISREG(named.st_mode)||named.st_nlink!=1||named.st_size<=0||
+    (uint64_t)named.st_size>64u*1024u*1024u){
+  close(fd);return CMP5_THUMBNAIL_UNSAFE;
+ }
+ int file=openat(fd,leaf,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(file<0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
+ const int stable=fstat(file,&opened)==0&&same_file(&named,&opened)&&
+     opened.st_nlink==1&&fstat(fd,&parent_after)==0&&
+     same_file(&parent_before,&parent_after)&&!cancelled(cancel,context);
+ close(file);close(fd);
+ return stable?CMP5_THUMBNAIL_CANDIDATE_FOUND:CMP5_THUMBNAIL_UNSAFE;
+}
 /* Identical planner used by host-only group backup and installed title.
  * No backup/writer implementation is linked with this file. */
 static int validate_capture_group_limit(const Cmp5MediaCandidate*,uint32_t,uint64_t);
@@ -248,7 +315,12 @@ int cmp5_inspect_capture_companions(const char*root,
    else result.media++;
    result.nominal_bytes+=parts[i].bytes; /* scanner enforces no uint64 overflow */
   }
-  *report=result;
+  result.thumbnail=inspect_known_thumbnail(root,primary,cancel,context);
+  if(!cancelled(cancel,context))*report=result;
+  else {
+   report->failure=CMP5_COMPANION_FAILURE_CANCELLED;
+   result.state=CMP5_COMPANIONS_UNVERIFIABLE;
+  }
  }else{
   report->failure=cancelled(cancel,context)?
     CMP5_COMPANION_FAILURE_CANCELLED:failure;

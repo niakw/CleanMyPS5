@@ -30,9 +30,20 @@ typedef enum {
  CMP5_COMPANION_FAILURE_CANCELLED=5,
  CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY=6
 } Cmp5CompanionFailure;
+/* Only the known thumbnails/photo/<same relative stem>.jpg.jpeg path is
+ * inspected, without reading the image body. Absence there says nothing
+ * about thumbnails stored under other conventions or database indexes. */
+typedef enum {
+ CMP5_THUMBNAIL_NOT_CHECKED=0,
+ CMP5_THUMBNAIL_CANDIDATE_FOUND=1,
+ CMP5_THUMBNAIL_KNOWN_PATH_ABSENT=2,
+ CMP5_THUMBNAIL_INACCESSIBLE=3,
+ CMP5_THUMBNAIL_UNSAFE=4
+} Cmp5ThumbnailState;
 typedef struct {
  Cmp5CompanionState state;
  Cmp5CompanionFailure failure;
+ Cmp5ThumbnailState thumbnail;
  uint32_t files;
  uint32_t media;
  uint32_t sidecars;
