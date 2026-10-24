@@ -80,14 +80,24 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
 constexpr int row_count=5;
 enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression };
 enum class Link { unchecked, ok, offline };
-constexpr std::size_t local_path_count=6u;
+constexpr std::size_t core_access_count=6u;
+constexpr std::size_t local_path_count=22u;
+constexpr unsigned access_page_count=(local_path_count+3u)/4u;
 const char* const local_paths[local_path_count]={
  "/app0/sce_sys/param.json", "/download0", "/data",
- "/user/av_contents", "/user/av_contents/photo", "/user/av_contents/video"
+ "/user/av_contents", "/user/av_contents/photo", "/user/av_contents/video",
+ "/mnt/usb0", "/mnt/usb1", "/mnt/usb2", "/mnt/usb3",
+ "/mnt/usb4", "/mnt/usb5", "/mnt/usb6", "/mnt/usb7",
+ "/mnt/ext0", "/mnt/ext1", "/mnt/ext2", "/mnt/ext3",
+ "/mnt/ext4", "/mnt/ext5", "/mnt/ext6", "/mnt/ext7"
 };
 const char* const local_names[local_path_count]={
  "APP INSTALLEE", "STOCKAGE APP", "STOCKAGE HOMEBREW",
- "GALERIE PS5", "PHOTOS GALERIE", "VIDEOS GALERIE"
+ "GALERIE PS5", "PHOTOS GALERIE", "VIDEOS GALERIE",
+ "STOCKAGE USB 0", "STOCKAGE USB 1", "STOCKAGE USB 2", "STOCKAGE USB 3",
+ "STOCKAGE USB 4", "STOCKAGE USB 5", "STOCKAGE USB 6", "STOCKAGE USB 7",
+ "STOCKAGE EXT 0", "STOCKAGE EXT 1", "STOCKAGE EXT 2", "STOCKAGE EXT 3",
+ "STOCKAGE EXT 4", "STOCKAGE EXT 5", "STOCKAGE EXT 6", "STOCKAGE EXT 7"
 };
 int controller=-1,selected=0;
 Screen screen=Screen::menu;
@@ -101,6 +111,7 @@ struct LocalProbe {
  bool truncated=false;
  bool io_error=false;
  bool volume_known=false;
+ bool capacity_only=false;
  std::uint64_t available_bytes=0;
  std::uint64_t total_bytes=0;
 };
@@ -157,7 +168,7 @@ int open_probe_target(const char*path,bool file) noexcept {
  }
  return fd;
 }
-LocalProbe probe_path(const char*path,bool file) noexcept {
+LocalProbe probe_path(const char*path,bool file,bool capacity_only=false) noexcept {
  LocalProbe result{};
  if(!path||cancellation_hook(nullptr))return result;
  // One final anchored descriptor for BOTH fstatvfs and the enumeration.
@@ -188,6 +199,15 @@ LocalProbe probe_path(const char*path,bool file) noexcept {
  if(file){
   (void)close(fd);
   result.status=LocalAccess::opened;
+  return result;
+ }
+ if(capacity_only){
+  /* The optional mount is capacity-only: never enumerate game files. */
+  struct stat mount_stat{};
+  const bool ok=fstat(fd,&mount_stat)==0&&S_ISDIR(mount_stat.st_mode);
+  (void)close(fd);
+  result.status=ok?LocalAccess::listable:LocalAccess::unavailable;
+  result.capacity_only=true;
   return result;
  }
  errno=0;
@@ -234,7 +254,8 @@ LocalCoverage summarize_local_coverage(const LocalProbe*probes,
  LocalCoverage coverage{};
  if(!probes||count!=local_path_count||!checked)return coverage;
  coverage.partial=false;
- for(std::size_t i=0;i<count;i++){
+ /* Optional disconnected USB roots never invalidate core gallery coverage. */
+ for(std::size_t i=0;i<core_access_count;i++){
   const LocalProbe&probe=probes[i];
   switch(probe.status){
    case LocalAccess::opened: ++coverage.opened;break;
@@ -260,7 +281,7 @@ void probe_local() noexcept {
  for(auto&sample:local_probe)sample=LocalProbe{};
  for(std::size_t i=0;i<local_path_count;i++){
   if(cancellation_hook(nullptr))return;
-  local_probe[i]=probe_path(local_paths[i],i==0);
+  local_probe[i]=probe_path(local_paths[i],i==0,i>=core_access_count);
   if(cancellation_hook(nullptr))return;
  }
  local_checked=true;
@@ -1736,7 +1757,9 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
-   access_page=access_page==0u?1u:0u;
+   access_page=(pressed&r1)?
+     (access_page+1u)%access_page_count:
+     (access_page+access_page_count-1u)%access_page_count;
    continue;
   }
   if(screen==Screen::access&&(pressed&triangle)){
@@ -1911,12 +1934,19 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   const auto state=probe.status;
   char detail[100]{};
   if(state==LocalAccess::listable){
-   if(probe.volume_known)
-    (void)std::snprintf(detail,sizeof(detail),"%u VUES  %llu/%llu GIO LIBRES/TOTAL%s",
-      probe.entries,
-      static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
-      static_cast<unsigned long long>(probe.total_bytes/1073741824ULL),
-      probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+   if(probe.volume_known){
+    if(probe.capacity_only)
+     (void)std::snprintf(detail,sizeof(detail),
+       "CAPACITE SEULE  %llu/%llu GIO LIBRES/TOTAL",
+       static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
+       static_cast<unsigned long long>(probe.total_bytes/1073741824ULL));
+    else
+     (void)std::snprintf(detail,sizeof(detail),
+       "%u VUES  %llu/%llu GIO LIBRES/TOTAL%s",probe.entries,
+       static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
+       static_cast<unsigned long long>(probe.total_bytes/1073741824ULL),
+       probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+   }
    else
     (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
       probe.entries,probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
@@ -1943,11 +1973,7 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
     if(free_width)canvas.rectangle(930,y+87,free_width,12,Color::cyan);
    }
  }
- if(access_page==1u){
-  panel(canvas,648,"INDEX ET MINIATURES",
-    "DROITS ET RESTAURATION NON PROUVES",Color::yellow);
-  canvas.text(125,830,"LIRE PHOTO ET VIDEO NE PROUVE PAS UN DROIT D EFFACEMENT",2,Color::yellow);
- }
+ /* Storage pages show four complete mount rows without overlapping panels. */
  char privilege_note[160]{};
  (void)std::snprintf(privilege_note,sizeof(privilege_note),
    "TITRE UID %lu EUID %lu  HELPER SEPARE  SUPPRESSION BLOQUEE",
@@ -1968,9 +1994,11 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
   "ENVOI DU HELPER ECHOUE":
   "TRIANGLE LANCER HELPER LECTURE SEULE";
  canvas.text(125,904,helper_hint,2,Color::cyan);
- footer(canvas,access_page?
-   "L1/R1 STOCKAGE  X ACTUALISER  TRIANGLE HELPER  CERCLE RETOUR":
-   "L1/R1 GALERIE  X ACTUALISER  TRIANGLE HELPER  CARRE APPS");
+ char access_footer[130]{};
+ (void)std::snprintf(access_footer,sizeof(access_footer),
+   "PAGE %u/%u  L1/R1 STOCKAGE  X ACTUALISER  CERCLE RETOUR",
+   access_page+1u,access_page_count);
+ footer(canvas,access_footer);
 }
 void show_apps(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
