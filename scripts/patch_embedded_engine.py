@@ -52,6 +52,13 @@ def main(root: Path):
            '    if (e2a_mkdir_p(state_dir) != 0) FAIL("dest_create", "cannot create destination (storage not mounted or read-only?)");',
            '''    /* CleanMyPS5: exclusive creation of a new title output. No
      * directory reuse, no symlink following, no implicit overwrite. */
+    /* Host reliability fixtures start without the homebrew parent.
+     * On PS5 the destination root MUST already exist and pass the
+     * storage + anchored admission checks; never create it there. */
+#ifdef E2A_HOST
+    if (e2a_mkdir_p(req.dest_base) != 0)
+      FAIL("dest_unavailable", "host destination root is unavailable");
+#endif
     if (mkdir(dest, 0777) != 0)
       FAIL("dest_exists_or_unavailable", "destination is occupied or unavailable");
     created = true;

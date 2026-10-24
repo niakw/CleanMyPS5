@@ -72,6 +72,8 @@ def check_engine(root: Path) -> None:
         missing.append("managed image output missing either collision guard")
     if 'form_get(body, "name", r.name' in http:
         missing.append("caller-selected output directory still accepted")
+    if '#ifdef E2A_HOST\n    if (e2a_mkdir_p(req.dest_base) != 0)' not in job:
+        missing.append("host-only parent setup for reliability test")
     if 'if (mkdir(dest, 0777) != 0)' not in job or (
         'created = true;\n    if (e2a_mkdir_p(state_dir) != 0)' not in job):
         missing.append("new output title must be created exclusively before state")

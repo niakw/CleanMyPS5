@@ -376,3 +376,10 @@ qu'après la création du dossier neuf. La branche de reprise reste séparée.
 Le contrôle des sources transformées fait échouer le build si cette
 règle disparaît ; les tests amont de conversion/reprise s'exécutent dans
 le workflow natif. Aucun nettoyage destructeur du SSD n'est ainsi activé.
+
+Les tests de fiabilité Linux du moteur amont utilisent un dossier de
+stockage synthétique qui n'existe pas initialement. Sous `E2A_HOST`
+**uniquement**, ce parent est créé avant le `mkdir` exclusif du jeu,
+afin de conserver les tests de crash/reprise. Sur PS5, la racine du
+stockage doit exister et être autorisée avant toute conversion : ce
+comportement de préparation hôte n'y est pas compilé.
