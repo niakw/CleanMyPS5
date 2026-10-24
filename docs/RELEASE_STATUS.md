@@ -130,3 +130,21 @@ homebrew ou système sont lisibles. Une fixture vérifie le passage de
 photos seules (couverture partielle) à photos + vidéos lisibles (non
 partielle), puis l'effet d'un scan tronqué. Ce contrôle ne couvre pas
 les index Sony ni leur restauration et n'autorise aucune suppression.
+
+### Revue du helper intégré (24 octobre 2026)
+
+Le helper facultatif de diagnostic, **embarqué dans le même titre natif**,
+se lance manuellement depuis la page Accès et demeure un processus distinct
+sans élévation de l'interface `PPSA99784`. La CI contrôle toutes ses unités
+C effectivement liées et leurs en-têtes, ainsi que les fichiers copiés dans
+le titre. Les compteurs retournés par le helper ne remplacent jamais les
+médias réellement sélectionnables dans le titre sandboxé. Sur PS5, ses
+routes GET se limitent aux quatre endpoints agrégés explicitement requis ;
+aucun streaming de média ni opération de suppression ne lui est accessible.
+
+Un scan ne peut être déclaré non partiel qu'après lecture complète de
+**photos et vidéos** (les index Sony restent hors couverture). Les accès
+supplémentaires du helper, un UID nul ou une validation CI ne prouvent
+ni la sûreté du nettoyage ni une récupération d'espace. **Nettoyeur
+réversible toujours bloqué** sans validation matérielle des transactions
+et de la reconstruction des index Galerie sur PS5 13.60.
