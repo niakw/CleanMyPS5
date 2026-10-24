@@ -43,6 +43,7 @@ cp "$project/native/compression_stream.hpp" "$tmp/native-toolchain/src/compressi
 # It inherits title permissions; it never escalates them or installs a daemon.
 cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"
 cp "$project/src/native/inventory.h" "$tmp/native-toolchain/src/inventory.h"
+cp "$project/src/native/media_snapshot.h" "$tmp/native-toolchain/src/media_snapshot.h"
 cp "$project/src/native/duplicates.c" "$tmp/native-toolchain/src/cmp5_duplicates.c"
 cp "$project/src/native/duplicates.h" "$tmp/native-toolchain/src/duplicates.h"
 cp "$project/src/native/homebrew.c" "$tmp/native-toolchain/src/cmp5_homebrew.c"

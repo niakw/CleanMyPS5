@@ -26,6 +26,10 @@ typedef struct {
  char preview_path[256];
  uint64_t snapshot_device;
  uint64_t snapshot_inode;
+ /* Read-only source identity at nanosecond precision. */
+ int64_t snapshot_ctime;
+ uint32_t snapshot_mtime_nsec;
+ uint32_t snapshot_ctime_nsec;
 } Cmp5MediaCandidate;
 typedef struct {
  uint32_t count;

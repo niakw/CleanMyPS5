@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "inventory.h"
+#include "media_snapshot.h"
 #include "scan_rules.h"
 #include <strings.h>
 #include <ctype.h>
@@ -220,8 +221,7 @@ static void capture_review(Scan*s,const char*path,const struct stat*info,const c
  if(strncmp(path,prefix,strlen(prefix))==0 &&
     path_length<sizeof(c.preview_path) && info->st_size>0){
   memcpy(c.preview_path,path,path_length+1u);
-  c.snapshot_device=(uint64_t)info->st_dev;
-  c.snapshot_inode=(uint64_t)info->st_ino;
+  cmp5_snapshot_capture(&c,info);
  }
  const char *base=strrchr(path,'/');
  base=base?base+1:path;

@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "capture_companions.h"
+#include "media_snapshot.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -81,11 +82,7 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  if(fstatat(fd,slash+1,&selected,AT_SYMLINK_NOFOLLOW)!=0){
   close(fd);return 0;
  }
- if(!S_ISREG(selected.st_mode)||selected.st_nlink!=1||
-    selected.st_size<=0||(uint64_t)selected.st_size!=primary->bytes||
-    (uint64_t)selected.st_dev!=primary->snapshot_device||
-    (uint64_t)selected.st_ino!=primary->snapshot_inode||
-    (selected.st_mtime>0?(int64_t)selected.st_mtime:0)!=primary->modified_at){
+ if(!cmp5_snapshot_matches(primary,&selected)){
   if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
   close(fd);return 0;
  }
@@ -159,9 +156,7 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   memcpy(item->preview_path,path,parent_len+1u);
   memcpy(item->preview_path+parent_len+1u,name,filename_length+1u);
   item->bytes=(uint64_t)st.st_size;
-  item->modified_at=st.st_mtime>0?(int64_t)st.st_mtime:0;
-  item->snapshot_device=(uint64_t)st.st_dev;
-  item->snapshot_inode=(uint64_t)st.st_ino;
+  cmp5_snapshot_capture(item,&st);
   item->media_type=type;
   if(strcmp(name,slash+1)==0){
    /* The primary was validated before enumeration. An in-place rewrite
