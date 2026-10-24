@@ -186,6 +186,14 @@ def main(root: Path):
       return;
     }
   }
+  /* Repeat the anchored admission immediately before enqueue. An SMP
+   * preflight may have taken long enough for source/destination aliases
+   * to be replaced. This is NOT a filesystem transaction or lock. */
+  if (!cmp5_game_path_on_disk("/", r.source, false) ||
+      !cmp5_game_path_on_disk("/", r.dest_base, true)) {
+    send_json(fd, 409, "{\\"error\\":\\"game_path_changed_before_enqueue\\"}");
+    return;
+  }
   (void)queue_only;''')
     # Stable, compact endpoint for the bundled DualSense frontend. The
     # upstream /api/state may include multi-megabyte logs; don't parse or

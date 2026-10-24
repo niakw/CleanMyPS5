@@ -26,6 +26,7 @@ def check_engine(root: Path) -> None:
         "source descriptor-anchored admission": 'cmp5_game_path_on_disk("/", r.source, false)',
         "destination descriptor-anchored admission": 'cmp5_game_path_on_disk("/", r.dest_base, true)',
         "reject aliases and disappeared games": "game_path_unstable_or_aliased",
+        "rerun descriptor admission before queue": "game_path_changed_before_enqueue",
         "no arbitrary source access": "game_path_not_allowed",
         "write endpoints default deny": "write_operation_not_allowed",
         "only explicit pause path": 'strcmp(path, "/api/pause")',
@@ -51,6 +52,11 @@ def check_engine(root: Path) -> None:
         "compact read-only progress": '"/api/cmp5-progress"',
     }
     missing = [label for label, fragment in required.items() if fragment not in http]
+    # One admission at request parsing and another after the potentially
+    # long ShadowMountPlus preflight, immediately before enqueuing work.
+    if http.count('cmp5_game_path_on_disk("/", r.source, false)') < 2 or (
+        http.count('cmp5_game_path_on_disk("/", r.dest_base, true)') < 2):
+        missing.append("missing second anchored pre-enqueue check")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

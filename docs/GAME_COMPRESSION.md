@@ -316,3 +316,11 @@ support USB, sans accéder aux fichiers de la console.
 C'est un contrôle d'admission, **pas un verrouillage** du parcours futur par
 le moteur LZ4, ni une validation du montage et lancement sous FW 13.60.
 Les conversions restent explicites, sans suppression des originaux.
+
+L'admission des conversions vérifie désormais deux fois la résolution de
+la source et de la destination : au traitement de la demande, puis juste
+avant la mise en file, **après** le précontrôle SMP qui peut durer longtemps.
+Le vérificateur du moteur transformé exige explicitement les deux passages.
+Cette double vérification réduit le risque de remplacement entre étapes,
+mais ne rend pas le travail asynchrone du packer atomique : le contrôle
+n'autorise ni suppression des originaux ni écriture dans les données système.
