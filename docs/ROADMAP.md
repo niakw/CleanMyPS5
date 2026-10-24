@@ -58,6 +58,26 @@ Aucun jeu, cache, plugin, base ni sauvegarde n'est supprimé par ce
 regroupement. Seule une catégorie démontrée sûre et réversible pourra
 ensuite être éligible à une action d'écriture.
 
+## Critères communs avant toute opération de nettoyage
+
+Un contrat natif unique `native/cleanup_readiness.hpp` classe les
+familles de nettoyage selon les preuves réellement disponibles :
+couverture d'inventaire, propriétaire et fournisseur, dépendances,
+sauvegarde et restauration vérifiées, droits, activité des processus,
+identité stable des sources, validation explicite. Les catégories
+« jeux et images », « résidus inconnus » et « cache système » restent
+**protégées** : aucun rapport de taille ne vaut une autorisation.
+Les captures et doublons exigent les liens de la Galerie ; les éléments
+de démarrage exigent en plus une preuve d'inactivité des processus.
+L'évaluation n'utilise ni chemins privés ni informations d'utilisateur.
+
+**Ce n'est pas encore un exécuteur** : le contrat renvoie uniquement
+des statuts de revue, avec le premier blocage vérifiable. Même un
+jeu de preuves artificiellement complet ne permet aucune suppression.
+Le contrat de privilèges du titre et du helper conserve toutes les
+opérations de nettoyage désactivées. La CI contrôle les combinaisons
+de preuves et l'interdiction de toute mutation.
+
 ## Portes restantes
 
 **P0 — Titre natif et droits réellement accessibles** : vérifier ultérieurement le package `.ffpkg` ou le dossier `PPSA99784/` via un gestionnaire de titres compatible, la manette, les pages et les sondes natives **sans helper** ; la connexion loopback au helper devient facultative. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.

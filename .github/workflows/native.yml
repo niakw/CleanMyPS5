@@ -7,6 +7,8 @@ on:
       - tests/test_native_protocol.cpp
       - tests/test_native_overview_protocol.cpp
       - tests/test_native_navigation.cpp
+      - tests/test_cleanup_readiness.cpp
+      - native/cleanup_readiness.hpp
       - tests/test_gallery_thumbnail.c
       - tests/test_gallery_thumbnail.py
       - tests/test_gallery_thumbnail_denied.c
@@ -111,6 +113,11 @@ jobs:
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. tests/test_native_overview_protocol.cpp -o /tmp/cmp5-overview-protocol
           /tmp/cmp5-overview-protocol
+      - name: Validate category-wide cleanup readiness and hard deletion boundary
+        run: |
+          clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. \
+            tests/test_cleanup_readiness.cpp -o /tmp/cmp5-cleanup-readiness
+          /tmp/cmp5-cleanup-readiness
       - name: Simulate native DualSense navigation without console
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
