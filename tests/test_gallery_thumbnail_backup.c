@@ -75,7 +75,7 @@ int main(int argc,char**argv){
  assert(cmp5_backup_group(root,reordered,3u,backup,"REORDER",
    &reordered_receipt,NULL,NULL));
  assert(reordered_receipt.count==3u);
- assert(cmp5_verify_group(backup,"REORDER",NULL,NULL));
+ assert(cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
  assert(cmp5_verify_group(backup,"THUMB",&verified,NULL,NULL));
  assert(verified.count==3u&&verified.bytes==result.bytes&&
         memcmp(verified.manifest_sha256,result.manifest_sha256,32)==0);
