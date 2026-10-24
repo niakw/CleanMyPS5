@@ -217,3 +217,14 @@ annulation, une limite de budget ou un échec de la sortie JSON arrêtent
 la traversée. La fixture hôte crée une métadonnée de trois octets,
 suivie de deux photos et d'une vidéo, et exige de retrouver les trois
 médias tout en conservant `cleanupValidated=false`.
+
+### Limite de l'index des noms de jeux
+
+Les noms extraits des fichiers de métadonnées `.dat` sont plafonnés à
+**128 lectures/titres** pour préserver le temps de scan et la mémoire du
+titre natif. Quand un 129e titre nouveau apparaît, le scanner **ne déclare
+plus le catalogue complet à tort** : il continue à lister les captures,
+mais marque la couverture du dossier `partial`. Une fixture avec 130
+jeux distincts exerce ce cas, sans demander l'accès à une vraie PS5.
+Ce seuil limite seulement l'association des noms, pas le nombre maximal
+de médias du catalogue (10 000 sous les limites globales de scan).
