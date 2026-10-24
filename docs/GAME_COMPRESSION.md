@@ -350,3 +350,15 @@ Il concerne les **images SMP** avec Title ID vérifiable ; pour les
 sources en dossiers, la protection reste actuellement celle du packer
 (`overwrite=false`). Aucune vérification préalable ne garantit à elle
 seule une création atomique/exclusive par le worker asynchrone.
+
+### Nom de sortie imposé par l'identité du jeu
+
+Le code amont acceptait `name=` dans le POST de démarrage. Un client
+local aurait pu donner à la conversion un autre nom que le Title ID
+contrôlé lors de l'admission, contournant ainsi la vérification de
+collision. Le moteur CleanMyPS5 ignore désormais cette valeur : le
+planificateur récupère le nom depuis le Title ID SMP vérifié pour les
+images, ou depuis les métadonnées du jeu source pour les dossiers.
+Le contrôleur de build vérifie à la fois cette neutralisation et
+l'absence de l'ancien paramètre `name` dans le moteur transformé.
+Cela n'autorise toujours aucun effacement d'une sortie préexistante.

@@ -50,6 +50,13 @@ def main(root: Path):
     # unused upstream helper available but quiet under -Werror.
     change(httpd, 'static bool flag(const char *body, const char *key, bool dflt) {',
            'static bool __attribute__((unused)) flag(const char *body, const char *key, bool dflt) {')
+    # The pinned upstream accepts an optional user-supplied 'name'.
+    # Never trust it for output placement: otherwise a local HTTP client
+    # can choose a different directory than the verified SMP title ID.
+    # job_enqueue() derives the folder name from the owned SMP ID or
+    # e2a_read_game(source), including for ordinary homebrew folders.
+    change(httpd, '  form_get(body, "name", r.name, sizeof r.name);',
+           '  r.name[0] = 0; /* derive from verified game identity only */')
     change(httpd, '  r.overwrite = flag(body, "overwrite", false);',
            '  r.overwrite = false; /* CleanMyPS5 never overwrites game source */')
     change(httpd, '  r.remove_source = flag(body, "remove", false);',

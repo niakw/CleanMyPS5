@@ -17,6 +17,7 @@ def check_engine(root: Path) -> None:
         "no automated pruning": "r.clean_leftovers = false;",
         "source preservation": "r.remove_source = false;",
         "no replacement": "r.overwrite = false;",
+        "no caller-selected output name": "r.name[0] = 0;",
         "no force mode": "r.force = false;",
         "mandatory integrity check": "r.verify = true;",
         "dedup": "r.dedup = true;",
@@ -68,6 +69,8 @@ def check_engine(root: Path) -> None:
         missing.append("missing initial/second path identity checks")
     if http.count('cmp5_game_output_vacant("/", r.dest_base, r.smp_title)') != 2:
         missing.append("managed image output missing either collision guard")
+    if 'form_get(body, "name", r.name' in http:
+        missing.append("caller-selected output directory still accepted")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {
