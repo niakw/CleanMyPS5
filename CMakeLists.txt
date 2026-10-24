@@ -25,7 +25,18 @@ target_link_libraries(cleanmyps5-server PRIVATE Threads::Threads)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
  target_compile_options(cleanmyps5-server PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+# Reproduce EPERM on open, fstatat and openat in the real read-only
+# helper preflight scanner without relying on filesystem ACLs on CI runners.
+add_executable(cmp5-preflight-permissions
+ tests/test_preflight_permission_errors.c ${RULES})
+target_include_directories(cmp5-preflight-permissions PRIVATE
+ src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-preflight-permissions PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
 enable_testing()
+add_test(NAME preflight_permission_errors COMMAND cmp5-preflight-permissions)
 add_test(NAME native_server_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_server.py $<TARGET_FILE:cleanmyps5-server>)
 
 add_test(NAME generic_inventory_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_inventory.py $<TARGET_FILE:cleanmyps5-server>)

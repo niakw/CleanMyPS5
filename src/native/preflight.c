@@ -20,28 +20,36 @@ typedef struct {
  int read_only_mount;
 } PathStatus;
 
+static int permission_denied(int error){
+ return error==EACCES||error==EPERM;
+}
+
 static PathStatus probe(const char *root, const char *relative){
  PathStatus result={"unknown","open-failed",0,0};
  if(!root||!relative||strlen(relative)>=PREFLIGHT_PATH_MAX)return result;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(fd<0){result.status=errno==EACCES?"denied":"root-unavailable";
-  result.reason=errno==EACCES?"permission-denied":"open-failed";return result;}
+ if(fd<0){
+  const int error=errno;
+  result.status=permission_denied(error)?"denied":"root-unavailable";
+  result.reason=permission_denied(error)?"permission-denied":"open-failed";
+  return result;
+ }
  char parts[PREFLIGHT_PATH_MAX];memcpy(parts,relative,strlen(relative)+1);
  char *save=NULL,*part=strtok_r(parts,"/",&save);
  while(part){
   struct stat st;
   if(fstatat(fd,part,&st,AT_SYMLINK_NOFOLLOW)!=0){
    const int err=errno;close(fd);
-   result.status=err==ENOENT?"absent":err==EACCES?"denied":"unknown";
-   result.reason=err==ENOENT?"not-found":err==EACCES?"permission-denied":"open-failed";
+   result.status=err==ENOENT?"absent":permission_denied(err)?"denied":"unknown";
+   result.reason=err==ENOENT?"not-found":permission_denied(err)?"permission-denied":"open-failed";
    return result;
   }
   if(S_ISLNK(st.st_mode)){close(fd);result.status="symlink";result.reason="symlink-blocked";return result;}
   if(!S_ISDIR(st.st_mode)){close(fd);result.status="not-directory";result.reason="not-a-directory";return result;}
   int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   if(child<0){const int err=errno;close(fd);
-   result.status=err==ENOENT?"absent":err==EACCES?"denied":"unknown";
-   result.reason=err==ENOENT?"not-found":err==EACCES?"permission-denied":"open-failed";
+   result.status=err==ENOENT?"absent":permission_denied(err)?"denied":"unknown";
+   result.reason=err==ENOENT?"not-found":permission_denied(err)?"permission-denied":"open-failed";
    return result;
   }
   close(fd);fd=child;part=strtok_r(NULL,"/",&save);

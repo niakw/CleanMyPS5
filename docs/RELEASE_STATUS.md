@@ -15,6 +15,17 @@ d'en-tête bornées plutôt que charger tout l'exécutable en RAM. Les
 fixtures injectent objets non chargeables et table de segments invalide.
 Cela ne constitue pas une preuve de chargement réel sur FW 13.60.
 
+## Helper de permissions : EPERM et EACCES (24 octobre 2026)
+
+Le précontrôle en lecture seule du helper classe maintenant les deux
+erreurs POSIX `EACCES` et `EPERM` comme « denied /
+permission-denied » lors de l'ouverture de la racine, de l'examen de
+l'entrée et de l'ouverture ancrée d'un dossier. Un refus `EPERM` ne
+doit plus être noyé dans les erreurs « unknown ». Un test hôte injecte
+`EPERM` aux trois étapes et confirme que l'inventaire ne prend
+pas une autorisation manquante pour un dossier vide. Aucun droit
+supplémentaire n'est demandé ou accordé par ce changement.
+
 ## Diagnostic de stockage : parcours incomplet détecté (24 octobre 2026)
 
 La page native Accès au stockage prend maintenant en compte les échecs
