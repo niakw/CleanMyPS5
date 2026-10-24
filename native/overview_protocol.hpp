@@ -228,7 +228,7 @@ bool preflight_summary(Preflight*out,unsigned depth) noexcept {
    if(take('}'))break;
    if(!take(','))return false;
   }
-  return mask==15u;
+  return (mask&15u)==15u;
  }
  bool preflight_root(Preflight*out) noexcept {
   if(!take('{'))return false;
