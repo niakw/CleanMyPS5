@@ -32,10 +32,12 @@ with tempfile.TemporaryDirectory() as temporary:
     }
     assert 'secret' not in result.stdout and temporary not in result.stdout
     assert (original/'user/av_contents/photo/NPXS99999/GAME/secret1.png').read_bytes()==b'PRIVATE REPLACEMENT'
-    # The injected comparison race deliberately renames this original.
-    # It must still contain the original bytes at its new pathname.
-    assert not (backup/'user/av_contents/photo/NPXS99999/GAME/a.png').exists()
-    assert (backup/'user/av_contents/photo/NPXS99999/GAME/a-renamed.png').read_bytes()==b'ORIGINAL CAPTURE'
+    # The injected comparison race moved the image. The subsequent
+    # recoverable-metadata test restored its original filename and removed
+    # only its own temporary third test copy.
+    assert (backup/'user/av_contents/photo/NPXS99999/GAME/a.png').read_bytes()==b'ORIGINAL CAPTURE'
+    assert not (backup/'user/av_contents/photo/NPXS99999/GAME/a-renamed.png').exists()
+    assert not (backup/'user/av_contents/photo/NPXS99999/GAME/c.png').exists()
     # Invalid roots must fail before the injected namespace change.
     link=base/'symbolic-root'
     link.symlink_to(original,target_is_directory=True)
