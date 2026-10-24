@@ -70,6 +70,9 @@ reject(lambda:gate.check_builder(builder.replace(
 makefile=(root/"Makefile").read_text()
 assert gate.parse_helper_sources(makefile)=={
  "src/native/"+name for name in gate.HELPER_UNITS}
+reject(lambda:gate.parse_helper_sources(
+ makefile.replace("-DPS5 -DCMP5_DIAGNOSTIC_HELPER -Isrc/native",
+                  "-DPS5 -Isrc/native")))
 gate.check_helper_closure(root)
 reject(lambda:gate.parse_helper_sources(makefile.replace(
  "src/native/homebrew.c\nall: server",

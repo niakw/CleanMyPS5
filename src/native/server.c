@@ -24,7 +24,10 @@ static void shutdown_signal(int signo){(void)signo;cmp5_shutdown=1;}
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
-#ifdef PS5
+#if defined(CMP5_DIAGNOSTIC_HELPER) && defined(CMP5_AUTO_BROWSER)
+#error Diagnostic helper cannot start a browser
+#endif
+#if defined(PS5) && !defined(CMP5_DIAGNOSTIC_HELPER)
 // Notification only: never persist an icon, app entry or settings modification.
 typedef struct { char reserved[45]; char message[3075]; } Cmp5Notify;
 int sceKernelSendNotificationRequest(int, Cmp5Notify*, size_t, int);
@@ -275,7 +278,7 @@ static void handle(int fd,const char*root,int port){
  if(strcmp(method,"GET")!=0&&!is_head){plain(fd,405,"GET and video HEAD only");return;}
  if(strncmp(proto,"HTTP/1.",7)!=0){plain(fd,400,"Bad HTTP version");return;}
  if(is_head && strncmp(path,"/api/video?file=",16)!=0){plain(fd,405,"HEAD is limited to video metadata");return;}
-#ifdef PS5
+#if defined(PS5) && defined(CMP5_DIAGNOSTIC_HELPER)
  /* Do not turn a possibly more privileged helper process into a general
   * media browser for unrelated local processes. The installed native title
   * uses only fixed aggregate GET routes, never file bytes or raw paths.

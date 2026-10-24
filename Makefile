@@ -19,7 +19,7 @@ ps5: $(ASSETS) $(RULES) $(NATIVE) src/native/inventory.h src/native/diagnostics.
 # through loopback. It never starts WebKit or exposes the service on the LAN.
 ps5-helper: $(ASSETS) $(RULES) $(NATIVE) src/native/inventory.h src/native/diagnostics.h src/native/duplicates.h src/native/media.h src/native/volumes.h src/native/video.h src/native/preflight.h src/native/homebrew.h
 	@test -n "$(PS5_PAYLOAD_SDK)" || (echo "Set PS5_PAYLOAD_SDK" && exit 1)
-	$(PS5_CC) $(CFLAGS) -DPS5 -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-helper.elf
+	$(PS5_CC) $(CFLAGS) -DPS5 -DCMP5_DIAGNOSTIC_HELPER -Isrc/native -Ibuild/generated $(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-helper.elf
 package: ps5
 	$(PYTHON) scripts/package_release.py cleanmyps5.elf dist
 native-app:

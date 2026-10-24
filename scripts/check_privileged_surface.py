@@ -86,6 +86,11 @@ def parse_helper_sources(makefile: str) -> set[str]:
                   r"\t[^\n]*\$\(PS5_CC\)[^\n]*\$\(NATIVE\)",
                   makefile,re.MULTILINE):
   raise ValueError("PS5 helper no longer compiles approved NATIVE sources")
+ helper_compile = re.search(
+  r"(?m)^\t[^\n]*\$\(PS5_CC\)[^\n]*-o cleanmyps5-helper\.elf$",
+  makefile)
+ if not helper_compile or "-DCMP5_DIAGNOSTIC_HELPER" not in helper_compile.group():
+  raise ValueError("PS5 helper must use its isolated diagnostic compile mode")
  return set(tokens)
 
 def check_helper_closure(root: Path) -> None:
@@ -149,8 +154,11 @@ def check(root: Path) -> None:
   raise ValueError("Optional diagnostic helper no longer limits GET/HEAD")
  if "privilegeEscalation" not in helper or "delete" not in helper:
   raise ValueError("Helper capability identity no longer read-only")
- if '#ifdef PS5\n /* Do not turn a possibly more privileged helper' not in helper:
-  raise ValueError("Missing PS5-only diagnostic helper route restriction")
+ if ('#if defined(PS5) && defined(CMP5_DIAGNOSTIC_HELPER)\n'
+     ' /* Do not turn a possibly more privileged helper') not in helper:
+  raise ValueError("Missing helper-only diagnostic route restriction")
+ if '#error Diagnostic helper cannot start a browser' not in helper:
+  raise ValueError("Helper/browser mode separation lost")
  routes = (
   'strcmp(path,"/api/status")!=0',
   'strcmp(path,"/api/capabilities")!=0',

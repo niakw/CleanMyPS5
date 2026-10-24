@@ -125,3 +125,17 @@ conserve les prévisualisations pour ses fixtures synthétiques.
 résumés agrégés restent visibles aux processus locaux capables d'y accéder.
 Il serait incorrect d'y ajouter de la suppression ou un broker de droits
 tant qu'une authentification forte du titre appelant n'est pas en place.
+
+### Séparation du mode helper et du serveur navigateur historique
+
+Le **helper empaqueté** est compilé avec `-DCMP5_DIAGNOSTIC_HELPER`.
+Les quatre routes HTTP agrégées du diagnostic sont uniquement exposées
+dans ce mode ; les routes de prévisualisation restent associées au
+serveur historique de développement sur ordinateur ou à l'ancien payload
+navigateur `ps5`, qui n'est **pas** lancé par le titre natif.
+Un garde compilateur refuse de combiner le mode helper avec
+`CMP5_AUTO_BROWSER` : pas de WebKit ou de notification d'interface
+navigateur lorsque l'utilisateur démarre le helper de diagnostic.
+Le contrôle CI exige le drapeau de compilation séparé, vérifie les
+routes et simule sa disparition pour empêcher la régression. Cette
+séparation ne constitue pas une authentification du service loopback.
