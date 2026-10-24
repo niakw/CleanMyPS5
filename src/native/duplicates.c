@@ -70,7 +70,10 @@ static int is_image(const char *name){
 }
 // Hold directory FDs throughout traversal; reject symlinks at every component.
 static void walk(Scan*s,int fd,const char*dir,int depth){
- if(s->partial||expired(s)){s->partial=1;close(fd);return;}
+ /* An inaccessible sibling marks coverage PARTIAL, but must not discard
+  * other readable captures. Only cancellation, elapsed budget, visit or
+  * candidate limits may halt the bounded directory traversal. */
+ if(expired(s)){s->partial=1;close(fd);return;}
  const int anchored_fd=fd; // fdopendir owns fd; dirfd is unavailable in native PS5 libc.
  DIR*d=fdopendir(fd);if(!d){close(fd);s->partial=1;return;}
  struct dirent*entry;
@@ -118,7 +121,7 @@ static void walk(Scan*s,int fd,const char*dir,int depth){
     * if eligible image formats were excluded solely by the size cap. */
    s->oversizedSkipped++;
   }
-  if(s->partial)break;
+  /* Recoverable child errors never end the parent's traversal. */
  }
  if(closedir(d)!=0)s->partial=1;
 }

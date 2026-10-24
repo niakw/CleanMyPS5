@@ -61,10 +61,23 @@ static struct dirent* race_readdir(DIR*d){
  }
  return entry;
 }
+/* Force failure for the FIRST gallery image stat, regardless of the
+ * host filesystem's readdir order. The next two independent images are
+ * still readable and must be recognized as a verified duplicate pair. */
+static int inject_first_image_eio=0, injected_first_image_eio=0;
+static int race_fstatat(int fd,const char*name,struct stat*out,int flags){
+ if(inject_first_image_eio&&!injected_first_image_eio&&
+    strlen(name)>=4&&!strcmp(name+strlen(name)-4,".png")){
+  injected_first_image_eio=1;errno=EIO;return -1;
+ }
+ return fstatat(fd,name,out,flags);
+}
 #define open race_open
 #define read race_read
 #define readdir race_readdir
+#define fstatat race_fstatat
 #include "../src/native/duplicates.c"
+#undef fstatat
 #undef readdir
 #undef read
 #undef open
@@ -142,6 +155,31 @@ int main(int argc,char **argv){
    strstr(io_report,"\"partial\":true")!=NULL;
  free(io_report);
  if(!io_safe)return 24;
+ /* Fault injection on one file MUST NOT suppress valid duplicates
+  * among other entries, and cannot claim complete sample coverage. */
+ if(rename(renamed_target,mutation_target)!=0)return 25;
+ char third[4096];
+ int third_n=snprintf(third,sizeof(third),
+   "%s/user/av_contents/photo/NPXS99999/GAME/c.png",test_backup);
+ if(third_n<=0||(size_t)third_n>=sizeof(third))return 26;
+ int third_fd=open(third,O_WRONLY|O_CREAT|O_EXCL,0600);
+ if(third_fd<0)return 27;
+ int third_ok=write(third_fd,"ORIGINAL CAPTURE",sizeof("ORIGINAL CAPTURE")-1)==
+   (ssize_t)(sizeof("ORIGINAL CAPTURE")-1);
+ close(third_fd);
+ if(!third_ok)return 28;
+ inject_first_image_eio=1;injected_first_image_eio=0;
+ Cmp5DuplicateStats recoverable={0};size_t rec_len=0;
+ char*recovered=cmp5_duplicates_with_stats(test_backup,&rec_len,&recoverable);
+ inject_first_image_eio=0;
+ if(!recovered)return 29;
+ const int recovered_ok=injected_first_image_eio&&recoverable.partial==1u&&
+   recoverable.files_considered==2u&&recoverable.exact_groups==1u&&
+   recoverable.matching_files==2u&&
+   strstr(recovered,"\"partial\":true")!=NULL;
+ free(recovered);
+ if(!recovered_ok)return 30;
+ if(unlink(third)!=0)return 31;
  /* Files outside the bounded comparison are counted and cause a partial
   * result. Other small matches should still be returned as verified. */
  char huge[4096];

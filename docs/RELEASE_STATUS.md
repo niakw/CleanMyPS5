@@ -240,3 +240,15 @@ profondeur et nombre de visites. La fixture hôte injecte une erreur EIO
 à la fin d'une énumération et une erreur de fermeture, vérifie le statut
 partiel ainsi que la présence des applications observées. Toujours
 lecture seule : aucun titre, plugin ou fichier système n'est supprimé.
+
+### Doublons photo : observations conservées après une erreur de fichier
+
+La comparaison des doublons sur la Galerie photo signalait déjà les
+échecs de lecture/statut comme `partial`, mais arrêtait toute l'énumération
+sur ce même booléen. Une image illisible pouvait donc masquer les deux
+images identiques suivantes. L'explorateur continue désormais après un
+échec récupérable de `fstatat` ou de sous-dossier, dans les limites fixes
+(128 images, 8 000 entrées, 6 s et 128 Mio d'I/O). Il conserve `partial`
+et n'autorise aucune suppression. Le test injecte `EIO` sur la **première**
+image rencontrée, puis exige la comparaison exacte des deux autres,
+sans supposer un ordre d'énumération du disque.
