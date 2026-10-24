@@ -283,8 +283,15 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
 int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5MediaCandidate out[CMP5_GROUP_MAX],uint32_t*count,
  Cmp5CancelCheck cancel,void*context){
- const int ok=scan_capture_group(root,primary,out,count,cancel,context,
+ int ok=scan_capture_group(root,primary,out,count,cancel,context,
    2u,MAX_TOTAL,NULL);
+ /* A host-only backup must not omit an observed cross-tree thumbnail
+  * or interpret an inaccessible dependency as a completed group. */
+ if(ok&&primary&&primary->media_type==1u){
+  const Cmp5ThumbnailState thumb=inspect_known_thumbnail(root,primary,cancel,context);
+  if(thumb!=CMP5_THUMBNAIL_KNOWN_PATH_ABSENT)ok=0;
+ }
+ if(!ok&&count)*count=0;
  if(!ok&&out){
   /* Enumeration may have copied private locators into output before a
    * late race, symlink or ambiguous companion invalidated the group. */
@@ -316,11 +323,19 @@ int cmp5_inspect_capture_companions(const char*root,
    result.nominal_bytes+=parts[i].bytes; /* scanner enforces no uint64 overflow */
   }
   result.thumbnail=inspect_known_thumbnail(root,primary,cancel,context);
-  if(!cancelled(cancel,context))*report=result;
-  else {
+  if(cancelled(cancel,context)){
    report->failure=CMP5_COMPANION_FAILURE_CANCELLED;
    result.state=CMP5_COMPANIONS_UNVERIFIABLE;
-  }
+  }else if(result.thumbnail==CMP5_THUMBNAIL_INACCESSIBLE||
+           result.thumbnail==CMP5_THUMBNAIL_UNSAFE){
+   /* A partial cross-tree inspection cannot publish reassuring counts.
+    * Preserve only the no-path failure classification. */
+   report->thumbnail=result.thumbnail;
+   report->failure=result.thumbnail==CMP5_THUMBNAIL_INACCESSIBLE?
+     CMP5_COMPANION_FAILURE_THUMBNAIL_UNAVAILABLE:
+     CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE;
+   result.state=CMP5_COMPANIONS_UNVERIFIABLE;
+  }else *report=result;
  }else{
   report->failure=cancelled(cancel,context)?
     CMP5_COMPANION_FAILURE_CANCELLED:failure;

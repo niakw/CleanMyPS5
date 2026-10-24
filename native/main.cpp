@@ -2305,6 +2305,10 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
    reason="METADONNEE GALERIE NON PRISE EN CHARGE";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_CHANGED)
    reason="FICHIER OU DOSSIER MODIFIE PENDANT LE SCAN";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_THUMBNAIL_UNAVAILABLE)
+   reason="MINIATURE HORS DOSSIER INACCESSIBLE";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE)
+   reason="MINIATURE SUSPECTE OU IDENTITE INSTABLE";
   panel(canvas,360,"INSPECTION NON FIABLE",reason,Color::yellow);
   panel(canvas,510,"SECURITE","AUCUNE DECISION DE NETTOYAGE POSSIBLE",Color::yellow);
   footer(canvas,"CERCLE DETAIL  AUCUN NETTOYAGE AUTORISE");
