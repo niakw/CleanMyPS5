@@ -47,10 +47,15 @@ int main(int argc,char**argv){
  memset(plan,0xA5,sizeof(plan));
  uint32_t count=55u;
  const int approved=cmp5_plan_capture_group(root,&primary,plan,&count,NULL,NULL);
- if(primary.media_type==1u&&desired!=CMP5_THUMBNAIL_KNOWN_PATH_ABSENT){
+ if(invalid){
   assert(!approved&&count==0u);
   const unsigned char*bytes=(const unsigned char*)plan;
   for(size_t i=0;i<sizeof(plan);i++)assert(bytes[i]==0u);
+ }else if(desired==CMP5_THUMBNAIL_CANDIDATE_FOUND){
+  assert(approved&&count==3u);
+  assert(plan[2].media_type==4u&&
+    strstr(plan[2].preview_path,"/thumbnails/photo/")!=NULL);
+  assert(strstr(plan[2].preview_path,"REC_001.jpg.jpeg")!=NULL);
  }else assert(approved&&count==2u);
  puts("Read-only gallery cross-tree thumbnail evidence: PASS");
  return 0;

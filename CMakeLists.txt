@@ -160,6 +160,21 @@ add_test(NAME gallery_thumbnail_contract
   $<TARGET_FILE:cmp5-gallery-thumbnail-tests>
   $<TARGET_FILE:cmp5-gallery-thumbnail-denied>)
 
+# Host-only four-member path: an externally located Gallery thumbnail
+# must be copied and SHA-256 verified in a separate private workspace.
+# This does not restore any PS5 Gallery media or modify Sony indexes.
+add_executable(cmp5-thumbnail-private-backup-tests
+ tests/test_gallery_thumbnail_backup.c src/native/capture_companions.c
+ src/native/verified_group.c src/native/verified_backup.c src/native/sha256.c)
+target_include_directories(cmp5-thumbnail-private-backup-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-thumbnail-private-backup-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME gallery_thumbnail_private_backup
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_thumbnail_backup.py
+ $<TARGET_FILE:cmp5-thumbnail-private-backup-tests>)
+
 # Deterministic metadata race while the Gallery sidecar is being inspected.
 add_executable(cmp5-gallery-sidecar-race tests/test_gallery_sidecar_race.c ${RULES})
 target_include_directories(cmp5-gallery-sidecar-race PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
