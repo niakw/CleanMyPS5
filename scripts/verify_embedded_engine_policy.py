@@ -77,6 +77,20 @@ def check_engine(root: Path) -> None:
     if 'if (mkdir(dest, 0777) != 0)' not in job or (
         'created = true;\n    if (e2a_mkdir_p(state_dir) != 0)' not in job):
         missing.append("new output title must be created exclusively before state")
+    # The worker can only remove its own .e2a-state after success.
+    # Under no circumstances may a cancelled/failed conversion recursively
+    # remove a destination name that a concurrent process could replace.
+    cancel_start = job.find('e2a_notify("exfat2ampr: cancelled");')
+    done_marker = job.find('  if (have_prof) e2a_profile_free(&prof);', cancel_start)
+    if cancel_start < 0 or done_marker < 0:
+        missing.append("cannot locate cancellation/error cleanup section")
+    else:
+        cleanup_section = job[cancel_start:done_marker]
+        if "e2a_rm_rf(" in cleanup_section:
+            missing.append("destructive cancellation or error cleanup remains")
+        if "cancelled: preserving private conversion output" not in cleanup_section or (
+            "failed: preserving conversion output" not in cleanup_section):
+            missing.append("missing cancellation and error preservation branches")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

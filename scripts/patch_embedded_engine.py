@@ -65,6 +65,24 @@ def main(root: Path):
     if (e2a_mkdir_p(state_dir) != 0)
       FAIL("dest_create", "cannot initialize private output state");''')
 
+    # A local process could swap the title output directory AFTER a failed
+    # worker stopped. The upstream cancellation/error handlers recursively
+    # remove "dest" by its path (not an anchored inode), so they can delete
+    # somebody else's directory. Preserve partial output for audit/resume.
+    change(jobc,
+           '    if (dest[0] && (created || req.resume)) e2a_rm_rf(dest);',
+           '''    /* CleanMyPS5: a cancellation is NOT an authorization to delete
+     * a path that may have been replaced while the worker was running.
+     * Preserve the partial output for audit or an explicit resume. */
+    if (dest[0] && (created || req.resume))
+      e2a_log("cancelled: preserving private conversion output %s", dest);''')
+    change(jobc,
+           '      if (dest[0] && created && e2a_is_dir(dest)) e2a_rm_rf(dest);',
+           '''      /* Never recursively delete an output after error: the path
+       * might now refer to another game's directory or a symlink. */
+      if (dest[0] && created)
+        e2a_log("failed: preserving conversion output %s", dest);''')
+
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')

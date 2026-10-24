@@ -383,3 +383,18 @@ stockage synthétique qui n'existe pas initialement. Sous `E2A_HOST`
 afin de conserver les tests de crash/reprise. Sur PS5, la racine du
 stockage doit exister et être autorisée avant toute conversion : ce
 comportement de préparation hôte n'y est pas compilé.
+
+### Annulation et erreur : conservation des sorties partielles
+
+L'audit du worker amont a révélé deux suppressions récursives par
+**chemin** en cas d'annulation ou d'échec. Un autre processus pourrait
+avoir remplacé ce chemin après sa création ; la purge automatique
+risquerait alors de viser un dossier étranger. Le moteur intégré
+CleanMyPS5 ne procède plus à ces effacements : le contenu interrompu
+est préservé pour audit et reprise. Le journal signale cette conservation.
+Le vérificateur de build examine explicitement les deux branches et
+refuse tout retour de `e2a_rm_rf` dans leurs handlers. Ce comportement
+peut laisser un dossier partiel qui nécessite une intervention distincte,
+mais **ne supprime jamais automatiquement une installation lors d'un
+arrêt de conversion**. Le nettoyage de l'état temporaire d'une conversion
+achevée, dans la sortie produite par le moteur, demeure distinct.
