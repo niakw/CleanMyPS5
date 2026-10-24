@@ -74,3 +74,20 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 ```
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
+
+## Précontrôle de l'espace de noms avant toute copie (hôte uniquement)
+
+La restauration et la sauvegarde de groupe rejettent désormais **avant
+le premier fichier écrit** tout composant, marqueur ou fragment `.part`
+préexistant dans l'espace de noms du groupe demandé (y compris les
+composants des membres suivants). Le parcours de dossier est borné à
+4 096 entrées et refuse une analyse incomplète. Aucun fragment antérieur
+n'est supprimé automatiquement. Les fixtures créent une ancienne
+`.ALBUM__3.part` et vérifient l'absence de création de `ALBUM__1`.
+
+Cette mesure évite une restauration partielle inutile face à un conflit
+**déjà présent**. Elle ne verrouille pas la destination contre un autre
+processus et ne rend pas le nettoyage de la Galerie PS5 fonctionnel :
+les données système et leurs index n'ont toujours aucune transaction
+restaurable validée sur console. Le code reste volontairement hors du titre
+natif et du helper de diagnostic.

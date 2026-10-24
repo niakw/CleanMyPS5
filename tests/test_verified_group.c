@@ -324,8 +324,19 @@ int main(int argc,char**argv){
  assert(race_audit.state==CMP5_RECOVERY_INCOMPLETE&&
         race_audit.published_parts>=1u&&!race_audit.marker_present);
  assert(unlink(late.late_variant)==0);
+ /* Stale private capsule staging for a later member must prevent even
+  * the FIRST write of the group (the old code failed only on member 3). */
+ char stale_backup[512],early_backup_member[512];
+ (void)snprintf(stale_backup,sizeof(stale_backup),"%s/.ALBUM__3.part",private);
+ (void)snprintf(early_backup_member,sizeof(early_backup_member),
+   "%s/ALBUM__1",private);
+ FILE*stale=fopen(stale_backup,"wb");assert(stale);
+ assert(fputs("OLDER_INTERRUPTED_BACKUP",stale)>=0&&fclose(stale)==0);
+ assert(!cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
+ assert(access(early_backup_member,F_OK)!=0);
+ assert(unlink(stale_backup)==0);
  /* Original captures remain unchanged; a clean fresh ID can now commit. */
-  assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
+ assert(cmp5_backup_group(root,media,3,private,"ALBUM",&a,NULL,NULL));
  assert(a.count==3&&a.bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(!memcmp(a.manifest_sha256,b.manifest_sha256,32));
@@ -430,6 +441,19 @@ int main(int argc,char**argv){
  assert(pair.state==CMP5_PAIR_NOT_READY);
  assert(pair.backup.state==CMP5_RECOVERY_VERIFIED&&
         pair.restored.state==CMP5_RECOVERY_EMPTY);
+ /* A leftover later member must block the entire restore before the
+  * first restored file appears, without touching the older partial. */
+ char stale_restore[512],early_restored_member[512];
+ (void)snprintf(stale_restore,sizeof(stale_restore),
+   "%s/.ALBUM__3.part",restored);
+ (void)snprintf(early_restored_member,sizeof(early_restored_member),
+   "%s/ALBUM__1",restored);
+ FILE*stale_restore_file=fopen(stale_restore,"wb");assert(stale_restore_file);
+ assert(fputs("OLDER_INTERRUPTED_RESTORE",stale_restore_file)>=0&&
+        fclose(stale_restore_file)==0);
+ assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
+ assert(access(early_restored_member,F_OK)!=0);
+ assert(unlink(stale_restore)==0);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,stop,NULL));
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));

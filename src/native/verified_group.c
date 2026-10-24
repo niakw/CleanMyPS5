@@ -215,6 +215,36 @@ int cmp5_verify_group(const char*workspace,const char*id,
  if(ok&&r)*r=found;
  return ok;
 }
+/* Require an empty transaction namespace BEFORE the first capsule is
+ * copied. A stale part for member 3 must not allow us to publish members
+ * 1 and 2 before discovering the conflict. This is a private, read-only
+ * preflight: it does not delete, repair or rename residual files.
+ * Changes by another process after the scan are still handled by O_EXCL
+ * and fail-closed recovery; this is not a whole-group atomic lock. */
+static int empty_group_namespace(int dir,const char*id){
+ const size_t len=strlen(id);
+ int duplicate=dup(dir);
+ if(duplicate<0)return 0;
+ DIR*scan=fdopendir(duplicate);
+ if(!scan){close(duplicate);return 0;}
+ int ok=1;unsigned visited=0;
+ for(;;){
+  errno=0;
+  struct dirent*entry=readdir(scan);
+  if(!entry){if(errno!=0)ok=0;break;}
+  if(++visited>4096u){ok=0;break;}
+  const char*name=entry->d_name;
+  const int published=strncmp(name,id,len)==0&&
+    name[len]=='_'&&name[len+1]=='_';
+  const int staged=name[0]=='.'&&
+    strncmp(name+1,id,len)==0&&
+    name[len+1]=='_'&&name[len+2]=='_';
+  if(published||staged){ok=0;break;}
+ }
+ if(closedir(scan)!=0)ok=0;
+ return ok;
+}
+
 /* A caller can omit a visible JPG/JXR/DAT variant while still passing
  * structural validation. Require the exact descriptor-anchored companion
  * inventory, not merely a plausible subset, before publishing a transaction.
@@ -262,7 +292,8 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  int dir=safe_dir(workspace);if(dir<0)return 0;
  char commit_name[48];marker_name(commit_name,id,0);
  struct stat st;
- int clear=fstatat(dir,commit_name,&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT;
+ int clear=empty_group_namespace(dir,id)&&
+   fstatat(dir,commit_name,&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT;
  close(dir);
  if(!clear)return 0;
  Cmp5BackupReceipt pieces[CMP5_GROUP_MAX]={{0}};
@@ -328,6 +359,9 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  close(from);if(!ok)return 0;
  int dest=safe_dir(target);
  if(dest<0)return 0;
+ /* Inspect the entire named group before the FIRST private output:
+  * a residue in a later member otherwise causes a partial new restore. */
+ if(!empty_group_namespace(dest,id)){close(dest);return 0;}
  /* Any previous complete or partial restore with these IDs fails closed.
   * We NEVER remove an existing private file automatically. */
  char commit[48];marker_name(commit,id,1);
