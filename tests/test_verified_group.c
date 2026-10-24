@@ -447,6 +447,27 @@ int main(int argc,char**argv){
  assert(pair.state==CMP5_PAIR_NOT_READY);
  assert(pair.backup.state==CMP5_RECOVERY_VERIFIED&&
         pair.restored.state==CMP5_RECOVERY_EMPTY);
+ /* A backup that still passes its individual COMMIT digest but has
+  * a stray .part or unknown capsule is NOT a safe restore source.
+  * The destination must remain entirely untouched on rejection. */
+ char ambiguous[512];
+ (void)snprintf(ambiguous,sizeof(ambiguous),"%s/.ALBUM__4.part",private);
+ FILE*ambiguous_part=fopen(ambiguous,"wb");assert(ambiguous_part);
+ assert(fputs("INTERRUPTED_SOURCE",ambiguous_part)>=0&&
+        fclose(ambiguous_part)==0);
+ char destination_first[512];
+ (void)snprintf(destination_first,sizeof(destination_first),
+   "%s/ALBUM__1",restored);
+ assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
+ assert(access(destination_first,F_OK)!=0);
+ assert(unlink(ambiguous)==0);
+ (void)snprintf(ambiguous,sizeof(ambiguous),"%s/ALBUM__5",private);
+ ambiguous_part=fopen(ambiguous,"wb");assert(ambiguous_part);
+ assert(fputs("UNEXPECTED_CAPSULE",ambiguous_part)>=0&&
+        fclose(ambiguous_part)==0);
+ assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
+ assert(access(destination_first,F_OK)!=0);
+ assert(unlink(ambiguous)==0);
  /* A leftover later member must block the entire restore before the
   * first restored file appears, without touching the older partial. */
  char stale_restore[512],early_restored_member[512];

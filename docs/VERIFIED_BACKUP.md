@@ -124,3 +124,18 @@ lorsque le changement est visible dans mtime ou ctime à la nanoseconde.
 Les tests injectent des identités dont seule la nanoseconde ou la seconde
 ctime diffère et imposent le refus avant toute capsule privée. Aucune
 suppression ou restauration des index Sony sur PS5 n'est autorisée.
+
+## Refus des sources de restauration ambiguës
+
+La restauration privée d'un groupe ne se contente plus de valider son
+marqueur `__COMMIT` et ses empreintes : **avant la première écriture**, elle
+exige aussi l'état `VERIFIED` de l'inspection de récupération complète.
+Une capsule inconnue `ALBUM__5` ou un fichier temporaire
+`.ALBUM__4.part` dans le même espace de noms entraîne désormais un refus
+sans créer `ALBUM__1` dans le dossier de restauration. Après la copie des
+composants, et **avant `__RESTORED`**, la source est inspectée à nouveau
+et le manifeste courant doit être identique à celui sélectionné.
+Cela empêche de finaliser une restauration privée à partir d'une source
+devenue ambiguë pendant la copie ; le refus peut laisser des membres
+partiels dans la destination, jamais un groupe officiellement restauré.
+Ces gardes restent hôte uniquement et ne restaurent pas les index Sony.

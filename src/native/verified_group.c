@@ -343,8 +343,13 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  if(r)memset(r,0,sizeof(*r));
  if(!r||!valid_id(id)||!backup||!target||
     strcmp(backup,target)==0||cancelled(cancel,ctx))return 0;
- Cmp5GroupReceipt original;
- if(!cmp5_verify_group(backup,id,&original,cancel,ctx))return 0;
+ /* A correct COMMIT hash alone is not enough: surplus capsules or
+  * interrupted .part stages make the source namespace ambiguous. Check
+  * the full recovery state BEFORE writing to the private destination. */
+ Cmp5RecoveryReport source_state={0};
+ if(!cmp5_inspect_group_recovery(backup,id,&source_state)||
+    source_state.state!=CMP5_RECOVERY_VERIFIED||cancelled(cancel,ctx))
+  return 0;
  int from=safe_dir(backup);if(from<0)return 0;
  uint8_t manifest[MARK_SIZE];Cmp5BackupReceipt pieces[CMP5_GROUP_MAX];
  uint32_t count=0;
@@ -377,6 +382,25 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  for(unsigned i=0;ok&&i<count;i++){
   char name[48];member_name(name,id,i);
   ok=raw_restored(dest,name,pieces[i].bytes,pieces[i].sha256,cancel,ctx);
+ }
+ /* The backup workspace can change after the initial recovery scan
+  * and while member capsules are being read. Re-audit the complete source
+  * namespace AND the original manifest before publishing RESTORED. */
+ if(ok){
+  Cmp5RecoveryReport stable={0};
+  int source_again=safe_dir(backup);
+  uint8_t current_manifest[MARK_SIZE];
+  Cmp5BackupReceipt current_pieces[CMP5_GROUP_MAX];
+  uint32_t current_count=0;
+  ok=source_again>=0&&
+     cmp5_inspect_group_recovery(backup,id,&stable)&&
+     stable.state==CMP5_RECOVERY_VERIFIED&&
+     read_manifest(source_again,id,0,current_manifest,current_pieces,
+                   &current_count,NULL)&&
+     current_count==count&&
+     memcmp(current_manifest,manifest,MARK_SIZE)==0&&
+     !cancelled(cancel,ctx);
+  if(source_again>=0)close(source_again);
  }
  if(ok)ok=publish_manifest(dest,id,1,manifest,cancel,ctx);
  close(dest);
