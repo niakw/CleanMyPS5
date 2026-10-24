@@ -66,6 +66,53 @@ def check_title_headers(root: Path, builder: str, sources: set[str]) -> None:
     raise ValueError(f"Header missing from PS5 title overlay: {name}")
    todo.append(root/area/name)
 
+HELPER_UNITS = frozenset({
+ "server.c", "inventory.c", "diagnostics.c", "duplicates.c",
+ "media.c", "volumes.c", "video.c", "preflight.c", "homebrew.c",
+})
+
+def parse_helper_sources(makefile: str) -> set[str]:
+ """Allow only the intended read-only sources for the native helper target."""
+ matches = re.findall(r"^NATIVE\s*=\s*(.+)$",makefile,re.MULTILINE)
+ if len(matches)!=1:
+  raise ValueError("Missing or duplicate helper source list")
+ tokens = matches[0].split()
+ expected = {"src/native/"+unit for unit in HELPER_UNITS}
+ if len(tokens)!=len(expected) or set(tokens)!=expected:
+  raise ValueError("Unexpected native diagnostic helper compiler inputs")
+ # Match the real payload make rule: a private list does not protect a
+ # separate unrestricted compile command.
+ if not re.search(r"^ps5-helper:.*\n(?:\t[^\n]*\n)*"
+                  r"\t[^\n]*\$\(PS5_CC\)[^\n]*\$\(NATIVE\)",
+                  makefile,re.MULTILINE):
+  raise ValueError("PS5 helper no longer compiles approved NATIVE sources")
+ return set(tokens)
+
+def check_helper_closure(root: Path) -> None:
+ """Audit the exact C and locally included headers of the helper payload."""
+ units=parse_helper_sources((root/"Makefile").read_text())
+ todo=[root/name for name in sorted(units)]
+ checked:set[Path]=set()
+ while todo:
+  path=todo.pop()
+  if path in checked:
+   continue
+  if not path.is_file():
+   raise ValueError(f"Missing helper source: {path}")
+  checked.add(path)
+  content=path.read_text()
+  check_reader(content,str(path.relative_to(root)))
+  for name in re.findall(r'^\s*#\s*include\s+"([^"]+)"',
+                         content,flags=re.MULTILINE):
+   if name in ("scan_rules.h","assets.h"):
+    continue
+   if not re.fullmatch(r"[A-Za-z0-9_]+\.h",name):
+    raise ValueError(f"Unexpected helper include: {name}")
+   header=root/"src/native"/name
+   if not header.is_file():
+    raise ValueError(f"Unknown helper header: {name}")
+   todo.append(header)
+
 def check_builder(content: str) -> set[str]:
  sources = re.findall(
   r'cp "\$project/src/native/([A-Za-z0-9_]+\.c)" '
@@ -96,17 +143,7 @@ def check(root: Path) -> None:
   raise ValueError("Missing role contract in native title")
  compiled=check_builder(builder)
  check_title_headers(root,builder,compiled)
- check_reader(helper,"server.c")
- for name in re.findall(r'^\s*#\s*include\s+"([^"]+)"',
-                        helper,flags=re.MULTILINE):
-  if name=="assets.h":
-   continue
-  if not re.fullmatch(r"[A-Za-z0-9_]+\.h",name):
-   raise ValueError(f"Unsafe helper header: {name}")
-  header=root/"src/native"/name
-  if not header.is_file():
-   raise ValueError(f"Unreviewed helper header: {name}")
-  check_reader(header.read_text(),str(header.relative_to(root)))
+ check_helper_closure(root)
  if 'strcmp(method,"GET")!=0&&!is_head' not in helper or (
       'if(is_head && strncmp(path,"/api/video?file=",16)!=0)' not in helper):
   raise ValueError("Optional diagnostic helper no longer limits GET/HEAD")

@@ -98,3 +98,15 @@ Un envoi réussi n'est pas présenté comme un démarrage confirmé : X permet
 ensuite de relancer les sondes et vérifier la réponse du helper.
 Le mode reste lecture seule, sans suppression de captures ou de caches.
 L'exécution effective sur PS5 13.60 devra être vérifiée sur console.
+
+### Compilation effective du helper vérifiée
+
+Le contrôle de la surface de privilèges examine maintenant aussi **les neuf
+unités C réellement liées dans l'ELF de diagnostic** par le `Makefile`,
+ainsi que leurs en-têtes locaux récursifs, et non seulement `server.c`.
+L'audit bloque les ajouts de sources comme un module d'écriture non déclaré,
+ainsi que toute modification de la ligne de compilation du helper qui
+contournerait la variable `NATIVE` contrôlée. Les unités supplémentaires
+`media.c`, `video.c`, `volumes.c` et `preflight.c` sont comprises.
+Ces contrôles sont des protections structurelles de CI, non une preuve
+d'exécution ou de droits suffisants sur la PS5 13.60.

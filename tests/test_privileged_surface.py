@@ -61,4 +61,18 @@ reject(lambda:gate.check_builder(builder+
 reject(lambda:gate.check_builder(builder.replace(
  'cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"',
  'cp "$project/native/main.cpp" "$tmp/native-toolchain/src/unsafe.cpp"')))
+# The diagnostic payload is built from Makefile, NOT the native app overlay.
+# Ensure a new source added to the payload cannot bypass read-only review.
+makefile=(root/"Makefile").read_text()
+assert gate.parse_helper_sources(makefile)=={
+ "src/native/"+name for name in gate.HELPER_UNITS}
+gate.check_helper_closure(root)
+reject(lambda:gate.parse_helper_sources(makefile.replace(
+ "src/native/homebrew.c\nall: server",
+ "src/native/homebrew.c src/native/unreviewed_writer.c\nall: server")))
+reject(lambda:gate.parse_helper_sources(makefile.replace(
+ "$(NATIVE) -lSceSystemService -lSceUserService -o cleanmyps5-helper.elf",
+ "src/native/unsafe.c -lSceSystemService -lSceUserService -o cleanmyps5-helper.elf")))
+# The helper has separate first-party includes, also including media,
+# video, volume and preflight units absent from the installed title.
 print("Privilege scanner and injected write operations: PASS")
