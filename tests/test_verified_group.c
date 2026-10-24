@@ -362,6 +362,7 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INVALID&&
         recovery.unexpected_entries==1u);
+ assert(!cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(unlink(extra_unknown)==0);
  (void)snprintf(extra_unknown,sizeof(extra_unknown),"%s/.ALBUM__5.part",private);
  unexpected=fopen(extra_unknown,"wb");assert(unexpected);
@@ -381,11 +382,13 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INVALID);
  assert(recovery.staged_parts==1u&&recovery.marker_present);
+ assert(!cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(unlink(extra_stage)==0);
  Cmp5BackupReceipt extra={0};
  assert(cmp5_backup_media(root,&media[0],private,"ALBUM__4",&extra,NULL,NULL));
  assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INVALID&&recovery.published_parts==4u);
+ assert(!cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  char surplus[512];
  (void)snprintf(surplus,sizeof(surplus),"%s/ALBUM__4",private);
  assert(unlink(surplus)==0);
@@ -560,6 +563,7 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INVALID&&
         recovery.unexpected_entries==1u);
+ assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(cmp5_inspect_backup_restore_pair(private,"ALBUM",restored,
    "ALBUM",&pair)&&pair.state==CMP5_PAIR_INVALID);
  assert(unlink(restore_surplus)==0);
