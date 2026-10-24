@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "preflight.h"
 #include "scan_rules.h"
 #include <errno.h>
