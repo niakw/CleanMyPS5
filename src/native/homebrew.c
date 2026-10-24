@@ -22,7 +22,24 @@
 #define TIME_CAP_NS 3000000000ULL
 typedef struct {char*data;size_t len;int bad;} Writer;
 typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
+ unsigned data_root_state,installed_root_state;
  Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;} Audit;
+/* A missing optional plugin/USB folder is normal. Missing /data or
+ * /user/app is different: a zero inventory must not imply complete access. */
+static unsigned root_state_from_errno(int error){
+ if(error==ENOENT)return 2u;
+ if(error==EACCES||error==EPERM)return 3u;
+ return 4u;
+}
+static const char *root_state_name(unsigned state){
+ switch(state){
+ case 1u:return "readable";
+ case 2u:return "absent";
+ case 3u:return "denied";
+ case 4u:return "error";
+ default:return "not-scanned";
+ }
+}
 static uint64_t now_ns(void){
  struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t)||t.tv_sec<0)return 0;
  return (uint64_t)t.tv_sec*1000000000ULL+(uint64_t)t.tv_nsec;
@@ -149,9 +166,23 @@ static void record_top(Audit*a,const char*basename,const char*kind,
  stats->top[where]=item;
 }
 static void audit_root(Audit*a,const char*root,const char*relative,const char*kind){
- int fd=open_dir(root,relative);if(fd<0){if(errno!=ENOENT)a->partial=1;return;}
+ unsigned*critical=NULL;
+ if(!strcmp(relative,"data"))critical=&a->data_root_state;
+ else if(!strcmp(relative,"user/app"))critical=&a->installed_root_state;
+ int fd=open_dir(root,relative);
+ if(fd<0){
+  const int error=errno;
+  if(critical)*critical=root_state_from_errno(error);
+  if(error!=ENOENT)a->partial=1;
+  return;
+ }
  const int anchored_fd=fd;
- DIR*d=fdopendir(fd);if(!d){close(fd);a->partial=1;return;}
+ DIR*d=fdopendir(fd);
+ if(!d){
+  if(critical)*critical=4u;
+  close(fd);a->partial=1;return;
+ }
+ if(critical)*critical=1u;
  struct dirent*e;
  for(;;){
   errno=0;
@@ -237,11 +268,19 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
   snprintf(path,sizeof(path),"mnt/ext%d/user/app",slot);audit_root(a,root,path,"installed");
  }
  if(over(a))a->partial=1;
- if(stats)stats->partial=a->partial?1u:0u;
- char finish[350];
+ /* No proof of access to either principal root means a partial result,
+  * including for an entirely empty/unmounted sandbox. */
+ if(a->data_root_state!=1u||a->installed_root_state!=1u)a->partial=1;
+ if(stats){
+  stats->partial=a->partial?1u:0u;
+  stats->data_root_state=a->data_root_state;
+  stats->installed_root_state=a->installed_root_state;
+ }
+ char finish[440];
  snprintf(finish,sizeof(finish),
-  "],\"visited\":%zu,\"partial\":%s,\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale et inventaire partiel. Aucune installation n'est declaree orpheline ou supprimable.\"}",
-  a->visited,a->partial?"true":"false");
+  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
+  a->visited,a->partial?"true":"false",
+  root_state_name(a->data_root_state),root_state_name(a->installed_root_state));
  add(&a->out,finish);
  char*result=a->out.data;
  if(a->out.bad){free(result);result=NULL;}else *length=a->out.len;

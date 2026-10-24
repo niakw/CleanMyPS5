@@ -29,6 +29,11 @@ typedef struct {
  uint64_t nominal_bytes; /* Seen data only, NOT reclaimable space. */
  uint32_t top_count;
  Cmp5HomebrewTop top[CMP5_HOMEBREW_TOP_CAP];
+ /* Principal root coverage: 0=not scanned, 1=readable, 2=absent,
+  * 3=permission denied, 4=other error. A zero count is not proof of
+  * an empty PS5 library unless BOTH principal roots were traversed. */
+ uint32_t data_root_state;
+ uint32_t installed_root_state;
 } Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);

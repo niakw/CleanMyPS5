@@ -19,9 +19,15 @@ with tempfile.TemporaryDirectory() as directory:
         file=root/name
         file.parent.mkdir(parents=True,exist_ok=True)
         file.write_bytes(data)
-    result=subprocess.run([sys.argv[1],str(root)],
+    missing_installed = root / "only-data"
+    only_game = missing_installed / "data/homebrew/ExampleTool/eboot.elf"
+    only_game.parent.mkdir(parents=True)
+    only_game.write_bytes(b"ELF")
+    empty_console = root / "empty-console"
+    empty_console.mkdir()
+    result=subprocess.run([sys.argv[1],str(root),str(missing_installed),str(empty_console)],
       check=True,text=True,capture_output=True,timeout=12)
-    assert "Native homebrew summary and cancellation: PASS" in result.stdout
+    assert "Native homebrew summary, mandatory root coverage and cancellation: PASS" in result.stdout
     if len(sys.argv)>2:
         io_result=subprocess.run([sys.argv[2],str(root)],
           check=True,text=True,capture_output=True,timeout=12)

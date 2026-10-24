@@ -2067,11 +2067,21 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
    panel(canvas,355+i*144,title,detail,Color::cyan);
   }
  }
- char footer_message[150]{};
+ const auto root_label=[](unsigned state) noexcept -> const char* {
+  switch(state){
+   case 1u:return "OK";
+   case 2u:return "ABSENT";
+   case 3u:return "REFUSE";
+   case 4u:return "ERREUR";
+   default:return "INCONNU";
+  }
+ };
+ char footer_message[160]{};
  (void)std::snprintf(footer_message,sizeof(footer_message),
-  "PAGE %u/2  L1/R1  X ACTUALISER  %s  AUCUN EFFACEMENT",
-  homebrew_page+1u,
-  homebrew_stats.partial?"SCAN PARTIEL":"LECTURE PROTEGEE");
+  "PAGE %u/2  L1/R1  X ACTUALISER  /DATA:%s  /USER/APP:%s  %s",
+  homebrew_page+1u,root_label(homebrew_stats.data_root_state),
+  root_label(homebrew_stats.installed_root_state),
+  homebrew_stats.partial?"SCAN PARTIEL":"LECTURE SEULE");
  footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {

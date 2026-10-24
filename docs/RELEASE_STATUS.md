@@ -265,6 +265,19 @@ synthétiques et le maintien des exclusions de sauvegardes/configurations.
 Les chiffres restent **nominaux et observés**, pas une quantité de stockage
 récupérable ; aucune suppression ni désinstallation n'a été activée.
 
+### Couverture des racines essentielles d'applications (24 octobre 2026)
+
+L'inventaire natif vérifie séparément la traversée de `/data` et de
+`/user/app`. Leur absence, un refus d'accès ou une erreur ne doivent plus
+produire un faux total « zéro application, scan complet » : le bilan devient
+**partiel**, même lorsque des homebrews restent visibles. Le résultat JSON
+retourne `rootCoverage.appData` et `rootCoverage.installedTitles` et la
+page Apps et plugins affiche le diagnostic `/DATA` et `/USER/APP` sur
+les deux pages. Les racines optionnelles plugins/USB peuvent légitimement
+être absentes. Tests hôte : deux racines lisibles, une racine manquante et
+un environnement entièrement inaccessible. Ce contrôle reste en lecture
+seule et ne donne aucun droit d'effacement.
+
 ### Plus grosses installations observées (lecture seule)
 
 L'écran natif **Apps et plugins** offre deux pages par L1/R1. La première
