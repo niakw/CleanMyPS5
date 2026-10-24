@@ -56,10 +56,13 @@ def check_engine(root: Path) -> None:
     missing = [label for label, fragment in required.items() if fragment not in http]
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
-    if http.count('cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)') != 1 or (
-        http.count('cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)') != 1 or (
-        http.count('cmp5_game_path_still_same("/", r.source, false,') != 1 or (
-        http.count('cmp5_game_path_still_same("/", r.dest_base, true,') != 1:
+    exact_checks = (
+        'cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)',
+        'cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)',
+        'cmp5_game_path_still_same("/", r.source, false,',
+        'cmp5_game_path_still_same("/", r.dest_base, true,',
+    )
+    if any(http.count(fragment) != 1 for fragment in exact_checks):
         missing.append("missing initial/second path identity checks")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
