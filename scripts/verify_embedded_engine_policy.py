@@ -136,6 +136,27 @@ def check_engine(root: Path) -> None:
         after = resume.find('cmp5_game_resume_path_still_same(')
         if before < 0 or read < 0 or after < 0 or not before < read < after:
             missing.append("checkpoint read not guarded by anchored resume identity")
+    # Saved request must be a single regular file under a real state
+    # directory, not a symlink or a switched leaf after its initial read.
+    load_start = job.find("static int request_load(")
+    load_end = job.find("static int stage_set(", load_start)
+    if load_start < 0 or load_end < 0:
+        missing.append("cannot inspect saved request reader")
+    else:
+        reader = job[load_start:load_end]
+        for label, fragment in {
+            "checkpoint directory nofollow": "open(state_dir,O_RDONLY|O_DIRECTORY|O_NOFOLLOW)",
+            "request descriptor nofollow": 'openat(checkpoint_dir,"request.bin",O_RDONLY|O_NOFOLLOW|O_NONBLOCK)',
+            "request rejects hardlinks": "request_before.st_nlink!=1",
+            "request rejects switched leaf": 'fstatat(checkpoint_dir,"request.bin",&request_named,',
+            "request detects changed bytes": "cmp5_game_same_stat(&request_before,&request_after)",
+            "request checks named inode": "cmp5_game_same_stat(&request_before,&request_named)",
+            "request checks state directory": "cmp5_game_same_stat(&checkpoint_dir_before,&checkpoint_dir_after)",
+        }.items():
+            if fragment not in reader:
+                missing.append(label)
+        if "int fd=open(path,O_RDONLY);" not in reader or "#else" not in reader:
+            missing.append("host-only checkpoint fixture path not isolated")
     if "addr.sin_addr.s_addr = htonl(INADDR_ANY);" in http:
         missing.append("INADDR_ANY was retained")
     for label, fragment in {

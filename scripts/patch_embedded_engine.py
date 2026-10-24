@@ -161,6 +161,56 @@ def main(root: Path):
         "/", dest, &cmp5_resume_snapshot)) return -1;
 #endif''')
 
+    # The upstream resume reader used open(path), following a possible
+    # .e2a-state or request.bin symlink even after the outer directory was
+    # validated. Reopen the checkpoint privately by descriptor and verify
+    # the current directory entry still points to the read file.
+    change(jobc,
+           '  int fd = open(path, O_RDONLY);\n  if (fd < 0) return -1;',
+           '''#ifndef E2A_HOST
+  int checkpoint_dir=open(state_dir,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(checkpoint_dir<0)return -1;
+  struct stat checkpoint_dir_before={0};
+  if(fstat(checkpoint_dir,&checkpoint_dir_before)!=0 ||
+     !S_ISDIR(checkpoint_dir_before.st_mode)){
+    close(checkpoint_dir);return -1;
+  }
+  int fd=openat(checkpoint_dir,"request.bin",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+#else
+  int fd=open(path,O_RDONLY);
+#endif
+  if(fd<0){
+#ifndef E2A_HOST
+    close(checkpoint_dir);
+#endif
+    return -1;
+  }
+#ifndef E2A_HOST
+  struct stat request_before={0};
+  if(fstat(fd,&request_before)!=0 ||
+     !S_ISREG(request_before.st_mode)||request_before.st_nlink!=1 ||
+     (request_before.st_size!=(off_t)sizeof *r &&
+      request_before.st_size!=(off_t)offsetof(job_request,force))){
+    close(fd);close(checkpoint_dir);return -1;
+  }
+#endif''')
+    change(jobc,
+           '  close(fd);\n  const size_t boolean_fields[]',
+           '''#ifndef E2A_HOST
+  struct stat request_after={0},request_named={0},checkpoint_dir_after={0};
+  if(fstat(fd,&request_after)!=0 ||
+     fstatat(checkpoint_dir,"request.bin",&request_named,
+             AT_SYMLINK_NOFOLLOW)!=0 ||
+     fstat(checkpoint_dir,&checkpoint_dir_after)!=0 ||
+     !cmp5_game_same_stat(&request_before,&request_after) ||
+     !cmp5_game_same_stat(&request_before,&request_named) ||
+     !cmp5_game_same_stat(&checkpoint_dir_before,&checkpoint_dir_after))
+    rc=-1;
+  close(checkpoint_dir);
+#endif
+  close(fd);
+  const size_t boolean_fields[]''')
+
     httpd = root / "src/httpd.c"
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')

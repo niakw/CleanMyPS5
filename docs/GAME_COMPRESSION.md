@@ -455,3 +455,15 @@ POSIX pendant le chargement des options `.e2a-state`; les chemins
 arbitraires, montages imbriqués et répertoires remplacés sont refusés.
 La CI couvre le remplacement et les chemins malformés dans une arborescence
 synthétique, ainsi que l'ordre des contrôles dans le moteur transformé.
+
+### Fichier de checkpoint : lecture ancrée sans liens symboliques
+
+Lors de la reprise PS5, le chargement `request.bin` utilise désormais un
+**descripteur de répertoire** ouvert avec `O_DIRECTORY | O_NOFOLLOW`, puis
+un `openat` du fichier avec `O_NOFOLLOW`. L'identité et les horodatages
+à la nanoseconde du fichier, de son entrée dans le répertoire et du dossier
+d'état sont comparés après lecture. Un lien symbolique, un hardlink, un
+fichier tronqué ou un remplacement concurrent font échouer la reprise.
+Les fixtures Linux amont restent derrière `E2A_HOST`, tandis que le
+vérificateur de build exige les garde-fous dans le C réellement compilé
+pour PS5. Aucune opération d'effacement n'est ajoutée.
