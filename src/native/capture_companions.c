@@ -32,7 +32,9 @@ static int same_file(const struct stat*a,const struct stat*b){
  * /user/av_contents/thumbnails/photo/ with the same relative directory.
  * Other layouts are explicitly UNKNOWN, including index/database links. */
 static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
- const Cmp5MediaCandidate*primary,Cmp5CancelCheck cancel,void*context){
+ const Cmp5MediaCandidate*primary,Cmp5CancelCheck cancel,void*context,
+ Cmp5MediaCandidate*thumb){
+ if(thumb)memset(thumb,0,sizeof(*thumb));
  static const char photo[]="/user/av_contents/photo/";
  if(!root||!primary||primary->media_type!=1u)return CMP5_THUMBNAIL_NOT_CHECKED;
  const char*path=primary->preview_path;
@@ -47,11 +49,13 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  /* The prefix has already been snapshot-checked by scan_capture_group. */
  const char*rel=path+plen;
  const size_t stem_len=(size_t)(dot-rel);
- char candidate[sizeof(primary->preview_path)+64u];
- const int length=snprintf(candidate,sizeof(candidate),
-    "user/av_contents/thumbnails/photo/%.*s.jpg.jpeg",(int)stem_len,rel);
- if(length<=0||(size_t)length>=sizeof(candidate))
+ char locator[sizeof(primary->preview_path)];
+ const int length=snprintf(locator,sizeof(locator),
+    "/user/av_contents/thumbnails/photo/%.*s.jpg.jpeg",(int)stem_len,rel);
+ if(length<=0||(size_t)length>=sizeof(locator))
   return CMP5_THUMBNAIL_UNSAFE;
+ char candidate[sizeof(primary->preview_path)];
+ memcpy(candidate,locator+1,(size_t)length);
  if(cancelled(cancel,context))return CMP5_THUMBNAIL_INACCESSIBLE;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0)return CMP5_THUMBNAIL_INACCESSIBLE;
@@ -91,6 +95,12 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  const int stable=fstat(file,&opened)==0&&same_file(&named,&opened)&&
      opened.st_nlink==1&&fstat(fd,&parent_after)==0&&
      same_file(&parent_before,&parent_after)&&!cancelled(cancel,context);
+ if(stable&&thumb){
+  thumb->bytes=(uint64_t)opened.st_size;
+  thumb->media_type=4u; /* Cross-tree thumbnail, private backup only. */
+  memcpy(thumb->preview_path,locator,(size_t)length+1u);
+  cmp5_snapshot_capture(thumb,&opened);
+ }
  close(file);close(fd);
  return stable?CMP5_THUMBNAIL_CANDIDATE_FOUND:CMP5_THUMBNAIL_UNSAFE;
 }
@@ -287,12 +297,22 @@ int cmp5_plan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  Cmp5CancelCheck cancel,void*context){
  int ok=scan_capture_group(root,primary,out,count,cancel,context,
    2u,MAX_TOTAL,NULL);
- /* A host-only backup must not omit an observed cross-tree thumbnail
-  * or interpret an inaccessible dependency as a completed group. */
  if(ok&&primary&&primary->media_type==1u){
-  const Cmp5ThumbnailState thumb=inspect_known_thumbnail(root,primary,cancel,context);
-  if(thumb!=CMP5_THUMBNAIL_KNOWN_PATH_ABSENT)ok=0;
+  Cmp5MediaCandidate thumbnail={0};
+  const Cmp5ThumbnailState state=inspect_known_thumbnail(
+      root,primary,cancel,context,&thumbnail);
+  if(state==CMP5_THUMBNAIL_CANDIDATE_FOUND){
+   uint64_t total=0;
+   for(uint32_t i=0;i<*count;i++)total+=out[i].bytes;
+   if(*count>=CMP5_GROUP_MAX||thumbnail.bytes>MAX_TOTAL-total)ok=0;
+   else{
+    out[(*count)++]=thumbnail;
+    ok=validate_capture_group_limit(out,*count,MAX_TOTAL);
+   }
+  }else if(state!=CMP5_THUMBNAIL_KNOWN_PATH_ABSENT)ok=0;
  }
+ /* A private transaction may cover the known thumbnail, but unknown
+  * Gallery indexes and other directories still forbid any PS5 deletion. */
  if(!ok&&count)*count=0;
  if(!ok&&out){
   /* Enumeration may have copied private locators into output before a
@@ -324,7 +344,7 @@ int cmp5_inspect_capture_companions(const char*root,
    else result.media++;
    result.nominal_bytes+=parts[i].bytes; /* scanner enforces no uint64 overflow */
   }
-  result.thumbnail=inspect_known_thumbnail(root,primary,cancel,context);
+  result.thumbnail=inspect_known_thumbnail(root,primary,cancel,context,NULL);
   if(cancelled(cancel,context)){
    report->failure=CMP5_COMPANION_FAILURE_CANCELLED;
    result.state=CMP5_COMPANIONS_UNVERIFIABLE;
@@ -352,31 +372,35 @@ int cmp5_inspect_capture_companions(const char*root,
  * strrchr/strcmp on such an array before checking termination can read beyond
  * the object (including through the host-only backup entrypoint). */
 static int valid_group_component(const Cmp5MediaCandidate*c,
- const char**extension,size_t*stem_offset){
- if(!c||!extension||!stem_offset)return 0;
+ const char**extension,size_t*stem_size,const char**relative){
+ if(!c||!extension||!stem_size||!relative)return 0;
  const char*path=c->preview_path;
- size_t length=0;
- while(length<sizeof(c->preview_path)&&path[length])length++;
- if(length==0||length==sizeof(c->preview_path))return 0;
+ const size_t length=strnlen(path,sizeof(c->preview_path));
+ if(length==0||length>=sizeof(c->preview_path))return 0;
  static const char photo[]="/user/av_contents/photo/";
  static const char video[]="/user/av_contents/video/";
+ static const char thumb[]="/user/av_contents/thumbnails/photo/";
  const int is_photo=length>sizeof(photo)-1u&&
    memcmp(path,photo,sizeof(photo)-1u)==0;
  const int is_video=length>sizeof(video)-1u&&
    memcmp(path,video,sizeof(video)-1u)==0;
- if(!is_photo&&!is_video)return 0;
- /* The native planner rejects dot components and path aliases. The backup
-  * validator must be equally strict for caller-supplied snapshot arrays. */
+ const int is_thumb=length>sizeof(thumb)-1u&&
+   memcmp(path,thumb,sizeof(thumb)-1u)==0;
+ if(!is_photo&&!is_video&&!is_thumb)return 0;
  for(size_t i=0;i<length;i++){
   if(path[i]=='\\'||(path[i]=='/'&&
      (path[i+1]=='/'||path[i+1]=='.')))return 0;
  }
- const char*slash=strrchr(path,'/');
- const char*dot=strrchr(path,'.');
- if(!slash||!dot||dot<=slash+1||dot[1]==0||
-    dot-(slash+1)>96)return 0;
- const char*ext=dot;
- if(c->media_type==3u){
+ const char*rel=path+(is_thumb?sizeof(thumb)-1u:
+                      is_photo?sizeof(photo)-1u:sizeof(video)-1u);
+ const char*slash=strrchr(rel,'/');
+ const char*ext=strrchr(rel,'.');
+ if(!ext)return 0;
+ if(c->media_type==4u&&is_thumb){
+  if(length<9u||strcasecmp(path+length-9u,".jpg.jpeg")||
+     c->bytes>64u*1024u*1024u)return 0;
+  ext=path+length-9u;
+ }else if(c->media_type==3u&&(is_photo||is_video)){
   if(strcasecmp(ext,".dat")||c->bytes>65536u)return 0;
  }else if(c->media_type==1u&&is_photo){
   if(strcasecmp(ext,".jxr")&&strcasecmp(ext,".jpg")&&
@@ -384,41 +408,41 @@ static int valid_group_component(const Cmp5MediaCandidate*c,
  }else if(c->media_type==2u&&is_video){
   if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return 0;
  }else return 0;
- *extension=ext;
- *stem_offset=(size_t)(dot-path);
+ if(ext<=rel||(slash&&ext<=slash+1)||ext-rel>255)return 0;
+ const size_t n=(size_t)(ext-(slash?slash+1:rel));
+ if(n>96u||n==0u)return 0;
+ *relative=rel;*extension=ext;*stem_size=(size_t)(ext-rel);
  return 1;
 }
-
 static int validate_capture_group_limit(const Cmp5MediaCandidate *parts,
  uint32_t count,uint64_t max_total){
- if(!parts||count<2||count>CMP5_GROUP_MAX)return 0;
- const char*first_ext=NULL;
+ if(!parts||count<2u||count>CMP5_GROUP_MAX)return 0;
+ const char*first_ext=NULL,*first_rel=NULL;
  size_t stem=0;
- if(!valid_group_component(&parts[0],&first_ext,&stem))return 0;
- const char*first=parts[0].preview_path;
+ if(!valid_group_component(&parts[0],&first_ext,&stem,&first_rel))return 0;
  uint64_t sum=0;
- unsigned media=0,sidecars=0;
+ unsigned media=0,sidecars=0,thumbnails=0;
  for(unsigned i=0;i<count;i++){
   const Cmp5MediaCandidate*c=&parts[i];
-  const char*ext=NULL;
+  const char*ext=NULL,*rel=NULL;
   size_t current_stem=0;
-  if(!valid_group_component(c,&ext,&current_stem)||
-     current_stem!=stem||memcmp(first,c->preview_path,stem)!=0||
+  if(!valid_group_component(c,&ext,&current_stem,&rel)||
+     current_stem!=stem||memcmp(first_rel,rel,stem)!=0||
      !c->bytes||c->bytes>max_total-sum)return 0;
   if(c->media_type==3u)sidecars++;
+  else if(c->media_type==4u)thumbnails++;
   else media++;
   for(unsigned j=0;j<i;j++){
-   const char*prior_ext=NULL;
+   const char*prior_ext=NULL,*prior_rel=NULL;
    size_t prior_stem=0;
-   /* Earlier entries have already been validated and are terminated. */
-   if(!valid_group_component(&parts[j],&prior_ext,&prior_stem)||
-      strcasecmp(prior_ext,ext)==0||
+   if(!valid_group_component(&parts[j],&prior_ext,&prior_stem,&prior_rel)||
+      (parts[j].media_type==c->media_type&&strcasecmp(prior_ext,ext)==0)||
       (parts[j].snapshot_inode==c->snapshot_inode&&
        parts[j].snapshot_device==c->snapshot_device))return 0;
   }
   sum+=c->bytes;
  }
- return media>=1&&sidecars<=1&&sum<=max_total;
+ return media>=1u&&sidecars<=1u&&thumbnails<=1u&&sum<=max_total;
 }
 
 /* Backup and restore stay capped at 512 MiB in total, independent of the

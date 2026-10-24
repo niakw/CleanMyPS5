@@ -78,6 +78,7 @@ static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*ou
  if(!root||!c||!out||c->bytes==0||c->bytes>CMP5_BACKUP_LIMIT)return -1;
  const char*prefix=c->media_type==1?"/user/av_contents/photo/":
   c->media_type==2?"/user/av_contents/video/":
+  c->media_type==4?"/user/av_contents/thumbnails/photo/":
   c->media_type==3?
    (!strncmp(c->preview_path,"/user/av_contents/photo/",24)?
     "/user/av_contents/photo/":"/user/av_contents/video/"):NULL;
@@ -93,6 +94,11 @@ static int source_file(const char*root,const Cmp5MediaCandidate*c,struct stat*ou
      strcasecmp(ext,".png")&&strcasecmp(ext,".jxr"))return -1;
  }else if(c->media_type==2){
   if(strcasecmp(ext,".mp4")&&strcasecmp(ext,".webm"))return -1;
+ }else if(c->media_type==4){
+  /* .jpg.jpeg is one compound suffix; the generic last-dot pointer
+   * must not classify arbitrary *.jpeg files as a Gallery thumbnail. */
+  if(n<9u||strcasecmp(path+n-9u,".jpg.jpeg")||
+     c->bytes>64u*1024u*1024u)return -1;
  }else if(strcasecmp(ext,".dat")||c->bytes>65536u)return -1;
  for(size_t i=0;i<n;i++)if(path[i]=='\\'||(i&&path[i]=='/'&&path[i-1]=='/'))return -1;
  if(path[n-1]=='/')return -1;
