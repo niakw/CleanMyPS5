@@ -415,3 +415,11 @@ quatre lettres et cinq chiffres. Sur l'environnement hôte de test
 chemins relatifs et leurs scénarios spécifiques ; le garde PS5 est
 contrôlé dans le C généré avant compilation native. Cela n'établit pas
 encore la sûreté de toutes les interactions avec ShadowMountPlus sur console.
+
+### Retour de statut explicite dans le titre natif
+
+Lorsque le moteur rapporte une conversion `error` ou `cancelled`,
+l'interface DualSense indique désormais **« sortie partielle conservée »**
+et avertit qu'une reprise doit être précédée d'une vérification d'état.
+Une conversion interrompue ne doit jamais être présentée comme un
+nettoyage réussi ni comme des octets automatiquement libérés.

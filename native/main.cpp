@@ -2395,8 +2395,8 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "CONVERSION EN COURS":game_progress.state==cmp5_compression::JobState::paused?
      "CONVERSION EN PAUSE":game_progress.state==cmp5_compression::JobState::done?
      "TRAITEMENT TERMINE  VERIFIER LE JEU":game_progress.state==cmp5_compression::JobState::error?
-     "ERREUR DE COMPRESSION":game_progress.state==cmp5_compression::JobState::cancelled?
-     "CONVERSION ANNULEE":"MOTEUR PRET OU EN FILE";
+     "ERREUR  SORTIE PARTIELLE CONSERVEE":game_progress.state==cmp5_compression::JobState::cancelled?
+     "ANNULEE  SORTIE PARTIELLE CONSERVEE":"MOTEUR PRET OU EN FILE";
    char line[150]{};
    (void)std::snprintf(line,sizeof(line),
      "%s   %u %%  %llu / %llu MIO",state,game_progress.percent,
@@ -2415,7 +2415,11 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "PAUSE REFUSEE OU NON CONFIRMEE",
      2,game_pause_accepted?Color::cyan:Color::yellow);
   }
-  footer(canvas,game_job_plan_changed?
+  footer(canvas,(game_progress_checked&&
+    (game_progress.state==cmp5_compression::JobState::error||
+     game_progress.state==cmp5_compression::JobState::cancelled))?
+    "SORTIE NON EFFACEE  VERIFIER L'ETAT AVANT TOUTE REPRISE":
+    game_job_plan_changed?
     "CERCLE RETOUR  X RECONTROLER LE JEU  2 CONFIRMATIONS":
     "X PROGRESSION  TRIANGLE PAUSE / REPRISE  CERCLE RETOUR");
   return;
