@@ -87,8 +87,7 @@ int main(void) {
  assert(unlink(alias)==0);
  assert(unlink(image)==0);
  assert(rmdir(folder)==0);
- assert(snprintf(folder,sizeof(folder),"%s/mnt/usb0/homebrew",sandbox)>0);
- assert(rmdir(folder)==0);
+ /* All other directories are removed by the reverse-order fixture loop. */
  for(size_t i=sizeof(dirs)/sizeof(dirs[0]);i>0;i--){
   int n=snprintf(folder,sizeof(folder),"%s%s",sandbox,dirs[i-1]);
   assert(n>0&&(size_t)n<sizeof(folder));
