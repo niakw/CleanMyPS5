@@ -270,6 +270,10 @@ enum class Summary { unchecked, ok, unavailable };
 enum class ScanSource { none, native_title, helper };
 Summary summary_status=Summary::unchecked;
 ScanSource scan_source=ScanSource::none;
+/* Never merge counts observed by two processes with different permissions.
+ * Helper aggregates cannot approve native media selection or cleanup. */
+cmp5_native::Overview helper_summary{};
+bool helper_summary_checked=false;
 unsigned summary_files=0,summary_media=0,summary_cache=0,summary_logs=0;
 unsigned summary_large=0,summary_old=0,summary_old_large=0;
 std::uint64_t summary_bytes=0,summary_large_bytes=0;
@@ -495,6 +499,16 @@ bool get_preflight() noexcept {
  absent=parsed.absent;
  return true;
 }
+bool accept_helper_overview(const char*json) noexcept {
+ helper_summary=cmp5_native::Overview{};
+ helper_summary_checked=false;
+ if(!json)return false;
+ cmp5_native::Overview sample{};
+ if(!cmp5_native::parse_overview(json,std::strlen(json),&sample))return false;
+ helper_summary=sample;
+ helper_summary_checked=true;
+ return true;
+}
 bool accept_overview(const char*json,ScanSource source) noexcept {
  if(!json)return false;
  cmp5_native::Overview parsed{};
@@ -519,6 +533,10 @@ bool accept_overview(const char*json,ScanSource source) noexcept {
  return true;
 }
 void run_overview() noexcept {
+ // Helper data are a separate observation, never a substitution for the
+ // installed title's ability to read and select individual Gallery files.
+ helper_summary=cmp5_native::Overview{};
+ helper_summary_checked=false;
  // Any new scan invalidates all review indices and saved per-game totals.
  // In particular, an unavailable/invalid scan MUST NOT expose stale media
  // through the Square catalogue shortcut or detail view. Wipe the private
@@ -572,7 +590,7 @@ void run_overview() noexcept {
   char response[2048]{};
   const char*remote=nullptr;
   if(fetch_local("/api/overview",response,sizeof(response),&remote))
-   (void)accept_overview(remote,ScanSource::helper);
+   (void)accept_helper_overview(remote);
  }
 }
 void run_environment_check() noexcept {
@@ -1774,17 +1792,34 @@ void show_analyze(ps5::demo::Canvas&canvas) noexcept {
   (void)std::snprintf(detail,sizeof(detail),"%u FICHIERS  %llu MIO NOMINAUX%s",
     summary_files,static_cast<unsigned long long>(summary_bytes/1048576ULL),
     summary_partial?"  PARTIEL":"");
-  panel(canvas,664,scan_source==ScanSource::native_title?
-    "BILAN NATIF DU TITRE":"BILAN HELPER (AGREGATS)",detail,Color::cyan);
+  panel(canvas,664,"BILAN NATIF DU TITRE",detail,Color::cyan);
   (void)std::snprintf(detail,sizeof(detail),"CAPTURES %u  CACHES %u  LOGS %u  PH %s  VID %s",
     summary_media,summary_cache,summary_logs,
     gallery_label(summary_gallery_photo),gallery_label(summary_gallery_video));
-  panel(canvas,813,"CATEGORIES VUES",detail);
+  panel(canvas,813,"CATEGORIES VUES (TITRE)",detail);
+  if(helper_summary_checked){
+   char helper_text[120]{};
+   (void)std::snprintf(helper_text,sizeof(helper_text),
+      "HELPER: %u FICHIERS  OBSERVATIONS SEPAREES  NON SELECTIONNABLES",
+      helper_summary.files);
+   canvas.text(125,912,helper_text,2,Color::yellow);
+  }
  }else{
-  panel(canvas,664,"BILAN DU STOCKAGE",
-    summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"COUVERTURE INDISPONIBLE",
-    Color::yellow);
-  panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
+  if(helper_summary_checked){
+   char aggregate[120]{};
+   (void)std::snprintf(aggregate,sizeof(aggregate),
+     "%u FICHIERS  %llu MIO NOMINAUX  NON SELECTIONNABLES",
+     helper_summary.files,
+     static_cast<unsigned long long>(helper_summary.bytes/1048576ULL));
+   panel(canvas,664,"AGREGATS HELPER UNIQUEMENT",aggregate,Color::yellow);
+   panel(canvas,813,"TITRE NATIF","ACCES GALERIE NON VALIDE  NETTOYAGE BLOQUE",
+     Color::yellow);
+  }else{
+   panel(canvas,664,"BILAN DU STOCKAGE",
+     summary_status==Summary::unchecked?"X POUR LANCER LE SCAN":"COUVERTURE INDISPONIBLE",
+     Color::yellow);
+   panel(canvas,813,"PROTECTION","AUCUNE SUPPRESSION EFFECTUEE");
+  }
  }
  footer(canvas,"X ANALYSE APPROFONDIE    CERCLE RETOUR");
 }
@@ -1911,7 +1946,9 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
  }else{
   panel(canvas,355,"CAPTURES VOLUMINEUSES","BILAN NON DISPONIBLE",Color::yellow);
   panel(canvas,503,"CAPTURES ANCIENNES","BILAN NON DISPONIBLE",Color::yellow);
-  panel(canvas,651,"MOTEUR","DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
+  panel(canvas,651,"MOTEUR",helper_summary_checked?
+    "HELPER: AGREGATS UNIQUEMENT  PAS DE SELECTION DE MEDIAS":
+    "DROITS INSUFFISANTS OU SCAN ECHOUE",Color::yellow);
  }
  char selected_msg[130]{};
  if(duplicates_checked){

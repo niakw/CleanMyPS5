@@ -75,3 +75,15 @@ d'une unité source dans le titre natif. Seuls les neuf scanners de lecture
 révisés, `native/main.cpp` et `native/preview_decode.c` peuvent être
 copiés dans le modèle de compilation épinglé. Les tests injectent une
 fausse implémentation d'élévation ou de nettoyage pour vérifier le refus.
+
+### Séparation stricte des résultats du titre et du helper
+
+Le scanner du titre et celui du helper disposent potentiellement de
+droits différents. Le helper ne peut désormais plus **remplacer** les
+compteurs du titre lorsque celui-ci trouve des résultats partiels. Son
+résultat est conservé dans une structure indépendante, présenté sous le
+libellé **« agrégats helper uniquement »** ou comme une observation
+séparée. Il ne fournit jamais de chemin de sélection natif, n'augmente
+pas le nombre de médias sélectionnables et ne déverrouille aucune
+suppression. Un test natif injecte volontairement 120 fichiers côté
+helper tout en confirmant que le catalogue du titre reste identique.

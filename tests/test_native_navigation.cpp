@@ -1097,6 +1097,22 @@ int main(){
  assert(!accept_overview(nested_spoof,ScanSource::helper));
  assert(scan_source==prior_source&&summary_files==prior_count);
  assert(summary_status==Summary::ok);
+ // Helper aggregates must be stored separately: they cannot replace a
+ // native scan, its source identity, or the concrete media review catalog.
+ const char valid_helper[]=R"({"schemaVersion":1,"mode":"metadata-only",)"
+   R"("scope":"bounded-known-roots","cleanupValidated":false,)"
+   R"("files":120,"nominalBytes":9000000,"partial":true,)"
+   R"("categories":{"media":30,"logs":4,"cache":20},)"
+   R"("review":{"largeMedia":3,"oldMedia":12,"oldLargeMedia":2,)"
+   R"("largeMediaNominalBytes":5000000,"validatedForDeletion":false}})";
+ const auto previous_native_count=media_review.count;
+ assert(accept_helper_overview(valid_helper));
+ assert(helper_summary_checked&&helper_summary.files==120u);
+ assert(summary_status==Summary::ok&&scan_source==prior_source);
+ assert(summary_files==prior_count&&media_review.count==previous_native_count);
+ assert(!accept_helper_overview(nested_spoof));
+ assert(!helper_summary_checked&&helper_summary.files==0u);
+ assert(summary_files==prior_count&&media_review.count==previous_native_count);
  /* Saturation must not wrap nominal selection totals to a small value.
   * Deselecting then recalculating restores the exact remaining total. */
  assert(media_review.count==2);
