@@ -237,7 +237,8 @@ LocalProbe probe_path(const char*path,bool file,bool capacity_only=false) noexce
   }
   ++result.entries;
  }
- (void)closedir(dir);
+ /* A successful readdir EOF cannot hide a failed directory close. */
+ if(closedir(dir)!=0)result.io_error=true;
  if(cancellation_hook(nullptr))return LocalProbe{}; // Ignore partial data
  return result;
 }
@@ -1948,17 +1949,17 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
        static_cast<unsigned long long>(probe.total_bytes/1073741824ULL));
     else
      (void)std::snprintf(detail,sizeof(detail),
-       "%u VUES  %llu/%llu GIO LIBRES/TOTAL%s",probe.entries,
+       "%u VUES  %llu/%llu GIO LIBRES/TOTAL%s%s",probe.entries,
        static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
        static_cast<unsigned long long>(probe.total_bytes/1073741824ULL),
-       probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+       probe.truncated?" (LIMITE)":"",probe.io_error?" (ERREUR)":"");
    }
    else if(probe.capacity_only)
     (void)std::snprintf(detail,sizeof(detail),
       "MONTAGE LISIBLE  CAPACITE INCONNUE");
    else
-    (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s",
-      probe.entries,probe.truncated?" (LIMITE)":probe.io_error?" (ERREUR)":"");
+    (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s%s",
+      probe.entries,probe.truncated?" (LIMITE)":"",probe.io_error?" (ERREUR)":"");
   }else{
    const char*reason=state==LocalAccess::unchecked?"NON TESTE":
      state==LocalAccess::opened?"FICHIER OUVERT":

@@ -15,6 +15,17 @@ d'en-tête bornées plutôt que charger tout l'exécutable en RAM. Les
 fixtures injectent objets non chargeables et table de segments invalide.
 Cela ne constitue pas une preuve de chargement réel sur FW 13.60.
 
+## Diagnostic de stockage : parcours incomplet détecté (24 octobre 2026)
+
+La page native Accès au stockage prend maintenant en compte les échecs
+de `closedir`, au même titre que les erreurs de `readdir`. La sonde
+reste « listable » avec ses entrées déjà vues, mais son statut I/O
+indique une **couverture partielle**, jamais une inspection complète.
+Deux injections déterministes d'erreur `EIO` dans les tests de navigation
+vérifient le comportement réel du scanner, sans accès à une PS5.
+Si la lecture est limitée et la fermeture échoue, les deux problèmes
+sont signalés, sans aucune écriture ni suppression.
+
 ## Deux livraisons distinctes
 
 | Livraison | État du code | État de preuve | Verdict |

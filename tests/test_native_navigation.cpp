@@ -1,7 +1,32 @@
 // Host-only navigation test for PS5-native UI, no console and no filesystem writes.
+// Inject read and close errors without relying on host permissions.
+#include <dirent.h>
+#include <cerrno>
+static bool probe_fail_readdir_eof=false,probe_fail_closedir=false;
+static unsigned probe_faults=0;
+static struct dirent* test_probe_readdir(DIR*dir){
+ struct dirent*entry=readdir(dir);
+ if(!entry&&probe_fail_readdir_eof){
+  probe_fail_readdir_eof=false;
+  ++probe_faults;errno=EIO;
+ }
+ return entry;
+}
+static int test_probe_closedir(DIR*dir){
+ const int rc=closedir(dir);
+ if(rc==0&&probe_fail_closedir){
+  probe_fail_closedir=false;
+  ++probe_faults;errno=EIO;return -1;
+ }
+ return rc;
+}
+#define readdir test_probe_readdir
+#define closedir test_probe_closedir
 #define main cmp5_native_app_entry
 #include "../native/main.cpp"
 #undef main
+#undef readdir
+#undef closedir
 
 #include <cassert>
 #include <chrono>
@@ -427,6 +452,23 @@ int main(){
  assert(sample.status==LocalAccess::listable);
  assert(sample.entries==1&&!sample.truncated&&!sample.io_error);
  assert(sample.volume_known&&sample.total_bytes>=sample.available_bytes);
+ probe_fail_readdir_eof=true;
+ LocalProbe bad_read=probe_path(dir,false);
+ assert(probe_faults==1u&&bad_read.status==LocalAccess::listable);
+ assert(bad_read.io_error&&!bad_read.truncated&&bad_read.entries==sample.entries);
+ probe_fail_closedir=true;
+ LocalProbe bad_close=probe_path(dir,false);
+ assert(probe_faults==2u&&bad_close.status==LocalAccess::listable);
+ assert(bad_close.io_error&&!bad_close.truncated&&bad_close.entries==sample.entries);
+ LocalProbe io_roots[local_path_count]{};
+ for(std::size_t i=0;i<core_access_count;i++)
+  io_roots[i].status=LocalAccess::listable;
+ io_roots[0].status=LocalAccess::opened;
+ io_roots[4]=bad_read;
+ assert(summarize_local_coverage(io_roots,local_path_count,true).partial);
+ io_roots[4]=bad_close;
+ assert(summarize_local_coverage(io_roots,local_path_count,true).partial);
+ assert(!probe_fail_closedir&&!probe_fail_readdir_eof);
  assert(probe_path(media,true).status==LocalAccess::opened);
  // Even if the path opens, a directory must never count as the title's
  // expected regular-file metadata probe.
