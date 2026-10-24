@@ -21,6 +21,9 @@ struct Preflight {
 class OverviewReader {
  const char*at;
  const char*end;
+ unsigned observed[4]{};
+ unsigned entry_count=0,mount_field_count=0,mount_unverified=0;
+ bool entries_reported=false;
  enum class Scope { root,categories,review,gallery,ignored };
  struct Span { const char*data=nullptr;std::size_t size=0;bool escaped=false; };
  static bool key(Span s,const char*want) noexcept {
@@ -203,6 +206,85 @@ class OverviewReader {
    scope==Scope::review?mask==31u:
    scope==Scope::gallery?mask==3u:true;
  }
+ bool bool_value(bool*out) noexcept {
+  if(literal("true")){*out=true;return true;}
+  if(literal("false")){*out=false;return true;}
+  return false;
+ }
+ bool preflight_row() noexcept {
+  if(!take('{')||take('}'))return false;
+  Span path{},status{},reason{};
+  unsigned mask=0;
+  bool hint=false,ro=false,mount_known=false;
+  for(;;){
+   Span name{};
+   if(!str(&name)||name.escaped||!take(':'))return false;
+   unsigned flag=0;bool valid=true;
+   if(key(name,"path")){flag=1u;valid=str(&path)&&!path.escaped;}
+   else if(key(name,"status")){flag=2u;valid=str(&status)&&!status.escaped;}
+   else if(key(name,"reason")){flag=4u;valid=str(&reason)&&!reason.escaped;}
+   else if(key(name,"writableHint")){flag=8u;valid=bool_value(&hint);}
+   else if(key(name,"readOnlyMount")){flag=16u;valid=bool_value(&ro);}
+   else if(key(name,"mountInfoKnown")){flag=32u;valid=bool_value(&mount_known);}
+   else valid=ignore(3);
+   if(!valid||(flag&&(mask&flag)))return false;
+   mask|=flag;
+   if(take('}'))break;
+   if(!take(','))return false;
+  }
+  if((mask&31u)!=31u||path.size<2u||path.size>=256u||path.data[0]!='/')
+   return false;
+  for(std::size_t i=1;i<path.size;i++){
+   const char c=path.data[i];
+   if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||
+        (c>='0'&&c<='9')||c=='/'||c=='_'||c=='.'||c=='-'))
+    return false;
+   if(c=='/'&&(path.data[i-1]=='/'||
+      (path.data[i-1]=='.'&&(i==2u||path.data[i-2]=='/'))))return false;
+  }
+  if(path.data[path.size-1]=='/'||path.data[path.size-1]=='.')return false;
+  unsigned category=3u;
+  if(key(status,"accessible")){
+   category=0u;
+   if(!key(reason,"directory-opened")&&!key(reason,"read-only-mount")&&
+      !key(reason,"mount-unverified"))return false;
+  }else if(key(status,"denied")){
+   category=1u;if(!key(reason,"permission-denied"))return false;
+  }else if(key(status,"absent")){
+   category=2u;if(!key(reason,"not-found"))return false;
+  }else if(key(status,"root-unavailable")||key(status,"unknown")){
+   if(!key(reason,"open-failed"))return false;
+  }else if(key(status,"symlink")){
+   if(!key(reason,"symlink-blocked"))return false;
+  }else if(key(status,"not-directory")){
+   if(!key(reason,"not-a-directory"))return false;
+  }else return false;
+  if(category!=0u&&(hint||ro||mount_known))return false;
+  if(ro&&!key(reason,"read-only-mount"))return false;
+  if(hint&&(ro||((mask&32u)!=0u&&!mount_known)))return false;
+  if(mask&32u){
+   ++mount_field_count;
+   if(category==0u){
+    if(!mount_known){
+     if(!key(reason,"mount-unverified")||hint||ro)return false;
+     ++mount_unverified;
+    }else if(key(reason,"mount-unverified"))return false;
+   }
+  }
+  ++observed[category];
+  return true;
+ }
+ bool preflight_entries() noexcept {
+  if(entries_reported||!take('['))return false;
+  entries_reported=true;
+  if(take(']'))return false;
+  for(;;){
+   if(entry_count>=64u||!preflight_row())return false;
+   ++entry_count;
+   if(take(']'))return true;
+   if(!take(','))return false;
+  }
+ }
 bool preflight_summary(Preflight*out,unsigned depth) noexcept {
   if(depth>12||!take('{'))return false;
   unsigned mask=0;
@@ -249,13 +331,15 @@ bool preflight_summary(Preflight*out,unsigned depth) noexcept {
     valid=str(&v)&&key(v,"known-paths-only");
    }else if(key(name,"summary")){
     flag=8u;valid=preflight_summary(out,1);
+   }else if(key(name,"entries")){
+    flag=16u;valid=preflight_entries();
    }else valid=ignore(1);
    if(!valid||(flag&&(mask&flag)))return false;
    mask|=flag;
    if(take('}'))break;
    if(!take(','))return false;
   }
-  return mask==15u;
+  return mask==31u;
  }
 public:
  OverviewReader(const char*json,std::size_t len) noexcept:at(json),end(json+len){}
@@ -265,8 +349,14 @@ public:
   if(at!=end)return false;
   const std::uint64_t n=static_cast<std::uint64_t>(out->accessible)+
     out->denied+out->absent+out->other;
-  return n>0&&n<=1024&&
-    (!out->mount_info_reported||out->mount_info_unknown<=out->accessible);
+  return n==entry_count&&n<=64u&&
+    out->accessible==observed[0]&&out->denied==observed[1]&&
+    out->absent==observed[2]&&out->other==observed[3]&&
+    (mount_field_count==0u||mount_field_count==entry_count)&&
+    (out->mount_info_reported==(mount_field_count!=0u))&&
+    (!out->mount_info_reported||
+      (out->mount_info_unknown==mount_unverified&&
+       out->mount_info_unknown<=out->accessible));
  }
  bool parse(Overview*out) noexcept {
   if(!out||!object(Scope::root,out,0))return false;

@@ -93,16 +93,25 @@ int main(){
  CHECK(!cmp5_native::parse_overview(valid.data(),valid.size()-1,&out));
  CHECK(!cmp5_native::parse_overview(valid.data(),4097,&out));
  const std::string preflight=
-  R"({"schemaVersion":1,"mode":"read-only","scope":"known-paths-only",)"
-  R"("entries":[{"path":"/data","status":"accessible","writableHint":false}],)"
+  R"({"schemaVersion":1,"mode":"read-only","scope":"known-paths-only","entries":[)"
+  R"({"path":"/data","status":"accessible","reason":"mount-unverified","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/deny1","status":"denied","reason":"permission-denied","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/deny2","status":"denied","reason":"permission-denied","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/absent1","status":"absent","reason":"not-found","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/absent2","status":"absent","reason":"not-found","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/absent3","status":"absent","reason":"not-found","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/absent4","status":"absent","reason":"not-found","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false},)"
+  R"({"path":"/alias","status":"symlink","reason":"symlink-blocked","writableHint":false,"readOnlyMount":false,"mountInfoKnown":false}],)"
   R"("summary":{"accessible":1,"denied":2,"absent":4,"other":1,"writableHints":0,"mountInfoUnknown":1}})";
  cmp5_native::Preflight permissions{};
  CHECK(cmp5_native::parse_preflight(preflight.data(),preflight.size(),&permissions));
  CHECK(permissions.accessible==1&&permissions.denied==2&&
    permissions.absent==4&&permissions.other==1&&
    permissions.mount_info_reported&&permissions.mount_info_unknown==1u);
- const std::string legacy_response=replace_once(preflight,
-  R"(,"mountInfoUnknown":1)",std::string(""));
+ const std::string legacy_response=
+  R"({"schemaVersion":1,"mode":"read-only","scope":"known-paths-only","entries":[)"
+  R"({"path":"/data","status":"accessible","reason":"directory-opened","writableHint":false,"readOnlyMount":false}],)"
+  R"("summary":{"accessible":1,"denied":0,"absent":0,"other":0,"writableHints":0}})";
  cmp5_native::Preflight legacy{};
  CHECK(cmp5_native::parse_preflight(legacy_response.data(),legacy_response.size(),&legacy));
  CHECK(!legacy.mount_info_reported);
@@ -128,6 +137,21 @@ int main(){
    R"("mountInfoUnknown":1)",R"("mountInfoUnknown":1,"mountInfoUnknown":1)"));
  invalid_preflight(replace_once(preflight,
    R"("mountInfoUnknown":1)",R"("mountInfoUnknown":2)"));
+ invalid_preflight(replace_once(preflight,
+   R"("denied":2)",R"("denied":3)"));
+ invalid_preflight(replace_once(preflight,
+   R"("path":"/deny1")",R"("path":"../deny1")"));
+ invalid_preflight(replace_once(preflight,
+   R"("status":"denied","reason":"permission-denied")",
+   R"("status":"accessible","reason":"directory-opened")"));
+ invalid_preflight(replace_once(preflight,
+   R"("mountInfoKnown":false)",R"("mountInfoKnown":true)"));
+ invalid_preflight(replace_once(preflight,
+   R"("mountInfoUnknown":1)",R"("mountInfoUnknown":0)"));
+ invalid_preflight(replace_once(preflight,
+   R"("writableHint":false)",R"("writableHint":true)"));
+ invalid_preflight(replace_once(preflight,
+   R"("entries":[)",R"("entries":[])"));
  invalid_preflight(preflight+" garbage");
  invalid_preflight(preflight.substr(0,preflight.size()-1));
  CHECK(!cmp5_native::parse_preflight(preflight.data(),preflight.size(),nullptr));
