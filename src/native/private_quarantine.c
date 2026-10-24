@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -34,6 +35,14 @@ static int open_lab(const char*path){
  const char*last=strrchr(path,'/');
  if(!last||strcmp(last+1,LAB_NAME)!=0)return -1;
  return cmp5_open_private_workspace(path);
+}
+/* All mutations within one private lab are serialized across cooperating
+ * processes. The directory inode itself is the lock identity; no extra
+ * lock files, symlink names or cleanup operations are needed. Fail closed
+ * when the filesystem does not provide advisory directory locks. This
+ * never protects against third-party processes that ignore advisory locks. */
+static int lock_lab(int dir){
+ return dir>=0&&flock(dir,LOCK_EX|LOCK_NB)==0;
 }
 static int state_entry(int dir,const char*name){
  struct stat st={0};
@@ -130,6 +139,7 @@ int cmp5_private_lab_hold_checkpoint(const char*lab,const char*item,
     !lab||!backup||!rehearsal||!backup_id)return 0;
  int source=open_lab(lab);
  if(source<0)return 0;
+ if(!lock_lab(source)){close(source);return 0;}
  int copies=cmp5_open_private_workspace(backup);
  int test=cmp5_open_private_workspace(rehearsal);
  int ok=copies>=0&&test>=0&&
@@ -175,6 +185,7 @@ int cmp5_private_lab_recover_checkpoint(const char*lab,const char*item,
  if(!valid_id(item)||!lab||!backup||!backup_id)return 0;
  int dir=open_lab(lab);
  if(dir<0)return 0;
+ if(!lock_lab(dir)){close(dir);return 0;}
  int backup_dir=cmp5_open_private_workspace(backup);
  int ok=backup_dir>=0&&distinct(dir,backup_dir)&&
    state_at(dir,item)==CMP5_LAB_HELD_ONLY;
@@ -220,6 +231,7 @@ int cmp5_private_lab_resolve_interrupted(const char*lab,const char*item,
      resolution!=CMP5_LAB_KEEP_HELD)||!lab||!backup||!backup_id)return 0;
  int dir=open_lab(lab);
  if(dir<0)return 0;
+ if(!lock_lab(dir)){close(dir);return 0;}
  int copies=cmp5_open_private_workspace(backup);
  int ok=copies>=0&&distinct(dir,copies)&&
    state_at(dir,item)==CMP5_LAB_AMBIGUOUS;

@@ -75,6 +75,24 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
 
+## Concurrence des transactions privées (25 octobre 2026)
+
+Les trois chemins de mutation du laboratoire (mise en quarantaine,
+restauration et résolution d'une interruption) prennent désormais un
+**verrou interprocessus non bloquant sur l'inode du dossier privé**.
+Deux transactions sur le même laboratoire, même si elles ciblent des
+fichiers différents, ne s'exécutent donc pas en parallèle. Un verrou
+occupé ou non pris en charge par le système de fichiers produit un
+refus sans nouvelle écriture. Aucun fichier de verrou à nettoyer n'est
+créé. Un test réel avec `fork`, deux fichiers valides et deux
+transactions distinctes vérifie le refus pendant la contention, puis
+la réussite après libération du verrou.
+
+Ce verrou est **coopératif** et ne bloque pas les modifications faites
+par un logiciel extérieur au protocole ; les contrôles d'identité
+et SHA-256 restent indispensables. Le verrou est pris sur un dossier
+hôte privé uniquement, pas sur un répertoire PS5.
+
 ## Reprise dirigée après interruption dans le laboratoire
 
 Le moteur hôte possède désormais deux points de coupure exercés avec

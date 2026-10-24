@@ -9,6 +9,7 @@
 #include "verified_backup.h"
 #include "media_snapshot.h"
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,18 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+/* Forked worker holds its laboratory lock across the two-name
+ * transition. A second process must fail on another VALID item, proving
+ * that the rejection is contention rather than an invalid source. */
+static int announced_fd=-1,release_fd=-1;
+static int block_at_checkpoint(void*unused){
+ (void)unused;
+ const char mark='L';
+ if(write(announced_fd,&mark,1)!=1)_exit(90);
+ char release=0;
+ if(read(release_fd,&release,1)!=1||release!='R')_exit(91);
+ return 0;
+}
 static int simulate_abrupt_exit(void*unused){
  (void)unused;
  _exit(77); /* hard process exit after fsync of two-name checkpoint */
@@ -107,6 +120,53 @@ int main(int argc,char**argv){
  assert(cmp5_private_lab_resolve_interrupted(lab,"ITEM",backup,
    "ONE",CMP5_LAB_KEEP_HELD));
  assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_HELD_ONLY);
+ assert(cmp5_private_lab_recover(lab,"ITEM",backup,"ONE"));
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
+ equal(gallery,src);
+ /* Verify serialization of the GENERAL transaction mechanism with a
+  * second independently valid item, not a broken duplicate candidate. */
+ char second[1024];
+ snprintf(second,sizeof(second),"%s/ITEM2",lab);
+ int item2=open(second,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ assert(item2>=0);
+ FILE*payload=fopen(gallery,"rb");
+ assert(payload);
+ unsigned char block[1024];
+ for(;;){
+  size_t n=fread(block,1,sizeof(block),payload);
+  if(n==0)break;
+  assert(write(item2,block,n)==(ssize_t)n);
+ }
+ assert(fclose(payload)==0&&close(item2)==0);
+ assert(cmp5_private_lab_state(lab,"ITEM2")==CMP5_LAB_SOURCE_ONLY);
+ int ready[2],release[2];
+ assert(pipe(ready)==0&&pipe(release)==0);
+ child=fork();
+ assert(child>=0);
+ if(child==0){
+  close(ready[0]);close(release[1]);
+  announced_fd=ready[1];release_fd=release[0];
+  const int held_ok=cmp5_private_lab_hold_checkpoint(
+    lab,"ITEM",backup,"ONE",trial,"LOCKED",block_at_checkpoint,NULL);
+  _exit(held_ok?0:92);
+ }
+ close(ready[1]);close(release[0]);
+ char marker=0;
+ assert(read(ready[0],&marker,1)==1&&marker=='L');
+ /* Second item has a matching verified capsule and distinct rehearsal
+  * output; only the interprocess lock can cause this denial. */
+ assert(!cmp5_private_lab_hold(lab,"ITEM2",backup,"ONE",trial,"TRY2"));
+ assert(cmp5_private_lab_state(lab,"ITEM2")==CMP5_LAB_SOURCE_ONLY);
+ assert(write(release[1],"R",1)==1);
+ close(ready[0]);close(release[1]);
+ int complete=0;
+ assert(waitpid(child,&complete,0)==child);
+ assert(WIFEXITED(complete)&&WEXITSTATUS(complete)==0);
+ assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_HELD_ONLY);
+ assert(cmp5_private_lab_hold(lab,"ITEM2",backup,"ONE",trial,"TRY3"));
+ assert(cmp5_private_lab_state(lab,"ITEM2")==CMP5_LAB_HELD_ONLY);
+ assert(cmp5_private_lab_recover(lab,"ITEM2",backup,"ONE"));
+ assert(cmp5_private_lab_state(lab,"ITEM2")==CMP5_LAB_SOURCE_ONLY);
  assert(cmp5_private_lab_recover(lab,"ITEM",backup,"ONE"));
  assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
  equal(gallery,src);
