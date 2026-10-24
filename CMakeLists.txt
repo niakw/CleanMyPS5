@@ -41,7 +41,17 @@ add_test(NAME native_review_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE
 # The same protected homebrew scanner is linked into the installed native title.
 add_executable(cmp5-native-homebrew-tests tests/test_native_homebrew.c src/native/homebrew.c ${RULES})
 target_include_directories(cmp5-native-homebrew-tests PRIVATE src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
-add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py $<TARGET_FILE:cmp5-native-homebrew-tests>)
+add_executable(cmp5-homebrew-io-tests tests/test_homebrew_read_errors.c ${RULES})
+target_include_directories(cmp5-homebrew-io-tests PRIVATE
+ src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-homebrew-io-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_native_homebrew.py
+ $<TARGET_FILE:cmp5-native-homebrew-tests>
+ $<TARGET_FILE:cmp5-homebrew-io-tests>)
 
 # Deterministic identity races: replacement by rename or in-place
 # metadata mutation between read and publication must fail closed.

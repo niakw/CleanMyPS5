@@ -228,3 +228,15 @@ mais marque la couverture du dossier `partial`. Une fixture avec 130
 jeux distincts exerce ce cas, sans demander l'accès à une vraie PS5.
 Ce seuil limite seulement l'association des noms, pas le nombre maximal
 de médias du catalogue (10 000 sous les limites globales de scan).
+
+### Applications/homebrews : inventaire résistant aux erreurs de dossier
+
+Le scanner des homebrews détecte les erreurs `readdir()` (distinctes
+d'une fin de dossier) et `closedir()` : ces erreurs rendent le bilan
+**partiel** au lieu de le laisser faussement « complet ». Une anomalie
+dans un seul sous-dossier ne masque plus automatiquement les autres
+fichiers lisibles, à condition de rester dans les limites fixes de temps,
+profondeur et nombre de visites. La fixture hôte injecte une erreur EIO
+à la fin d'une énumération et une erreur de fermeture, vérifie le statut
+partiel ainsi que la présence des applications observées. Toujours
+lecture seule : aucun titre, plugin ou fichier système n'est supprimé.

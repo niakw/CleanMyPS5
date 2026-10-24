@@ -20,5 +20,9 @@ with tempfile.TemporaryDirectory() as directory:
     result=subprocess.run([sys.argv[1],str(root)],
       check=True,text=True,capture_output=True,timeout=12)
     assert "Native homebrew summary and cancellation: PASS" in result.stdout
+    if len(sys.argv)>2:
+        io_result=subprocess.run([sys.argv[2],str(root)],
+          check=True,text=True,capture_output=True,timeout=12)
+        assert "Homebrew readdir and closedir failures" in io_result.stdout
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
 print("Homebrew native fixture: PASS")

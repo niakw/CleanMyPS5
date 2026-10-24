@@ -57,7 +57,12 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*p
  DIR*d=fdopendir(fd);
  if(!d){close(fd);*partial=1;return;}
  struct dirent*e;
- while((e=readdir(d))){
+ for(;;){
+  /* A NULL entry means EOF or an I/O failure. Metadata operations on
+   * earlier children can modify errno, so clear it before each read. */
+  errno=0;
+  e=readdir(d);
+  if(!e){if(errno!=0)*partial=1;break;}
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
   a->visited++;
   if(over(a)){*partial=1;break;}
@@ -82,9 +87,10 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*p
    if(child<0){*partial=1;continue;}
    count_tree(a,child,depth+1,size,files,partial);
   }
-  if(*partial)break;
+  /* A corrupt sibling is not a global hard stop. Continue to count
+   * readable files within the fixed visit/time/depth budgets. */
  }
- closedir(d);
+ if(closedir(d)!=0)*partial=1;
 }
 static int open_dir(const char*root,const char*relative){
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
@@ -104,7 +110,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
  const int anchored_fd=fd;
  DIR*d=fdopendir(fd);if(!d){close(fd);a->partial=1;return;}
  struct dirent*e;
- while((e=readdir(d))){
+ for(;;){
+  errno=0;
+  e=readdir(d);
+  if(!e){if(errno!=0)a->partial=1;break;}
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
   a->visited++;
   if(over(a)){a->partial=1;break;}
@@ -147,7 +156,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   if(partial)a->partial=1;
   if(a->out.bad||over(a))break;
  }
- closedir(d);
+ if(closedir(d)!=0)a->partial=1;
 }
 char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  Cmp5HomebrewStats *stats,Cmp5CancelCheck cancel,void *context){
