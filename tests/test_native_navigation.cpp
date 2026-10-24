@@ -899,7 +899,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==15u); // One extra hello for interrupted-job resume.
+ assert(mock_ampr_gets==16u); // Error-state refresh and resume each probe the engine.
  /* A real image requires a one-to-one SMP title identity at PRE and POST. */
  mock_ampr_online=true;
  mock_ampr_post_bodies=0u;
@@ -975,7 +975,7 @@ int main(){
  press(cross);assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==24u); // Include the extra hello before image monitor reads.
+ assert(mock_ampr_gets==25u); // Account for error-state refresh and resume probes.
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  /* Full UI->engine flow: a changed source length between confirmation
