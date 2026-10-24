@@ -23,6 +23,21 @@
 | Orphelins PKG/DLC | Non | — | — | — | **Désactivé** |
 | Compression AMPR/LZ4 | Packer GPL intégré au titre natif ; choix du dossier et stockage, précontrôle strict, double confirmation, conversion sans suppression, statut compact lié au titre et pause/reprise | Tests hôte des chemins GET/POST, progression, absence de doublon, CI titre natif | Lancement réel de jeux compressés PS5 13.60 | **À faire** | **Conversion dossiers et images SMP intégrée au code ; sortie `.ffpfsc` et gameplay sur 13.60 non validés** |
 
+## Analyse générale native coordonnée (24 octobre 2026)
+
+Le bouton **Analyse** orchestre dorénavant cinq familles en lecture seule :
+droits/sondes, captures, homebrews/plugins, autoload, dossiers/images
+de jeux. Chaque famille conserve ses propres limites et avertissements
+pour ne pas faire croire qu'un résultat absent signifie un stockage vide.
+La page L1/R1 présente ce bilan général, et X relance le contrôle entier.
+L'annulation par Cercle empêche la publication de résultats intermédiaires.
+
+Les comparaisons de doublons restent explicites, car elles lisent les
+fichiers entiers. L'analyse générale ne démarre pas le moteur AMPR, ne
+convertit pas de jeu et n'effectue aucune suppression. Les permissions
+du titre, la validation console 13.60 et les index de la Galerie
+demeurent des blocages indépendants.
+
 ## Portes restantes
 
 **P0 — Titre natif et droits réellement accessibles** : vérifier ultérieurement le package `.ffpkg` ou le dossier `PPSA99784/` via un gestionnaire de titres compatible, la manette, les pages et les sondes natives **sans helper** ; la connexion loopback au helper devient facultative. Déterminer séparément les droits du titre et ceux du payload ; un titre installé ne confère pas d'élévation de privilèges.

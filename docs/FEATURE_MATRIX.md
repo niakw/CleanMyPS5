@@ -15,7 +15,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 
 | Domaine / besoin PS5 | CleanMyPS5 | Écart vérifié et acceptation |
 |---|---|---|
-| Analyse intelligente : analyse coordonnée | 🟡 | Orchestration lecture seule et scorecard ajoutées (inventaire, stockage, doublons, autoload et chemins). Erreurs par module visibles ; reste non validé sur PS5 |
+| Analyse intelligente : analyse coordonnée | 🟡 | **Un lancement natif** coordonne sondes d'accès, captures, homebrews, autoload et jeux/images ; L1/R1 affiche les modules séparément avec leur couverture. Doublons sur demande et compression jamais déclenchée automatiquement. Non vérifié sur PS5 13.60 |
 | Analyse intelligente : recommandation et bilan | 🟡 | Bilan agrégé natif avec nombre de captures volumineuses (≥50 Mio), anciennes (mtime ≥90 jours) ; aucune suggestion certifiée ni espace réellement libéré |
 | Cleanup : fichiers journaux | 🟡 | Journaux système et d’apps inconnues inventoriés, aucune purge validée |
 | Cleanup : caches utilisateur/système | ❌ | Métadonnées des caches HTTP système et caches potentiels d’apps ; aucune suppression certifiée |

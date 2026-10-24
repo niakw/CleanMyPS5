@@ -558,6 +558,27 @@ int main(){
  controller=1;
  ps5::demo::Canvas canvas;
  assert(screen==Screen::menu);
+ /* One global Analyse coordinates independent, read-only scanners. */
+ assert(selected==0);
+ const unsigned engine_calls=mock_ampr_gets;
+ press(cross);assert(screen==Screen::analyze);
+ finish_scan();
+ assert(general_audit_completed&&summary_status==Summary::ok);
+ assert(homebrew_checked&&homebrew_stats.entries==8u);
+ assert(autoload_checked&&autoload_stats.checked==11u);
+ assert(general_games.checked&&general_games.image_files==3u&&
+   general_games.folder_games==2u&&general_games.partial);
+ assert(!duplicates_checked&&mock_ampr_gets==engine_calls);
+ scene(canvas);
+ press(r1);assert(analyze_page==1u);
+ scene(canvas);
+ press(l1);assert(analyze_page==0u);
+ press(r1);assert(analyze_page==1u);
+ press(cross);finish_scan();
+ assert(general_audit_completed&&general_games.checked);
+ assert(mock_ampr_gets==engine_calls);
+ press(circle);assert(screen==Screen::menu);
+ analyze_page=0u;
  press(down);
  assert(selected==1);
  press(down);
