@@ -117,6 +117,16 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   e=readdir(d);
   if(!e){if(errno!=0)a->partial=1;break;}
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
+  /* Nonoverlapping accounting: /data/homebrew and etaHEN/plugins are
+   * already listed separately. Do not count their containers a second
+   * time as generic application data. Keep unrelated etaHEN files. */
+  if(!strcmp(kind,"app-data")){
+   if(!strcmp(relative,"data")&&
+      (!strcasecmp(e->d_name,"homebrew")||
+       !strcasecmp(e->d_name,"etaHEN")))continue;
+   if(!strcmp(relative,"data/etaHEN")&&
+      !strcasecmp(e->d_name,"plugins"))continue;
+  }
   a->visited++;
   if(over(a)){a->partial=1;break;}
   struct stat st;
@@ -176,6 +186,8 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  audit_root(a,root,"data/homebrew","homebrew");
  if(!over(a))audit_root(a,root,"data/etaHEN/plugins","plugin");
  if(!over(a))audit_root(a,root,"data","app-data");
+ /* Preserve unrelated etaHEN metadata without recounting its plugins. */
+ if(!over(a))audit_root(a,root,"data/etaHEN","app-data");
  if(!over(a))audit_root(a,root,"user/app","installed");
  for(int slot=0;slot<8&&!over(a);slot++){
   char path[80];snprintf(path,sizeof(path),"mnt/usb%d/homebrew",slot);audit_root(a,root,path,"homebrew");

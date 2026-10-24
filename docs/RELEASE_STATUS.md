@@ -252,3 +252,15 @@ images identiques suivantes. L'explorateur continue désormais après un
 et n'autorise aucune suppression. Le test injecte `EIO` sur la **première**
 image rencontrée, puis exige la comparaison exacte des deux autres,
 sans supposer un ordre d'énumération du disque.
+
+### Bilan des applications sans double comptage évident
+
+Le rapport hôte d'applications inspectait séparément `/data/homebrew`
+ainsi que `/data/etaHEN/plugins`, puis retrouvait ces mêmes dossiers
+comme entrées « app-data » du parent `/data`, gonflant les tailles
+nominales. Le scanner exclut désormais ces conteneurs du parent et
+inspecte séparément les autres entrées de `/data/etaHEN`, sans
+recompter `plugins`. Un test contrôle le total exact sur des fichiers
+synthétiques et le maintien des exclusions de sauvegardes/configurations.
+Les chiffres restent **nominaux et observés**, pas une quantité de stockage
+récupérable ; aucune suppression ni désinstallation n'a été activée.

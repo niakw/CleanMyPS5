@@ -14,8 +14,14 @@ int main(int argc,char**argv){
  assert(stats.homebrew==1);
  assert(stats.plugins==1);
  assert(stats.installed==1);
- assert(stats.entries>=4);
- assert(stats.nominal_bytes>0);
+ assert(stats.app_data==2);
+ assert(stats.entries==5);
+ /* No plugin/homebrew directory is counted twice via /data. The
+  * protected config and saves directories remain excluded. */
+ assert(stats.nominal_bytes==22u);
+ assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
+ assert(!strstr(report,"\"path\":\"/data/homebrew\","));
+ assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
  assert(strstr(report,"\"risk\":\"protected\""));
  free(report);
  Cmp5HomebrewStats interrupted={0};

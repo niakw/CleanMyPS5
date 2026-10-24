@@ -10,6 +10,8 @@ with tempfile.TemporaryDirectory() as directory:
         "data/homebrew/ExampleTool/eboot.elf":b"ELF",
         "data/etaHEN/plugins/plugin.elf":b"PLUGIN",
         "data/ExampleTool/config.json":b"{}",
+        "data/ExampleTool/public.bin":b"USER",
+        "data/etaHEN/notice.txt":b"ETA",
         "user/app/TEST0001/eboot.bin":b"BINARY",
         "data/ExampleTool/saves/SECRET_SAVE.bin":b"PRIVATE",
     }
