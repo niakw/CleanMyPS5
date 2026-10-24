@@ -281,7 +281,10 @@ static int matches_visible_companions(const char*root,
     cancelled(cancel,ctx))return 0;
  const Cmp5MediaCandidate*primary=NULL;
  for(uint32_t i=0;i<count;i++){
-  if(parts[i].media_type!=3u){primary=&parts[i];break;}
+  /* The external thumbnail is never the selected primary capture. */
+  if(parts[i].media_type==1u||parts[i].media_type==2u){
+   primary=&parts[i];break;
+  }
  }
  if(!primary)return 0;
  Cmp5MediaCandidate visible[CMP5_GROUP_MAX]={{0}};

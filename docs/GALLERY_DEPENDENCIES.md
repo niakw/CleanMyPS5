@@ -40,10 +40,17 @@ fantôme dans l'interface Sony.
 - Une miniature extérieure inaccessible ou suspecte rend **toute
   inspection du groupe non fiable** : aucun compteur de fichiers ni
   volume n'est publié. Le prototype de sauvegarde **hôte uniquement**
-  refuse un groupe photo dès qu'une miniature extérieure est trouvée
-  ou ne peut pas être vérifiée. La CI injecte `EACCES` sur le fichier
-  miniature et vérifie le refus ainsi que l'effacement des résultats
-  de planification. Aucune écriture sur PS5 n'est déverrouillée.
+  refuse un groupe photo si une miniature extérieure est inaccessible
+  ou suspecte. Si un candidat stable existe sous le chemin connu, il
+  devient un quatrième membre possible d'un **groupe de sauvegarde privé
+  hôte**, toujours plafonné à 512 Mio et 4 membres. La copie du
+  fichier thumbnail est vérifiée par SHA-256, comme les autres fichiers.
+  La restauration ne vise qu'un second répertoire privé à droits 0700 :
+  elle ne réécrit **jamais** la Galerie PS5. Les tests vérifient la
+  présence du fichier dans le manifeste, sa copie, sa restauration et le
+  rejet d'un groupe qui oublierait cette miniature. La CI injecte
+  également `EACCES` pour vérifier un refus d'accès. Rien de ceci ne
+  prouve l'exhaustivité des index Sony ni n'autorise une suppression.
 - Même si les compagnons visibles réussissent, aucun bit ni résultat
   `verified` n'autorise une suppression, puisque la cartographie
   **inter-répertoires et index système** manque encore.

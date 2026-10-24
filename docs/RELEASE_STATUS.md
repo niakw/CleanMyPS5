@@ -4,6 +4,21 @@ L'application n'a **pas encore atteint la fin du développement**. Distinguer
 explicitement deux objectifs évite de faire passer un build CI pour une
 application PS5 validée.
 
+## Sauvegarde privée d'une miniature externe (24 octobre 2026)
+
+Le prototype **hôte uniquement** peut maintenant vérifier une copie
+SHA-256 d'une miniature JPG.JPEG conservée sous thumbnails/photo,
+au sein d'une transaction privée contenant aussi le média visible et
+son fichier DAT. Quatre membres au maximum, 512 Mio au total,
+vérification des identités, refus d'un groupe sans la miniature connue
+et restauration strictement dans un second espace privé 0700.
+Des fixtures exécutent les vraies routines de sauvegarde/restauration.
+
+Ceci **ne prouve pas** le graphe complet de la Galerie Sony. Les
+bases, index, éventuels journaux WAL/SHM et les dépendances inconnues
+ne sont pas inclus ; aucune écriture en Galerie ni suppression n'est
+autorisée dans le titre PS5.
+
 ## ELF intégrés : prévalidation renforcée (24 octobre 2026)
 
 Avant toute transmission au chargeur local, le titre contrôle l'identité

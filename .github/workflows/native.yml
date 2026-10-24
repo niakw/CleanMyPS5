@@ -10,6 +10,8 @@ on:
       - tests/test_gallery_thumbnail.c
       - tests/test_gallery_thumbnail.py
       - tests/test_gallery_thumbnail_denied.c
+      - tests/test_gallery_thumbnail_backup.c
+      - tests/test_gallery_thumbnail_backup.py
       - tests/render_native_preview.py
       - tests/native_mock/**
       - src/native/**
@@ -128,6 +130,14 @@ jobs:
             -o /tmp/cmp5-gallery-thumbnail-denied
           python3 tests/test_gallery_thumbnail.py \
             /tmp/cmp5-gallery-thumbnail /tmp/cmp5-gallery-thumbnail-denied
+      - name: Verify private Gallery backup includes cross-tree thumbnail
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_gallery_thumbnail_backup.c \
+            src/native/capture_companions.c src/native/verified_group.c \
+            src/native/verified_backup.c src/native/sha256.c \
+            -o /tmp/cmp5-gallery-private-backup
+          python3 tests/test_gallery_thumbnail_backup.py /tmp/cmp5-gallery-private-backup
       - name: Validate JPEG/PNG decoding and anchored photo snapshots
         run: |
           bash scripts/fetch_stb_decoder.sh /tmp/cmp5-stb
