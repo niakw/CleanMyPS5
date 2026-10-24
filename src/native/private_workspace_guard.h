@@ -8,12 +8,34 @@
 #define CMP5_PRIVATE_WORKSPACE_GUARD_H
 #include <fcntl.h>
 #include <limits.h>
+#include <stdint.h>
+#include <sys/statvfs.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+/* Host-only preflight, shared by private backup and private restore.
+ * Compare user-available blocks WITHOUT overflowing available*frsize.
+ * The result is advisory, never a reservation or permission to delete.
+ * Leave a one-MiB margin and metadata blocks before the first output. */
+static inline int cmp5_workspace_has_capacity(int fd,uint64_t bytes,
+ uint32_t outputs){
+ if(fd<0||bytes==0||bytes>512ULL*1024ULL*1024ULL||
+    outputs==0||outputs>5u)return 0;
+ struct statvfs volume;
+ if(fstatvfs(fd,&volume)!=0||(volume.f_flag&ST_RDONLY))return 0;
+ const uint64_t block=(uint64_t)volume.f_frsize;
+ if(block==0u||block>UINT64_MAX/outputs)return 0;
+ const uint64_t metadata=block*(uint64_t)outputs;
+ if(metadata>UINT64_MAX-1048576u-576u)return 0;
+ const uint64_t reserve=metadata+1048576u+576u;
+ if(bytes>UINT64_MAX-reserve)return 0;
+ const uint64_t needed=bytes+reserve;
+ const uint64_t required_blocks=needed/block+(needed%block!=0u);
+ return (uint64_t)volume.f_bavail>=required_blocks;
+}
 static inline int cmp5_workspace_prefix(const char*path,const char*root){
  const size_t length=strlen(root);
  return strncmp(path,root,length)==0 &&

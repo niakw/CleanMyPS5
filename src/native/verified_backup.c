@@ -180,6 +180,9 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
  if(source<0)return 0;
  int dir=private_dir(workspace);
  if(dir<0){close(source);return 0;}
+ if(!cmp5_workspace_has_capacity(dir,c->bytes,1u)){
+  close(source);close(dir);return 0;
+ }
  char temp[56];int stage=start_stage(dir,id,temp);
  if(stage<0){close(source);close(dir);return 0;}
  uint8_t header[HEADER_SIZE]={0};memcpy(header,magic,8);put64(header+8,c->bytes);
@@ -274,7 +277,8 @@ int cmp5_restore_backup(const char*backup,const char*id,
   * storage, regardless of the spelling of source and destination paths. */
  if(fstat(source_dir,&source_root)!=0||fstat(target,&target_root)!=0||
     (source_root.st_dev==target_root.st_dev&&
-     source_root.st_ino==target_root.st_ino)){
+     source_root.st_ino==target_root.st_ino)||
+    !cmp5_workspace_has_capacity(target,verified.bytes,1u)){
   close(source);close(source_dir);close(target);return 0;
  }
  if(lseek(source,HEADER_SIZE,SEEK_SET)!=(off_t)HEADER_SIZE){

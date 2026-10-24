@@ -75,6 +75,23 @@ ctest --test-dir build -R verified_backup_fixture --output-on-failure
 
 L'autre parcours autonome `python3 tests/test_verified_backup.py` compile le même code sans utiliser de données de la console.
 
+## Contrôle commun d'espace libre (hôte uniquement)
+
+Avant de créer la première capsule de sauvegarde ou le premier fichier
+restauré dans un **dossier privé**, les transactions individuelles et
+groupées exigent une mesure `fstatvfs` utilisable. La comparaison se fait
+sur `f_bavail` (blocs disponibles au processus), jamais `f_bfree`,
+et vérifie la capacité prévue de **tous les membres du groupe**, le
+manifeste, les métadonnées et une marge d'un Mio. Un dossier readonly,
+une capacité inconnue ou trop faible, ou un calcul impossible annule
+l'opération sans créer de fichier. Les tests C injectent `EIO`, un
+montage readonly, les blocs réservés et des seuils exacts.
+
+Ce contrôle ponctuel n'est **pas une réservation de capacité**. Une
+écriture concurrente peut encore épuiser le disque ; la copie gère
+toujours ses erreurs, fsync et les capsules incomplètes. Rien n'est
+restauré dans la Galerie PS5 et aucune suppression n'est activée.
+
 ## Précontrôle de l'espace de noms avant toute copie (hôte uniquement)
 
 La restauration et la sauvegarde de groupe rejettent désormais **avant

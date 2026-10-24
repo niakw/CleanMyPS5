@@ -318,6 +318,12 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  struct stat st;
  int clear=empty_group_namespace(dir,id)&&
    fstatat(dir,commit_name,&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT;
+ uint64_t total=0u;
+ for(unsigned i=0;clear&&i<count;i++){
+  if(parts[i].bytes>MAX_TOTAL-total)clear=0;
+  else total+=parts[i].bytes;
+ }
+ if(clear)clear=cmp5_workspace_has_capacity(dir,total,count+1u);
  close(dir);
  if(!clear)return 0;
  Cmp5BackupReceipt pieces[CMP5_GROUP_MAX]={{0}};
@@ -403,6 +409,14 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  for(unsigned i=0;ok&&i<count;i++){
   char name[48];member_name(name,id,i);
   ok=fstatat(dest,name,&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT;
+ }
+ if(ok){
+  uint64_t total=0u;
+  for(unsigned i=0;i<count;i++){
+   if(pieces[i].bytes>MAX_TOTAL-total){ok=0;break;}
+   total+=pieces[i].bytes;
+  }
+  if(ok)ok=cmp5_workspace_has_capacity(dest,total,count+1u);
  }
  close(dest);if(!ok)return 0;
  for(unsigned i=0;i<count;i++){

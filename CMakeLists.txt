@@ -231,6 +231,17 @@ add_test(NAME game_images_read_errors COMMAND ${Python3_EXECUTABLE}
  ${CMAKE_SOURCE_DIR}/tests/test_game_images_read_errors.py
  $<TARGET_FILE:cmp5-game-images-read-errors>)
 
+# Host-only shared capacity gate. Simulate full/read-only/unknown volumes
+# before starting any private backup or private restore transaction.
+add_executable(cmp5-private-workspace-capacity
+ tests/test_private_workspace_capacity.c)
+target_include_directories(cmp5-private-workspace-capacity PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-private-workspace-capacity PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME private_workspace_capacity COMMAND cmp5-private-workspace-capacity)
+
 # Host-only private transaction workspaces: reject privileged PS5 roots,
 # parent symlink swaps, path traversal and directories not owned as 0700.
 add_executable(cmp5-private-workspace-guard tests/test_private_workspace_guard.c)
