@@ -46,7 +46,8 @@ La réponse du helper est vérifiée ligne par ligne : chemin ancré,
 statut, raison, flags de lecture seule et informations de montage.
 Le nombre de chemins accessibles, refusés, absents ou autres, et les
 montages indéterminés, doivent concorder avec le résumé. Les
-contradictions sont rejetées sans publier de compteurs. Le décodeur
+contradictions, les chemins en double et les composants `.`, `..` ou
+vides sont rejetés sans publier de compteurs. Le décodeur
 est sans allocation et borné à 64 entrées, et garde le support des
 anciens helpers ne fournissant pas `mountInfoKnown`. La conformité
 d'une réponse n'authentifie pas le processus loopback : aucune

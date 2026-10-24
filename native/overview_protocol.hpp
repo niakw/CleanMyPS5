@@ -26,6 +26,7 @@ class OverviewReader {
  bool entries_reported=false;
  enum class Scope { root,categories,review,gallery,ignored };
  struct Span { const char*data=nullptr;std::size_t size=0;bool escaped=false; };
+ Span seen_paths[64]{}; // Views into immutable source buffer, no allocation.
  static bool key(Span s,const char*want) noexcept {
   const std::size_t n=std::strlen(want);
   return !s.escaped&&s.size==n&&std::memcmp(s.data,want,n)==0;
@@ -234,15 +235,25 @@ class OverviewReader {
   }
   if((mask&31u)!=31u||path.size<2u||path.size>=256u||path.data[0]!='/')
    return false;
-  for(std::size_t i=1;i<path.size;i++){
+  std::size_t part_start=1u;
+  for(std::size_t i=1u;i<=path.size;i++){
+   if(i==path.size||path.data[i]=='/'){
+    const std::size_t part_size=i-part_start;
+    if(part_size==0u||
+       (part_size==1u&&path.data[part_start]=='.')||
+       (part_size==2u&&path.data[part_start]=='.'&&
+        path.data[part_start+1u]=='.'))return false;
+    part_start=i+1u;continue;
+   }
    const char c=path.data[i];
    if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||
-        (c>='0'&&c<='9')||c=='/'||c=='_'||c=='.'||c=='-'))
-    return false;
-   if(c=='/'&&(path.data[i-1]=='/'||
-      (path.data[i-1]=='.'&&(i==2u||path.data[i-2]=='/'))))return false;
+        (c>='0'&&c<='9')||c=='_'||c=='.'||c=='-'))return false;
   }
-  if(path.data[path.size-1]=='/'||path.data[path.size-1]=='.')return false;
+  // Two rows for the same root must not inflate rights or missing counts.
+  for(unsigned i=0;i<entry_count;i++)
+   if(seen_paths[i].size==path.size&&
+      std::memcmp(seen_paths[i].data,path.data,path.size)==0)return false;
+  seen_paths[entry_count]=path;
   unsigned category=3u;
   if(key(status,"accessible")){
    category=0u;

@@ -142,6 +142,14 @@ int main(){
  invalid_preflight(replace_once(preflight,
    R"("path":"/deny1")",R"("path":"../deny1")"));
  invalid_preflight(replace_once(preflight,
+   R"("path":"/deny1")",R"("path":"/data/../user")"));
+ invalid_preflight(replace_once(preflight,
+   R"("path":"/deny1")",R"("path":"/data/./user")"));
+ invalid_preflight(replace_once(preflight,
+   R"("path":"/deny1")",R"("path":"/data//user")"));
+ invalid_preflight(replace_once(preflight,
+   R"("path":"/deny1")",R"("path":"/deny2")"));
+ invalid_preflight(replace_once(preflight,
    R"("status":"denied","reason":"permission-denied")",
    R"("status":"accessible","reason":"directory-opened")"));
  invalid_preflight(replace_once(preflight,
