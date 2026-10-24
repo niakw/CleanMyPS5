@@ -1,4 +1,6 @@
 #define _DEFAULT_SOURCE
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,9 +48,24 @@ static ssize_t race_read(int fd,void*buffer,size_t count){
  }
  return got;
 }
+/* Make the FIRST natural directory EOF look like a real EIO failure.
+ * The production iterator must preserve the discovered candidate pair
+ * but never advertise its coverage as complete. */
+static int inject_directory_error=0;
+static int injected_directory_error=0;
+static struct dirent* race_readdir(DIR*d){
+ struct dirent*entry=readdir(d);
+ if(!entry&&inject_directory_error&&!injected_directory_error){
+  errno=EIO;
+  injected_directory_error=1;
+ }
+ return entry;
+}
 #define open race_open
 #define read race_read
+#define readdir race_readdir
 #include "../src/native/duplicates.c"
+#undef readdir
 #undef read
 #undef open
 
@@ -112,6 +129,19 @@ int main(int argc,char **argv){
    strstr(lost,"\"partial\":true")!=NULL;
  free(lost);
  if(!safe)return 17;
+ /* A real readdir EIO is not EOF. Existing matched images remain
+  * useful, but the complete-coverage flag must be false. */
+ inject_directory_error=1;injected_directory_error=0;
+ Cmp5DuplicateStats io={0};
+ size_t io_len=0;
+ char*io_report=cmp5_duplicates_with_stats(test_backup,&io_len,&io);
+ inject_directory_error=0;
+ if(!io_report)return 23;
+ const int io_safe=injected_directory_error&&io.partial==1u&&
+   io.exact_groups==1u&&io.matching_files==2u&&
+   strstr(io_report,"\"partial\":true")!=NULL;
+ free(io_report);
+ if(!io_safe)return 24;
  /* Files outside the bounded comparison are counted and cause a partial
   * result. Other small matches should still be returned as verified. */
  char huge[4096];
