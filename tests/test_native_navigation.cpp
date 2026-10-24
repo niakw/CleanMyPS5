@@ -1272,6 +1272,25 @@ int main(){
   };
   selected=2;
   save(Screen::menu,"01-menu");
+  // These native UI captures are synthetic and certify only rendering
+  // across both pages, not PS5 device coverage or filesystem permissions.
+  general_audit_completed=true;
+  general_games=GeneralGameAudit{};
+  general_games.checked=true;general_games.partial=true;
+  general_games.image_files=3u;general_games.folder_games=2u;
+  general_games.scanned_roots=2u;general_games.unavailable_roots=1u;
+  homebrew_checked=true;homebrew_stats=Cmp5HomebrewStats{};
+  homebrew_stats.homebrew=3u;homebrew_stats.plugins=2u;
+  homebrew_stats.app_data=1u;homebrew_stats.installed=2u;
+  homebrew_stats.partial=1u;
+  autoload_checked=true;autoload_stats=Cmp5AutoloadStats{};
+  autoload_stats.checked=11u;autoload_stats.present=5u;
+  autoload_stats.unreadable=1u;autoload_stats.oversized=1u;
+  analyze_page=0u;
+  save(Screen::analyze,"01g-general-analysis");
+  analyze_page=1u;
+  save(Screen::analyze,"01h-general-modules");
+  analyze_page=0u;
   save(Screen::compression,"01b-compression");
   compression_view=1;compression_selection=0;
   save(Screen::compression,"01c-compression-games");
