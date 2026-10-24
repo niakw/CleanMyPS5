@@ -423,3 +423,11 @@ l'interface DualSense indique désormais **« sortie partielle conservée »**
 et avertit qu'une reprise doit être précédée d'une vérification d'état.
 Une conversion interrompue ne doit jamais être présentée comme un
 nettoyage réussi ni comme des octets automatiquement libérés.
+
+Pour une image ShadowMountPlus, le contrôle au niveau de la file exige
+maintenant aussi une réponse **fraîche** de SMP : source réellement gérée,
+disponible, de type `image`, et dont le chemin ainsi que le Title ID
+correspondent exactement au job repris. Les formats précompressés ou
+inconnus sont refusés. Il ne suffit plus de fabriquer un checkpoint
+avec un Title ID de forme plausible. L'absence de réponse SMP entraîne
+un refus sans écriture, jamais une autorisation implicite.

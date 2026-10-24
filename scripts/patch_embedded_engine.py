@@ -114,8 +114,18 @@ def main(root: Path):
     return -1;
   char trusted_id[16] = {0};
   if (normalized.smp_title[0]) {
+    smp_game owner = {0};
     if (!S_ISREG(source_identity.st_mode) ||
-        strlen(normalized.smp_title) != 9) return -1;
+        strlen(normalized.smp_title) != 9 ||
+        smp_game_info(normalized.smp_title, &owner) != 0 ||
+        !owner.managed || !owner.source_available ||
+        strcmp(owner.path, normalized.source) != 0 ||
+        strcmp(owner.title_id, normalized.smp_title) != 0 ||
+        strcmp(owner.source_type, "image") != 0 ||
+        (strcmp(owner.image_type, "exfatfs") != 0 &&
+         strcmp(owner.image_type, "ufs") != 0 &&
+         strcmp(owner.image_type, "pfs") != 0))
+      return -1;
     snprintf(trusted_id, sizeof trusted_id, "%s", normalized.smp_title);
   } else {
     if (!S_ISDIR(source_identity.st_mode)) return -1;

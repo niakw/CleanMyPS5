@@ -111,6 +111,13 @@ def check_engine(root: Path) -> None:
             "queue source descriptor check": 'cmp5_game_path_stat("/", normalized.source, false, &source_identity)',
             "queue destination descriptor check": 'cmp5_game_path_on_disk("/", normalized.dest_base, true)',
             "queue rejects stale saved title": 'strcmp(normalized.name, trusted_id) != 0',
+            "queue revalidates SMP owner": 'smp_game_info(normalized.smp_title, &owner) != 0',
+            "queue rechecks SMP source": 'strcmp(owner.path, normalized.source) != 0',
+            "queue rechecks SMP title": 'strcmp(owner.title_id, normalized.smp_title) != 0',
+            "queue requires managed available image": '!owner.managed || !owner.source_available',
+            "queue requires image owner": 'strcmp(owner.source_type, "image") != 0',
+            "queue excludes compressed PFSC": 'strcmp(owner.image_type, "exfatfs") != 0',
+
             "queue derives title ID": 'snprintf(normalized.name, sizeof normalized.name, "%s", trusted_id);',
         }.items():
             if fragment not in queue:
