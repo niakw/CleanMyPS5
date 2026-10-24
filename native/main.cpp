@@ -2054,10 +2054,15 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
       "%s  %llu MIO NOMINAUX  %u FICHIERS%s",category,
       static_cast<unsigned long long>(item.nominal_bytes/1048576ULL),
       item.files,item.partial?"  PARTIEL":"");
-   else
+   else if(item.nominal_bytes>=1024ULL)
     (void)std::snprintf(detail,sizeof(detail),
       "%s  %llu KIO NOMINAUX  %u FICHIERS%s",category,
       static_cast<unsigned long long>(item.nominal_bytes/1024ULL),
+      item.files,item.partial?"  PARTIEL":"");
+   else
+    (void)std::snprintf(detail,sizeof(detail),
+      "%s  %llu OCTETS  %u FICHIERS%s",category,
+      static_cast<unsigned long long>(item.nominal_bytes),
       item.files,item.partial?"  PARTIEL":"");
    panel(canvas,355+i*144,title,detail,Color::cyan);
   }
