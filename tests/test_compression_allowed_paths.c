@@ -105,6 +105,7 @@ int main(void) {
   * not the destination the user approved. */
  char old_dest[512];
  assert(snprintf(old_dest,sizeof(old_dest),"%s/mnt/usb0/homebrew_old",sandbox)>0);
+ assert(snprintf(alias,sizeof(alias),"%s/mnt/usb0/homebrew",sandbox)>0);
  assert(rename(alias,old_dest)==0);
  assert(mkdir(alias,0700)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
