@@ -22,6 +22,17 @@ d'un **autre** processus ne valent pas validation de suppression.
 Le titre affiche UID/EUID à titre informatif, jamais comme preuve de droits.
 Les copies/restaurations SHA-256 du dépôt sont **hôte uniquement**.
 
+### Diagnostic des montages non vérifiables (24 octobre 2026)
+
+Un accès réussi au dossier n'implique pas que l'on connaît l'état
+de son système de fichiers. Si `fstatvfs` échoue, le helper émet
+`mount-unverified` et `mountInfoKnown:false`, conserve son
+`writableHint:false` et incrémente `mountInfoUnknown` dans le résumé.
+Un test simule un échec de `fstatvfs` alors que `faccessat` aurait
+annoncé l'écriture autorisée : aucune tentative d'obtenir cet
+indicateur n'est alors faite. Ces données sont purement diagnostiques
+et ne donnent jamais de droit de suppression.
+
 ## Prérequis avant un vrai nettoyeur
 
 1. Relever séparément sur PS5 13.60 les droits effectifs des trois acteurs et les chemins réellement accessibles.

@@ -298,8 +298,13 @@ with tempfile.TemporaryDirectory() as temp:
   assert preflight["mode"]=="read-only"
   assert preflight["probeMethod"]=="anchored-directory-and-mount-probe"
   assert preflight["summary"]["accessible"]>=4
-  assert all(isinstance(x["writableHint"],bool) and isinstance(x["readOnlyMount"],bool) for x in preflight["entries"])
-  assert all(x["reason"] in ("permission-denied","not-found","symlink-blocked","not-a-directory","open-failed","read-only-mount","directory-opened") for x in preflight["entries"])
+  assert all(isinstance(x["writableHint"],bool) and isinstance(x["readOnlyMount"],bool)
+      and isinstance(x["mountInfoKnown"],bool) for x in preflight["entries"])
+  assert all(not x["writableHint"] or (x["mountInfoKnown"] and not x["readOnlyMount"])
+      for x in preflight["entries"])
+  assert preflight["summary"]["mountInfoUnknown"]==sum(
+      x["status"]=="accessible" and not x["mountInfoKnown"] for x in preflight["entries"])
+  assert all(x["reason"] in ("permission-denied","not-found","symlink-blocked","not-a-directory","open-failed","read-only-mount","directory-opened","mount-unverified") for x in preflight["entries"])
   checks={x["path"]:x["status"] for x in preflight["entries"]}
   assert checks["/user/av_contents/photo"]=="accessible"
   assert checks["/user/av_contents/video"]=="accessible"

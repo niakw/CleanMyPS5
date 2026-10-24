@@ -20,6 +20,7 @@ typedef struct {
  const char *reason;
  int writable_hint;
  int read_only_mount;
+ int mount_info_known;
 } PathStatus;
 
 static int permission_denied(int error){
@@ -27,7 +28,7 @@ static int permission_denied(int error){
 }
 
 static PathStatus probe(const char *root, const char *relative){
- PathStatus result={"unknown","open-failed",0,0};
+ PathStatus result={"unknown","open-failed",0,0,0};
  if(!root||!relative||strlen(relative)>=PREFLIGHT_PATH_MAX)return result;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0){
@@ -60,11 +61,17 @@ static PathStatus probe(const char *root, const char *relative){
  result.status="accessible";
  result.reason="directory-opened";
  if(fstatvfs(fd,&volume)==0){
+  result.mount_info_known=1;
   result.read_only_mount=(volume.f_flag & ST_RDONLY)!=0;
   if(result.read_only_mount)result.reason="read-only-mount";
+ }else{
+  /* A missing mount capability cannot authorize a write hint. */
+  result.reason="mount-unverified";
  }
- // A non-destructive indication, not authorization to delete. No files are created.
- result.writable_hint=!result.read_only_mount&&faccessat(fd,".",W_OK,0)==0;
+ /* Advisory only, never permits deletion. Do not claim writability without
+  * first verifying that the mounted filesystem is not read-only. */
+ result.writable_hint=result.mount_info_known&&!result.read_only_mount&&
+                      faccessat(fd,".",W_OK,0)==0;
  close(fd);return result;
 }
 
@@ -79,7 +86,7 @@ char *cmp5_preflight(const char *root,size_t *out_len){
  };
  char*out=(char*)calloc(1,PREFLIGHT_JSON_MAX);
  if(!out)return NULL;
- size_t length=0, accessible=0, denied=0, absent=0, other=0, writable=0, readonly=0;
+ size_t length=0, accessible=0, denied=0, absent=0, other=0, writable=0, readonly=0, unknown_mounts=0;
  int n=snprintf(out,PREFLIGHT_JSON_MAX,
   "{\"schemaVersion\":1,\"mode\":\"read-only\",\"scope\":\"known-paths-only\","
   "\"probeMethod\":\"anchored-directory-and-mount-probe\",\"entries\":[");
@@ -94,19 +101,22 @@ char *cmp5_preflight(const char *root,size_t *out_len){
   else other++;
   writable+=(size_t)result.writable_hint;
   readonly+=(size_t)result.read_only_mount;
+  unknown_mounts+=(size_t)(!result.mount_info_known&&
+       strcmp(result.status,"accessible")==0);
   n=snprintf(out+length,PREFLIGHT_JSON_MAX-length,
    "%s{\"path\":\"/%s\",\"status\":\"%s\",\"reason\":\"%s\","
-   "\"writableHint\":%s,\"readOnlyMount\":%s}",
+   "\"writableHint\":%s,\"readOnlyMount\":%s,\"mountInfoKnown\":%s}",
    i?",":"",path,result.status,result.reason,
-   result.writable_hint?"true":"false",result.read_only_mount?"true":"false");
+   result.writable_hint?"true":"false",result.read_only_mount?"true":"false",
+   result.mount_info_known?"true":"false");
   if(n<0||(size_t)n>=PREFLIGHT_JSON_MAX-length){free(out);return NULL;}
   length+=(size_t)n;
  }
  n=snprintf(out+length,PREFLIGHT_JSON_MAX-length,
   "],\"summary\":{\"accessible\":%zu,\"denied\":%zu,\"absent\":%zu,\"other\":%zu,"
-  "\"writableHints\":%zu,\"readOnlyMounts\":%zu},"
+  "\"writableHints\":%zu,\"readOnlyMounts\":%zu,\"mountInfoUnknown\":%zu},"
   "\"limitations\":\"Directory probing is read-only. A writable hint is not a cleanup privilege or safety validation.\"}",
-  accessible,denied,absent,other,writable,readonly);
+  accessible,denied,absent,other,writable,readonly,unknown_mounts);
  if(n<0||(size_t)n>=PREFLIGHT_JSON_MAX-length){free(out);return NULL;}
  length+=(size_t)n;*out_len=length;return out;
 }

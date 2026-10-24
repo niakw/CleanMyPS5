@@ -13,9 +13,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 static int denied_stage=0;
+static int mount_failure=0,mount_write_queries=0;
+static int injected_fstatvfs(int fd,struct statvfs*mount){
+ if(mount_failure){errno=EIO;return -1;}
+ return fstatvfs(fd,mount);
+}
+static int injected_faccessat(int fd,const char*name,int mode,int flags){
+ ++mount_write_queries;
+ if(mount_failure)return 0; /* dangerous false positive from old code */
+ return faccessat(fd,name,mode,flags);
+}
 static int injected_open(const char*path,int flags,...){
  if(denied_stage==1){errno=EPERM;return -1;}
  return open(path,flags);
@@ -35,10 +46,14 @@ static int injected_openat(int fd,const char*name,int flags,...){
 #define open injected_open
 #define openat injected_openat
 #define fstatat injected_fstatat
+#define fstatvfs injected_fstatvfs
+#define faccessat injected_faccessat
 #include "../src/native/preflight.c"
 #undef open
 #undef openat
 #undef fstatat
+#undef fstatvfs
+#undef faccessat
 
 static void expect_status(const PathStatus*found,const char*state,const char*reason){
  assert(!strcmp(found->status,state));
@@ -53,6 +68,14 @@ int main(void){
  assert(mkdir(folder,0700)==0);
  PathStatus result=probe(sandbox,"protected");
  expect_status(&result,"accessible","directory-opened");
+ assert(result.mount_info_known==1);
+ mount_failure=1;
+ const int before=mount_write_queries;
+ result=probe(sandbox,"protected");
+ expect_status(&result,"accessible","mount-unverified");
+ assert(!result.mount_info_known&&!result.writable_hint&&!result.read_only_mount);
+ assert(mount_write_queries==before);
+ mount_failure=0;
  denied_stage=1;
  result=probe(sandbox,"protected");
  expect_status(&result,"denied","permission-denied");
@@ -67,6 +90,6 @@ int main(void){
  expect_status(&result,"absent","not-found");
  assert(rmdir(folder)==0);
  assert(rmdir(sandbox)==0);
- puts("Read-only preflight EPERM at root/stat/child: denied (not unknown): PASS");
+ puts("Preflight EPERM and unknown-mount write-hint suppression: PASS");
  return 0;
 }
