@@ -73,6 +73,14 @@ def main(root: Path):
       !cmp5_game_destination_allowed(r.dest_base)) {
     send_json(fd, 400, "{\\"error\\":\\"game_path_not_allowed\\"}");
     return;
+  }
+  /* A permitted name must ALSO resolve through real directories.
+   * This rejects a homebrew/ or USB symlink alias of savedata/system
+   * before a separate local client can enqueue conversion work. */
+  if (!cmp5_game_path_on_disk("/", r.source, false) ||
+      !cmp5_game_path_on_disk("/", r.dest_base, true)) {
+    send_json(fd, 409, "{\"error\":\"game_path_unstable_or_aliased\"}");
+    return;
   }''')
     # Revalidate managed image ownership INSIDE the engine immediately
     # before enqueue. GUI checks alone cannot authorize a filesystem job:
