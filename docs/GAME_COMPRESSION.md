@@ -49,6 +49,17 @@ après fermeture reste donc bloquée. Les fixtures Linux/macOS
 simulent des volumes et des checkpoints légitimes et falsifiés.
 La simulation DualSense vérifie l'absence de commande de modification.
 
+**Couverture et changement de volume :** un stockage absent peut être un
+support USB volontairement débranché ; un stockage refusé, un chemin
+symbolique ou une ouverture anormale déclenche au contraire une alerte de
+couverture partielle. Chaque racine est ouverte une seule fois pour le
+parcours, puis son identité est revalidée. Si une racine est remplacée
+pendant le scan, seuls les candidats issus de cette racine sont écartés :
+ceux déjà vérifiés sur d'autres supports sont conservés. Le test natif
+simule le remplacement du montage après découverte d'un checkpoint et
+vérifie le bilan partiel sans perte des autres candidats. Les résultats
+restent uniquement descriptifs et n'autorisent toujours aucune reprise.
+
 ## Moniteur AMPR : étape et cause de pause (25 octobre 2026)
 
 L'API compacte du moteur expose maintenant des champs `phase` et
