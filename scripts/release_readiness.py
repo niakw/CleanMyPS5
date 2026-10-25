@@ -28,8 +28,8 @@ def inspect(manifest_path: Path) -> dict:
         raise ValueError("Unsafe/destructive cleanup release assertion")
     if manifest.get("runtimePermission") != "not-guaranteed":
         raise ValueError("Unknown runtime privileges must not be asserted")
-    if manifest.get("helper") != "separate-browser-free-payload":
-        raise ValueError("Native title must not depend on an embedded helper")
+    if manifest.get("helper") != "bundled-readonly-opt-in":
+        raise ValueError("Native title requires an opt-in, non-escalating bundled helper")
     artifacts = manifest.get("files")
     if not isinstance(artifacts, list) or not artifacts:
         raise ValueError("No native release artifacts in manifest")
@@ -41,8 +41,8 @@ def inspect(manifest_path: Path) -> dict:
     allowed = {"PPSA99784.zip", "cleanmyps5-helper.elf", "PPSA99784.ffpkg"}
     if set(names) - allowed:
         raise ValueError("Unexpected artifact name in release manifest")
-    if "PPSA99784.zip" not in names or "cleanmyps5-helper.elf" not in names:
-        raise ValueError("Required native and separate helper outputs missing")
+    if "PPSA99784.zip" not in names:
+        raise ValueError("Required self-contained native title ZIP missing")
     for entry in artifacts:
         if type(entry.get("bytes")) is not int or entry["bytes"] <= 0:
             raise ValueError("Invalid release artifact length")
@@ -88,6 +88,8 @@ def inspect(manifest_path: Path) -> dict:
             "status": "packaged-not-console-tested",
             "format": "unsigned-homebrew-title-folder",
             "hasExperimentalFfpkg": "PPSA99784.ffpkg" in names,
+            "optionalStandaloneHelper": "cleanmyps5-helper.elf" in names,
+            "bundledHelperRequiresSecondInstall": False,
         },
         "readOnlyDiagnosticRelease": {
             "status": "hardware-validation-required",
