@@ -4,6 +4,20 @@
 #include <assert.h>
 #include <stdio.h>
 int main(void) {
+ /* Truncated/unterminated SMP fields must fail closed. */
+ char unterminated[16];memset(unterminated,'Z',sizeof(unterminated));
+ assert(!cmp5_game_smp_field_eq(unterminated,sizeof(unterminated),"ZZZ"));
+ assert(!cmp5_game_smp_field_eq(unterminated,0,"Z"));
+ assert(!cmp5_game_smp_field_eq(NULL,16,"Z"));
+ assert(!cmp5_game_smp_field_eq(unterminated,16,NULL));
+ const char source_type[16]="image";
+ assert(cmp5_game_smp_field_eq(source_type,sizeof(source_type),"image"));
+ assert(!cmp5_game_smp_field_eq(source_type,sizeof(source_type),"images"));
+ const char image_type[16]="exfatfs";
+ assert(cmp5_game_smp_field_eq(image_type,sizeof(image_type),"exfatfs"));
+ assert(!cmp5_game_smp_field_eq(source_type,3,"image"));
+ char tail[16]={'i','m','a','g','e','\0','B','A','D'};
+ assert(cmp5_game_smp_field_eq(tail,sizeof(tail),"image"));
  const char *accepted[] = {
   "/data/homebrew/PPSA12345",
   "/data/homebrew/GAME.exfat",

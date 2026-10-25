@@ -26,6 +26,15 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Réponses ShadowMountPlus malformées : vérification des tableaux fixes (25 octobre 2026)
+
+Le moteur AMPR intégré compare désormais `path`, `title_id`,
+`source_type` et `image_type` au moyen de bornes correspondant à la
+taille des tableaux de `smp_game`. Une donnée tronquée ou sans octet
+NUL est rejetée : détection de l'image, précontrôle et reprise de job.
+Les tests C couvrent les champs invalides et la CI inspecte le C
+effectivement transformé. Les données de jeu originales sont conservées.
+
 ## Dossiers de dump portant une extension d'image (25 octobre 2026)
 
 La détection native différencie maintenant le **type du système de

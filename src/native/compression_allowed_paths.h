@@ -14,6 +14,16 @@
 #include <string.h>
 #include <strings.h>
 
+/* Reject unterminated fixed-array metadata from ShadowMountPlus.
+ * Never scan past a structure field or accept truncated game identities. */
+static inline bool cmp5_game_smp_field_eq(const char *field,size_t capacity,
+                                         const char *expected) {
+ if(!field||!expected||!capacity)return false;
+ const char *end=(const char *)memchr(field,0,capacity);
+ if(!end||end==field)return false;
+ const size_t n=(size_t)(end-field);
+ return strlen(expected)==n&&memcmp(field,expected,n)==0;
+}
 static inline bool cmp5_safe_component(const char *name) {
  if (!name || !*name || name[0] == '.') return false;
  const size_t n = strlen(name);

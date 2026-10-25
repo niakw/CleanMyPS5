@@ -119,12 +119,12 @@ def main(root: Path):
         strlen(normalized.smp_title) != 9 ||
         smp_game_info(normalized.smp_title, &owner) != 0 ||
         !owner.managed || !owner.source_available ||
-        strcmp(owner.path, normalized.source) != 0 ||
-        strcmp(owner.title_id, normalized.smp_title) != 0 ||
-        strcmp(owner.source_type, "image") != 0 ||
-        (strcmp(owner.image_type, "exfatfs") != 0 &&
-         strcmp(owner.image_type, "ufs") != 0 &&
-         strcmp(owner.image_type, "pfs") != 0))
+        !cmp5_game_smp_field_eq(owner.path,sizeof(owner.path),normalized.source) ||
+        !cmp5_game_smp_field_eq(owner.title_id,sizeof(owner.title_id),normalized.smp_title) ||
+        !cmp5_game_smp_field_eq(owner.source_type,sizeof(owner.source_type),"image") ||
+        (!cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"exfatfs") &&
+         !cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"ufs") &&
+         !cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"pfs")))
       return -1;
     snprintf(trusted_id, sizeof trusted_id, "%s", normalized.smp_title);
   } else {
@@ -292,14 +292,14 @@ def main(root: Path):
        !strcasecmp(ext, ".ffpfs"));
     if (!supported ||
         smp_game_info(r.smp_title, &owner) != 0 ||
-        strcmp(owner.title_id, r.smp_title) != 0 ||
-        strcmp(owner.path, r.source) != 0 ||
-        strcmp(owner.source_type, "image") != 0 ||
+        !cmp5_game_smp_field_eq(owner.title_id,sizeof(owner.title_id),r.smp_title) ||
+        !cmp5_game_smp_field_eq(owner.path,sizeof(owner.path),r.source) ||
+        !cmp5_game_smp_field_eq(owner.source_type,sizeof(owner.source_type),"image") ||
         !owner.managed || !owner.source_available ||
-        (!strcmp(owner.image_type, "pfsc") ||
-         (strcmp(owner.image_type, "exfatfs") != 0 &&
-          strcmp(owner.image_type, "ufs") != 0 &&
-          strcmp(owner.image_type, "pfs") != 0)) ||
+        (cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"pfsc") ||
+         (!cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"exfatfs") &&
+          !cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"ufs") &&
+          !cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"pfs"))) ||
         lstat(r.source, &source_st) != 0 ||
         !S_ISREG(source_st.st_mode) || source_st.st_nlink != 1 ||
         source_st.st_size <= 0) {
@@ -454,7 +454,7 @@ static void cmp5_image_resolve(int fd, const char *args) {
   const int count=smp_list_games(items,LIMIT);
   int match=-1;
   if(count>=0&&count<LIMIT)for(int i=0;i<count;i++){
-    if(strcmp(items[i].path,path)!=0)continue;
+    if(!cmp5_game_smp_field_eq(items[i].path,sizeof(items[i].path),path))continue;
     if(match>=0){match=-2;break;} /* multiple owners: refuse */
     match=i;
   }
@@ -466,14 +466,14 @@ static void cmp5_image_resolve(int fd, const char *args) {
   /* Never read beyond a malformed nonterminated SMP title_id array. */
   const size_t tidlen=strnlen(g->title_id,sizeof(g->title_id));
   bool valid=tidlen==9&&g->managed&&g->source_available&&
-             !strcmp(g->source_type,"image");
+             cmp5_game_smp_field_eq(g->source_type,sizeof(g->source_type),"image");
   for(size_t i=0;i<tidlen&&valid;i++){
     const char c=g->title_id[i];
     valid=i<4?(c>='A'&&c<='Z'):(c>='0'&&c<='9');
   }
   /* Compressed PFSC sources should not be recompressed blindly. */
-  const bool type_ok=!strcmp(g->image_type,"exfatfs")||
-       !strcmp(g->image_type,"ufs")||!strcmp(g->image_type,"pfs");
+  const bool type_ok=cmp5_game_smp_field_eq(g->image_type,sizeof(g->image_type),"exfatfs")||
+       cmp5_game_smp_field_eq(g->image_type,sizeof(g->image_type),"ufs")||cmp5_game_smp_field_eq(g->image_type,sizeof(g->image_type),"pfs");
   struct stat after;
   if(!cmp5_game_path_stat("/",path,false,&after) ||
      !cmp5_game_same_stat(&st,&after)) {
@@ -515,9 +515,9 @@ static void cmp5_image_resolve(int fd, const char *args) {
       smp_game cmp5_owner={0};
       if(smp_game_info(smp,&cmp5_owner)!=0 ||
          !cmp5_owner.managed ||
-         strcmp(cmp5_owner.title_id,smp)!=0 ||
-         strcmp(cmp5_owner.path,p)!=0 ||
-         strcmp(cmp5_owner.source_type,"image")!=0){
+         !cmp5_game_smp_field_eq(cmp5_owner.title_id,sizeof(cmp5_owner.title_id),smp) ||
+         !cmp5_game_smp_field_eq(cmp5_owner.path,sizeof(cmp5_owner.path),p) ||
+         !cmp5_game_smp_field_eq(cmp5_owner.source_type,sizeof(cmp5_owner.source_type),"image")){
         send_json(fd,409,"{\\"error\\":\\"game_preflight_owner_mismatch\\"}");
         free(req);return;
       }
