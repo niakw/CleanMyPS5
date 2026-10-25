@@ -14,6 +14,7 @@ on:
       - tests/test_gallery_thumbnail_denied.c
       - tests/test_gallery_thumbnail_backup.c
       - tests/test_gallery_thumbnail_backup.py
+      - tests/test_recovery_inventory.c
       - tests/test_private_workspace_capacity.c
       - tests/test_group_transaction_lock.c
       - tests/test_group_transaction_lock.py
@@ -152,6 +153,11 @@ jobs:
             src/native/verified_backup.c src/native/sha256.c \
             -o /tmp/cmp5-gallery-private-backup
           python3 tests/test_gallery_thumbnail_backup.py /tmp/cmp5-gallery-private-backup
+      - name: Verify offline AMPR checkpoint inventory on removable volumes
+        run: |
+          clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_recovery_inventory.c -o /tmp/cmp5-recovery-inventory
+          /tmp/cmp5-recovery-inventory
       - name: Fail closed on insufficient space for private backup and restore
         run: |
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
