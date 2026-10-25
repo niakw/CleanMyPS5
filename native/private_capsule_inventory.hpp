@@ -16,8 +16,9 @@ namespace cmp5_private_backup {
 constexpr unsigned inventory_limit=32u, inventory_scan_limit=1024u;
 struct Inventory {
  bool checked=false,partial=false;
- unsigned count=0u,staged=0u;
+ unsigned count=0u,staged=0u,group_count=0u;
  char ids[inventory_limit][32]{};
+ char group_ids[inventory_limit][32]{};
 };
 inline bool valid_capsule_id(const char*id) noexcept {
  if(!id||std::strlen(id)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
@@ -25,6 +26,55 @@ inline bool valid_capsule_id(const char*id) noexcept {
   const char c=id[i];
   if(!((c>='0'&&c<='9')||(c>='A'&&c<='F')))return false;
  }
+ return true;
+}
+/* Discover a committed group by a bounded, name-only marker. Presence
+ * is NOT proof: cmp5_verify_group must rehash all members on selection. */
+inline bool valid_group_id(const char*id) noexcept {
+ if(!id||std::strlen(id)!=20u||std::memcmp(id,"GRP_",4u)!=0)return false;
+ for(unsigned i=4u;i<20u;i++){
+  const char v=id[i];
+  if(!((v>='0'&&v<='9')||(v>='A'&&v<='F')))return false;
+ }
+ return true;
+}
+inline bool group_entry_name(const char*name,bool*commit,
+                             bool*temporary) noexcept {
+ if(commit)*commit=false;
+ if(temporary)*temporary=false;
+ if(!name)return false;
+ const std::size_t len=strnlen(name,40u);
+ if(len>=40u)return false;
+ const bool stage=name[0]=='.';
+ if(len<(stage?21u:20u))return false;
+ const char*base=name+(stage?1:0);
+ char id[21]{};
+ std::memcpy(id,base,20u);
+ if(!valid_group_id(id))return false;
+ const char*suffix=base+20u;
+ if(!stage){
+  if(std::strcmp(suffix,"__COMMIT")==0){
+   if(commit)*commit=true;
+   return true;
+  }
+  return std::strcmp(suffix,"__1")==0||
+         std::strcmp(suffix,"__2")==0||
+         std::strcmp(suffix,"__3")==0||
+         std::strcmp(suffix,"__4")==0||
+         std::strcmp(suffix,"__ORIGINS")==0;
+ }
+ const std::size_t suffixlen=std::strlen(suffix);
+ if(suffixlen<=5u||suffixlen>=24u||
+    std::strcmp(suffix+suffixlen-5u,".part")!=0)return false;
+ char trimmed[24]{};
+ std::memcpy(trimmed,suffix,suffixlen-5u);
+ if(std::strcmp(trimmed,"__COMMIT")!=0&&
+    std::strcmp(trimmed,"__1")!=0&&
+    std::strcmp(trimmed,"__2")!=0&&
+    std::strcmp(trimmed,"__3")!=0&&
+    std::strcmp(trimmed,"__4")!=0&&
+    std::strcmp(trimmed,"__ORIGINS")!=0)return false;
+ if(temporary)*temporary=true;
  return true;
 }
 /* Use a pinned descriptor of a 0700 private directory. Listing is only
