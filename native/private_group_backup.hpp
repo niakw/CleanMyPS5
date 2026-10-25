@@ -21,6 +21,33 @@ inline bool group_name(const Cmp5MediaCandidate&primary,char out[32]) noexcept {
  if(std::snprintf(out,32,"GRP_%s",capsule+4)!=20)return false;
  return true;
 }
+/* Old GROUP capsules can be checked after restart without consulting
+ * the current Gallery. Valid group IDs are opaque uppercase hex only. */
+inline GroupOutcome verify_saved_group(const char*id,
+ Cmp5CancelCheck cancel,void*ctx) noexcept {
+ GroupOutcome out{};
+ if(!id||std::strlen(id)!=20u||std::memcmp(id,"GRP_",4u)!=0||
+    (cancel&&cancel(ctx))){
+  out.status=GroupStatus::refused;return out;
+ }
+ for(unsigned i=4u;i<20u;i++){
+  const char value=id[i];
+  if(!((value>='0'&&value<='9')||(value>='A'&&value<='F'))){
+   out.status=GroupStatus::refused;return out;
+  }
+ }
+ std::memcpy(out.id,id,21u);
+ Cmp5GroupReceipt checked{};
+ if(!cmp5_verify_group(workspace,id,&checked,cancel,ctx)||
+    checked.count<2u||checked.count>CMP5_GROUP_MAX||
+    !checked.bytes||checked.bytes>CMP5_BACKUP_LIMIT||
+    (cancel&&cancel(ctx))){
+  out.status=GroupStatus::failed;return out;
+ }
+ out.receipt=checked;
+ out.status=GroupStatus::verified;
+ return out;
+}
 /* Two affirmative controller actions precede this call. This code cannot
  * request a restore or gallery mutation, and it never accepts an arbitrary
  * workspace or group ID from the controller. */
