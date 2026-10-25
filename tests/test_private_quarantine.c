@@ -33,6 +33,28 @@ static int simulate_abrupt_exit(void*unused){
  (void)unused;
  _exit(77); /* hard process exit after fsync of two-name checkpoint */
 }
+/* A same-user process can edit the private inode after the link is made.
+ * Treat this as an interrupted transaction, never unlink either name. */
+static int mutate_linked_content(void*context){
+ const char*path=(const char*)context;
+ int fd=open(path,O_WRONLY|O_NOFOLLOW);
+ assert(fd>=0);
+ assert(write(fd,"X",1)==1);
+ assert(close(fd)==0);
+ return 0;
+}
+static void copy_synthetic(const char*source,const char*target){
+ FILE*in=fopen(source,"rb"),*out=fopen(target,"wb");
+ assert(in&&out);
+ unsigned char buf[1024];
+ for(;;){
+  const size_t n=fread(buf,1,sizeof(buf),in);
+  if(!n){assert(!ferror(in));break;}
+  assert(fwrite(buf,1,n,out)==n);
+ }
+ assert(fclose(in)==0&&fclose(out)==0);
+ assert(chmod(target,0600)==0);
+}
 static void expect_child_crash(pid_t pid){
  assert(pid>0);
  int status=0;
@@ -188,6 +210,30 @@ int main(int argc,char**argv){
  assert(!cmp5_private_lab_hold(lab,"ITEM",backup,"ONE",trial,"SECOND"));
  assert(unlink(attacker)==0);
  assert(cmp5_private_lab_state(lab,"ITEM")==CMP5_LAB_SOURCE_ONLY);
+ /* Inject a real in-place modification AFTER the hardlink checkpoint
+  * is durably published. Both pathnames must remain for manual audit. */
+ char item3[1024],held3[1024],item4[1024],held4[1024];
+ assert(snprintf(item3,sizeof(item3),"%s/ITEM3",lab)>0);
+ assert(snprintf(held3,sizeof(held3),"%s/.ITEM3.CMP5_HELD",lab)>0);
+ copy_synthetic(gallery,item3);
+ assert(!cmp5_private_lab_hold_checkpoint(lab,"ITEM3",backup,"ONE",
+          trial,"TAMPER3",mutate_linked_content,item3));
+ assert(cmp5_private_lab_state(lab,"ITEM3")==CMP5_LAB_AMBIGUOUS);
+ assert(access(item3,F_OK)==0&&access(held3,F_OK)==0);
+ assert(!cmp5_private_lab_resolve_interrupted(lab,"ITEM3",backup,"ONE",
+           CMP5_LAB_KEEP_HELD));
+ /* The reverse HELD -> SOURCE transition has the same no-loss contract. */
+ assert(snprintf(item4,sizeof(item4),"%s/ITEM4",lab)>0);
+ assert(snprintf(held4,sizeof(held4),"%s/.ITEM4.CMP5_HELD",lab)>0);
+ copy_synthetic(gallery,item4);
+ assert(cmp5_private_lab_hold(lab,"ITEM4",backup,"ONE",trial,"TRIAL4"));
+ assert(cmp5_private_lab_state(lab,"ITEM4")==CMP5_LAB_HELD_ONLY);
+ assert(!cmp5_private_lab_recover_checkpoint(lab,"ITEM4",backup,"ONE",
+          mutate_linked_content,held4));
+ assert(cmp5_private_lab_state(lab,"ITEM4")==CMP5_LAB_AMBIGUOUS);
+ assert(access(item4,F_OK)==0&&access(held4,F_OK)==0);
+ assert(!cmp5_private_lab_resolve_interrupted(lab,"ITEM4",backup,"ONE",
+           CMP5_LAB_KEEP_SOURCE));
  puts("Private lab backup, rehearsal, quarantine, recovery, tamper & alias: PASS");
  return 0;
 }
