@@ -38,6 +38,12 @@ with tempfile.TemporaryDirectory() as temp:
     assert (backup/".INJECT.part").read_bytes()==b"UNRELATED PRIVATE FILE - NEVER DELETE"
     assert (backup/".INJECT.original").is_file()
     assert not (backup/"INJECT").exists()
+    # fsync succeeds, but another actor swaps the staging pathname before
+    # linkat. The transaction must not publish/delete the foreign file.
+    run("backup-stage-postfsync-swapped",restored)
+    assert (backup/".POSTSAVE.part").read_bytes()==b"UNRELATED PRIVATE FILE - NEVER DELETE"
+    assert (backup/".POSTSAVE.original").is_file()
+    assert not (backup/"POSTSAVE").exists()
     run("backup-publish-tamper",restored)
     assert (backup/"BROKEN").is_file()
     run("fsync-backup",restored)
@@ -81,6 +87,10 @@ with tempfile.TemporaryDirectory() as temp:
     assert (restored/".RESTAGE.part").read_bytes()==b"UNRELATED PRIVATE FILE - NEVER DELETE"
     assert (restored/".RESTAGE.original").is_file()
     assert not (restored/"RESTAGE").exists()
+    run("restore-stage-postfsync-swapped",restored)
+    assert (restored/".POSTRESTORE.part").read_bytes()==b"UNRELATED PRIVATE FILE - NEVER DELETE"
+    assert (restored/".POSTRESTORE.original").is_file()
+    assert not (restored/"POSTRESTORE").exists()
     run("restore-publish-tamper",restored)
     assert (restored/"CORRUPT").is_file()
     assert (restored/"CORRUPT").read_bytes()!=original

@@ -1,5 +1,21 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Capsules privées : publication liée au descripteur écrit (25 octobre 2026)
+
+La sauvegarde et la restauration **hôte uniquement** conservent
+désormais ouvert le fichier de staging jusqu'après sa publication.
+`publish()` refuse que le nom `.part` désigne un autre inode que
+celui effectivement écrit, et revalide après le `linkat` les deux noms
+contre le descripteur du fichier original avant tout nettoyage.
+Deux scénarios de course (sauvegarde et restauration) remplacent
+le temporaire juste après `fsync` **sans erreur d'E/S** : le contenu
+étranger et le staging original doivent rester intacts et aucun reçu de
+publication ne doit être émis. Cela complète les protections des marqueurs
+de groupe, mais ne rend toujours pas l'ultime `unlinkat` atomique
+face à un tiers non coopératif. Aucun code de suppression de capture
+sur console n'est activé.
+
+
 ## Groupe privé : marqueur COMMIT rattaché au fichier réellement écrit (25 octobre 2026)
 
 Le prototype de sauvegarde/restauration privée **hôte uniquement**

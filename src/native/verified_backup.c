@@ -172,13 +172,33 @@ static int start_stage(int dest,const char*id,char temp[56]){
  memcpy(temp+n+1,".part",6);
  return openat(dest,temp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
 }
-static int publish(int dir,const char*temp,const char*id){
- if(linkat(dir,temp,dir,id,0)!=0)return 0; /* no-clobber, atomic */
- /* A residual .part hardlink means this namespace is not transactionally
-  * clean; do not present success after failed staging cleanup. */
- if(unlinkat(dir,temp,0)!=0)return 0; /* app-owned staging only */
- /* Successful fsync of the file alone does not ensure its directory entry
-  * survives a power loss. Refuse to issue a durable receipt if this fails. */
+/* Publish only the exact staging INODE written by this transaction.
+ * Reusing the filename without checking the open writer would allow a
+ * competing actor to replace .part between fsync and linkat.
+ * There is no portable conditional unlinkat; hold the writer fd and
+ * reject any observed replacement, never clean up on failure. */
+static int publish(int dir,const char*temp,const char*id,int written){
+ if(written<0)return 0;
+ struct stat original={0},staging={0};
+ if(fstat(written,&original)!=0||!S_ISREG(original.st_mode)||
+    original.st_nlink!=1||
+    fstatat(dir,temp,&staging,AT_SYMLINK_NOFOLLOW)!=0||
+    !same(&original,&staging)||staging.st_nlink!=1)
+  return 0;
+ if(linkat(dir,temp,dir,id,0)!=0)return 0; /* no overwrite */
+ /* Link creation increments ctime and nlink. Recheck against the
+  * writer fd, not the snapshot taken before publication. */
+ struct stat current={0},published={0},current_stage={0};
+ if(fstat(written,&current)!=0||!S_ISREG(current.st_mode)||
+    current.st_nlink!=2||
+    fstatat(dir,id,&published,AT_SYMLINK_NOFOLLOW)!=0||
+    fstatat(dir,temp,&current_stage,AT_SYMLINK_NOFOLLOW)!=0||
+    published.st_nlink!=2||current_stage.st_nlink!=2||
+    !same(&current,&published)||!same(&current,&current_stage))
+  return 0;
+ /* A non-cooperating writer can still race the final pathname unlink.
+  * No later action automatically deletes a failed .part. */
+ if(unlinkat(dir,temp,0)!=0)return 0;
  return fsync(dir)==0;
 }
 static int read_header(int fd,uint64_t*len,uint8_t digest[32]){
@@ -234,10 +254,10 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
  close(source);
  if(ok){memcpy(header+16,digest,32);ok=lseek(stage,0,SEEK_SET)==0&&
      full_write(stage,header,sizeof(header))&&fsync(stage)==0;}
- close(stage);
  if(ok&&canceled(cancel,ctx))ok=0;
  if(ok)ok=private_directory_identity_current(dir,workspace,&destination_root);
- if(ok)ok=publish(dir,temp,id);
+ if(ok)ok=publish(dir,temp,id,stage);
+ close(stage);
  /* Do not issue a success receipt for a detached workspace or a
   * replacement capsule under the just-published name. Re-open and hash
   * the published artifact independently before returning success. */
@@ -377,11 +397,11 @@ int cmp5_restore_backup(const char*backup,const char*id,
  if(ok)ok=private_directory_identity_current(source_dir,backup,&source_root)&&
     private_directory_identity_current(target,destination,&target_root);
  if(ok)ok=fsync(stage)==0;
- close(stage);
  if(ok&&canceled(cancel,ctx))ok=0;
  if(ok)ok=private_directory_identity_current(source_dir,backup,&source_root)&&
     private_directory_identity_current(target,destination,&target_root);
- if(ok)ok=publish(target,temp,newname);
+ if(ok)ok=publish(target,temp,newname,stage);
+ close(stage);
  if(ok)ok=verify_restored_file(target,newname,&verified,cancel,ctx)&&
     fstat(source,&after)==0&&same(&before,&after)&&
     fstatat(source_dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&

@@ -18,7 +18,7 @@
 static char watching[1024],moved[1024];
 static int armed,triggered,restore_only,fail_directory_fsync;
 static int corrupt_published_restore;
-static int replace_stage,stage_replaced;
+static int replace_stage,stage_replaced,post_sync_swap;
 static char watched_stage[1024],moved_stage[1024];
 static const char stage_sentinel[]="UNRELATED PRIVATE FILE - NEVER DELETE";
 
@@ -36,7 +36,9 @@ static int intercepted_fsync(int fd){
           (ssize_t)(sizeof(stage_sentinel)-1u));
    assert(close(decoy)==0);
    stage_replaced=1;
-   errno=EIO;return -1;
+   if(!post_sync_swap){errno=EIO;return -1;}
+   /* Unlike injected EIO, this swap leaves fsync successful and
+    * exercises the inode binding inside publish(). */
   }
  }
  if(fail_directory_fsync&&fstat(fd,&st)==0&&S_ISDIR(st.st_mode)){
@@ -136,6 +138,19 @@ int main(int argc,char**argv){
   assert(!cmp5_backup_media(root,&item,backup,"INJECT",&receipt,NULL,NULL));
   assert(stage_replaced&&!receipt.published);
   assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
+ }else if(!strcmp(action,"backup-stage-postfsync-swapped")){
+  assert(snprintf(watched_stage,sizeof(watched_stage),
+                  "%s/.POSTSAVE.part",backup)>0);
+  assert(snprintf(moved_stage,sizeof(moved_stage),
+                  "%s/.POSTSAVE.original",backup)>0);
+  replace_stage=1;post_sync_swap=1;
+  assert(!cmp5_backup_media(root,&item,backup,"POSTSAVE",&receipt,NULL,NULL));
+  assert(stage_replaced&&!receipt.published);
+  assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
+  assert(access(moved_stage,F_OK)==0);
+  struct stat published;
+  assert(fstatat(AT_FDCWD,watched_stage,&published,AT_SYMLINK_NOFOLLOW)==0);
+  assert(published.st_size==(off_t)(sizeof(stage_sentinel)-1u));
  }else if(!strcmp(action,"restore-stage-swapped")){
   assert(snprintf(watched_stage,sizeof(watched_stage),
                   "%s/.RESTAGE.part",restore)>0);
@@ -143,6 +158,16 @@ int main(int argc,char**argv){
                   "%s/.RESTAGE.original",restore)>0);
   replace_stage=1;
   assert(!cmp5_restore_backup(backup,"GOOD",restore,"RESTAGE",
+                              &receipt,NULL,NULL));
+  assert(stage_replaced&&!receipt.published);
+  assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
+ }else if(!strcmp(action,"restore-stage-postfsync-swapped")){
+  assert(snprintf(watched_stage,sizeof(watched_stage),
+                  "%s/.POSTRESTORE.part",restore)>0);
+  assert(snprintf(moved_stage,sizeof(moved_stage),
+                  "%s/.POSTRESTORE.original",restore)>0);
+  replace_stage=1;post_sync_swap=1;
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"POSTRESTORE",
                               &receipt,NULL,NULL));
   assert(stage_replaced&&!receipt.published);
   assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
