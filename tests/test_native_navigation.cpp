@@ -104,14 +104,20 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  }
  if(id==21){
   if(request.find("POST /api/pause HTTP/1.0")==0){
-   assert(request.find("Content-Length: 0")!=std::string_view::npos);
-   ++mock_ampr_pauses;mock_ampr_paused=true;
+   /* A stale poll must never issue an unscoped /api/pause POST. */
+   assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
+   assert(request.find("Content-Length: 0")==std::string_view::npos);
+   assert(request.find("Content-Length: ")!=std::string_view::npos);
   }else if(request.find("POST /api/resume HTTP/1.0")==0){
    assert(request.find("Content-Length: ")!=std::string_view::npos);
-  }else{
-   assert(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345&level=9")==0);
-   mock_ampr_resumes++;mock_ampr_paused=false;
-  }
+  }else if(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345")==0){
+   if(request.find("&level=9")!=std::string_view::npos){
+    mock_ampr_resumes++;mock_ampr_paused=false;
+   }else{
+    assert(request=="dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345");
+    ++mock_ampr_pauses;mock_ampr_paused=true;
+   }
+  }else assert(false && "unexpected pause/resume request or wrong title");
   return static_cast<int>(size);
  }
  if(id==20){
