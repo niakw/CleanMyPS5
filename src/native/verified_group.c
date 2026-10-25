@@ -554,6 +554,87 @@ int cmp5_read_group_origin_map(const char*workspace,const char*id,
  if(ok)*r=restored;
  return ok;
 }
+/* Read-only source review based on *persisted* CMP5MAP2 metadata.
+ * A file that now occupies an old pathname is not automatically the
+ * original. This code never creates a source path or repairs Sony indexes.
+ * Unknown indicates a failed/unsafe inspection, NOT permission to clean. */
+static Cmp5OriginLiveState inspect_source_once(int root,
+ const Cmp5OriginEntry*entry){
+ if(root<0||!entry)return CMP5_ORIGIN_UNKNOWN;
+ const size_t n=strnlen(entry->path,sizeof(entry->path));
+ if(n<2u||n>=sizeof(entry->path)||entry->path[0]!='/')
+  return CMP5_ORIGIN_UNKNOWN;
+ char components[sizeof(entry->path)];
+ memcpy(components,entry->path+1,n); /* includes terminating NUL */
+ int current=openat(root,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(current<0)return CMP5_ORIGIN_UNKNOWN;
+ char*save=NULL;
+ Cmp5OriginLiveState state=CMP5_ORIGIN_UNKNOWN;
+ for(char*part=strtok_r(components,"/",&save);part;){
+  if(!*part||part[0]=='.'){close(current);return CMP5_ORIGIN_UNKNOWN;}
+  char*next=strtok_r(NULL,"/",&save);
+  const int fd=openat(current,part,O_RDONLY|O_NOFOLLOW|
+                      (next?O_DIRECTORY:O_NONBLOCK));
+  const int problem=errno;
+  close(current);
+  if(fd<0)return problem==ENOENT?
+    CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNKNOWN;
+  current=fd;
+  if(!next){
+   Cmp5MediaCandidate original={0};
+   original.bytes=entry->bytes;
+   original.media_type=entry->media_type;
+   original.snapshot_device=entry->snapshot_device;
+   original.snapshot_inode=entry->snapshot_inode;
+   original.modified_at=entry->modified_at;
+   original.snapshot_ctime=entry->snapshot_ctime;
+   original.snapshot_mtime_nsec=entry->snapshot_mtime_nsec;
+   original.snapshot_ctime_nsec=entry->snapshot_ctime_nsec;
+   struct stat observed={0},repeat={0};
+   const int valid=fstat(current,&observed)==0&&
+     cmp5_snapshot_matches(&original,&observed)&&
+     fstat(current,&repeat)==0&&
+     cmp5_snapshot_matches(&original,&repeat);
+   state=valid?CMP5_ORIGIN_UNCHANGED:CMP5_ORIGIN_CHANGED;
+  }
+  part=next;
+ }
+ close(current);
+ return state;
+}
+int cmp5_inspect_group_originals(const char*root,const char*workspace,
+ const char*id,Cmp5OriginLiveState states[CMP5_GROUP_MAX],
+ Cmp5CancelCheck cancel,void*ctx){
+ if(states)memset(states,0,sizeof(*states)*CMP5_GROUP_MAX);
+ if(!states||!root||!workspace||!valid_id(id)||cancelled(cancel,ctx))
+  return 0;
+ Cmp5OriginMap entries={0};
+ if(!cmp5_read_group_origin_map(workspace,id,&entries,cancel,ctx))
+  return 0;
+ int dir=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(dir<0)return 0;
+ struct stat root_before={0},root_after={0},root_visible={0};
+ int ok=fstat(dir,&root_before)==0&&S_ISDIR(root_before.st_mode);
+ Cmp5OriginLiveState inspected[CMP5_GROUP_MAX]={0};
+ for(uint32_t i=0;ok&&i<entries.count;i++){
+  if(cancelled(cancel,ctx)){ok=0;break;}
+  const Cmp5OriginLiveState first=inspect_source_once(dir,&entries.entries[i]);
+  const Cmp5OriginLiveState second=inspect_source_once(dir,&entries.entries[i]);
+  inspected[i]=first==second?first:CMP5_ORIGIN_UNKNOWN;
+ }
+ int fresh=ok?open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ if(ok)ok=fresh>=0&&fstat(fresh,&root_visible)==0&&
+   fstat(dir,&root_after)==0&&
+   root_before.st_dev==root_after.st_dev&&
+   root_before.st_ino==root_after.st_ino&&
+   root_before.st_dev==root_visible.st_dev&&
+   root_before.st_ino==root_visible.st_ino&&
+   !cancelled(cancel,ctx);
+ if(fresh>=0)close(fresh);
+ close(dir);
+ if(ok)memcpy(states,inspected,sizeof(inspected));
+ return ok;
+}
 int cmp5_verify_restored_group(const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
