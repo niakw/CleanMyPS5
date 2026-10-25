@@ -16,10 +16,12 @@ static char swap_parent[550];
 static int swap_armed;
 static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
-static int deny_request_once;
+static int deny_request_once,deny_state_once;
 static int test_openat(int dir,const char*name,int flags){
- if(deny_request_once&&!strcmp(name,"request.bin")){
+ if((deny_request_once&&!strcmp(name,"request.bin"))||
+    (deny_state_once&&!strcmp(name,".e2a-state"))){
   deny_request_once=0;
+  deny_state_once=0;
   errno=EACCES;
   return -1;
  }
@@ -146,6 +148,12 @@ int main(void){
  deny_request_once=1;
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(!deny_request_once);
+ assert(results.count==2u&&results.partial);
+ /* The parent checkpoint directory can itself be inaccessible under
+  * 0700 when the native title and packer have different credentials. */
+ deny_state_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!deny_state_once);
  assert(results.count==2u&&results.partial);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3u&&!results.partial);
