@@ -81,8 +81,7 @@ static int private_directory_identity_current(int dir,const char*path,
     anchored.st_dev!=original->st_dev||
     anchored.st_ino!=original->st_ino||
     anchored.st_uid!=original->st_uid||
-    anchored.st_mode!=original->st_mode||
-    anchored.st_nlink!=original->st_nlink)return 0;
+    anchored.st_mode!=original->st_mode)return 0;
  int reopened=private_dir(path);
  if(reopened<0)return 0;
  const int ok=fstat(reopened,&named)==0&&
