@@ -820,8 +820,8 @@ std::uint64_t compression_monotonic_ns() noexcept {
  return seconds*1000000000ULL+static_cast<std::uint64_t>(ts.tv_nsec);
 }
 bool game_progress_checked=false;
-bool game_pause_attempted=false,game_pause_accepted=false;
-bool game_resume_attempted=false,game_resume_accepted=false;
+bool game_pause_attempted=false,game_pause_accepted=false,game_pause_unknown=false;
+bool game_resume_attempted=false,game_resume_accepted=false,game_resume_unknown=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
 bool game_source_is_image=false;
 std::uint64_t game_image_expected_bytes=0;
@@ -831,8 +831,8 @@ void reset_compression_job_state() noexcept {
  game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
  game_job_plan_changed=false;
  game_job_position=0;game_progress={};game_progress_checked=false;
- game_pause_attempted=false;game_pause_accepted=false;
- game_resume_attempted=false;game_resume_accepted=false;
+ game_pause_attempted=false;game_pause_accepted=false;game_pause_unknown=false;
+ game_resume_attempted=false;game_resume_accepted=false;game_resume_unknown=false;
  game_preflight=cmp5_compression::GamePreflight{};
  game_smp_title[0]=0;game_image_type[0]=0;
 }
@@ -1232,7 +1232,9 @@ void run_game_progress() noexcept {
 }
 /* Pause is reversible; it checkpoints the packed output, NEVER the
  * original game directory. Refuse to pause another title's active job. */
-bool ampr_safe_command(const char*route,const char*form) noexcept {
+bool ampr_safe_command(const char*route,const char*form,
+                       bool*could_have_acted=nullptr) noexcept {
+ if(could_have_acted)*could_have_acted=false;
  // Only two explicit, reversible actions are available in this frontend.
  if(!route||!form||
     (std::strcmp(route,"/api/pause")&&std::strcmp(route,"/api/resume")))
@@ -1267,7 +1269,13 @@ bool ampr_safe_command(const char*route,const char*form) noexcept {
   return true;
  };
  if(ok)ok=send_all(header,static_cast<std::size_t>(len));
- if(ok&&body_len)ok=send_all(form,body_len);
+ if(ok&&body_len){
+  /* Once the request BODY may have reached the worker, a lost reply
+   * does not mean rejection. Never replay the same non-idempotent
+   * resume (or pause) just because the ACK was lost. */
+  if(could_have_acted)*could_have_acted=true;
+  ok=send_all(form,body_len);
+ }
  char response[512]{};
  std::size_t used=0;
  while(ok&&used<sizeof(response)){
@@ -1285,6 +1293,7 @@ bool ampr_safe_command(const char*route,const char*form) noexcept {
   answer.size==sizeof(yes)-1&&std::memcmp(answer.body,yes,answer.size)==0;
 }
 void run_game_pause() noexcept {
+ if(game_pause_accepted||game_pause_unknown)return;
  game_pause_attempted=true;game_pause_accepted=false;
  game_resume_attempted=false;game_resume_accepted=false;
  if(!game_job_accepted||!game_preflight_checked||
@@ -1301,12 +1310,14 @@ void run_game_pause() noexcept {
  if(!cmp5_compression::build_pause_body(game_dest_checked,
                                        game_preflight.title_id,
                                        body,sizeof(body)))return;
- game_pause_accepted=ampr_safe_command("/api/pause",body);
+ bool could_have_acted=false;
+ game_pause_accepted=ampr_safe_command("/api/pause",body,&could_have_acted);
+ game_pause_unknown=!game_pause_accepted&&could_have_acted;
 }
 void run_game_resume() noexcept {
  /* An accepted resume is a queued mutation, not a reason to send the
   * same request again while status still reports the old PAUSED state. */
- if(game_resume_accepted)return;
+ if(game_resume_accepted||game_resume_unknown)return;
  game_resume_attempted=true;game_resume_accepted=false;
  game_pause_attempted=false;
  /* Paused jobs and explicitly interrupted jobs may have a private
@@ -1344,7 +1355,9 @@ void run_game_resume() noexcept {
  char body[650]{};
  n=std::snprintf(body,sizeof(body),"dest=%s&level=9",path);
  if(n<=0||static_cast<std::size_t>(n)>=sizeof(body))return;
- game_resume_accepted=ampr_safe_command("/api/resume",body);
+ bool could_have_acted=false;
+ game_resume_accepted=ampr_safe_command("/api/resume",body,&could_have_acted);
+ game_resume_unknown=!game_resume_accepted&&could_have_acted;
 }
 void run_game_submission() noexcept {
  /* Never lose an accepted or ambiguous outcome by triggering the same
@@ -2792,14 +2805,18 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    canvas.text(125,899,line,2,Color::cyan);
   }else canvas.text(125,899,"X: INTERROGER LA PROGRESSION DU MOTEUR",2,Color::cyan);
   if(game_resume_attempted){
-   canvas.text(125,939,game_resume_accepted?
+   canvas.text(125,939,game_resume_unknown?
+    "REPONSE REPRISE PERDUE  NE PAS RENVOYER  VERIFIER ETAT":
+    game_resume_accepted?
     "REPRISE DEMANDEE  X POUR VERIFIER SON APPLICATION":
-    "REPRISE REFUSEE OU NON CONFIRMEE",
+    "REPRISE REFUSEE AVANT EXECUTION",
     2,game_resume_accepted?Color::cyan:Color::yellow);
   }else if(game_pause_attempted){
-   canvas.text(125,939,game_pause_accepted?
+   canvas.text(125,939,game_pause_unknown?
+     "REPONSE PAUSE PERDUE  NE PAS RENVOYER  VERIFIER ETAT":
+     game_pause_accepted?
      "PAUSE DEMANDEE  X POUR VERIFIER SON APPLICATION":
-     "PAUSE REFUSEE OU NON CONFIRMEE",
+     "PAUSE REFUSEE AVANT EXECUTION",
      2,game_pause_accepted?Color::cyan:Color::yellow);
   }
   footer(canvas,(game_progress_checked&&

@@ -26,6 +26,23 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Reprise ou pause : accusé HTTP perdu (25 octobre 2026)
+
+Lorsque la requête POST `/api/pause` ou `/api/resume` a pu parvenir
+au moteur, une connexion interrompue, un délai d'attente ou un accusé
+non interprétable **ne prouvent pas le rejet**. L'interface distingue
+désormais cet état « résultat inconnu » d'un refus avant émission.
+Elle bloque un deuxième envoi de la même commande dans cette session,
+affiche « réponse perdue, ne pas renvoyer » et conserve l'accès à la
+**consultation en lecture seule** de l'état du moteur. Revoir un
+statut `running` ne permet pas, à lui seul, de déduire quel POST a
+été exécuté ; cela ne lève pas le verrou d'incertitude.
+La fixture native perd volontairement l'accusé après traitement de la
+requête pour Pause puis Reprise, et vérifie qu'aucun doublon n'est envoyé.
+Fermer/réouvrir le titre n'autorise toujours pas à adopter un
+checkpoint arbitraire et n'apporte pas encore de preuve de continuité
+d'un job au niveau du moteur ou du firmware.
+
 ## Reprise après une pause automatique de stockage (25 octobre 2026)
 
 Le moteur AMPR peut protéger les conversions par une pause automatique

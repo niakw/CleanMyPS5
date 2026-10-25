@@ -48,6 +48,7 @@ unsigned mock_ampr_receive=0;
 unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
+bool mock_ampr_control_drop_reply=false;
 bool mock_ampr_failed=false;
 bool mock_ampr_foreign_running=false;
 bool mock_smp_wrong_size=false;
@@ -176,6 +177,7 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   return n;
  }
  if(id==21){
+  if(mock_ampr_control_drop_reply)return -1;
   static constexpr char reply[]=
     "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n"
     "Content-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}";
@@ -1453,5 +1455,48 @@ int main(){
   video_info=Cmp5VideoMetadata{95200,1920,1080,6};
   save(Screen::video_info,"11-video-info");
  }
+ /* A lost ACK after the body was delivered may already have triggered
+  * the checkpoint pause/resume. Neither operation can be replayed solely
+  * because its response could not be read. */
+ mock_ampr_online=true;
+ mock_ampr_post_bodies=1u;mock_ampr_queued_work=0u;
+ mock_ampr_failed=false;mock_ampr_paused=false;
+ game_preflight=cmp5_compression::GamePreflight{};
+ std::strcpy(game_preflight.title_id,"PPSA12345");
+ game_preflight.compatible=true;game_preflight.source_bytes=1u;
+ game_preflight.need_max=1u;game_preflight.dest_free=2u;
+ game_preflight_checked=true;game_job_accepted=true;
+ game_source_is_image=false;
+ std::strcpy(game_dest_checked,"/mnt/usb0/homebrew");
+ reset_compression_job_state();
+ game_preflight=cmp5_compression::GamePreflight{};
+ std::strcpy(game_preflight.title_id,"PPSA12345");
+ game_preflight.compatible=true;game_preflight.source_bytes=1u;
+ game_preflight.need_max=1u;game_preflight.dest_free=2u;
+ game_preflight_checked=true;game_job_accepted=true;
+ const unsigned pauses_before=mock_ampr_pauses;
+ const unsigned resumes_before=mock_ampr_resumes;
+ mock_ampr_control_drop_reply=true;
+ run_game_pause();
+ assert(game_pause_attempted&&game_pause_unknown&&!game_pause_accepted);
+ assert(mock_ampr_pauses==pauses_before+1u&&mock_ampr_paused);
+ run_game_pause();
+ assert(mock_ampr_pauses==pauses_before+1u);
+ run_game_resume();
+ assert(game_resume_attempted&&game_resume_unknown&&!game_resume_accepted);
+ assert(mock_ampr_resumes==resumes_before+1u&&!mock_ampr_paused);
+ run_game_resume();
+ assert(mock_ampr_resumes==resumes_before+1u);
+ mock_ampr_control_drop_reply=false;
+ run_game_progress();
+ assert(game_progress_checked&&game_progress.state==cmp5_compression::JobState::running);
+ assert(game_resume_unknown&&game_pause_unknown);
+ run_game_resume();run_game_pause();
+ assert(mock_ampr_resumes==resumes_before+1u&&mock_ampr_pauses==pauses_before+1u);
+ reset_compression_job_state();
+ assert(!game_pause_unknown&&!game_resume_unknown);
+ const unsigned resume_count=mock_ampr_resumes;
+ run_game_resume(); /* No unknown checkpoint is auto-adopted. */
+ assert(mock_ampr_resumes==resume_count);
  return 0;
 }
