@@ -10,8 +10,11 @@
 
 #define CMP5_RECOVERY_MAX 8u
 #define CMP5_RECOVERY_DIRECTORY_LIMIT 256u
-typedef enum { CMP5_RECOVERY_PACK=1,CMP5_RECOVERY_COPY=2,
-               CMP5_RECOVERY_VERIFY=3 } Cmp5RecoveryStage;
+/* Numeric stage type permits the explicit zero = unverified sentinel
+ * in both C11 and C++20 consumers of this header. */
+typedef unsigned Cmp5RecoveryStage;
+enum { CMP5_RECOVERY_PACK=1,CMP5_RECOVERY_COPY=2,
+       CMP5_RECOVERY_VERIFY=3 };
 typedef struct {
  char title_id[10];
  char destination[48];
