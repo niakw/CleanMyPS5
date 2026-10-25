@@ -1451,7 +1451,8 @@ void run_game_preflight() noexcept {
 void run_recovery_inventory() noexcept {
  recovery_checked=false;
  Cmp5RecoveryInventory sample{};
- if(cmp5_scan_recovery_inventory("/",&sample)&&!cancellation_hook(nullptr)){
+ if(cmp5_scan_recovery_inventory_cancel("/",&sample,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr)){
   recovery_inventory=sample;
   recovery_selection=0;
   recovery_checked=true;
