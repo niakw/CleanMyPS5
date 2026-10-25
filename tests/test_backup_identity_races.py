@@ -43,6 +43,25 @@ with tempfile.TemporaryDirectory() as temp:
     # The rename is real; no successful result or completed restored file.
     assert moved_backup.is_file() and not (restored/"SAVED").exists()
     moved_backup.rename(backup/"GOOD")
+    # Restore must reject both SOURCE and DESTINATION directory replacement
+    # during an otherwise valid copy, without publishing a success receipt.
+    swapped_backup=Path(temp)/"restore-backup-relocated"
+    run("restore-backup-workspace-swap",swapped_backup)
+    assert swapped_backup.is_dir() and (swapped_backup/"GOOD").is_file()
+    assert not (restored/"SAVED").exists()
+    backup.rmdir()
+    swapped_backup.rename(backup)
+    swapped_target=Path(temp)/"restore-target-relocated"
+    run("restore-target-workspace-swap",swapped_target)
+    assert swapped_target.is_dir() and not (swapped_target/"SAVED").exists()
+    assert restored.is_dir() and not (restored/"SAVED").exists()
+    restored.rmdir()
+    swapped_target.rename(restored)
+    # A target altered just after the atomic name publication must not be
+    # certified even if the staging stream was hashed correctly.
+    run("restore-publish-tamper",restored)
+    assert (restored/"CORRUPT").is_file()
+    assert (restored/"CORRUPT").read_bytes()!=original
     run("same-workspace",backup/".")
     assert not (backup/"SAVED").exists()
     run("fsync-restore",restored)
