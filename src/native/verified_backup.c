@@ -71,6 +71,27 @@ static int private_directory_current(int dir,const char*path,
  close(reopened);
  return ok;
 }
+/* A restore writes to the destination directory, so its mtime/ctime
+ * legitimately change. Check stable inode and private permissions here;
+ * the stricter metadata-equality check above remains for read-only verify. */
+static int private_directory_identity_current(int dir,const char*path,
+ const struct stat*original){
+ struct stat anchored={0},named={0};
+ if(fstat(dir,&anchored)!=0||!S_ISDIR(anchored.st_mode)||
+    anchored.st_dev!=original->st_dev||
+    anchored.st_ino!=original->st_ino||
+    anchored.st_uid!=original->st_uid||
+    anchored.st_mode!=original->st_mode||
+    anchored.st_nlink!=original->st_nlink)return 0;
+ int reopened=private_dir(path);
+ if(reopened<0)return 0;
+ const int ok=fstat(reopened,&named)==0&&
+   anchored.st_dev==named.st_dev&&anchored.st_ino==named.st_ino&&
+   anchored.st_uid==named.st_uid&&anchored.st_mode==named.st_mode&&
+   anchored.st_nlink==named.st_nlink;
+ close(reopened);
+ return ok;
+}
 static int snapshot_matches(const struct stat*s,const Cmp5MediaCandidate*c){
  return cmp5_snapshot_matches(c,s);
 }
@@ -256,6 +277,35 @@ int cmp5_verify_backup(const char*workspace,const char*id,
  if(ok&&r)*r=verified;
  return ok;
 }
+/* A published restore must be re-read by its destination name. Verifying
+ * only the bytes written to the staging descriptor is not sufficient:
+ * a rename or replacement after close could publish another object. */
+static int verify_restored_file(int dir,const char*id,
+ const Cmp5BackupReceipt*expected,Cmp5CancelCheck cancel,void*ctx){
+ int fd=openat(dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(fd<0)return 0;
+ struct stat before={0},after={0},named={0};
+ int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
+   before.st_nlink==1&&before.st_size>0&&
+   (uint64_t)before.st_size==expected->bytes;
+ uint8_t data[BUFFER_SIZE],digest[32]={0};
+ Cmp5Sha256 sha;cmp5_sha256_init(&sha);
+ for(uint64_t done=0;ok&&done<expected->bytes;){
+  if(canceled(cancel,ctx)){ok=0;break;}
+  const size_t n=(size_t)(expected->bytes-done>sizeof(data)?
+                         sizeof(data):expected->bytes-done);
+  if(!full_read(fd,data,n)){ok=0;break;}
+  cmp5_sha256_update(&sha,data,n);
+  done+=n;
+ }
+ if(ok)cmp5_sha256_final(&sha,digest);
+ if(ok)ok=memcmp(digest,expected->sha256,32)==0&&
+    fstat(fd,&after)==0&&same(&before,&after)&&after.st_nlink==1&&
+    fstatat(dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+    same(&before,&named)&&named.st_nlink==1&&!canceled(cancel,ctx);
+ close(fd);
+ return ok;
+}
 int cmp5_restore_backup(const char*backup,const char*id,
  const char*destination,const char*newname,Cmp5BackupReceipt*r,
  Cmp5CancelCheck cancel,void*ctx){
@@ -294,15 +344,26 @@ int cmp5_restore_backup(const char*backup,const char*id,
  if(ok)ok=fstat(source,&after)==0&&same(&before,&after)&&
    fstatat(source_dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
    same(&before,&named)&&named.st_nlink==1;
- close(source);close(source_dir);
+ /* A descriptor can remain valid after its parent directory is replaced.
+  * Refuse to publish into an orphaned destination or from an orphaned
+  * backup workspace; neither pathname may silently change identity. */
+ if(ok)ok=private_directory_identity_current(source_dir,backup,&source_root)&&
+    private_directory_identity_current(target,destination,&target_root);
  if(ok)ok=fsync(stage)==0;
  close(stage);
  if(ok&&canceled(cancel,ctx))ok=0;
- if(ok){
-  ok=publish(target,temp,newname);
-  if(ok&&r)*r=verified;
- }
+ if(ok)ok=private_directory_identity_current(source_dir,backup,&source_root)&&
+    private_directory_identity_current(target,destination,&target_root);
+ if(ok)ok=publish(target,temp,newname);
+ if(ok)ok=verify_restored_file(target,newname,&verified,cancel,ctx)&&
+    fstat(source,&after)==0&&same(&before,&after)&&
+    fstatat(source_dir,id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+    same(&before,&named)&&named.st_nlink==1&&
+    private_directory_identity_current(source_dir,backup,&source_root)&&
+    private_directory_identity_current(target,destination,&target_root);
+ if(ok&&r)*r=verified;
  if(!ok)(void)unlinkat(target,temp,0);
+ close(source);close(source_dir);
  close(target);
  return ok;
 }
