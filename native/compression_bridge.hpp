@@ -3,6 +3,7 @@
 #pragma once
 #include <cstddef>
 #include <cstring>
+#include "http_header_guard.hpp"
 namespace cmp5_compression {
 struct Hello {char version[32]{};};
 inline bool parse_hello_http(const char*wire,std::size_t size,Hello*out) noexcept {
@@ -17,14 +18,18 @@ inline bool parse_hello_http(const char*wire,std::size_t size,Hello*out) noexcep
   const char*line=wire+pos;std::size_t n=lineend-pos;
   pos=lineend+2;
   if(n==0){ended=true;break;}
-  constexpr char ct[]="Content-Type: ",cl[]="Content-Length: ",te[]="Transfer-Encoding:";
-  if(n>=sizeof(te)-1&&!std::memcmp(line,te,sizeof(te)-1))return false;
-  if(n>=sizeof(ct)-1&&!std::memcmp(line,ct,sizeof(ct)-1)){
+  constexpr char ct[]="Content-Type: ",cl[]="Content-Length: ";
+  const auto kind=cmp5_http::classify(line,n);
+  if(kind==cmp5_http::Field::invalid||
+     kind==cmp5_http::Field::transfer_encoding)return false;
+  if(kind==cmp5_http::Field::content_type){
    if(type||n!=sizeof(ct)-1+16||
+      std::memcmp(line,ct,sizeof(ct)-1)||
       std::memcmp(line+sizeof(ct)-1,"application/json",16))return false;
    type=true;
-  }else if(n>=sizeof(cl)-1&&!std::memcmp(line,cl,sizeof(cl)-1)){
-   if(length||n==sizeof(cl)-1)return false;
+  }else if(kind==cmp5_http::Field::content_length){
+   if(length||n<=sizeof(cl)-1||
+      std::memcmp(line,cl,sizeof(cl)-1))return false;
    length=true;
    for(std::size_t j=sizeof(cl)-1;j<n;j++){
     if(line[j]<'0'||line[j]>'9')return false;

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include "http_header_guard.hpp"
 namespace cmp5_compression {
 
 struct HttpJson {
@@ -28,17 +29,19 @@ inline bool parse_ampr_http(const char*wire,std::size_t n,
   const char*line=wire+p;const std::size_t size=end-p;
   p=end+2;
   if(size==0){done=true;break;}
-  constexpr char type[]="Content-Type: ",len[]="Content-Length: ",
-                 enc[]="Transfer-Encoding:";
-  if(size>=sizeof(enc)-1&&!std::memcmp(line,enc,sizeof(enc)-1))
-   return false;
-  if(size>=sizeof(type)-1&&!std::memcmp(line,type,sizeof(type)-1)){
+  constexpr char type[]="Content-Type: ",len[]="Content-Length: ";
+  const auto kind=cmp5_http::classify(line,size);
+  if(kind==cmp5_http::Field::invalid||
+     kind==cmp5_http::Field::transfer_encoding)return false;
+  if(kind==cmp5_http::Field::content_type){
    if(ct||size!=sizeof(type)-1+16||
+      std::memcmp(line,type,sizeof(type)-1)||
       std::memcmp(line+sizeof(type)-1,"application/json",16))return false;
    ct=true;
   }
-  if(size>=sizeof(len)-1&&!std::memcmp(line,len,sizeof(len)-1)){
-   if(cl||size==sizeof(len)-1)return false;
+  if(kind==cmp5_http::Field::content_length){
+   if(cl||size<=sizeof(len)-1||
+      std::memcmp(line,len,sizeof(len)-1))return false;
    cl=true;
    for(std::size_t i=sizeof(len)-1;i<size;i++){
     if(line[i]<'0'||line[i]>'9')return false;

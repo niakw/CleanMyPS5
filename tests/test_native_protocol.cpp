@@ -68,6 +68,16 @@ int main(){
  assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                  "Content-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n{}"));
  assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\ntransfer-encoding: chunked\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\ncontent-length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\nCONTENT-TYPE: application/json\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\nBad Header: invalid\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 NotOK\r\nContent-Type: application/json\r\n"
+                 "Content-Length: 2\r\n\r\n{}"));
+ assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                  "Content-Length: 2\r\n\r\n[]"));
  assert(!accepts(good+"trailing"));
  assert(!accepts(good.substr(0,good.size()-1)));

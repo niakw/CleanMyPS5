@@ -23,6 +23,22 @@ int main(){
  auto duplicate=wire;
  duplicate.insert(duplicate.find("\r\n\r\n"),"\r\nContent-Length: 2");
  assert(!parse_ampr_http(duplicate.data(),duplicate.size(),&framed));
+ auto disguised_te=wire;
+ disguised_te.insert(disguised_te.find("\r\n\r\n"),
+                    "\r\ntRaNsFeR-EnCoDiNg: chunked");
+ assert(!parse_ampr_http(disguised_te.data(),disguised_te.size(),&framed));
+ auto disguised_length=wire;
+ disguised_length.insert(disguised_length.find("\r\n\r\n"),
+                        "\r\ncontent-length: 1");
+ assert(!parse_ampr_http(disguised_length.data(),disguised_length.size(),&framed));
+ auto disguised_type=wire;
+ disguised_type.insert(disguised_type.find("\r\n\r\n"),
+                      "\r\nCONTENT-TYPE: text/plain");
+ assert(!parse_ampr_http(disguised_type.data(),disguised_type.size(),&framed));
+ auto malformed_header=wire;
+ malformed_header.insert(malformed_header.find("\r\n\r\n"),
+                         "\r\nBad Header: nope");
+ assert(!parse_ampr_http(malformed_header.data(),malformed_header.size(),&framed));
 
  assert(pre.ready()&&pre.image_bytes==0&&pre.source_bytes==12345&&
   pre.need_max==16000&&pre.dest_total==64000&&

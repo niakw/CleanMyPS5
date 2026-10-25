@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include "http_header_guard.hpp"
 
 namespace cmp5_native {
 // Native/helper protocol v2: fail closed on an unexpected process or version.
@@ -28,7 +29,7 @@ struct HttpBody {
 inline bool parse_http_json(const char*buffer,std::size_t size,HttpBody*out) noexcept {
  if(out)*out={};
  if(!buffer||!out||size<32)return false;
- constexpr char prefix[]="HTTP/1.1 200 ";
+ constexpr char prefix[]="HTTP/1.1 200 OK\r\n";
  if(size<sizeof(prefix)-1||
     std::memcmp(buffer,prefix,sizeof(prefix)-1)!=0)return false;
  constexpr std::size_t max_header=2048;
@@ -61,11 +62,13 @@ inline bool parse_http_json(const char*buffer,std::size_t size,HttpBody*out) noe
   if(!end||end==cursor)return false;
   constexpr char length[]="Content-Length: ";
   constexpr char type[]="Content-Type: ";
-  constexpr char encoding[]="Transfer-Encoding:";
   const std::size_t line_size=static_cast<std::size_t>(end-cursor);
-  if(line_size>=sizeof(length)-1&&
-     std::memcmp(cursor,length,sizeof(length)-1)==0){
-   if(has_length)return false;
+  const auto kind=cmp5_http::classify(cursor,line_size);
+  if(kind==cmp5_http::Field::invalid||
+     kind==cmp5_http::Field::transfer_encoding)return false;
+  if(kind==cmp5_http::Field::content_length){
+   if(has_length||line_size<=sizeof(length)-1||
+      std::memcmp(cursor,length,sizeof(length)-1))return false;
    has_length=true;
    const char*digits=cursor+sizeof(length)-1;
    if(digits==end)return false;
@@ -75,9 +78,9 @@ inline bool parse_http_json(const char*buffer,std::size_t size,HttpBody*out) noe
     if(declared>(65536u-digit)/10u)return false;
     declared=declared*10u+digit;
    }
-  }else if(line_size>=sizeof(type)-1&&
-           std::memcmp(cursor,type,sizeof(type)-1)==0){
-   if(has_type)return false;
+  }else if(kind==cmp5_http::Field::content_type){
+   if(has_type||line_size<=sizeof(type)-1||
+      std::memcmp(cursor,type,sizeof(type)-1))return false;
    has_type=true;
    constexpr char expected[]="application/json";
    const char*value=cursor+sizeof(type)-1;
@@ -85,9 +88,6 @@ inline bool parse_http_json(const char*buffer,std::size_t size,HttpBody*out) noe
    if(remaining<sizeof(expected)-1||
       std::memcmp(value,expected,sizeof(expected)-1)!=0)return false;
    if(remaining>sizeof(expected)-1&&value[sizeof(expected)-1]!=';')return false;
-  }else if(line_size>=sizeof(encoding)-1&&
-           std::memcmp(cursor,encoding,sizeof(encoding)-1)==0){
-   return false; // No chunked or ambiguous framing.
   }
   cursor=end+2;
  }

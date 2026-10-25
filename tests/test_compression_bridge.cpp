@@ -25,6 +25,20 @@ int main(){
  assert(bad(duplicated));
  auto chunked=ok;chunked.insert(chunked.find("\r\n\r\n"),"\r\nTransfer-Encoding: chunked");
  assert(bad(chunked));
+ auto disguised_te=ok;disguised_te.insert(disguised_te.find("\r\n\r\n"),
+                                         "\r\ntransfer-encoding: chunked");
+ assert(bad(disguised_te));
+ auto disguised_length=ok;
+ disguised_length.insert(disguised_length.find("\r\n\r\n"),
+                         "\r\nCONTENT-length: 47");
+ assert(bad(disguised_length));
+ auto disguised_type=ok;
+ disguised_type.insert(disguised_type.find("\r\n\r\n"),
+                       "\r\ncontent-type: application/json");
+ assert(bad(disguised_type));
+ auto malformed=ok;malformed.insert(malformed.find("\r\n\r\n"),
+                                    "\r\nContent Length: 30");
+ assert(bad(malformed));
  auto wrong=ok;wrong[7]='1';assert(bad(wrong));
  assert(!parse_hello_http(nullptr,0,&h));
  assert(!parse_hello_http(ok.data(),ok.size(),nullptr));

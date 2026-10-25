@@ -1,5 +1,19 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Durcissement de la lecture HTTP locale (25 octobre 2026)
+
+Les trois décodeurs HTTP du titre, du helper et du moteur AMPR appliquent
+maintenant une validation commune de la syntaxe des noms d'en-têtes.
+Les noms d'en-têtes HTTP étant insensibles à la casse, un second
+`content-length`, un `CONTENT-TYPE` ou un
+`transfer-encoding` déguisé ne peuvent plus contourner les contrôles
+contre les longueurs ambiguës et les réponses chunked. Les champs de
+cadrage reconnus restent obligatoirement dans l'orthographe attendue
+des composants embarqués. Le titre refuse également toute ligne de
+statut helper différente de `HTTP/1.1 200 OK`. Les tests hôte couvrent
+ces variantes dans les trois protocoles. Cette validation de trames
+n'authentifie pas un processus ni ne donne de droits sur la PS5.
+
 L'application n'a **pas encore atteint la fin du développement**. Distinguer
 explicitement deux objectifs évite de faire passer un build CI pour une
 application PS5 validée.
