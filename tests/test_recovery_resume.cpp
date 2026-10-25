@@ -16,10 +16,12 @@ int main(){
   *out=inventory;return true;
  };
  assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
+ /* Another inaccessible device is not proof this selected checkpoint
+  * is unsafe: the scanner only retains independently verified entries. */
  inventory.partial=1;
- assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
  inventory.partial=0;inventory.hidden=1;
- assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
  inventory.hidden=0;
  inventory.entries[0].stage=CMP5_RECOVERY_COPY;
  assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
