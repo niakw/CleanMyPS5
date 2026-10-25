@@ -2763,7 +2763,7 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
  if(compression_view==7u){
-  panel(canvas,307,"CONVERSIONS INTERROMPUES SUR DISQUE",
+  panel(canvas,307,"ETATS AMPR PRESENTS SUR DISQUE",
     "INVENTAIRE LECTURE SEULE  REPRISE NON AUTORISEE");
   if(task_busy()){
    panel(canvas,467,"CHECKPOINTS AMPR",
@@ -2795,7 +2795,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     canvas.text(125,842,stage,2,Color::cyan);
    }else{
     panel(canvas,575,"AUCUN CHECKPOINT CONFIRME",
-      "UN SUPPORT ABSENT OU UN ETAT INVALIDE RESTE NON CONNU",Color::yellow);
+      "AUCUN ETAT VALIDE TROUVE SUR LES VOLUMES ACCESSIBLES",Color::yellow);
    }
    if(recovery_inventory.partial||recovery_inventory.unavailable){
     char warning[140]{};
