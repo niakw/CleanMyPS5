@@ -16,8 +16,13 @@ static char swap_parent[550];
 static int swap_armed;
 static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
-static int deny_request_once,deny_state_once;
+static int deny_request_once,deny_state_once,io_request_once;
 static int test_openat(int dir,const char*name,int flags){
+ if(io_request_once&&!strcmp(name,"request.bin")){
+  io_request_once=0;
+  errno=EIO;
+  return -1;
+ }
  if((deny_request_once&&!strcmp(name,"request.bin"))||
     (deny_state_once&&!strcmp(name,".e2a-state"))){
   deny_request_once=0;
@@ -155,6 +160,11 @@ int main(void){
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(!deny_state_once);
  assert(results.count==2u&&results.partial);
+ /* A read-only I/O fault likewise cannot be reported as no job. */
+ io_request_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!io_request_once);
+ assert(results.count==2u&&results.partial);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3u&&!results.partial);
 
@@ -199,6 +209,7 @@ int main(void){
  assert(unlink(name)==0);
  assert(symlink("/etc/passwd",name)==0);
  assert(cmp5_scan_recovery_inventory(root,&results)&&results.count==2);
+ assert(results.partial); /* Unsafe stage alias is not an absent job. */
  assert(unlink(name)==0);
  set_text(name,"unknown");
  assert(cmp5_scan_recovery_inventory(root,&results)&&results.count==2);
