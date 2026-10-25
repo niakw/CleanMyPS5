@@ -74,6 +74,18 @@ void finish_scan(){
 }
 
 extern "C" {
+/* Navigation tests have no real PS5 /download0 or Gallery filesystem.
+ * Real capsule copy/SHA/restore tests are separate native C host fixtures. */
+int cmp5_backup_media(const char*,const Cmp5MediaCandidate*,const char*,
+ const char*,Cmp5BackupReceipt*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic UI must not write a PS5 media capsule");
+ return 0;
+}
+int cmp5_verify_backup(const char*,const char*,Cmp5BackupReceipt*,
+ Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic UI must not approve a PS5 media capsule");
+ return 0;
+}
 int sceUserServiceInitialize(const void*){return 0;}
 int sceUserServiceGetInitialUser(int *id){*id=1;return 0;}
 int scePadInit(void){return 0;}
