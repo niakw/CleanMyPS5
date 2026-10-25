@@ -166,13 +166,15 @@ static int publish_manifest(int dir,const char*id,int restored,
  if(fd<0)return 0;
  int ok=write_exact(fd,manifest,MARK_SIZE)&&fsync(fd)==0;
  close(fd);
- if(cancelled(cancel,ctx))ok=0;
- if(ok)ok=linkat(dir,temp,dir,name,0)==0;
- /* Do not call a group committed if its private staging file remains
-  * published as an extra link because cleanup failed. */
- const int staging_removed=unlinkat(dir,temp,0)==0;
- if(ok)ok=staging_removed&&fsync(dir)==0;
- return ok;
+ /* A failed marker cannot safely unlink temp by its NAME: an independent
+  * process may have renamed our original and put a different private file
+  * there. Keep .part intact for explicit recovery inspection. */
+ if(cancelled(cancel,ctx)||!ok)return 0;
+ if(linkat(dir,temp,dir,name,0)!=0)return 0;
+ /* On successful atomic publication, the marker's staging hardlink must
+  * disappear before a verified receipt can be reported. */
+ if(unlinkat(dir,temp,0)!=0)return 0;
+ return fsync(dir)==0;
 }
 static int raw_restored(int dir,const char*name,uint64_t size,
  const uint8_t expected[32],Cmp5CancelCheck cancel,void*ctx){

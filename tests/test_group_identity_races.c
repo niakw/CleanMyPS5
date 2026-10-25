@@ -96,6 +96,22 @@ static int swap_workspace_during_verify(void*ctx){
  }
  return 0; /* Do not cancel: the verifier must see the changed path itself. */
 }
+/* Simulate an uncooperative writer switching the temporary group
+ * marker BEFORE our cancellation callback returns. The publisher must
+ * not unlink the foreign replacement while reporting an aborted group. */
+static int swap_cancelled_marker(void*context){
+ const int dir=*(const int*)context;
+ assert(renameat(dir,".CANCEL__COMMIT.part",
+                 dir,".CANCEL__COMMIT.original")==0);
+ const int replacement=openat(dir,".CANCEL__COMMIT.part",
+                              O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ assert(replacement>=0);
+ static const char foreign[]="KEEP FOREIGN TEMPORARY";
+ assert(write(replacement,foreign,sizeof(foreign)-1u)==
+        (ssize_t)(sizeof(foreign)-1u));
+ assert(close(replacement)==0);
+ return 1;
+}
 static void write_member(int dir,const char*filename,const void*data,size_t len){
  int fd=openat(dir,filename,O_CREAT|O_WRONLY|O_EXCL,0600);
  assert(fd>=0);
@@ -197,7 +213,20 @@ int main(int argc,char**argv){
  fail_staging_unlink=1;
  assert(!publish_manifest(dir,"STAGE",0,manifest,NULL,NULL));
  fail_staging_unlink=0;
+ /* Aborted publish must preserve a stage name swapped before cleanup. */
+ assert(!publish_manifest(dir,"CANCEL",0,manifest,
+                           swap_cancelled_marker,&dir));
+ char foreign[64]={0};
+ int marker=openat(dir,".CANCEL__COMMIT.part",O_RDONLY|O_NOFOLLOW);
+ assert(marker>=0);
+ assert(read(marker,foreign,sizeof(foreign))==
+        (ssize_t)(sizeof("KEEP FOREIGN TEMPORARY")-1u));
+ assert(strcmp(foreign,"KEEP FOREIGN TEMPORARY")==0);
+ assert(close(marker)==0);
  struct stat st;
+ assert(fstatat(dir,"CANCEL__COMMIT",&st,AT_SYMLINK_NOFOLLOW)!=0&&errno==ENOENT);
+ assert(unlinkat(dir,".CANCEL__COMMIT.part",0)==0);
+ assert(unlinkat(dir,".CANCEL__COMMIT.original",0)==0);
  assert(fstatat(dir,"STAGE__COMMIT",&st,AT_SYMLINK_NOFOLLOW)==0);
  assert(fstatat(dir,".STAGE__COMMIT.part",&st,AT_SYMLINK_NOFOLLOW)==0);
  assert(unlinkat(dir,".STAGE__COMMIT.part",0)==0);

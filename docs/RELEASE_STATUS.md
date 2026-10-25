@@ -11,7 +11,11 @@ sur l'identité de l'inode. Les nouveaux tests remplacent artificiellement
 le fichier temporaire durant `fsync`, provoquent `EIO` et vérifient que
 le fichier de remplacement demeure intact dans les deux sens.
 Les noms `.part` résiduels bloquent volontairement toute réutilisation
-automatique (`O_EXCL`) jusqu'à audit manuel. Les noms déjà publiés
+automatique (`O_EXCL`) jusqu'à audit manuel. Le marqueur de validation
+`__COMMIT` d'un **groupe** applique désormais le même comportement :
+une annulation ou erreur laisse le temporaire intact, y compris lorsque
+son nom a été remplacé par un fichier tiers. Un test C simule cette
+substitution pendant l'annulation du commit privé. Les noms déjà publiés
 sont désormais refusés **avant** une nouvelle copie lourde, avec
 `linkat` toujours utilisé pour le refus atomique final.
 Les racines PS5 `/system_data`, `/app0`, `/update` et les
