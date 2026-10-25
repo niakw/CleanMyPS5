@@ -118,7 +118,29 @@ inline bool scan_at(const char*folder,Inventory*out,
   if(is_stage){
    ++found.staged;found.partial=true;continue;
   }
-  if(!is_capsule){found.partial=true;continue;}
+  if(!is_capsule){
+   bool commit=false,temporary=false;
+   if(group_entry_name(entry->d_name,&commit,&temporary)){
+    if(temporary){++found.staged;found.partial=true;continue;}
+    struct stat st{};
+    if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0||
+       !S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
+       st.st_nlink!=1||(st.st_mode&0077)!=0||
+       (commit&&st.st_size!=256)||
+       (!commit&&(st.st_size<=0||
+             st.st_size>(off_t)(CMP5_BACKUP_LIMIT+64u)))){
+     found.partial=true;continue;
+    }
+    if(commit){
+     if(found.group_count==inventory_limit){found.partial=true;continue;}
+     std::memcpy(found.group_ids[found.group_count],
+                 entry->d_name,20u);
+     ++found.group_count;
+    }
+    continue;
+   }
+   found.partial=true;continue;
+  }
   struct stat st{};
   if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0||
      !S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
