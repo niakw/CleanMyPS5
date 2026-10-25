@@ -109,7 +109,8 @@ int main(){
   }
   return 0;
  };
- std::memset(&list,0xA5,sizeof(list));
+ list.checked=true;list.partial=true;
+ list.count=1u;list.group_count=1u;list.staged=1u;
  assert(!scan_at(root,&list,replace_during_scan,&swap));
  assert(swap.changed);
  assert(!list.checked&&!list.partial&&!list.count&&!list.group_count&&
