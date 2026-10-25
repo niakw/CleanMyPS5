@@ -26,7 +26,7 @@ inline bool group_name(const Cmp5MediaCandidate&primary,char out[32]) noexcept {
 inline GroupOutcome verify_saved_group(const char*id,
  Cmp5CancelCheck cancel,void*ctx) noexcept {
  GroupOutcome out{};
- if(!id||std::strlen(id)!=20u||std::memcmp(id,"GRP_",4u)!=0||
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"GRP_",4u)!=0||
     (cancel&&cancel(ctx))){
   out.status=GroupStatus::refused;return out;
  }
