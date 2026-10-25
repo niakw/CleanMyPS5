@@ -248,16 +248,19 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
    close(parent);out->unavailable++;out->partial=1;continue;
   }
   unsigned scanned=0;
+  bool traversal_valid=true;
   for(;;){
    errno=0;
    struct dirent*entry=readdir(dir);
    if(!entry){
-    if(errno!=0)out->partial=1;
+    /* EIO is not EOF: a broken directory enumeration must not publish
+     * candidates from this root as independently verified checkpoints. */
+    if(errno!=0){out->partial=1;traversal_valid=false;}
     break;
    }
    if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,".."))continue;
    if(++scanned>CMP5_RECOVERY_DIRECTORY_LIMIT){
-    out->partial=1;break;
+    out->partial=1;break; /* bounded partial inventory, not an I/O error */
    }
    if(!cmp5_recovery_title(entry->d_name))continue;
    Cmp5RecoveryStage stage=0;
@@ -269,11 +272,13 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
     c->stage=stage;
    }else out->hidden++;
   }
-  if(closedir(dir)!=0)out->partial=1;
-  if(fstat(parent,&parent_after)!=0||
+  if(closedir(dir)!=0){out->partial=1;traversal_valid=false;}
+  if(!traversal_valid||fstat(parent,&parent_after)!=0||
      !cmp5_recovery_same(&parent_before,&parent_after)||
      !cmp5_recovery_parent_still_same(root,dest,&parent_before)){
    out->partial=1;
+   /* Preserve candidates from earlier independent volumes; discard only
+    * observations collected during this untrustworthy traversal. */
    for(unsigned i=previous_count;i<out->count;i++)
     memset(&out->entries[i],0,sizeof(out->entries[i]));
    out->count=previous_count;out->hidden=previous_hidden;
