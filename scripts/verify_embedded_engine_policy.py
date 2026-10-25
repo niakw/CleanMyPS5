@@ -104,6 +104,17 @@ def check_engine(root: Path) -> None:
         'cmp5_game_resume_path_still_same("/", dest, &cmp5_created_output)'
             not in worker):
         missing.append("worker missing anchored exclusive title output")
+    checkpoint_reader=job[job.find("static int stage_get("):
+                          job.find("/* ------------------------------------------------------------------ run -- */")]
+    for fragment in ('cmp5_game_open_checkpoint_dir("/",state_dir)',
+                     'openat(dir,"stage",O_RDONLY|O_NOFOLLOW|O_NONBLOCK)',
+                     'cmp5_game_same_stat(&first,&named)',
+                     'first.st_size==4||first.st_size==6'):
+        if fragment not in checkpoint_reader:
+            missing.append("resume stage reader missing strict checkpoint protection")
+            break
+    if 'if (stage_get(state_dir, stage, sizeof stage) != 0)' not in worker:
+        missing.append("resume must reject missing or altered stage")
     create_start=game_paths.find("static inline bool cmp5_game_output_create_unique(")
     create_end=game_paths.find("static inline bool cmp5_game_resume_path_stat(",create_start)
     create=game_paths[create_start:create_end] if create_start>=0 and create_end>=0 else ""

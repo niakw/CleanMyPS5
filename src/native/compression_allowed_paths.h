@@ -288,4 +288,48 @@ static inline bool cmp5_game_resume_path_still_same(const char*root,
  return before&&cmp5_game_resume_path_stat(root,path,&current)&&
         cmp5_game_same_stat(before,&current);
 }
+/* Checkpoint directories are NOT arbitrary file paths. Traverse the
+ * allowlisted title output by O_NOFOLLOW handles, then open the private
+ * .e2a-state child without following aliases. A failed read on PS5 must
+ * not silently restart a partial job at the "pack" stage. */
+static inline int cmp5_game_open_checkpoint_dir(const char*root,
+                                                const char*state_dir){
+ static const char suffix[]="/.e2a-state";
+ if(!root||!state_dir)return -1;
+ const size_t n=strlen(state_dir),tail=sizeof(suffix)-1u;
+ if(n<=tail||n>=192u||strcmp(state_dir+n-tail,suffix)!=0)return -1;
+ char title[192];
+ memcpy(title,state_dir,n-tail);title[n-tail]=0;
+ struct stat title_snapshot={0};
+ if(!cmp5_game_resume_path_stat(root,title,&title_snapshot))return -1;
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return -1;
+ for(const char*cur=title+1;*cur;){
+  const char*slash=strchr(cur,'/');
+  const size_t len=slash?(size_t)(slash-cur):strlen(cur);
+  char part[65];
+  if(!len||len>=sizeof(part)){close(fd);return -1;}
+  memcpy(part,cur,len);part[len]=0;
+  int next=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(fd);
+  if(next<0)return -1;
+  fd=next;
+  if(!slash)break;
+  cur=slash+1;
+ }
+ struct stat parent={0},named={0},opened={0};
+ int child=openat(fd,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ const bool ok=child>=0&&fstat(fd,&parent)==0&&
+   fstat(child,&opened)==0&&
+   fstatat(fd,".e2a-state",&named,AT_SYMLINK_NOFOLLOW)==0&&
+   S_ISDIR(parent.st_mode)&&S_ISDIR(named.st_mode)&&
+   S_ISDIR(opened.st_mode)&&
+   parent.st_dev==title_snapshot.st_dev&&
+   parent.st_ino==title_snapshot.st_ino&&
+   opened.st_dev==named.st_dev&&opened.st_ino==named.st_ino&&
+   cmp5_game_resume_path_still_same(root,title,&title_snapshot);
+ close(fd);
+ if(!ok){if(child>=0)close(child);return -1;}
+ return child;
+}
 #endif

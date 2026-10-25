@@ -94,6 +94,70 @@ def main(root: Path):
       if (dest[0] && created)
         e2a_log("failed: preserving conversion output %s", dest);''')
 
+    # A missing, unreadable, aliased or malformed checkpoint stage on PS5
+    # is NOT an instruction to restart "pack" in a partially converted tree.
+    # Resolve both the title output and its .e2a-state via O_NOFOLLOW and
+    # read a single exact stage marker, including stable inode checks.
+    change(jobc,
+           '''static void stage_get(const char *state_dir, char *out, size_t cap) {
+  char path[700], *txt = NULL;
+  snprintf(path, sizeof path, "%s/stage", state_dir);
+  snprintf(out, cap, "pack");
+  if (e2a_read_text(path, &txt, NULL, 32) == 0) { snprintf(out, cap, "%s", txt); free(txt); }
+}''',
+           '''static int stage_get(const char *state_dir, char *out, size_t cap) {
+#ifdef E2A_HOST
+  char path[700], *txt = NULL;
+  snprintf(path, sizeof path, "%s/stage", state_dir);
+  snprintf(out, cap, "pack");
+  if (e2a_read_text(path, &txt, NULL, 32) == 0) {
+    snprintf(out, cap, "%s", txt);free(txt);
+  }
+  return 0;
+#else
+  if(!out||cap<7u)return -1;
+  out[0]=0;
+  int dir=cmp5_game_open_checkpoint_dir("/",state_dir);
+  if(dir<0)return -1;
+  int fd=openat(dir,"stage",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+  if(fd<0){close(dir);return -1;}
+  struct stat first={0},last={0},named={0};
+  int good=fstat(fd,&first)==0&&S_ISREG(first.st_mode)&&
+           first.st_nlink==1&&(first.st_size==4||first.st_size==6);
+  char value[7]={0};
+  size_t count=0;
+  while(good&&count<(size_t)first.st_size){
+    ssize_t got=read(fd,value+count,(size_t)first.st_size-count);
+    if(got>0)count+=(size_t)got;
+    else if(got<0&&errno==EINTR)continue;
+    else good=0;
+  }
+  char extra=0;
+  if(good&&read(fd,&extra,1)!=0)good=0;
+  if(good){
+    const bool known=(count==4u&&
+         (!memcmp(value,"pack",4)||!memcmp(value,"copy",4)))||
+         (count==6u&&!memcmp(value,"verify",6));
+    good=known&&fstat(fd,&last)==0&&
+      fstatat(dir,"stage",&named,AT_SYMLINK_NOFOLLOW)==0&&
+      cmp5_game_same_stat(&first,&last)&&
+      cmp5_game_same_stat(&first,&named)&&
+      cmp5_game_open_checkpoint_dir("/",state_dir)>=0;
+  }
+  close(fd);close(dir);
+  if(!good)return -1;
+  memcpy(out,value,count);out[count]=0;
+  return 0;
+#endif
+}''')
+    change(jobc,
+           '    stage_get(state_dir, stage, sizeof stage);',
+           '''    if (stage_get(state_dir, stage, sizeof stage) != 0)
+      FAIL("state_invalid", "missing, swapped or malformed resume stage");''')
+    change(jobc,
+           '      stage_get(state_dir, stage, sizeof stage);',
+           '''      if (stage_get(state_dir, stage, sizeof stage) != 0) continue;''')
+
     # A RESUME or RETRY rehydrates a job_request from .e2a-state rather than
     # parsing /api/start. Pin every dangerous field again at the *last*
     # enqueue boundary, and derive a trusted Title ID from source metadata.

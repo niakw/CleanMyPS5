@@ -165,7 +165,20 @@ int main(void) {
                  "%s/mnt/usb0/homebrew/PPSA55555/.e2a-state",sandbox)>0);
  struct stat checkpoint={0};
  assert(stat(created_path,&checkpoint)==0&&S_ISDIR(checkpoint.st_mode));
+ int state_handle=cmp5_game_open_checkpoint_dir(
+   sandbox,"/mnt/usb0/homebrew/PPSA55555/.e2a-state");
+ assert(state_handle>=0);
+ assert(close(state_handle)==0);
+ assert(cmp5_game_open_checkpoint_dir(
+   sandbox,"/mnt/usb0/homebrew/PPSA55555/../.e2a-state")<0);
+ assert(cmp5_game_open_checkpoint_dir(
+   sandbox,"/user/av_contents/PPSA55555/.e2a-state")<0);
  assert(rmdir(created_path)==0);
+ /* Existing output with a symbolic checkpoint must NEVER be resumed. */
+ assert(symlink("/system_data",created_path)==0);
+ assert(cmp5_game_open_checkpoint_dir(
+   sandbox,"/mnt/usb0/homebrew/PPSA55555/.e2a-state")<0);
+ assert(unlink(created_path)==0);
  assert(snprintf(created_path,sizeof(created_path),
                  "%s/mnt/usb0/homebrew/PPSA55555",sandbox)>0);
  assert(rmdir(created_path)==0);

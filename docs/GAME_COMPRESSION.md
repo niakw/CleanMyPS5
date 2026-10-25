@@ -26,6 +26,22 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Reprise sans étape par défaut en cas de checkpoint inaccessible (25 octobre 2026)
+
+L'ancien lecteur d'étape amont supposait `pack` si le fichier
+`.e2a-state/stage` ne pouvait pas être lu. Sur PS5, ce défaut est
+désormais bloquant pour une reprise : le dossier du titre et son état
+sont ouverts par descripteurs `O_NOFOLLOW`, le fichier `stage`
+doit être régulier, avoir un seul lien et contenir exactement
+`pack`, `copy` ou `verify`. L'identité de l'inode et du nom
+est recontrôlée après lecture. Un fichier manquant, déplacé,
+illisible, invalide ou un lien symbolique empêche la reprise.
+La découverte des jobs interrompus ne présente plus un checkpoint
+illisible comme reprenable. Le chemin amont hôte garde son comportement
+pour les tests de compatibilité ; les garde-fous PS5 sont vérifiés
+dans le C transformé au build. Cela ne remplace pas les tests sur
+firmware 13.60.
+
 ## Réservation atomique de la sortie de conversion (25 octobre 2026)
 
 Le worker de compression PS5 ne crée plus son nouveau dossier de jeu
