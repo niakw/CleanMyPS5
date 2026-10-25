@@ -1,5 +1,21 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Permissions des nouveaux dossiers AMPR (25 octobre 2026)
+
+Pour une nouvelle conversion, le moteur crée le dossier du Title ID
+avec les permissions POSIX `0755` et son répertoire interne
+`.e2a-state` avec `0700` (au lieu de `0777`). L'objectif est de
+conserver un jeu normalement lisible sans exposer les métadonnées privées
+de reprise ni rendre la sortie modifiable par tous en cas de `umask`
+permissif. Les contrôles du moteur transformé imposent ces deux modes.
+Une fixture Linux simule explicitement `umask(0)` et vérifie les modes
+réellement obtenus.
+
+Cette protection POSIX ne prouve pas la prise en charge des permissions
+sur tous les systèmes de fichiers et montages PS5. La sortie initiale
+reste séparée de l'original, et les checkpoints ne sont pas supprimés
+automatiquement.
+
 ## Recherche technique du 23 octobre 2026
 
 Une image PS5 **`.exfat` n'est pas une archive LZ4**. La compresser
