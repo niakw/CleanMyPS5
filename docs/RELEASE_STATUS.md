@@ -1,5 +1,27 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Confidentialité des capsules et restauration privée (26 octobre 2026)
+
+La validation d'une archive SHA-256 ne vérifiait pas partout si le fichier
+était encore **privé**. Le moteur rejette désormais les capsules, les
+marqueurs `__COMMIT`, les fichiers restaurés et les entrées de récupération
+dont le propriétaire n'est plus le compte courant ou dont les permissions
+accordent des droits au groupe ou aux autres utilisateurs. Le contrôle de
+l'origin map était déjà présent et reste en vigueur.
+
+Les fixtures modifient les permissions de fichiers qui conservent pourtant
+leur contenu et leur SHA-256 : la vérification, la restauration et la
+qualification `VERIFIED` doivent les refuser. Un fichier `.part` créé
+avec des permissions privées peut rester classé « interrompu », tandis
+qu'un fichier `.part` exposé est qualifié « invalide ». Il n'y a pas
+de modification ni de suppression des fichiers concernés par ces vérifications.
+
+**Portée :** les essais de restauration restent limités à des dossiers
+privés de simulation hôte. Aucun contrôle des bases de données Sony,
+aucune restauration de Galerie PS5 et aucune suppression réelle
+ne sont activés par ce changement.
+
+
 ## Inventaire privé : concurrence et identifiants bornés (25 octobre 2026)
 
 La revue native des capsules est maintenant rejetée si le même inode de
