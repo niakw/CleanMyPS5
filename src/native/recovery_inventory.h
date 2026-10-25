@@ -217,11 +217,18 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  if(!ok)*out=0;
  return ok;
 }
-static inline bool cmp5_scan_recovery_inventory(const char*root,
-                                               Cmp5RecoveryInventory*out){
+/* Cancellation is cooperative at each root/entry boundary; it never
+ * interrupts a blocking filesystem syscall. Cancelled scans do not publish
+ * partial checkpoint candidates. */
+static inline bool cmp5_scan_recovery_inventory_cancel(
+ const char*root,Cmp5RecoveryInventory*out,
+ int (*cancel)(void*),void*context){
  if(out)memset(out,0,sizeof(*out));
  if(!root||!out)return false;
  for(unsigned storage=0;storage<17u;storage++){
+  if(cancel&&cancel(context)){
+   memset(out,0,sizeof(*out));return false;
+  }
   char dest[48];
   if(storage==0)snprintf(dest,sizeof(dest),"/data/homebrew");
   else snprintf(dest,sizeof(dest),"/mnt/%s%u/homebrew",
@@ -249,7 +256,11 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   }
   unsigned scanned=0;
   bool traversal_valid=true;
+  bool was_cancelled=false;
   for(;;){
+   if(cancel&&cancel(context)){
+    was_cancelled=true;break;
+   }
    errno=0;
    struct dirent*entry=readdir(dir);
    if(!entry){
@@ -284,9 +295,17 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
    out->count=previous_count;out->hidden=previous_hidden;
   }
   close(parent);
+  if(was_cancelled){
+   memset(out,0,sizeof(*out));return false;
+  }
   out->folders_checked++;
  }
  return true;
+}
+/* Preserve the two-argument host API for existing callers and fixtures. */
+static inline bool cmp5_scan_recovery_inventory(
+ const char*root,Cmp5RecoveryInventory*out){
+ return cmp5_scan_recovery_inventory_cancel(root,out,NULL,NULL);
 }
 #undef CMP5_RECOVERY_ZERO
 #endif
