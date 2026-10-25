@@ -124,6 +124,8 @@ fichiers d'état. Aucune suppression de l'original, aucun retry
 automatique si l'accusé est perdu. **Cette reprise reste non validée sur
 console PS5 13.60**, même si les tests hôte sont verts.
 
+**Sauvegarde privée d'une capture (prototype natif)** : depuis le détail d'un média, **R2**, puis deux confirmations **Croix**, demandent une copie non destructive du seul fichier visible vers `/download0/cmp5-private-backups`. L'application refuse le stockage privé non accessible ou insuffisamment protégé, limite la copie à 512 Mio, vérifie son empreinte SHA-256 puis vérifie indépendamment les octets publiés. Le moteur de copie est compilé dans le titre natif **sans les fonctions de restauration** et sans permission de suppression ; la copie d'un fichier n'inclut pas ses index Sony, miniatures et autres dépendances. Fonction non validée sur PS5 13.60 et **ne permettant aucun nettoyage de la Galerie**. Le fichier de sauvegarde ne doit pas être considéré comme une restauration complète.
+
 **Images de jeux :** L1/R1 fait défiler Statistiques, Dossiers et
 Images. Sur l'onglet Images, haut/bas sélectionne un fichier
 `.exfat`, `.ffpkg` ou `.ffpfs` parmi ceux visibles dans les racines
