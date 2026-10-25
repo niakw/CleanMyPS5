@@ -16,7 +16,27 @@
 #include <sys/stat.h>
 #include <unistd.h>
 static char watched[1024],moved[1024];
-static int action,triggered,fail_staging_unlink;
+static int action,triggered,fail_staging_unlink,swap_stage_on_fsync;
+/* Swap the just-written temporary between fsync and linkat. The
+ * group publisher must neither commit a foreign inode nor remove it. */
+static int racing_fsync(int fd){
+ const int result=fsync(fd);
+ if(result==0&&swap_stage_on_fsync){
+  struct stat original={0},named={0};
+  if(fstat(fd,&original)==0&&stat(watched,&named)==0&&
+     original.st_dev==named.st_dev&&original.st_ino==named.st_ino){
+   assert(rename(watched,moved)==0);
+   int foreign=open(watched,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+   assert(foreign>=0);
+   static const char contents[]="FOREIGN_COMMIT_STAGE_DO_NOT_DELETE";
+   assert(write(foreign,contents,sizeof(contents)-1u)==
+          (ssize_t)(sizeof(contents)-1u));
+   assert(close(foreign)==0);
+   triggered=1;swap_stage_on_fsync=0;
+  }
+ }
+ return result;
+}
 static int racing_unlinkat(int dir,const char*name,int flags){
  if(fail_staging_unlink&&!strcmp(name,".STAGE__COMMIT.part")){
   errno=EIO;return -1;
@@ -57,7 +77,9 @@ static struct dirent*racing_readdir(DIR*dir){
 #define read race_read
 #define readdir racing_readdir
 #define unlinkat racing_unlinkat
+#define fsync racing_fsync
 #include "../src/native/verified_group.c"
+#undef fsync
 #undef unlinkat
 #undef readdir
 #undef read
@@ -213,6 +235,28 @@ int main(int argc,char**argv){
  fail_staging_unlink=1;
  assert(!publish_manifest(dir,"STAGE",0,manifest,NULL,NULL));
  fail_staging_unlink=0;
+ /* Reject a marker whose .part is replaced immediately after fsync.
+  * Both the foreign stage and the original renamed inode must survive. */
+ setup_watch(workspace,".SWAPPED__COMMIT.part",
+                         ".SWAPPED__COMMIT.original",0);
+ swap_stage_on_fsync=1;triggered=0;
+ assert(!publish_manifest(dir,"SWAPPED",0,manifest,NULL,NULL));
+ assert(triggered&&!swap_stage_on_fsync);
+ char foreign_stage[64]={0};
+ int foreign_fd=openat(dir,".SWAPPED__COMMIT.part",O_RDONLY|O_NOFOLLOW);
+ assert(foreign_fd>=0);
+ assert(read(foreign_fd,foreign_stage,sizeof(foreign_stage))==
+        (ssize_t)(sizeof("FOREIGN_COMMIT_STAGE_DO_NOT_DELETE")-1u));
+ assert(strcmp(foreign_stage,"FOREIGN_COMMIT_STAGE_DO_NOT_DELETE")==0);
+ assert(close(foreign_fd)==0);
+ struct stat swapped={0};
+ assert(fstatat(dir,"SWAPPED__COMMIT",&swapped,AT_SYMLINK_NOFOLLOW)<0&&
+        errno==ENOENT);
+ assert(fstatat(dir,".SWAPPED__COMMIT.original",&swapped,
+                AT_SYMLINK_NOFOLLOW)==0&&
+        swapped.st_size==(off_t)MARK_SIZE);
+ assert(unlinkat(dir,".SWAPPED__COMMIT.part",0)==0);
+ assert(unlinkat(dir,".SWAPPED__COMMIT.original",0)==0);
  /* Aborted publish must preserve a stage name swapped before cleanup. */
  assert(!publish_manifest(dir,"CANCEL",0,manifest,
                            swap_cancelled_marker,&dir));

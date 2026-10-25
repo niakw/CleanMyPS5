@@ -1,5 +1,23 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Groupe privé : marqueur COMMIT rattaché au fichier réellement écrit (25 octobre 2026)
+
+Le prototype de sauvegarde/restauration privée **hôte uniquement**
+garde désormais ouvert son descripteur de staging lors du `linkat`
+de publication du marqueur `__COMMIT` / `__RESTORED`.
+Il vérifie que le fichier temporaire visible avant publication est
+bien l'inode ayant reçu et synchronisé le manifeste, puis vérifie
+que les deux noms après le lien ciblent exactement cet inode.
+En cas de substitution, la publication est refusée **sans suppression
+du temporaire étranger**. Une fixture C renomme le staging
+juste après `fsync` et le remplace avant `linkat` ; elle exige
+l'absence de marqueur COMMIT et la préservation des deux fichiers.
+Le dernier `unlinkat` de nettoyage d'un staging publié garde une
+fenêtre de course POSIX face à un acteur externe de même UID ignorant
+le verrou `flock` : cela reste un prototype privé, non une preuve
+de transactions Sony ou une autorisation de nettoyer sur PS5.
+
+
 ## Échecs des copies privées : interdiction d'effacer un temporaire remplacé (25 octobre 2026)
 
 Le prototype **hôte uniquement** de sauvegarde/restauration laisse désormais
