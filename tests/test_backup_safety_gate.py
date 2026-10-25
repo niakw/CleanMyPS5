@@ -38,6 +38,9 @@ for token in ("cmp5_restore_group(","cmp5_restore_backup(",
     assert token not in native, f"Unsafe native Gallery restoration: {token}"
     assert token not in builder, f"Unsafe packaged Gallery restoration: {token}"
     assert token not in server, f"Unsafe diagnostic helper mutation: {token}"
+for token in ("verified_group.h","verified_group.c","cmp5_backup_group(",
+              "cmp5_verify_group("):
+    assert token not in server, f"Read-only helper unexpectedly owns backup: {token}"
 assert 'CMP5_NATIVE_GROUP_BACKUP_ONLY 1' in builder
 assert 'cp "$project/src/native/verified_group.c"' in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
