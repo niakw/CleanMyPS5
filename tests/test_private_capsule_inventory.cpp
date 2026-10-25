@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <initializer_list>
 
 static void make_file(const char*root,const char*name,mode_t mode,
                       std::size_t count=65u){
