@@ -1231,8 +1231,8 @@ bool ampr_safe_command(const char*route,const char*form) noexcept {
   return false;
  const std::size_t body_len=std::strlen(form);
  if(body_len>256u)return false;
- if(std::strcmp(route,"/api/pause")==0&&body_len)return false;
- if(std::strcmp(route,"/api/resume")==0&&
+ if((std::strcmp(route,"/api/pause")==0||
+     std::strcmp(route,"/api/resume")==0)&&
     (body_len<16||std::strncmp(form,"dest=",5)!=0))return false;
  const int fd=sceNetSocket("cmp5_ampr_job_control",2,1,6);
  if(fd<0)return false;
@@ -1287,7 +1287,13 @@ void run_game_pause() noexcept {
     fresh.state!=cmp5_compression::JobState::running||
     std::strcmp(fresh.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
- game_pause_accepted=ampr_safe_command("/api/pause","");
+ /* The engine checks this exact output against its scheduler state
+  * while holding g_mx. A stale poll can no longer pause another game. */
+ char body[256]{};
+ if(!cmp5_compression::build_pause_body(game_dest_checked,
+                                       game_preflight.title_id,
+                                       body,sizeof(body)))return;
+ game_pause_accepted=ampr_safe_command("/api/pause",body);
 }
 void run_game_resume() noexcept {
  game_resume_attempted=true;game_resume_accepted=false;

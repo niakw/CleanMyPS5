@@ -180,6 +180,31 @@ def main(root: Path):
 #ifndef E2A_HOST
 #include "cmp5_compression_allowed_paths.h"
 #endif''')
+    # The controller's initial progress read is NOT an authorization to
+    # pause whichever job happens to be active later. Validate the exact
+    # output directory under the same scheduler mutex used by the worker.
+    change(jobc, 'void job_pause(void) { g_pause = 1; }',
+           '''void job_pause(void) { g_pause = 1; }
+#ifndef E2A_HOST
+int cmp5_job_pause_dest(const char *dest) {
+  struct stat before={0};
+  if (!dest || !cmp5_game_resume_path_stat("/",dest,&before)) return -1;
+  pthread_mutex_lock(&g_mx);
+  const bool own_job=g_status.state==JOB_RUNNING &&
+      strcmp(g_status.dest,dest)==0 &&
+      cmp5_game_resume_path_still_same("/",dest,&before);
+  if (own_job) g_pause=1;
+  pthread_mutex_unlock(&g_mx);
+  return own_job?0:-1;
+}
+#endif''')
+    jobh=root / "src/job.h"
+    change(jobh, 'void job_pause(void);                       /* checkpoint and stop the current job; resume later */',
+           '''void job_pause(void);                       /* checkpoint and stop the current job; resume later */
+#ifndef E2A_HOST
+/* Pause only the exact verified output of the actively running PS5 job. */
+int cmp5_job_pause_dest(const char *dest);
+#endif''')
     change(jobc,
            '  job_request normalized = *req;\n  if (!normalized.dest_base[0])',
            '''  job_request normalized = *req;
@@ -300,6 +325,23 @@ def main(root: Path):
   const size_t boolean_fields[]''')
 
     httpd = root / "src/httpd.c"
+    change(httpd,
+           'else if (strcmp(path, "/api/pause") == 0 && post) { job_pause(); send_json(fd, 200, "{\\"ok\\":true}"); }',
+           '''else if (strcmp(path, "/api/pause") == 0 && post) {
+#ifdef E2A_HOST
+    job_pause();send_json(fd,200,"{\\"ok\\":true}");
+#else
+    char pause_dest[600]={0};
+    /* No unscoped pause: even a local caller must supply the exact
+     * destination; a different title cannot be interrupted between
+     * polling /api/cmp5-progress and this mutation. */
+    if(!local || form_get(args,"dest",pause_dest,sizeof pause_dest)<1 ||
+       !SAFE_PATH(pause_dest) ||
+       cmp5_job_pause_dest(pause_dest)!=0)
+      send_json(fd,409,"{\\"error\\":\\"pause_target_changed\\"}");
+    else send_json(fd,200,"{\\"ok\\":true}");
+#endif
+  }''')
     change(httpd, 'addr.sin_addr.s_addr = htonl(INADDR_ANY);',
            'addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);')
     # All request flags are hard-pinned in our distribution. Keep the

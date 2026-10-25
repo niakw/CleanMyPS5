@@ -15,6 +15,8 @@ def check_engine(root: Path) -> None:
     job = (root / "src/job.c").read_text()
     game_paths = (root / "src/cmp5_compression_allowed_paths.h").read_text()
     required = {
+        "scoped pause endpoint": 'cmp5_job_pause_dest(pause_dest)',
+        "scoped pause rejects wrong game": "pause_target_changed",
         "loopback-only listener": "addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);",
         "no automated pruning": "r.clean_leftovers = false;",
         "source preservation": "r.remove_source = false;",
@@ -91,6 +93,18 @@ def check_engine(root: Path) -> None:
         in game_paths[source_start:source_end]
     ):
         missing.append("regular game files must have convertible image suffix")
+    # Pause and scheduler must share the same identity test. A stale
+    # front-end status poll is insufficient authorization for global pause.
+    if not all(part in job for part in (
+        'int cmp5_job_pause_dest(const char *dest)',
+        'strcmp(g_status.dest,dest)==0',
+        'cmp5_game_resume_path_still_same("/",dest,&before)',
+        'pthread_mutex_lock(&g_mx)',
+        'if (own_job) g_pause=1',
+    )):
+        missing.append("pause does not bind the active scheduler to its destination")
+    if "cmp5_job_pause_dest(pause_dest)" not in http:
+        missing.append("httpd still exposes an unscoped pause")
     if "cmp5_game_source_allowed(path)" not in game_paths[source_start:source_end]:
         missing.append("converter source still requires the lexical allowlist")
     # The worker creates the output and its checkpoint using mkdirat from

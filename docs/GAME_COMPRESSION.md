@@ -26,6 +26,22 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Pause LZ4 ciblée sur la bonne conversion (25 octobre 2026)
+
+Le bouton Pause n'envoie plus de `POST /api/pause` **global**.
+Il transmet la destination du jeu confirmé (`dest=<dossier>/<TitleID>`).
+L'endpoint PS5 refuse les pauses sans destination ou sans accès local ;
+le moteur revalide le chemin du dossier par descripteurs `O_NOFOLLOW`,
+puis exige, sous le même mutex que l'ordonnanceur, que la destination
+soit exactement celle du job **en cours** avant de poser le drapeau de
+pause. Un jeu terminé, déplacé ou remplacé, ou un autre job devenu actif
+après la lecture de progression, déclenche un refus plutôt que
+l'interruption du mauvais jeu. L'interface ne signale une acceptation
+que sur `{\\"ok\\":true}`. Le chemin du host amont reste inchangé
+pour ses propres tests, tandis que la compilation PS5 et la politique
+de transformation contrôlent le ciblage. Un refus n'entraîne aucune
+suppression d'original ni arrêt des autres tâches.
+
 ## Reprise sans étape par défaut en cas de checkpoint inaccessible (25 octobre 2026)
 
 L'ancien lecteur d'étape amont supposait `pack` si le fichier

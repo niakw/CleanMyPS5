@@ -263,4 +263,30 @@ inline bool form_encode_path(const char*path,char*out,std::size_t cap) noexcept 
     !std::strcmp(component,"."))return false;
  out[j]=0;return true;
 }
+/* Scoped reversible pause, never a global command. The native app sends
+ * the output planned during preflight; the worker separately requires
+ * that this is the actively running game's exact output directory. */
+inline bool build_pause_body(const char*base,const char*title_id,
+                             char*out,std::size_t cap) noexcept {
+ if(!base||!title_id||!out||cap<24u)return false;
+ const auto base_len=std::strlen(base);
+ if(base_len==0u||base_len>120u||base[0]!='/'||
+    std::strlen(title_id)!=9u)return false;
+ for(unsigned i=0;i<9u;i++){
+  const char c=title_id[i];
+  if(i<4u?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+ }
+ char path[192]{};
+ if(base_len+10u>=sizeof(path))return false;
+ std::memcpy(path,base,base_len);
+ path[base_len]='/';
+ std::memcpy(path+base_len+1,title_id,10u);
+ char encoded[576]{};
+ if(!form_encode_path(path,encoded,sizeof(encoded)))return false;
+ const auto n=std::strlen(encoded);
+ if(n+6u>cap)return false;
+ std::memcpy(out,"dest=",5u);
+ std::memcpy(out+5,encoded,n+1u);
+ return true;
+}
 }

@@ -119,6 +119,18 @@ int main(){
  assert(!form_encode_path("/data/x\nPOST /api/start",encoded,sizeof(encoded)));
  assert(!form_encode_path("/data/homebrew/",encoded,sizeof(encoded)));
  assert(!form_encode_path("/data//PPSA",encoded,sizeof(encoded)));
+ char pause[256]{};
+ assert(build_pause_body("/mnt/usb0/homebrew","PPSA12345",pause,sizeof(pause)));
+ assert(std::strcmp(pause,
+   "dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345")==0);
+ assert(build_pause_body("/data/homebrew","CUSA12345",pause,sizeof(pause)));
+ assert(std::strcmp(pause,"dest=%2Fdata%2Fhomebrew%2FCUSA12345")==0);
+ assert(!build_pause_body("/data/homebrew","PPSA1234A",pause,sizeof(pause)));
+ assert(!build_pause_body("/data/homebrew","INVALID",pause,sizeof(pause)));
+ assert(!build_pause_body("/data/../homebrew","PPSA12345",pause,sizeof(pause)));
+ assert(!build_pause_body("/data/homebrew/","PPSA12345",pause,sizeof(pause)));
+ assert(!build_pause_body("/data/homebrew","PPSA12345",pause,12));
+ assert(!build_pause_body("/data/homebrew","PPSA12345",nullptr,256));
  StartAck acknowledgment{};
  assert(parse_start_ack(R"({"ok":true,"position":0})",24,&acknowledgment));
  assert(acknowledgment.position==0);
