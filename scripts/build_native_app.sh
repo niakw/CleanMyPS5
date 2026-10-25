@@ -54,6 +54,11 @@ cp "$project/src/native/verified_backup.h" "$tmp/native-toolchain/src/verified_b
 cp "$project/src/native/verified_backup.c" "$tmp/native-toolchain/src/cmp5_verified_backup.c"
 # Compile out restore/write-to-other-workspace routines from the PS5 title.
 sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' "$tmp/native-toolchain/src/cmp5_verified_backup.c"
+# Group writer is additive-only; the private-host restore and recovery
+# entrypoints are explicitly compiled OUT of the installed PS5 title.
+cp "$project/src/native/verified_group.h" "$tmp/native-toolchain/src/verified_group.h"
+cp "$project/src/native/verified_group.c" "$tmp/native-toolchain/src/cmp5_verified_group.c"
+sed -i '1i#define CMP5_NATIVE_GROUP_BACKUP_ONLY 1' "$tmp/native-toolchain/src/cmp5_verified_group.c"
 cp "$project/src/native/sha256.h" "$tmp/native-toolchain/src/sha256.h"
 cp "$project/src/native/sha256.c" "$tmp/native-toolchain/src/cmp5_sha256.c"
 cp "$project/src/native/private_workspace_guard.h" "$tmp/native-toolchain/src/private_workspace_guard.h"
