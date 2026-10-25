@@ -46,7 +46,7 @@ int main(){
                        "\r\n"+std::string(700,'X')+": opaque");
  assert(!parse_ampr_http(oversized_name.data(),oversized_name.size(),&framed));
  assert(cmp5_http::classify((std::string(3000,'Q')+": value").data(),
-                            3007)==cmp5_http::Field::other);
+                            3007)==cmp5_http::Field::invalid);
 
  assert(pre.ready()&&pre.image_bytes==0&&pre.source_bytes==12345&&
   pre.need_max==16000&&pre.dest_total==64000&&

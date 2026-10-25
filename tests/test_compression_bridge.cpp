@@ -44,7 +44,7 @@ int main(){
                   "\r\n"+std::string(700,'X')+": untrusted");
  assert(bad(long_name));
  assert(cmp5_http::classify((std::string(3000,'Q')+": value").data(),
-                            3007)==cmp5_http::Field::other);
+                            3007)==cmp5_http::Field::invalid);
  auto wrong=ok;wrong[7]='1';assert(bad(wrong));
  assert(!parse_hello_http(nullptr,0,&h));
  assert(!parse_hello_http(ok.data(),ok.size(),nullptr));

@@ -30,7 +30,7 @@ inline bool ascii_ci_equal(const char*start,std::size_t n,
  return true;
 }
 inline Field classify(const char*line,std::size_t n) noexcept {
- if(!line||n==0)return Field::invalid;
+ if(!line||n==0||n>256u)return Field::invalid;
  std::size_t sep=0;
  while(sep<n&&line[sep]!=':'){
   if(!token_char(static_cast<unsigned char>(line[sep])))
