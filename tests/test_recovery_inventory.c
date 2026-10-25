@@ -17,6 +17,15 @@ static int swap_armed;
 static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
 static int deny_request_once,deny_state_once,io_request_once;
+static int io_stage_read_once;
+static ssize_t test_read(int fd,void*data,size_t n){
+ if(io_stage_read_once){
+  io_stage_read_once=0;
+  errno=EIO;
+  return -1;
+ }
+ return read(fd,data,n);
+}
 static int test_openat(int dir,const char*name,int flags){
  if(io_request_once&&!strcmp(name,"request.bin")){
   io_request_once=0;
@@ -72,7 +81,9 @@ static int test_closedir(DIR*dir){
 #define readdir test_readdir
 #define closedir test_closedir
 #define openat test_openat
+#define read test_read
 #include "../src/native/recovery_inventory.h"
+#undef read
 #undef openat
 #undef closedir
 #undef readdir
@@ -164,6 +175,11 @@ int main(void){
  io_request_once=1;
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(!io_request_once);
+ assert(results.count==2u&&results.partial);
+ /* A stage that opens normally but fails during read is also unknown. */
+ io_stage_read_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!io_stage_read_once);
  assert(results.count==2u&&results.partial);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3u&&!results.partial);
