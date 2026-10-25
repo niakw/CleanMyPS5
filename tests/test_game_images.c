@@ -49,7 +49,7 @@ int main(int argc,char**argv){
  if(argc==3&&!strcmp(argv[2],"overflow")){
   assert(r.count[CMP5_IMAGE_EXFAT]==21);
   assert(r.shown_images==12&&r.hidden_images==12);
-  assert(r.folder_games==15&&r.shown_folders==12&&r.hidden_folders==3);
+  assert(r.folder_games==16&&r.shown_folders==12&&r.hidden_folders==4);
   assert(r.partial);
   for(unsigned i=1;i<r.shown_images;i++){
    assert(r.image[i-1].nominal_bytes>=r.image[i].nominal_bytes);
@@ -73,16 +73,25 @@ int main(int argc,char**argv){
  assert(!strcmp(r.image[0].path,"/mnt/usb1/etaHEN/games/EAGAME.exfat"));
  assert(r.image[0].nominal_bytes==24ULL*1024*1024*1024);
  assert(r.large_candidates==3);
- assert(r.folder_games==1);
+ assert(r.folder_games==2);
  assert(r.large_folders==1);
  assert(r.folder_partials==0);
  assert(r.folder_nominal_bytes>=22ULL*1024*1024*1024);
- assert(r.shown_folders==1);
+ assert(r.shown_folders==2);
  assert(r.hidden_folders==0);
  assert(r.folder[0].size_complete==1);
  assert(r.folder[0].nominal_bytes>=22ULL*1024*1024*1024);
  assert(!strcmp(r.folder[0].label,"PPSA12345"));
  assert(!strcmp(r.folder[0].path,"/data/homebrew/PPSA12345"));
+ assert(!strcmp(r.folder[1].label,"EXTRACTED.exfat"));
+ assert(!strcmp(r.folder[1].path,"/mnt/usb0/homebrew/EXTRACTED.exfat"));
+ assert(r.folder[1].size_complete==1);
+ assert(r.folder[1].nominal_bytes>=3ULL*1024*1024*1024);
+ /* EMPTY.ffpkg is a directory, not a 0-byte image or playable game. */
+ for(unsigned i=0;i<r.shown_images;i++)
+  assert(strcmp(r.image[i].label,"EMPTY.ffpkg")!=0);
+ for(unsigned i=0;i<r.shown_folders;i++)
+  assert(strcmp(r.folder[i].label,"EMPTY.ffpkg")!=0);
  assert(r.hardlinks_skipped==2);
  assert(r.partial==1); /* A hardlink is never counted as freeable. */
  assert(r.nominal_bytes==78ULL*1024*1024*1024+340+560);

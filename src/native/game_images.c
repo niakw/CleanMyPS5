@@ -94,7 +94,7 @@ static int game_root(Audit*a,int parent,const char*name){
   if(errno!=ENOENT)a->stats->partial=1;
   close(fd);return -1;
  }
- if(!S_ISREG(eboot.st_mode)||eboot.st_nlink!=1){
+ if(!S_ISREG(eboot.st_mode)||eboot.st_nlink!=1||eboot.st_size<=0){
   close(fd);return -1;
  }
  if(fstatat(fd,"sce_sys",&meta,AT_SYMLINK_NOFOLLOW)!=0){
@@ -300,6 +300,14 @@ static void scan_one(Audit*a,int parent,const char*relative){
   struct stat before,after;
   if(fstatat(fd,e->d_name,&before,AT_SYMLINK_NOFOLLOW)!=0){
    a->stats->partial=1;continue;
+  }
+  if(S_ISDIR(before.st_mode)){
+   /* A recognized suffix is not proof of a disk-image FILE. Extracted
+    * exFAT dumps can also be directories named *.exfat; check the
+    * same eboot.bin + sce_sys signature as ordinary homebrew folders.
+    * Never count a directory as an image or hand it to an image reader. */
+   scan_game_folder(a,fd,relative,e->d_name);
+   continue;
   }
   if(!S_ISREG(before.st_mode)||before.st_size<=0){
    a->stats->partial=1;continue;

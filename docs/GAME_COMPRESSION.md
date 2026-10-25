@@ -26,6 +26,18 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Dossiers de dump portant une extension d'image (25 octobre 2026)
+
+La détection native différencie maintenant le **type du système de
+fichiers** et l'extension du nom. Un répertoire appelé `EXTRACTED.exfat`
+et contenant un `eboot.bin` non vide ainsi que `sce_sys` est classé
+comme **dossier de jeu**, jamais comme fichier-image exFAT.
+Inversement, un répertoire `.ffpkg` avec un `eboot.bin` vide n'est
+pas présenté comme un jeu valide. L'analyse reste uniquement
+métadonnée et lecture seule : le moteur de conversion devra confirmer
+séparément la compatibilité réelle, et la jouabilité n'est toujours pas
+prouvée sur PS5 13.60.
+
 ## Réalisation actuelle dans CleanMyPS5
 
 La cinquième entrée native, **JEUX ET COMPRESSION**, comprend un scanner
