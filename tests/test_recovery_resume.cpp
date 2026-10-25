@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cstdio>
 int main(){
+ using namespace cmp5_compression;
  Cmp5RecoveryCandidate selected{};
  std::strcpy(selected.title_id,"PPSA12345");
  std::strcpy(selected.destination,"/mnt/usb0/homebrew");
@@ -15,50 +16,87 @@ int main(){
   assert(!std::strcmp(root,"/"));
   *out=inventory;return true;
  };
- assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(valid_recovery_candidate(selected));
+ assert(recovery_candidate_fresh(selected,scan));
  /* Another inaccessible device is not proof this selected checkpoint
-  * is unsafe: the scanner only retains independently verified entries. */
+  * is unsafe: the scanner retains independently verified entries. */
  inventory.partial=1;
- assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(recovery_candidate_fresh(selected,scan));
  inventory.partial=0;inventory.hidden=1;
- assert(cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(recovery_candidate_fresh(selected,scan));
  inventory.hidden=0;
  inventory.entries[0].stage=CMP5_RECOVERY_COPY;
- assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(!recovery_candidate_fresh(selected,scan));
  inventory.entries[0]=selected;
  std::strcpy(inventory.entries[0].title_id,"PPSA98765");
- assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(!recovery_candidate_fresh(selected,scan));
  inventory.entries[0]=selected;
  auto failed=[](const char*,Cmp5RecoveryInventory*)->bool{return false;};
- assert(!cmp5_compression::recovery_candidate_fresh(selected,failed));
- cmp5_compression::GameProgress progress{};
- assert(cmp5_compression::recovery_engine_ready(selected,progress));
+ assert(!recovery_candidate_fresh(selected,failed));
+ GameProgress progress{};
+ assert(recovery_engine_ready(selected,progress));
  progress.queue_len=1;
- assert(!cmp5_compression::recovery_engine_ready(selected,progress));
- progress.queue_len=0;progress.state=cmp5_compression::JobState::running;
+ assert(!recovery_engine_ready(selected,progress));
+ progress.queue_len=0;progress.state=JobState::running;
  std::strcpy(progress.title_id,"PPSA12345");
- assert(!cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::paused;
- assert(cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::error;
- assert(cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::cancelled;
- assert(cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::done;
- assert(!cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::paused;
+ assert(!recovery_engine_ready(selected,progress));
+ progress.state=JobState::paused;
+ assert(recovery_engine_ready(selected,progress));
+ progress.state=JobState::error;
+ assert(recovery_engine_ready(selected,progress));
+ progress.state=JobState::cancelled;
+ assert(recovery_engine_ready(selected,progress));
+ progress.state=JobState::done;
+ assert(!recovery_engine_ready(selected,progress));
+ progress.state=JobState::paused;
  std::strcpy(progress.title_id,"PPSA98765");
- assert(!cmp5_compression::recovery_engine_ready(selected,progress));
- progress.state=cmp5_compression::JobState::idle;
- assert(!cmp5_compression::recovery_engine_ready(selected,progress));
+ assert(!recovery_engine_ready(selected,progress));
+ progress.state=JobState::idle;
+ assert(!recovery_engine_ready(selected,progress));
  progress.title_id[0]=0;
- assert(cmp5_compression::recovery_engine_ready(selected,progress));
+ assert(recovery_engine_ready(selected,progress));
+
  char body[256]{};
- assert(cmp5_compression::recovery_resume_body(selected,body,sizeof(body)));
+ assert(recovery_resume_body(selected,body,sizeof(body)));
  assert(!std::strcmp(body,"dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345&level=9"));
- assert(!cmp5_compression::recovery_resume_body(selected,body,15));
+ std::memset(body,'X',sizeof(body));
+ assert(!recovery_resume_body(selected,body,15)&&body[0]==0);
+ assert(!recovery_resume_body(selected,nullptr,sizeof(body)));
+
+ /* A title/destination with no NUL inside its fixed field must never
+  * reach strcmp/strlen. Also reject invalid stages at EVERY resume gate,
+  * not just the first inventory-matching gate. */
+ for(unsigned bad_stage:{0u,4u,99u}){
+  Cmp5RecoveryCandidate invalid=selected;
+  invalid.stage=bad_stage;
+  assert(!valid_recovery_candidate(invalid));
+  assert(!same_recovery_candidate(invalid,selected));
+  assert(!recovery_candidate_fresh(invalid,scan));
+  assert(!recovery_engine_ready(invalid,progress));
+  std::memset(body,'X',sizeof(body));
+  assert(!recovery_resume_body(invalid,body,sizeof(body))&&body[0]==0);
+ }
+ Cmp5RecoveryCandidate malformed=selected;
+ std::memset(malformed.title_id,'P',sizeof(malformed.title_id));
+ assert(!valid_recovery_candidate(malformed));
+ assert(!same_recovery_candidate(malformed,selected));
+ assert(!recovery_candidate_fresh(malformed,scan));
+ assert(!recovery_engine_ready(malformed,progress));
+ assert(!recovery_resume_body(malformed,body,sizeof(body))&&body[0]==0);
+ malformed=selected;
+ std::memset(malformed.destination,'X',sizeof(malformed.destination));
+ assert(!valid_recovery_candidate(malformed));
+ assert(!same_recovery_candidate(selected,malformed));
+ assert(!recovery_candidate_fresh(malformed,scan));
+ assert(!recovery_engine_ready(malformed,progress));
+ assert(!recovery_resume_body(malformed,body,sizeof(body))&&body[0]==0);
+ inventory.entries[0]=selected;
+ inventory.entries[0].stage=0;
+ assert(!recovery_candidate_fresh(selected,scan));
+ inventory.entries[0]=selected;
+
  std::strcpy(selected.destination,"/user/savedata");
- assert(!cmp5_compression::recovery_resume_body(selected,body,sizeof(body)));
- assert(!cmp5_compression::recovery_candidate_fresh(selected,scan));
+ assert(!recovery_resume_body(selected,body,sizeof(body))&&body[0]==0);
+ assert(!recovery_candidate_fresh(selected,scan));
  puts("Post-restart checkpoint revalidation and scoped resume: PASS");
 }
