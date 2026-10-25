@@ -611,6 +611,17 @@ int main(int argc,char**argv){
  assert(unlink(restore_surplus)==0);
  assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
  assert(recovery.state==CMP5_RECOVERY_VERIFIED);
+ /* A restored file whose permissions become public no longer qualifies
+  * as an intact private recovery set, even if its bytes still hash. */
+ char exposed_restored[512];
+ assert(snprintf(exposed_restored,sizeof(exposed_restored),
+                 "%s/ALBUM__1",restored)>0);
+ assert(chmod(exposed_restored,0644)==0);
+ assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
+ assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(chmod(exposed_restored,0600)==0);
+ assert(cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(!cmp5_inspect_restored_group_recovery(restored,"BAD/ID",&recovery));
  /* Negative verification clears the output receipt by contract. Refresh it
   * only after the namespace has returned to a verified, clean state. */
