@@ -321,6 +321,10 @@ int cmp5_verify_backup(const char*workspace,const char*id,
  if(ok&&r)*r=verified;
  return ok;
 }
+/* Native title compiles only additive single-media capsule backup/verify.
+ * All restore code remains host-only until Sony Gallery/index consistency
+ * is demonstrated; native link must have no restore entry point. */
+#ifndef CMP5_NATIVE_BACKUP_ONLY
 /* A published restore must be re-read by its destination name. Verifying
  * only the bytes written to the staging descriptor is not sufficient:
  * a rename or replacement after close could publish another object. */
@@ -418,3 +422,4 @@ int cmp5_restore_backup(const char*backup,const char*id,
  close(target);
  return ok;
 }
+#endif /* !CMP5_NATIVE_BACKUP_ONLY */
