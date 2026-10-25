@@ -389,6 +389,9 @@ cmp5_private_backup::Outcome backup_outcome{};
 unsigned backup_step=0u;
 bool backup_verify_only=false;
 bool backup_from_inventory=false;
+/* Private backup archive can open from the home screen even if the
+ * Gallery is empty/unreadable. Never route its back action via Review. */
+Screen capsule_return_screen=Screen::detail;
 cmp5_private_backup::Inventory private_inventory{};
 unsigned private_inventory_selection=0;
 constexpr unsigned game_capacity=256;
@@ -1724,8 +1727,9 @@ void poll_pad() noexcept {
     companion_checked=false;
    }
    screen=(screen==Screen::photo||screen==Screen::video_info||
-            screen==Screen::companions||screen==Screen::capsules||
+            screen==Screen::companions||
             (screen==Screen::backup&&!backup_from_inventory))?Screen::detail:
+     screen==Screen::capsules?capsule_return_screen:
      (screen==Screen::backup&&backup_from_inventory)?Screen::capsules:
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
@@ -1831,6 +1835,7 @@ void poll_pad() noexcept {
   }
   if(screen==Screen::detail){
    if((pressed&l1)&&detail_index<media_review.count){
+    capsule_return_screen=Screen::detail;
     private_inventory={};private_inventory_selection=0u;
     screen=Screen::capsules;
     (void)begin_task(Task::private_inventory);
@@ -2103,6 +2108,15 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::menu){
+   /* Home shortcut: historic private capsules remain accessible even
+    * with zero visible Gallery media or a failed Gallery scan. */
+   if(pressed&square){
+    capsule_return_screen=Screen::menu;
+    private_inventory={};private_inventory_selection=0u;
+    screen=Screen::capsules;
+    (void)begin_task(Task::private_inventory);
+    continue;
+   }
    if(pressed&up)selected=(selected+row_count-1)%row_count;
    if(pressed&down)selected=(selected+1)%row_count;
    if(pressed&cross){
@@ -2160,7 +2174,7 @@ void show_menu(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,task_busy()?
    "ANALYSE EN COURS    CERCLE POUR ANNULER":
    task_cancelled()?"ANALYSE ANNULEE   X POUR RECOMMENCER":
-   "X OUVRIR    HAUT / BAS NAVIGUER");
+   "X OUVRIR   CARRE ARCHIVES PRIVEES   HAUT/BAS NAVIGUER");
 }
 void show_analyze(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
@@ -2758,14 +2772,18 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  if(!private_inventory.checked){
   panel(canvas,460,"INVENTAIRE NON DISPONIBLE",
     "STOCKAGE PRIVE INACCESSIBLE OU NON PRESENT",Color::yellow);
-  footer(canvas,"TRIANGLE RECONTROLER  CERCLE DETAIL");
+  footer(canvas,capsule_return_screen==Screen::menu?
+    "TRIANGLE RECONTROLER  CERCLE ACCUEIL":
+    "TRIANGLE RECONTROLER  CERCLE DETAIL");
   return;
  }
  if(!private_inventory.count){
   panel(canvas,460,"AUCUNE CAPSULE CONFIRMEE",
     private_inventory.partial?"DOSSIER PARTIEL OU RESIDUS A AUDITER":
       "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIQUE");
-  footer(canvas,"TRIANGLE RECONTROLER  CERCLE DETAIL");
+  footer(canvas,capsule_return_screen==Screen::menu?
+    "TRIANGLE RECONTROLER  CERCLE ACCUEIL":
+    "TRIANGLE RECONTROLER  CERCLE DETAIL");
   return;
  }
  const unsigned page=private_inventory_selection/5u;
@@ -2780,7 +2798,9 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  }
  if(private_inventory.partial)
   canvas.text(130,940,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
- footer(canvas,"HAUT/BAS CHOISIR  X VERIFIER SHA-256  TRIANGLE SCANNER  CERCLE");
+ footer(canvas,capsule_return_screen==Screen::menu?
+    "HAUT/BAS CHOISIR  X SHA-256  TRIANGLE SCANNER  CERCLE ACCUEIL":
+    "HAUT/BAS CHOISIR  X SHA-256  TRIANGLE SCANNER  CERCLE DETAIL");
 }
 void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,310,backup_verify_only?
