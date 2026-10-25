@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <cstdio>
+#include <initializer_list>
 int main(){
  using namespace cmp5_compression;
  Cmp5RecoveryCandidate selected{};
