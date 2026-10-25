@@ -26,6 +26,28 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Moniteur AMPR : étape et cause de pause (25 octobre 2026)
+
+L'API compacte du moteur expose maintenant des champs `phase` et
+`reason` à valeurs fixes. La première indique la compression LZ4
+(`pack`), la copie (`copy`), la vérification (`verify`) ou une
+autre étape prédéfinie. La seconde distingue les pauses provoquées
+par une source déconnectée (`paused_source`), une destination
+déconnectée (`paused_dest`), un support plein
+(`paused_full`), un jeu actif (`paused_game`) ou l'utilisateur.
+
+Le moniteur natif affiche des actions pertinentes (reconnecter le bon
+support, libérer de l'espace ou fermer le jeu). Le moteur n'envoie
+aucun chemin ni message libre ; son vocabulaire est borné et le
+décodeur C++ refuse les champs dupliqués, raisons malformées
+et raisons de pause sur un état qui n'est pas en pause.
+Les fixtures couvrent les valeurs connues et la navigation DualSense.
+
+Ce suivi est en lecture seule et peut fonctionner après une réouverture
+tant que le service local conserve son état. Il ne permet **pas**
+l'adoption automatique de checkpoints inconnus ni ne prouve la
+jouabilité sur PS5 13.60.
+
 ## Reprise ou pause : accusé HTTP perdu (25 octobre 2026)
 
 Lorsque la requête POST `/api/pause` ou `/api/resume` a pu parvenir

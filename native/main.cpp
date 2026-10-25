@@ -2756,6 +2756,13 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      static_cast<unsigned long long>(game_progress.bytes_total/1048576ULL),
      game_progress.queue_len);
    panel(canvas,712,"AVANCEMENT RECU",detail,Color::cyan);
+   char stage[190]{};
+   (void)std::snprintf(stage,sizeof(stage),"ETAPE: %s  |  %s",
+      cmp5_compression::phase_label(game_progress.phase),
+      cmp5_compression::reason_label(game_progress.reason));
+   canvas.text(125,815,stage,2,
+     game_progress.reason==cmp5_compression::PauseReason::none?
+       Color::cyan:Color::yellow);
    canvas.text(125,885,
      "UNE TACHE TERMINEE NE GARANTIT PAS LE DEMARRAGE DU JEU",
      2,Color::yellow);
@@ -2785,6 +2792,15 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   }else{
    panel(canvas,707,"AUCUN TRAVAIL CONFIRME",
      "COMPATIBILITE / ESPACE / REPONSE A REVERIFIER",Color::yellow);
+  }
+  if(game_progress_checked){
+   char stage[190]{};
+   (void)std::snprintf(stage,sizeof(stage),"%s  |  %s",
+      cmp5_compression::phase_label(game_progress.phase),
+      cmp5_compression::reason_label(game_progress.reason));
+   canvas.text(125,835,stage,2,
+     game_progress.reason==cmp5_compression::PauseReason::none?
+       Color::cyan:Color::yellow);
   }
   if(game_progress_checked&&
      std::strcmp(game_progress.title_id,game_preflight.title_id)!=0){

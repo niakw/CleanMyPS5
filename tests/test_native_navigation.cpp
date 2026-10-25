@@ -191,12 +191,16 @@ int sceNetRecv(int id,void*data,std::size_t capacity,int){
   const char*state=idle?"idle":mock_ampr_failed?"error":
    mock_ampr_paused?"paused":"running";
   const char*title=idle?"":mock_ampr_foreign_running?"PPSA98765":"PPSA12345";
+  const char*phase=idle?"idle":mock_ampr_failed?"error":
+    mock_ampr_paused?"paused":"pack";
+  const char*reason=mock_ampr_paused?"paused_dest":"none";
   const int body_size=std::snprintf(progress,sizeof(progress),
    "{\"service\":\"CleanMyPS5-AMPR\",\"state\":\"%s\","
    "\"percent\":%u,\"bytes_done\":%u,\"bytes_total\":%u,"
-   "\"queue_len\":%u,\"launch_checked\":false,\"title_id\":\"%s\"}",
+   "\"queue_len\":%u,\"launch_checked\":false,\"title_id\":\"%s\","
+   "\"phase\":\"%s\",\"reason\":\"%s\"}",
    state,idle?0u:45u,idle?0u:450u,idle?0u:1000u,
-   mock_ampr_queued_work,title);
+   mock_ampr_queued_work,title,phase,reason);
   assert(body_size>0&&static_cast<std::size_t>(body_size)<sizeof(progress));
   char reply[512]{};
   int n=std::snprintf(reply,sizeof(reply),
@@ -981,6 +985,8 @@ int main(){
  press(cross);finish_scan();
  assert(game_progress_checked&&
         game_progress.state==cmp5_compression::JobState::paused);
+ assert(game_progress.phase==cmp5_compression::JobPhase::paused);
+ assert(game_progress.reason==cmp5_compression::PauseReason::destination_unavailable);
  assert(!game_pause_accepted&&!game_resume_accepted);
  press(triangle);finish_scan();
  assert(game_resume_attempted&&game_resume_accepted);
