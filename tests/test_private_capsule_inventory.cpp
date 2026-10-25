@@ -88,6 +88,43 @@ int main(){
   assert(std::snprintf(entry,sizeof(entry),"%s/%s",root,name)>0);
   assert(unlink(entry)==0);
  }
+ /* Rename the very workspace being enumerated, then replace its path
+  * with an empty 0700 directory. The held fd can still read the old one;
+  * its entries must NEVER be published as belonging to the new path. */
+ make_file(root,"CAP_ABCDEF0123456789",0600);
+ struct Swap {
+  const char*path;
+  char displaced[512]{};
+  unsigned calls=0u;
+  bool changed=false;
+ } swap{root};
+ const auto replace_during_scan=[](void*context)->int{
+  auto*state=static_cast<Swap*>(context);
+  if(++state->calls==3u){
+   assert(std::snprintf(state->displaced,sizeof(state->displaced),
+                         "%s-moved",state->path)>0);
+   assert(rename(state->path,state->displaced)==0);
+   assert(mkdir(state->path,0700)==0);
+   state->changed=true;
+  }
+  return 0;
+ };
+ std::memset(&list,0xA5,sizeof(list));
+ assert(!scan_at(root,&list,replace_during_scan,&swap));
+ assert(swap.changed);
+ assert(!list.checked&&!list.partial&&!list.count&&!list.group_count&&
+        !list.staged);
+ /* The new directory contains no old capsule; the old one is intact.
+  * Neither directory nor capsule may be silently removed by the scan. */
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.checked&&!list.partial&&!list.count&&!list.group_count);
  assert(rmdir(root)==0);
+ char old_capsule[550]{};
+ assert(std::snprintf(old_capsule,sizeof(old_capsule),
+                      "%s/CAP_ABCDEF0123456789",swap.displaced)>0);
+ struct stat intact{};
+ assert(stat(old_capsule,&intact)==0&&S_ISREG(intact.st_mode));
+ assert(unlink(old_capsule)==0);
+ assert(rmdir(swap.displaced)==0);
  std::puts("Private native capsule inventory: read-only boundaries PASS");
 }
