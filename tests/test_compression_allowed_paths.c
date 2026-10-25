@@ -11,6 +11,10 @@ int main(void) {
  assert(!cmp5_game_smp_field_eq(NULL,16,"Z"));
  assert(!cmp5_game_smp_field_eq(unterminated,16,NULL));
  const char source_type[16]="image";
+ /* The expected value is bounded too: a truncated resume field without
+  * a terminator must not make the library scan past its declared buffer. */
+ assert(!cmp5_game_smp_field_eq(source_type,sizeof(source_type),
+                                unterminated));
  assert(cmp5_game_smp_field_eq(source_type,sizeof(source_type),"image"));
  assert(!cmp5_game_smp_field_eq(source_type,sizeof(source_type),"images"));
  const char image_type[16]="exfatfs";

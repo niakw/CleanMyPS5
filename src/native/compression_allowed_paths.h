@@ -22,7 +22,12 @@ static inline bool cmp5_game_smp_field_eq(const char *field,size_t capacity,
  const char *end=(const char *)memchr(field,0,capacity);
  if(!end||end==field)return false;
  const size_t n=(size_t)(end-field);
- return strlen(expected)==n&&memcmp(field,expected,n)==0;
+ /* The peer field can itself come from an untrusted saved checkpoint.
+  * The caller's known fixed-width SMP capacity is also an upper bound
+  * on any string that could legitimately match it. */
+ const char *expected_end=(const char *)memchr(expected,0,capacity);
+ return expected_end&&(size_t)(expected_end-expected)==n&&
+        memcmp(field,expected,n)==0;
 }
 static inline bool cmp5_safe_component(const char *name) {
  if (!name || !*name || name[0] == '.') return false;
