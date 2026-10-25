@@ -25,6 +25,17 @@ with tempfile.TemporaryDirectory() as temp:
     run("backup-rename",moved_capture)
     assert moved_capture.read_bytes()==original and not (backup/"RACED").exists()
     moved_capture.rename(source)
+    # Backup destination may be renamed and replaced during the copy.
+    moved_workspace=Path(temp)/"private-backup-during-copy"
+    run("backup-workspace-swap",moved_workspace)
+    assert moved_workspace.is_dir() and not (moved_workspace/"SWAPPED").exists()
+    assert backup.is_dir() and not (backup/"SWAPPED").exists()
+    backup.rmdir()
+    moved_workspace.rename(backup)
+    # The published capsule must be re-opened and hashed, not assumed
+    # correct from the staging stream alone.
+    run("backup-publish-tamper",restored)
+    assert (backup/"BROKEN").is_file()
     run("fsync-backup",restored)
     assert (backup/"UNSYNCED").is_file()
     run("create",restored)
