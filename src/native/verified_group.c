@@ -44,11 +44,13 @@ static void hash(const void*data,size_t n,uint8_t result[32]){
 static int valid_id(const char*id){
  if(!id)return 0;
  size_t i=0;
- for(;id[i]&&i<31;i++){
-  char c=id[i];
+ /* A 31-byte field with no NUL is invalid; never probe id[31]. */
+ for(;i<31u;i++){
+  const char c=id[i];
+  if(c=='\0')return i>0u;
   if(!((c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'))return 0;
  }
- return i>0&&i<=31&&id[i]==0;
+ return 0;
 }
 static void member_name(char out[48],const char*id,unsigned index){
  (void)snprintf(out,48,"%s__%u",id,index+1u);
