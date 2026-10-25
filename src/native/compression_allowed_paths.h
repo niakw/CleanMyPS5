@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <strings.h>
+#include <stdio.h>
 
 /* Reject unterminated fixed-array metadata from ShadowMountPlus.
  * Never scan past a structure field or accept truncated game identities. */
@@ -270,8 +271,23 @@ static inline bool cmp5_game_output_create_unique(
    parent.st_mode==parent_held.st_mode&&
    parent_held.st_dev==parent_visible.st_dev&&
    parent_held.st_ino==parent_visible.st_ino&&
-   parent_held.st_uid==parent_visible.st_uid&&
-   parent_held.st_mode==parent_visible.st_mode;
+  parent_held.st_uid==parent_visible.st_uid&&
+  parent_held.st_mode==parent_visible.st_mode;
+ /* Re-resolve the newly created TITLE as well as its parent. Another
+  * writer may exchange only the title name after fstatat above. */
+ if(ok){
+  char visible_path[192];
+  struct stat title_visible={0};
+  const int n=snprintf(visible_path,sizeof(visible_path),
+                       "%s/%s",dest,title_id);
+  ok=n>0&&(size_t)n<sizeof(visible_path)&&
+     cmp5_game_path_stat(root,visible_path,false,&title_visible)&&
+     S_ISDIR(title_visible.st_mode)&&
+     title_visible.st_dev==held.st_dev&&
+     title_visible.st_ino==held.st_ino&&
+     title_visible.st_uid==held.st_uid&&
+     title_visible.st_mode==held.st_mode;
+ }
  if(child>=0)close(child);
  close(fd);
  if(!ok)return false; /* keep partial output for manual inspection */
