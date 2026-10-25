@@ -141,8 +141,19 @@ def main(root: Path):
     good=known&&fstat(fd,&last)==0&&
       fstatat(dir,"stage",&named,AT_SYMLINK_NOFOLLOW)==0&&
       cmp5_game_same_stat(&first,&last)&&
-      cmp5_game_same_stat(&first,&named)&&
-      cmp5_game_open_checkpoint_dir("/",state_dir)>=0;
+      cmp5_game_same_stat(&first,&named);
+    if(good){
+      int current_dir=cmp5_game_open_checkpoint_dir("/",state_dir);
+      if(current_dir<0)good=0;
+      else{
+        struct stat held_state={0},current_state={0};
+        good=fstat(dir,&held_state)==0&&
+             fstat(current_dir,&current_state)==0&&
+             held_state.st_dev==current_state.st_dev&&
+             held_state.st_ino==current_state.st_ino;
+        close(current_dir);
+      }
+    }
   }
   close(fd);close(dir);
   if(!good)return -1;
