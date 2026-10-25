@@ -98,6 +98,11 @@ AMPR valide de nouveau la source, l'appartenance du jeu, la destination
 et le checkpoint avant toute conversion. Les drapeaux `overwrite`,
 `remove_source` et `clean_leftovers` restent forcés à faux dans
 le worker. Une réponse perdue n'entraîne **jamais** un renvoi automatique.
+Si le moteur est arrêté ou si un précontrôle échoue **avant l'envoi du
+corps HTTP**, aucune reprise n'a été demandée : l'utilisateur peut
+corriger le problème et recommencer les **deux confirmations**.
+Dès que l'envoi a pu commencer, un éventuel accusé perdu bloque toute
+nouvelle requête depuis cette session et impose de consulter le moniteur.
 Cette fonction est testée sur hôte et dans la simulation DualSense,
 **pas encore sur PS5 13.60**. Il n'y a aucune garantie qu'un checkpoint
 historique soit compatible ni que le jeu démarre après conversion.
