@@ -17,7 +17,15 @@ static int swap_armed;
 static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
 static int deny_request_once,deny_state_once,io_request_once;
-static int io_stage_read_once;
+static int io_stage_read_once,io_stage_stat_once;
+static int test_fstatat(int fd,const char*name,struct stat*st,int flags){
+ if(io_stage_stat_once&&!strcmp(name,"stage")){
+  io_stage_stat_once=0;
+  errno=EIO;
+  return -1;
+ }
+ return fstatat(fd,name,st,flags);
+}
 static ssize_t test_read(int fd,void*data,size_t n){
  if(io_stage_read_once){
   io_stage_read_once=0;
@@ -82,7 +90,9 @@ static int test_closedir(DIR*dir){
 #define closedir test_closedir
 #define openat test_openat
 #define read test_read
+#define fstatat test_fstatat
 #include "../src/native/recovery_inventory.h"
+#undef fstatat
 #undef read
 #undef openat
 #undef closedir
@@ -180,6 +190,12 @@ int main(void){
  io_stage_read_once=1;
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(!io_stage_read_once);
+ assert(results.count==2u&&results.partial);
+ /* The stage pathname or inode may change after the content was read.
+  * A failed post-read metadata check invalidates that volume's coverage. */
+ io_stage_stat_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!io_stage_stat_once);
  assert(results.count==2u&&results.partial);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3u&&!results.partial);
