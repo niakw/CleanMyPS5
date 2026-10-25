@@ -13,6 +13,7 @@ def check_engine(root: Path) -> None:
     http = (root / "src/httpd.c").read_text()
     main = (root / "src/main.c").read_text()
     job = (root / "src/job.c").read_text()
+    game_paths = (root / "src/cmp5_compression_allowed_paths.h").read_text()
     required = {
         "loopback-only listener": "addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);",
         "no automated pruning": "r.clean_leftovers = false;",
@@ -26,7 +27,6 @@ def check_engine(root: Path) -> None:
         "strict source root whitelist": "cmp5_game_source_allowed(r.source)",
         "strict destination whitelist": "cmp5_game_destination_allowed(r.dest_base)",
         "source descriptor-anchored admission": 'cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)',
-        "only convertible regular source images": "cmp5_convertible_image_suffix(path)",
         "destination descriptor-anchored admission": 'cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)',
         "reject aliases and disappeared games": "game_path_unstable_or_aliased",
         "source inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.source, false,',
@@ -80,6 +80,19 @@ def check_engine(root: Path) -> None:
         "compact read-only progress": '"/api/cmp5-progress"',
     }
     missing = [label for label, fragment in required.items() if fragment not in http]
+    # The converter's source-type predicate lives in the COPIED native
+    # header, not in the HTTP implementation. Audit the exact header
+    # installed in the engine before building its PS5 binary.
+    source_start = game_paths.find("static inline bool cmp5_game_path_stat(")
+    source_end = game_paths.find("static inline bool cmp5_game_path_on_disk(",
+                                 source_start)
+    if source_start < 0 or source_end < 0 or not (
+        "cmp5_convertible_image_suffix(path)"
+        in game_paths[source_start:source_end]
+    ):
+        missing.append("regular game files must have convertible image suffix")
+    if "cmp5_game_source_allowed(path)" not in game_paths[source_start:source_end]:
+        missing.append("converter source still requires the lexical allowlist")
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
     exact_checks = (
