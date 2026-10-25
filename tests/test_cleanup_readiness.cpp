@@ -49,6 +49,12 @@ int main(){
  }
  assert(cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
    cmp5_privilege::Operation::backup_private_media));
+ assert(cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+   cmp5_privilege::Operation::verify_private_media));
+ assert(!cmp5_privilege::allows(cmp5_privilege::Actor::diagnostic_helper,
+   cmp5_privilege::Operation::verify_private_media));
+ assert(!cmp5_privilege::allows(cmp5_privilege::Actor::compression_engine,
+   cmp5_privilege::Operation::verify_private_media));
  assert(!cmp5_privilege::allows(cmp5_privilege::Actor::diagnostic_helper,
    cmp5_privilege::Operation::backup_private_media));
  assert(!cmp5_privilege::allows(cmp5_privilege::Actor::compression_engine,
