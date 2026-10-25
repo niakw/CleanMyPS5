@@ -59,6 +59,10 @@ typedef struct {
  uint32_t staged_parts;
  uint32_t unexpected_entries; /* namespace collisions or surplus capsules */
  int marker_present;
+ /* Presence flags only: never return the private mapping's sensitive
+  * paths through a diagnostic report. Nonzero without COMMIT is incomplete. */
+ int origin_map_present;
+ int origin_map_staged;
 } Cmp5RecoveryReport;
 int cmp5_inspect_group_recovery(const char *private_workspace,
  const char *group_id,Cmp5RecoveryReport *report);
