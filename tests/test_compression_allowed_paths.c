@@ -1,8 +1,27 @@
 #define _DEFAULT_SOURCE
-#include "../src/native/compression_allowed_paths.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+/* Swap the authorized destination pathname immediately after creating
+ * its title directory, while the engine still holds the old parent fd. */
+static char moved_output_from[512],moved_output_to[512];
+static int move_output_after_create=0;
+static int injected_mkdirat(int dir,const char*name,mode_t mode){
+ const int result=mkdirat(dir,name,mode);
+ if(result==0&&move_output_after_create&&!strcmp(name,"PPSA77777")){
+  assert(rename(moved_output_from,moved_output_to)==0);
+  assert(mkdir(moved_output_from,0700)==0);
+  move_output_after_create=0;
+ }
+ return result;
+}
+#define mkdirat injected_mkdirat
+#include "../src/native/compression_allowed_paths.h"
+#undef mkdirat
 int main(void) {
  /* Truncated/unterminated SMP fields must fail closed. */
  char unterminated[16];memset(unterminated,'Z',sizeof(unterminated));
@@ -278,6 +297,30 @@ int main(void) {
  assert(mkdir(alias,0700)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
  assert(!cmp5_game_path_still_same(sandbox,"/mnt/usb0/homebrew",true,&dest_before));
+ assert(snprintf(moved_output_from,sizeof(moved_output_from),
+   "%s/mnt/usb0/homebrew",sandbox)>0);
+ assert(snprintf(moved_output_to,sizeof(moved_output_to),
+   "%s/mnt/usb0/homebrew_swapped",sandbox)>0);
+ move_output_after_create=1;
+ struct stat rejected_output={0};
+ assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                        "PPSA77777",&rejected_output));
+ assert(!move_output_after_create);
+ assert(rejected_output.st_ino==0);
+ assert(!cmp5_game_path_on_disk(sandbox,
+   "/mnt/usb0/homebrew/PPSA77777",false));
+ char displaced_checkpoint[512],displaced_title[512];
+ assert(snprintf(displaced_title,sizeof(displaced_title),
+   "%s/PPSA77777",moved_output_to)>0);
+ assert(snprintf(displaced_checkpoint,sizeof(displaced_checkpoint),
+   "%s/.e2a-state",displaced_title)>0);
+ struct stat displaced_stat={0};
+ assert(stat(displaced_checkpoint,&displaced_stat)==0&&
+        S_ISDIR(displaced_stat.st_mode));
+ /* Partial output remains for audit: only the synthetic test deletes it. */
+ assert(rmdir(displaced_checkpoint)==0);
+ assert(rmdir(displaced_title)==0);
+ assert(rmdir(moved_output_to)==0);
  assert(rmdir(old_dest)==0);
  assert(unlink(image)==0);
  assert(rmdir(folder)==0);
