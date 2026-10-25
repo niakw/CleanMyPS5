@@ -1,5 +1,29 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Archives natives : chemin stable et transactions temporaires visibles (25 octobre 2026)
+
+L'inventaire natif en lecture seule des capsules et des groupes de sauvegarde
+revalide désormais le **chemin du répertoire privé** après la lecture. Si
+le dossier d'origine a été renommé ou remplacé entre l'ouverture et la
+publication des résultats, le scanner rejette tout le bilan, même si
+son descripteur initial permet encore de lire les anciens fichiers.
+Une fixture déterministe remplace le dossier en cours d'inspection et
+vérifie que l'ancien contenu reste intact et qu'aucun résultat obsolète
+n'est publié.
+
+Les fichiers de staging des groupes `.GRP_...__COMMIT.part` et
+`.GRP_...__ORIGINS.part` (noms plus longs que 32 caractères) sont
+maintenant comptés comme transactions **interrompues** et signalent une
+couverture partielle au lieu de disparaître du compteur. Les variantes
+inconnues continuent à bloquer la validation. Les tests hôte incluent
+une exécution Linux, une macOS et un contrôle AddressSanitizer/UBSan.
+
+**Limite :** l'inventaire est indicatif. Le choix d'une archive
+déclenche toujours la vérification cryptographique indépendante. Aucun
+fichier Gallery, base Sony ou jeu n'est supprimé ni restauré par ces
+contrôles ; aucune preuve de fonctionnement PS5 13.60 n'en découle.
+
+
 ## Capsules privées : publication liée au descripteur écrit (25 octobre 2026)
 
 La sauvegarde et la restauration **hôte uniquement** conservent
