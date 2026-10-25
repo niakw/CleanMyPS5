@@ -40,7 +40,8 @@ static ssize_t racing_read(int fd,void*buffer,size_t n){
 static int racing_linkat(int olddir,const char*oldname,
                          int newdir,const char*newname,int flags){
  const int rc=linkat(olddir,oldname,newdir,newname,flags);
- if(rc==0&&corrupt_published_restore&&strcmp(newname,"CORRUPT")==0){
+ if(rc==0&&corrupt_published_restore&&
+    (!strcmp(newname,"CORRUPT")||!strcmp(newname,"BROKEN"))){
   int fd=openat(newdir,newname,O_WRONLY|O_NOFOLLOW);
   assert(fd>=0);
   assert(pwrite(fd,"X",1,0)==1);
@@ -102,6 +103,16 @@ int main(int argc,char**argv){
  if(!strcmp(action,"create")){
   assert(cmp5_backup_media(root,&item,backup,"GOOD",&receipt,NULL,NULL));
   assert(receipt.published&&receipt.bytes==item.bytes);
+ }else if(!strcmp(action,"backup-workspace-swap")){
+  SwapWorkspace state={backup,new_path,0u,0};
+  assert(!cmp5_backup_media(root,&item,backup,"SWAPPED",&receipt,
+    change_workspace_during_read,&state));
+  assert(state.changed&&!receipt.published);
+ }else if(!strcmp(action,"backup-publish-tamper")){
+  corrupt_published_restore=1;
+  assert(!cmp5_backup_media(root,&item,backup,"BROKEN",&receipt,
+    NULL,NULL));
+  assert(!receipt.published);
  }else if(!strcmp(action,"backup-rename")){
   (void)snprintf(watching,sizeof(watching),"%s",original);
   (void)snprintf(moved,sizeof(moved),"%s",new_path);
