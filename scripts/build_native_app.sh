@@ -51,6 +51,8 @@ cp "$project/src/native/media_snapshot.h" "$tmp/native-toolchain/src/media_snaps
 cp "$project/native/private_media_backup.hpp" "$tmp/native-toolchain/src/private_media_backup.hpp"
 cp "$project/src/native/verified_backup.h" "$tmp/native-toolchain/src/verified_backup.h"
 cp "$project/src/native/verified_backup.c" "$tmp/native-toolchain/src/cmp5_verified_backup.c"
+# Compile out restore/write-to-other-workspace routines from the PS5 title.
+sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' "$tmp/native-toolchain/src/cmp5_verified_backup.c"
 cp "$project/src/native/sha256.h" "$tmp/native-toolchain/src/sha256.h"
 cp "$project/src/native/sha256.c" "$tmp/native-toolchain/src/cmp5_sha256.c"
 cp "$project/src/native/private_workspace_guard.h" "$tmp/native-toolchain/src/private_workspace_guard.h"
