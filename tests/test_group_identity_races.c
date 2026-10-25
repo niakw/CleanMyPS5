@@ -238,6 +238,23 @@ int main(int argc,char**argv){
  assert(cmp5_validate_capture_group(origin_parts,2u));
  assert(publish_origin_map(dir,"BACKUP",origin_parts,2u,manifest,NULL,NULL));
  assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ /* A valid origin map may have been published before a power loss,
+  * without the final COMMIT. It is INCOMPLETE, never EMPTY. */
+ Cmp5RecoveryReport origin_report={0};
+ assert(publish_origin_map(dir,"ORPHAN",origin_parts,2u,manifest,NULL,NULL));
+ assert(cmp5_inspect_group_recovery(workspace,"ORPHAN",&origin_report));
+ assert(origin_report.state==CMP5_RECOVERY_INCOMPLETE);
+ assert(origin_report.published_parts==0u&&!origin_report.marker_present);
+ /* A lone temporary origin mapping is also evidence of interruption. */
+ write_member(dir,".STAGED__ORIGINS.part","INCOMPLETE",10u);
+ assert(cmp5_inspect_group_recovery(workspace,"STAGED",&origin_report));
+ assert(origin_report.state==CMP5_RECOVERY_INCOMPLETE);
+ assert(origin_report.staged_parts==1u);
+ /* An invalid/oversized map cannot masquerade as an incomplete but
+  * otherwise trustworthy published record. */
+ write_member(dir,"INVALID__ORIGINS","CORRUPT",7u);
+ assert(cmp5_inspect_group_recovery(workspace,"INVALID",&origin_report));
+ assert(origin_report.state==CMP5_RECOVERY_INVALID);
  setup_watch(workspace,"BACKUP__COMMIT","BACKUP_MOVED",0);
  calls=0;
  assert(!cmp5_verify_group(workspace,"BACKUP",&result,
