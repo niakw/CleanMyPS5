@@ -17,6 +17,7 @@
 
 static char watching[1024],moved[1024];
 static int armed,triggered,restore_only,fail_directory_fsync;
+static int corrupt_published_restore;
 static int intercepted_fsync(int fd){
  struct stat st;
  if(fail_directory_fsync&&fstat(fd,&st)==0&&S_ISDIR(st.st_mode)){
@@ -36,6 +37,17 @@ static ssize_t racing_read(int fd,void*buffer,size_t n){
  }
  return got;
 }
+static int racing_linkat(int olddir,const char*oldname,
+                         int newdir,const char*newname,int flags){
+ const int rc=linkat(olddir,oldname,newdir,newname,flags);
+ if(rc==0&&corrupt_published_restore&&strcmp(newname,"CORRUPT")==0){
+  int fd=openat(newdir,newname,O_WRONLY|O_NOFOLLOW);
+  assert(fd>=0);
+  assert(pwrite(fd,"X",1,0)==1);
+  assert(close(fd)==0);
+ }
+ return rc;
+}
 static off_t racing_lseek(int fd,off_t n,int whence){
  off_t position=lseek(fd,n,whence);
  if(restore_only&&position==64&&whence==SEEK_SET)armed=1;
@@ -47,6 +59,15 @@ typedef struct{
  unsigned calls;
  int changed;
 } SwapWorkspace;
+static int change_workspace_during_restore(void*ctx){
+ SwapWorkspace*state=(SwapWorkspace*)ctx;
+ if(armed&&++state->calls==2u){
+  assert(rename(state->old_path,state->new_path)==0);
+  assert(mkdir(state->old_path,0700)==0);
+  state->changed=1;
+ }
+ return 0;
+}
 static int change_workspace_during_read(void*ctx){
  SwapWorkspace*state=(SwapWorkspace*)ctx;
  if(++state->calls==2u){
@@ -57,11 +78,13 @@ static int change_workspace_during_read(void*ctx){
  return 0;
 }
 #define read racing_read
+#define linkat racing_linkat
 #define lseek racing_lseek
 #define fsync intercepted_fsync
 #include "../src/native/verified_backup.c"
 #undef fsync
 #undef lseek
+#undef linkat
 #undef read
 
 int main(int argc,char**argv){
@@ -102,6 +125,23 @@ int main(int argc,char**argv){
   restore_only=1;
   assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,NULL,NULL));
   assert(triggered&&!receipt.published);
+ }else if(!strcmp(action,"restore-backup-workspace-swap")){
+  restore_only=1;
+  SwapWorkspace state={backup,new_path,0u,0};
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,
+    change_workspace_during_restore,&state));
+  assert(state.changed&&!receipt.published);
+ }else if(!strcmp(action,"restore-target-workspace-swap")){
+  restore_only=1;
+  SwapWorkspace state={restore,new_path,0u,0};
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,
+    change_workspace_during_restore,&state));
+  assert(state.changed&&!receipt.published);
+ }else if(!strcmp(action,"restore-publish-tamper")){
+  corrupt_published_restore=1;
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"CORRUPT",
+    &receipt,NULL,NULL));
+  assert(!receipt.published);
  }else if(!strcmp(action,"same-workspace")){
   assert(!cmp5_restore_backup(backup,"GOOD",backup,"SAVED",&receipt,NULL,NULL));
   assert(!cmp5_restore_backup(backup,"GOOD",new_path,"SAVED",&receipt,NULL,NULL));
