@@ -721,6 +721,15 @@ static int verification_namespace_clean(int dir,const char*id,
     return 0;
   }
  }
+ if(!restored){
+  /* A leftover private origin-map .part is an incomplete transaction. */
+  char name[48],stage[64];struct stat st={0};
+  origin_name(name,id);
+  (void)snprintf(stage,sizeof(stage),".%s.part",name);
+  errno=0;
+  if(fstatat(dir,stage,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)
+   return 0;
+ }
  return 1;
 }
 static int inspect_recovery(const char*workspace,const char*id,int restored,
