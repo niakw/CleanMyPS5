@@ -3,7 +3,13 @@
  * No Sony files or user saves are opened or modified. */
 #ifndef CMP5_RECOVERY_INVENTORY_H
 #define CMP5_RECOVERY_INVENTORY_H
-#include "compression_allowed_paths.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -34,8 +40,33 @@ static inline bool cmp5_recovery_title(const char*name){
  }
  return true;
 }
+/* These path checks are a read-only subset of the engine policy.
+ * Do not include the engine header here: it also contains output creation. */
+static inline bool cmp5_recovery_allowed_base(const char*dest){
+ if(!dest)return false;
+ if(!strcmp(dest,"/data/homebrew"))return true;
+ if(strncmp(dest,"/mnt/",5)!=0)return false;
+ const char*p=dest+5;
+ if(strncmp(p,"usb",3)&&strncmp(p,"ext",3))return false;
+ return p[3]>='0'&&p[3]<='7'&&!strcmp(p+4,"/homebrew");
+}
+static inline bool cmp5_recovery_same(const struct stat*a,
+                                      const struct stat*b){
+ if(!a||!b)return false;
+#if defined(__APPLE__)
+ const bool nano=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+                 a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ const bool nano=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+                 a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+ return nano&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
+   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
+   a->st_ctime==b->st_ctime;
+}
 static inline int cmp5_recovery_parent_fd(const char*root,const char*dest){
- if(!root||!dest||!cmp5_game_destination_allowed(dest))return -1;
+ if(!root||!dest||!cmp5_recovery_allowed_base(dest))return -1;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0)return -1;
  const char*start=dest+1;
@@ -54,15 +85,75 @@ static inline int cmp5_recovery_parent_fd(const char*root,const char*dest){
  }
  return fd;
 }
+static inline bool cmp5_recovery_parent_stat(const char*root,
+                                             const char*base,struct stat*out){
+ if(!out)return false;
+ memset(out,0,sizeof(*out));
+ int fd=cmp5_recovery_parent_fd(root,base);
+ if(fd<0)return false;
+ const bool ok=fstat(fd,out)==0&&S_ISDIR(out->st_mode);
+ close(fd);
+ return ok;
+}
+static inline bool cmp5_recovery_parent_still_same(const char*root,
+                                            const char*base,const struct stat*before){
+ struct stat now={0};
+ return before&&cmp5_recovery_parent_stat(root,base,&now)&&
+        cmp5_recovery_same(before,&now);
+}
+static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
+                                                     const char*state_dir){
+ static const char suffix[]="/.e2a-state";
+ if(!root||!state_dir)return -1;
+ const size_t n=strlen(state_dir),len=sizeof(suffix)-1u;
+ if(n<=len||n>=192u||strcmp(state_dir+n-len,suffix))return -1;
+ const size_t title_end=n-len;
+ if(title_end<10u||state_dir[title_end-10u]!='/')return -1;
+ char title[10];
+ memcpy(title,state_dir+title_end-9u,9u);title[9]=0;
+ if(!cmp5_recovery_title(title))return -1;
+ char parent[48];
+ const size_t parent_len=title_end-10u;
+ if(!parent_len||parent_len>=sizeof(parent))return -1;
+ memcpy(parent,state_dir,parent_len);parent[parent_len]=0;
+ if(!cmp5_recovery_allowed_base(parent))return -1;
+ int fd=cmp5_recovery_parent_fd(root,parent);
+ if(fd<0)return -1;
+ int title_fd=openat(fd,title,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ close(fd);
+ if(title_fd<0)return -1;
+ int state_fd=openat(title_fd,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ struct stat title_a={0},title_b={0},state={0};
+ bool ok=state_fd>=0&&fstat(title_fd,&title_a)==0&&
+   S_ISDIR(title_a.st_mode)&&fstat(state_fd,&state)==0&&
+   S_ISDIR(state.st_mode);
+ /* Re-resolve the entire allowlisted path, not only the held inode. */
+ int fresh_parent=cmp5_recovery_parent_fd(root,parent);
+ int fresh_title=fresh_parent>=0?
+   openat(fresh_parent,title,O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ int fresh_state=fresh_title>=0?
+   openat(fresh_title,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ struct stat state_b={0};
+ ok=ok&&fresh_state>=0&&fstat(fresh_title,&title_b)==0&&
+    cmp5_recovery_same(&title_a,&title_b)&&
+    fstat(fresh_state,&state_b)==0&&
+    cmp5_recovery_same(&state,&state_b);
+ if(fresh_state>=0)close(fresh_state);
+ if(fresh_title>=0)close(fresh_title);
+ if(fresh_parent>=0)close(fresh_parent);
+ close(title_fd);
+ if(!ok){if(state_fd>=0)close(state_fd);return -1;}
+ return state_fd;
+}
 static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
                                           const char*title,Cmp5RecoveryStage*out){
  if(out)*out=0;
- if(!out||!cmp5_recovery_title(title)||!cmp5_game_destination_allowed(dest))
+ if(!out||!cmp5_recovery_title(title)||!cmp5_recovery_allowed_base(dest))
   return false;
  char state_dir[192];
  const int n=snprintf(state_dir,sizeof(state_dir),"%s/%s/.e2a-state",dest,title);
  if(n<=0||(size_t)n>=sizeof(state_dir))return false;
- int dir=cmp5_game_open_checkpoint_dir(root,state_dir);
+ int dir=cmp5_recovery_open_checkpoint_dir(root,state_dir);
  if(dir<0)return false;
  int request=openat(dir,"request.bin",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  int stage=openat(dir,"stage",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
@@ -95,17 +186,17 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  }
  if(ok)ok=fstat(stage,&after)==0&&
       fstatat(dir,"stage",&named,AT_SYMLINK_NOFOLLOW)==0&&
-      cmp5_game_same_stat(&first,&after)&&cmp5_game_same_stat(&first,&named)&&
+      cmp5_recovery_same(&first,&after)&&cmp5_recovery_same(&first,&named)&&
       fstat(request,&req_after)==0&&
       fstatat(dir,"request.bin",&req_named,AT_SYMLINK_NOFOLLOW)==0&&
-      cmp5_game_same_stat(&req_first,&req_after)&&
-      cmp5_game_same_stat(&req_first,&req_named)&&
+      cmp5_recovery_same(&req_first,&req_after)&&
+      cmp5_recovery_same(&req_first,&req_named)&&
       fstat(dir,&state_after)==0&&
-      cmp5_game_same_stat(&state_first,&state_after);
+      cmp5_recovery_same(&state_first,&state_after);
  if(request>=0)close(request);
  if(stage>=0)close(stage);
  if(ok){
-  const int again=cmp5_game_open_checkpoint_dir(root,state_dir);
+  const int again=cmp5_recovery_open_checkpoint_dir(root,state_dir);
   struct stat held={0},current={0};
   ok=again>=0&&fstat(dir,&held)==0&&
      fstat(again,&current)==0&&held.st_dev==current.st_dev&&
@@ -126,7 +217,7 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   else snprintf(dest,sizeof(dest),"/mnt/%s%u/homebrew",
                 storage&1u?"usb":"ext",(storage-1u)/2u);
   struct stat parent_before={0},parent_after={0};
-  if(!cmp5_game_path_stat(root,dest,true,&parent_before)){
+  if(!cmp5_recovery_parent_stat(root,dest,&parent_before)){
    /* A disconnected device is not automatically a corrupt checkpoint. */
    int fd=cmp5_recovery_parent_fd(root,dest);
    if(fd>=0)close(fd);
@@ -165,8 +256,8 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   }
   if(closedir(dir)!=0)out->partial=1;
   if(fstat(parent,&parent_after)!=0||
-     !cmp5_game_same_stat(&parent_before,&parent_after)||
-     !cmp5_game_path_still_same(root,dest,true,&parent_before)){
+     !cmp5_recovery_same(&parent_before,&parent_after)||
+     !cmp5_recovery_parent_still_same(root,dest,&parent_before)){
    out->partial=1;out->count=0;out->hidden=0;
    memset(out->entries,0,sizeof(out->entries));
   }
