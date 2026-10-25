@@ -171,7 +171,12 @@ static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  }
  s->sidecar_reads++;
  const int fd=openat(parentfd,basename,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
- if(fd<0)return;
+ if(fd<0){
+  /* The entry was visible during enumeration. Inability to reopen its
+   * metadata must not yield a "complete" gallery-name inventory. */
+  s->rootPartial=1;s->partial=1;
+  return;
+ }
  struct stat st;
  if(fstat(fd,&st)!=0||st.st_size<0x45||st.st_size>65536||
     !same_sidecar_stat(&st,expected)){
@@ -181,18 +186,33 @@ static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  if(lseek(fd,0x44,SEEK_SET)<0){
   close(fd);s->rootPartial=1;s->partial=1;return;
  }
- ssize_t got;
- do{got=read(fd,raw,160);}while(got<0&&errno==EINTR);
+ /* POSIX read may return fewer bytes than requested on a regular file.
+  * Never treat a short successful read as the complete game name. Read
+  * the bounded metadata window fully and fail closed on premature EOF. */
+ const size_t available=(size_t)(st.st_size-0x44);
+ const size_t required=available<160u?available:160u;
+ size_t got=0;
+ while(got<required){
+  ssize_t n=read(fd,raw+got,required-got);
+  if(n<0&&errno==EINTR)continue;
+  if(n<=0)break;
+  got+=(size_t)n;
+ }
  struct stat after,named;
- const int stable=got>0&&fstat(fd,&after)==0&&
+ const int stable=got==required&&fstat(fd,&after)==0&&
    fstatat(parentfd,basename,&named,AT_SYMLINK_NOFOLLOW)==0&&
    same_sidecar_stat(&st,&after)&&same_sidecar_stat(&st,&named);
  close(fd);
  if(!stable){s->rootPartial=1;s->partial=1;return;}
+ /* A full 160-byte window without a terminator cannot be trusted as a
+  * complete title; reject rather than displaying a misleading prefix. */
+ if(got==160u&&raw[159]!=0){
+  s->rootPartial=1;s->partial=1;return;
+ }
  if(raw[0]==0)return;
  // The last fourteen digits after an underscore identify the capture time.
  size_t len=0;
- while(len<(size_t)got&&raw[len]&&len<160)len++;
+ while(len<got&&raw[len]&&len<160u)len++;
  if(len>15&&raw[len-15]=='_'){
   int timestamp=1;
   for(size_t k=len-14;k<len;k++)if(raw[k]<'0'||raw[k]>'9')timestamp=0;

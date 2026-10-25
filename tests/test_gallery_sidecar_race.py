@@ -19,6 +19,8 @@ with tempfile.TemporaryDirectory() as tmp:
                              text=True,capture_output=True,timeout=15)
     assert completed.returncode==0,completed.stdout+"\n"+completed.stderr
     assert "blocked" in completed.stdout
+    # Partial reads, EACCES and early EOF were exercised before the race.
+    assert "sidecar" in completed.stdout.lower()
     # A replacement after opening the root must not mix capture trees.
     original=root/"initial"
     backup=root/"moved-original"

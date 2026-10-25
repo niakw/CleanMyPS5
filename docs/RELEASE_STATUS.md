@@ -1,5 +1,18 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Métadonnées Galerie : refus d'accès et lecture partielle (25 octobre 2026)
+
+Le lecteur natif des fichiers compagnons `.dat` marque désormais
+la couverture **partielle** si un fichier présent pendant l'inventaire
+ne peut pas être ouvert. Il assemble aussi les lectures POSIX courtes
+jusqu'à la fin de la fenêtre bornée, au lieu de publier un titre
+tronqué. Un EOF prématuré ou un champ de nom non terminé sur les
+160 octets lus produit une couverture partielle et aucun nom de jeu.
+La fixture de Galerie injecte un `EACCES`, des lectures d'un octet,
+un EOF prématuré et une mutation pendant lecture. La présence des
+autres captures n'est pas effacée du catalogue. Ce contrôle reste en
+lecture seule et n'autorise aucune suppression.
+
 ## Comparaison de noms HTTP sans accès hors limites (25 octobre 2026)
 
 La classification des champs des trois protocoles de lecture locale utilise
