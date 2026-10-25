@@ -26,6 +26,14 @@ typedef struct {
  char path[256];
  uint64_t bytes;
  uint32_t media_type;
+ /* Snapshot identity of the original at backup time, NOT a permission
+  * to restore into the Gallery. Inode/dev can change after remount. */
+ uint64_t snapshot_device;
+ uint64_t snapshot_inode;
+ int64_t modified_at;
+ int64_t snapshot_ctime;
+ uint32_t snapshot_mtime_nsec;
+ uint32_t snapshot_ctime_nsec;
 } Cmp5OriginEntry;
 typedef struct {
  uint32_t count;
