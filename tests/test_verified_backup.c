@@ -68,6 +68,19 @@ int main(int argc,char**argv){
  assert(!cmp5_verify_backup(backup,"SYMLINK",&b,NULL,NULL));
  assert(unlink(symlink_path)==0);
  assert(!cmp5_backup_media(root,&media,backup,"ONE",&b,NULL,NULL));
+ /* A correct SHA-256 is not sufficient if a private backup is exposed
+  * to group/other readers. Neither verify nor restore may endorse it. */
+ char capsule_path[512];
+ assert(snprintf(capsule_path,sizeof(capsule_path),"%s/ONE",backup)>0);
+ assert(chmod(capsule_path,0644)==0);
+ assert(!cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
+ assert(!b.published&&!b.bytes);
+ assert(!cmp5_restore_backup(backup,"ONE",restore,"LEAKED",&b,NULL,NULL));
+ char refused_path[512];
+ assert(snprintf(refused_path,sizeof(refused_path),"%s/LEAKED",restore)>0);
+ assert(access(refused_path,F_OK)!=0);
+ assert(chmod(capsule_path,0600)==0);
+ assert(cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
  assert(!cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,always_cancel,NULL));
  assert(cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,NULL,NULL));
  assert(!cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,NULL,NULL));
