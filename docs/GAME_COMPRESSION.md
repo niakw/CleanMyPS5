@@ -78,14 +78,33 @@ L'écran affiche les candidats (8 maximum), leurs supports et leurs
 étapes, ainsi que les limites de couverture. Il fonctionne même si
 le moteur n'est plus actif, tant que le stockage est accessible.
 
-Le bouton X relance **uniquement l'inventaire**. Aucun POST de reprise,
-écrasement, suppression ou montage n'est envoyé. Cet inventaire ne
-lit ni ne valide le contenu des options sérialisées de `request.bin` :
+Le bouton X relance **uniquement l'inventaire**. L'inventaire
+ne lit ni ne valide le contenu des options sérialisées de `request.bin` :
 c'est une condition de présence, **pas** la preuve que la conversion
-appartenait à CleanMyPS5 ou que sa reprise est sûre. Une reprise
-après fermeture reste donc bloquée. Les fixtures Linux/macOS
-simulent des volumes et des checkpoints légitimes et falsifiés.
-La simulation DualSense vérifie l'absence de commande de modification.
+appartenait à CleanMyPS5 ou que sa reprise est sûre.
+
+**Reprise expérimentale après fermeture :** un utilisateur peut
+sélectionner un candidat avec Haut/Bas, puis appuyer sur **Triangle**,
+**Croix** (première confirmation) et à nouveau **Croix** (seconde
+confirmation). Le titre **rescane tous les volumes** et refuse l'envoi
+si le même Title ID, le même dossier de sortie et la même étape ne
+figurent plus parmi les candidats indépendamment vérifiés. Une couverture
+partielle d'un autre support ne bloque pas ce candidat contrôlé. Le
+moteur AMPR doit être joignable et ne pas traiter un travail concurrent :
+seul l'état `idle` sans tâche en attente, ou `paused`, `error` ou
+`cancelled` **pour le même Title ID**, permet la demande.
+L'envoi est une commande de reprise limitée à ce dossier, et le worker
+AMPR valide de nouveau la source, l'appartenance du jeu, la destination
+et le checkpoint avant toute conversion. Les drapeaux `overwrite`,
+`remove_source` et `clean_leftovers` restent forcés à faux dans
+le worker. Une réponse perdue n'entraîne **jamais** un renvoi automatique.
+Cette fonction est testée sur hôte et dans la simulation DualSense,
+**pas encore sur PS5 13.60**. Il n'y a aucune garantie qu'un checkpoint
+historique soit compatible ni que le jeu démarre après conversion.
+
+Les fixtures Linux/macOS simulent des volumes et des checkpoints
+légitimes et falsifiés. La simulation DualSense vérifie qu'un candidat
+injecté uniquement en mémoire ne peut provoquer de POST.
 
 **Annulation et erreurs d'E/S :** le parcours natif vérifie désormais
 l'annulation entre chaque volume et chaque entrée. Un appui sur Cercle
@@ -118,7 +137,9 @@ pendant le scan, seuls les candidats issus de cette racine sont écartés :
 ceux déjà vérifiés sur d'autres supports sont conservés. Le test natif
 simule le remplacement du montage après découverte d'un checkpoint et
 vérifie le bilan partiel sans perte des autres candidats. Les résultats
-restent uniquement descriptifs et n'autorisent toujours aucune reprise.
+restent des observations non suffisantes pour la reprise : celle-ci exige
+deux confirmations, un nouveau scan et la vérification indépendante du
+moteur au moment de l'envoi.
 
 ## Moniteur AMPR : étape et cause de pause (25 octobre 2026)
 
