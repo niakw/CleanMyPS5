@@ -81,6 +81,19 @@ with tempfile.TemporaryDirectory() as root:
         pass
     helper.write_bytes(helper.read_bytes()[:-1])
 
+    # Only the installable ZIP is required. A standalone debug ELF is
+    # explicitly OPTIONAL, and the embedded helper is still mandatory.
+    helper.unlink()
+    module.write(folder, title, pin)
+    module.check(folder, title, pin)
+    without_copy = json.loads((folder / "manifest.json").read_text())
+    assert len(without_copy["files"]) == 1
+    assert without_copy["files"][0]["name"] == f"{title}.zip"
+    assert without_copy["helper"] == "bundled-readonly-opt-in"
+    helper.write_bytes(helper_payload)
+    module.write(folder, title, pin)
+    module.check(folder, title, pin)
+
     # Corrupt a stored ZIP member while preserving its header and CRC.
     raw = (folder / f"{title}.zip").read_bytes()
     damaged = raw.replace(b"A" * 80, b"Z" * 80, 1)
