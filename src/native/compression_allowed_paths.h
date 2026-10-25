@@ -52,10 +52,18 @@ static inline bool cmp5_direct_child(const char *p, const char *prefix) {
  if (!cmp5_has_prefix(p, prefix)) return false;
  return cmp5_safe_component(p + strlen(prefix));
 }
+static inline bool cmp5_convertible_image_suffix(const char *name) {
+ if(!name)return false;
+ const char *dot=strrchr(name,'.');
+ return dot&&(!strcasecmp(dot,".exfat")||!strcasecmp(dot,".ffpkg")||
+             !strcasecmp(dot,".ffpfs"));
+}
+/* .ffpfsc is recognized by the scanner as an image but already compressed:
+ * it is not eligible for another AMPR conversion. */
 static inline bool cmp5_image_suffix(const char *name) {
- const char *dot = strrchr(name, '.');
- return dot && (!strcasecmp(dot, ".exfat") || !strcasecmp(dot, ".ffpkg") ||
-                !strcasecmp(dot, ".ffpfs") || !strcasecmp(dot, ".ffpfsc"));
+ const char *dot=name?strrchr(name,'.'):NULL;
+ return cmp5_convertible_image_suffix(name) ||
+        (dot&&!strcasecmp(dot,".ffpfsc"));
 }
 /* An image extension on a DIRECTORY can name an extracted game dump.
  * Only a regular image FILE must be linked to ShadowMountPlus.
@@ -124,7 +132,8 @@ static inline bool cmp5_game_path_stat(const char*root,const char*path,
    ok=success&&
       (destination?S_ISDIR(meta.st_mode):
          (S_ISDIR(meta.st_mode)||
-         (S_ISREG(meta.st_mode)&&meta.st_nlink==1&&meta.st_size>0)));
+         (S_ISREG(meta.st_mode)&&meta.st_nlink==1&&meta.st_size>0&&
+          cmp5_convertible_image_suffix(path))));
    if(ok)*out=meta;
    close(child);
    break;

@@ -26,6 +26,7 @@ def check_engine(root: Path) -> None:
         "strict source root whitelist": "cmp5_game_source_allowed(r.source)",
         "strict destination whitelist": "cmp5_game_destination_allowed(r.dest_base)",
         "source descriptor-anchored admission": 'cmp5_game_path_stat("/", r.source, false, &cmp5_source_snapshot)',
+        "only convertible regular source images": "cmp5_convertible_image_suffix(path)",
         "destination descriptor-anchored admission": 'cmp5_game_path_stat("/", r.dest_base, true, &cmp5_dest_snapshot)',
         "reject aliases and disappeared games": "game_path_unstable_or_aliased",
         "source inode and timestamp recheck": 'cmp5_game_path_still_same("/", r.source, false,',

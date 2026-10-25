@@ -26,6 +26,20 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Rejet des faux fichiers-images pendant la conversion (25 octobre 2026)
+
+Le contrôle par descripteur distingue désormais les **répertoires**
+de jeux extraits des **fichiers réguliers** : un fichier
+`README.txt`, `config.bin` ou autre entrée sans suffixe convertible,
+même situé dans un dossier homebrew autorisé, ne peut pas parvenir au
+précontrôle ou à la mise en file AMPR. Les fichiers `.ffpfsc` déjà
+compressés restent détectables par l'inventaire, mais sont exclus
+de la conversion avant toute analyse. Les fichiers `.exfat`,
+`.ffpkg` et `.ffpfs` restent éligibles aux contrôles
+ShadowMountPlus. Les dossiers extraits conservent leur admission
+par type réel et doivent toujours passer l'identification
+`e2a_read_game`. Des tests C vérifient les trois situations.
+
 ## Réponses ShadowMountPlus malformées : vérification des tableaux fixes (25 octobre 2026)
 
 Le moteur AMPR intégré compare désormais `path`, `title_id`,

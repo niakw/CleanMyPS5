@@ -82,6 +82,31 @@ int main(void) {
  assert(fputs("SYNTHETIC_GAME_IMAGE",out)>=0&&fclose(out)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/data/homebrew/PPSA12345",false));
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",false));
+ /* The lexical allowlist admits direct entries in homebrew, but regular
+  * README/config files MUST be rejected before any SMP or packer probe. */
+ assert(cmp5_game_source_allowed("/data/homebrew/README.txt"));
+ char ordinary[512];
+ assert(snprintf(ordinary,sizeof(ordinary),"%s/data/homebrew/README.txt",
+                 sandbox)>0);
+ FILE*note=fopen(ordinary,"wb");assert(note);
+ assert(fputs("NOT A GAME",note)>=0&&fclose(note)==0);
+ assert(!cmp5_game_path_on_disk(sandbox,"/data/homebrew/README.txt",false));
+ assert(!cmp5_convertible_image_suffix("/data/homebrew/README.txt"));
+ assert(cmp5_convertible_image_suffix("/data/homebrew/GAME.ffpkg"));
+ assert(cmp5_convertible_image_suffix("/data/homebrew/GAME.FFPFS"));
+ assert(cmp5_image_suffix("/data/homebrew/GAME.ffpfsc"));
+ assert(!cmp5_convertible_image_suffix("/data/homebrew/GAME.ffpfsc"));
+ assert(!cmp5_image_suffix(NULL));
+ assert(unlink(ordinary)==0);
+ /* A regular .ffpfsc file is already compressed and may be inventoried,
+  * but must never be accepted as a fresh AMPR source. */
+ assert(snprintf(ordinary,sizeof(ordinary),"%s/data/homebrew/DONE.ffpfsc",
+                 sandbox)>0);
+ note=fopen(ordinary,"wb");assert(note);
+ assert(fputs("ALREADY COMPRESSED",note)>=0&&fclose(note)==0);
+ assert(!cmp5_game_path_on_disk(sandbox,"/data/homebrew/DONE.ffpfsc",
+                                false));
+ assert(unlink(ordinary)==0);
  /* Image extension alone is not an image file. The engine must use the
   * exact file type from its descriptor-anchored admission snapshot. */
  struct stat image_file={0},game_folder={0};
@@ -101,6 +126,10 @@ int main(void) {
                             false,&game_folder));
  assert(!cmp5_source_requires_smp("/mnt/usb0/homebrew/EXTRACTED.exfat",
                                    &game_folder));
+ /* A genuinely extracted game can have an image-like DIRECTORY name;
+  * extension alone must not turn it into an SMP image. */
+ assert(cmp5_game_path_stat(sandbox,
+            "/mnt/usb0/homebrew/EXTRACTED.exfat",false,&game_folder));
  assert(rmdir(extracted)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
  /* Image lookup must never inspect unauthorized console directories,
