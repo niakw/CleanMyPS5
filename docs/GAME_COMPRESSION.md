@@ -9,7 +9,13 @@ conserver un jeu normalement lisible sans exposer les métadonnées privées
 de reprise ni rendre la sortie modifiable par tous en cas de `umask`
 permissif. Les contrôles du moteur transformé imposent ces deux modes.
 Une fixture Linux simule explicitement `umask(0)` et vérifie les modes
-réellement obtenus.
+réellement obtenus. Le moteur rouvre désormais `.e2a-state` avec
+`O_NOFOLLOW`, compare son inode au nom sur disque et refuse une
+conversion si les permissions du checkpoint ne sont pas réellement
+privées. Une fixture simule un système de fichiers qui expose le
+répertoire malgré `mkdir(..., 0700)` : aucune sortie n'est annoncée
+comme créée avec succès. Les restes éventuels sont conservés pour
+inspection, sans effacement automatique.
 
 Cette protection POSIX ne prouve pas la prise en charge des permissions
 sur tous les systèmes de fichiers et montages PS5. La sortie initiale
