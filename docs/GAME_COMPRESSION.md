@@ -7,7 +7,12 @@ avec les permissions POSIX `0755` et son répertoire interne
 `.e2a-state` avec `0700` (au lieu de `0777`). L'objectif est de
 conserver un jeu normalement lisible sans exposer les métadonnées privées
 de reprise ni rendre la sortie modifiable par tous en cas de `umask`
-permissif. Les contrôles du moteur transformé imposent ces deux modes.
+permissif. Le moteur revérifie maintenant les modes effectivement obtenus
+(jeu `0755` et checkpoint `0700`). Si un `umask` restrictif transforme
+le répertoire du jeu en `0700`, la création est signalée comme **non
+confirmée**, puisqu'un autre processus de lancement pourrait ne pas
+pouvoir le lire. Il n'y a ni `chmod` aveugle ni suppression automatique
+du dossier partiel. La CI simule ce cas.
 Une fixture Linux simule explicitement `umask(0)` et vérifie les modes
 réellement obtenus. Le moteur rouvre désormais `.e2a-state` avec
 `O_NOFOLLOW`, compare son inode au nom sur disque et refuse une
