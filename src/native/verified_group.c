@@ -780,6 +780,8 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
    ok=recovery_entry(dir,stage,&origin_stage_present,&unsafe);
    result.staged_parts+=(uint32_t)origin_stage_present;
   }
+  result.origin_map_present=origin_present;
+  result.origin_map_staged=origin_stage_present;
  }
  if(ok)ok=inspect_namespace(dir,id,restored,&result.unexpected_entries);
  if(!ok){close(dir);return 0;}
