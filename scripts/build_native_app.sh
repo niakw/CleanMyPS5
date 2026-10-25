@@ -118,7 +118,10 @@ python3 "$project/scripts/check_native_bundle.py" \
   "$tmp/native-toolchain/dist/$title" "$title"
 
 mkdir -p "$project/dist/native"
-cp "$project/cleanmyps5-helper.elf" "$project/dist/native/cleanmyps5-helper.elf"
+# The ZIP/FFPKG already contain the diagnostic helper AND compression ELF.
+# Do not ship a second standalone ELF that looks like an installation step.
+# Remove an obsolete generated debug copy from previous local builds.
+rm -f -- "$project/dist/native/cleanmyps5-helper.elf"
 if [[ ${CMP5_BUILD_FFPKG:-0} == 1 ]]; then
   cp "$tmp/native-toolchain/dist/$title.ffpkg" "$project/dist/native/$title.ffpkg"
 fi
