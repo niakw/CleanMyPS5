@@ -174,6 +174,20 @@ int cmp5_private_lab_hold_checkpoint(const char*lab,const char*item,
    created.st_nlink==2&&named.st_nlink==2&&
    dir_current(source,lab)&&fsync(source)==0;
  if(ok&&checkpoint&&checkpoint(context))ok=0;
+ /* The two-name checkpoint is durable, but the original bytes can still
+  * change while a callback or an uncooperative process runs. Before
+  * removing the visible SOURCE name, hash both links against the verified
+  * independent capsule and require that they STILL share one inode.
+  * If they do not, retain BOTH names for explicit offline inspection. */
+ if(ok){
+  struct stat live_source={0},live_held={0};
+  ok=hash_file_at(source,item,&saved,&live_source,2u)&&
+     hash_file_at(source,held,&saved,&live_held,2u)&&
+     same_inode(&live_source,&live_held)&&
+     live_source.st_nlink==2&&live_held.st_nlink==2&&
+     state_at(source,item)==CMP5_LAB_AMBIGUOUS&&
+     dir_current(source,lab);
+ }
  if(ok)ok=unlinkat(source,item,0)==0&&fsync(source)==0&&
    state_at(source,item)==CMP5_LAB_HELD_ONLY&&
    hash_file_at(source,held,&saved,NULL,1u)&&dir_current(source,lab);
@@ -202,6 +216,18 @@ int cmp5_private_lab_recover_checkpoint(const char*lab,const char*item,
    created.st_nlink==2&&named.st_nlink==2&&
    dir_current(dir,lab)&&fsync(dir)==0;
  if(ok&&checkpoint&&checkpoint(context))ok=0;
+ /* Confirm BOTH hardlink names still hash to the original backup before
+  * dropping the held name. A changed payload leaves the two-name
+  * checkpoint intact rather than claiming recovery succeeded. */
+ if(ok){
+  struct stat live_source={0},live_held={0};
+  ok=hash_file_at(dir,item,&saved,&live_source,2u)&&
+     hash_file_at(dir,held,&saved,&live_held,2u)&&
+     same_inode(&live_source,&live_held)&&
+     live_source.st_nlink==2&&live_held.st_nlink==2&&
+     state_at(dir,item)==CMP5_LAB_AMBIGUOUS&&
+     dir_current(dir,lab);
+ }
  if(ok)ok=unlinkat(dir,held,0)==0&&fsync(dir)==0&&
    state_at(dir,item)==CMP5_LAB_SOURCE_ONLY&&
    hash_file_at(dir,item,&saved,NULL,1u)&&dir_current(dir,lab);
