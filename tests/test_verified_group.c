@@ -427,6 +427,12 @@ int main(int argc,char**argv){
  (void)snprintf(planted,sizeof(planted),"%s/.RECOV__2.part",private);
  FILE*partial=fopen(planted,"wb");assert(partial);
  assert(fputs("INCOMPLETE",partial)>=0&&fclose(partial)==0);
+ /* A private 0600 staging file is merely interrupted. A 0644 staging
+  * file is both interrupted AND exposed, therefore invalid. */
+ assert(chmod(planted,0644)==0);
+ assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(chmod(planted,0600)==0);
  assert(cmp5_inspect_group_recovery(private,"RECOV",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INCOMPLETE&&recovery.staged_parts==1u);
  assert(unlink(planted)==0);
