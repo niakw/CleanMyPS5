@@ -223,15 +223,20 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   else snprintf(dest,sizeof(dest),"/mnt/%s%u/homebrew",
                 storage&1u?"usb":"ext",(storage-1u)/2u);
   struct stat parent_before=CMP5_RECOVERY_ZERO,parent_after=CMP5_RECOVERY_ZERO;
-  if(!cmp5_recovery_parent_stat(root,dest,&parent_before)){
-   /* A disconnected device is not automatically a corrupt checkpoint. */
-   int fd=cmp5_recovery_parent_fd(root,dest);
-   if(fd>=0)close(fd);
-   else if(errno!=ENOENT)out->unavailable++;
+  /* Open and pin a single root before counting entries.  An absent
+   * removable volume is normal; a denied/unsafe root is partial coverage. */
+  int parent=cmp5_recovery_parent_fd(root,dest);
+  if(parent<0){
+   const int open_error=errno;
+   if(open_error!=ENOENT){out->unavailable++;out->partial=1;}
    continue;
   }
-  int parent=cmp5_recovery_parent_fd(root,dest);
-  if(parent<0){out->unavailable++;out->partial=1;continue;}
+  if(fstat(parent,&parent_before)!=0||!S_ISDIR(parent_before.st_mode)){
+   close(parent);out->unavailable++;out->partial=1;continue;
+  }
+  /* If this root is replaced while scanning, discard only its observations,
+   * not verified candidates from earlier independent storage roots. */
+  const unsigned previous_count=out->count,previous_hidden=out->hidden;
   int listing=openat(parent,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   DIR*dir=listing>=0?fdopendir(listing):NULL;
   if(!dir){
@@ -264,8 +269,10 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   if(fstat(parent,&parent_after)!=0||
      !cmp5_recovery_same(&parent_before,&parent_after)||
      !cmp5_recovery_parent_still_same(root,dest,&parent_before)){
-   out->partial=1;out->count=0;out->hidden=0;
-   memset(out->entries,0,sizeof(out->entries));
+   out->partial=1;
+   for(unsigned i=previous_count;i<out->count;i++)
+    memset(&out->entries[i],0,sizeof(out->entries[i]));
+   out->count=previous_count;out->hidden=previous_hidden;
   }
   close(parent);
   out->folders_checked++;
