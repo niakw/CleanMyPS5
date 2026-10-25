@@ -21,11 +21,14 @@ static int canceled(Cmp5CancelCheck f,void*ctx){return f&&f(ctx);}
 static int valid_id(const char*id){
  if(!id)return 0;
  size_t n=0;
- for(;id[n]&&n<48;n++){
+ /* Check the bound BEFORE dereferencing: a fixed-width, unterminated
+  * identifier must not trigger a read beyond its declared capacity. */
+ for(;n<48u;n++){
   const char c=id[n];
+  if(c=='\0')return n>0u;
   if(!((c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-'))return 0;
  }
- return n>=1&&n<=48&&id[n]==0;
+ return 0; /* no terminator within the bounded identifier */
 }
 static int private_dir(const char*path){
  return cmp5_open_private_workspace(path);
