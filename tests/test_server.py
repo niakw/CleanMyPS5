@@ -102,6 +102,39 @@ with tempfile.TemporaryDirectory() as temp:
   assert caps["features"]["quarantine"] is False
   assert caps["features"]["privilegeEscalation"] is False
   assert "path" not in json.dumps(caps).lower()
+  # Exercise the actual local socket parser, not just urllib's sanitized
+  # client requests. GET/HEAD must not accept framing ambiguity or
+  # conflicting browser origin metadata.
+  def raw_status(payload):
+   with socket.create_connection(("127.0.0.1",port),timeout=3) as sock:
+    sock.settimeout(3)
+    sock.sendall(payload)
+    sock.shutdown(socket.SHUT_WR)
+    response=b""
+    while True:
+     part=sock.recv(8192)
+     if not part:break
+     response+=part
+    return int(response.split(b"\r\n",1)[0].split(b" ",2)[1])
+  base_hdr=f"Host: 127.0.0.1:{port}\r\n".encode()
+  origin_hdr=f"Origin: http://127.0.0.1:{port}\r\n".encode()
+  good=b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"\r\n"
+  assert raw_status(good)==200
+  cases=[
+   (b"GET /api/status HTTP/1.1 garbage\r\n"+base_hdr+b"\r\n",400),
+   (b"GET  /api/status HTTP/1.1\r\n"+base_hdr+b"\r\n",400),
+   (b"GET /api/status HTTP/1.9\r\n"+base_hdr+b"\r\n",400),
+   (b"GET /api/status HTTP/1.1\x00\r\n"+base_hdr+b"\r\n",400),
+   (good+b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"\r\n",400),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+origin_hdr+origin_hdr+b"\r\n",403),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"Host: 127.0.0.1:"+str(port).encode()+b"\r\n\r\n",403),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"Content-Length: 0\r\n\r\n",403),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"Transfer-Encoding: chunked\r\n\r\n",403),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"Host : localhost\r\n\r\n",403),
+   (b"GET /api/status HTTP/1.1\r\n"+base_hdr+b"Sec-Fetch-Site: same-origin\r\nSec-Fetch-Site: none\r\n\r\n",403),
+  ]
+  for payload,code in cases:
+   assert raw_status(payload)==code,(code,payload)
   # A deliberately slow, incomplete HTTP request must not freeze the entire UI.
   stalled=socket.create_connection(("127.0.0.1",port),timeout=2)
   try:

@@ -225,6 +225,27 @@ static void video_response(int client,const char*root,const char*encoded,
 static int exact_header(const char *start,size_t length,const char *expected){
  return strlen(expected)==length&&memcmp(start,expected,length)==0;
 }
+/* Parse exactly three request-line fields. Whitespace-delimited sscanf()
+ * accepts extra tokens and unknown HTTP/1.x versions, which makes the
+ * security checks disagree with the actual bytes received. */
+static int parse_request_line(const char*req,char*method,size_t method_cap,
+                              char*path,size_t path_cap){
+ const char*end=strstr(req,"\r\n");
+ if(!end)return 0;
+ const char*one=memchr(req,' ',(size_t)(end-req));
+ if(!one||one==req)return 0;
+ const char*two=memchr(one+1,' ',(size_t)(end-one-1));
+ if(!two||two==one+1)return 0;
+ const char*version=two+1;
+ const size_t m=(size_t)(one-req),p=(size_t)(two-one-1);
+ if(!m||m>=method_cap||!p||p>=path_cap||one[1]!='/')return 0;
+ if(end-version!=8||
+    (memcmp(version,"HTTP/1.1",8)!=0&&
+     memcmp(version,"HTTP/1.0",8)!=0))return 0;
+ memcpy(method,req,m);method[m]=0;
+ memcpy(path,one+1,p);path[p]=0;
+ return 1;
+}
 static int validate_local_headers(const char*req,int port){
  const char*line=strstr(req,"\r\n");if(!line)return 0;
  line+=2;char host[80],local_host[80],origin[100],local_origin[100];
@@ -232,7 +253,7 @@ static int validate_local_headers(const char*req,int port){
  snprintf(local_host,sizeof(local_host),"localhost:%d",port);
  snprintf(origin,sizeof(origin),"http://127.0.0.1:%d",port);
  snprintf(local_origin,sizeof(local_origin),"http://localhost:%d",port);
- int found=0;
+ int found=0,origin_seen=0,referer_seen=0,fetch_seen=0;
  while(*line&&strncmp(line,"\r\n",2)!=0){
   const char*end=strstr(line,"\r\n");if(!end)return 0;
   const char*colon=memchr(line,':',(size_t)(end-line));
@@ -242,18 +263,36 @@ static int validate_local_headers(const char*req,int port){
   const char*last=end;
   while(last>value&&(last[-1]==' '||last[-1]=='\t'))last--;
   size_t len=(size_t)(last-value),name=(size_t)(colon-line);
+  if(!name||name>128u)return 0;
+  for(size_t i=0;i<name;i++){
+   const unsigned char ch=(unsigned char)line[i];
+   if(ch<=32u||ch>=127u||ch==':')return 0;
+  }
+  for(const char*cur=value;cur<last;cur++){
+   const unsigned char ch=(unsigned char)*cur;
+   if((ch<32u&&ch!='\t')||ch>=127u)return 0;
+  }
+  /* This is a bodyless read-only service. Never accept alternative
+   * framing rules, even on localhost, in the diagnostic helper. */
+  if((name==14&&strncasecmp(line,"Content-Length",14)==0)||
+     (name==17&&strncasecmp(line,"Transfer-Encoding",17)==0))return 0;
   if(name==4&&strncasecmp(line,"Host",4)==0){
    if(found++||(!exact_header(value,len,host)&&!exact_header(value,len,local_host)))return 0;
   }else if(name==6&&strncasecmp(line,"Origin",6)==0){
-   if(!exact_header(value,len,origin)&&!exact_header(value,len,local_origin))return 0;
+   if(origin_seen++||
+      (!exact_header(value,len,origin)&&
+       !exact_header(value,len,local_origin)))return 0;
   }else if(name==7&&strncasecmp(line,"Referer",7)==0){
    // A same-origin referrer may contain a path. Reject cross-origin URLs.
-   if(!((len>=strlen(origin)&&!memcmp(value,origin,strlen(origin))&&
+   if(referer_seen++||
+      !((len>=strlen(origin)&&!memcmp(value,origin,strlen(origin))&&
          (len==strlen(origin)||value[strlen(origin)]=='/'))||
         (len>=strlen(local_origin)&&!memcmp(value,local_origin,strlen(local_origin))&&
          (len==strlen(local_origin)||value[strlen(local_origin)]=='/'))))return 0;
   }else if(name==14&&strncasecmp(line,"Sec-Fetch-Site",14)==0){
-   if(!exact_header(value,len,"same-origin")&&!exact_header(value,len,"none"))return 0;
+   if(fetch_seen++||
+      (!exact_header(value,len,"same-origin")&&
+       !exact_header(value,len,"none")))return 0;
   }
   line=end+2;
  }
@@ -270,13 +309,21 @@ static void handle(int fd,const char*root,int port){
   length+=(size_t)got;req[length]=0;
   if(strstr(req,"\r\n\r\n"))break;
  }
- if(!strstr(req,"\r\n\r\n")){plain(fd,400,"Incomplete headers");return;}
- if(!validate_local_headers(req,port)){plain(fd,403,"Local origin required");return;}
- char method[12],path[3072],proto[16];
- if(sscanf(req,"%11s %3071s %15s",method,path,proto)!=3){plain(fd,400,"Bad request");return;}
+ const char*end_headers=strstr(req,"\r\n\r\n");
+ if(!end_headers){plain(fd,400,"Incomplete headers");return;}
+ /* Byte-level check before any C-string parsing, including pipelined
+  * requests or a NUL that truncates an apparent Host header. */
+ if(memchr(req,0,length)!=NULL||
+    (size_t)(end_headers+4-req)!=length){
+  plain(fd,400,"Ambiguous request framing");return;
+ }
+ char method[12],path[3072];
+ if(!parse_request_line(req,method,sizeof(method),path,sizeof(path))){
+  plain(fd,400,"Bad request line");return;
+ }
  int is_head=strcmp(method,"HEAD")==0;
  if(strcmp(method,"GET")!=0&&!is_head){plain(fd,405,"GET and video HEAD only");return;}
- if(strncmp(proto,"HTTP/1.",7)!=0){plain(fd,400,"Bad HTTP version");return;}
+ if(!validate_local_headers(req,port)){plain(fd,403,"Local origin required");return;}
  if(is_head && strncmp(path,"/api/video?file=",16)!=0){plain(fd,405,"HEAD is limited to video metadata");return;}
 #if defined(PS5) && defined(CMP5_DIAGNOSTIC_HELPER)
  /* Do not turn a possibly more privileged helper process into a general

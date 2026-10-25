@@ -1,5 +1,19 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Helper HTTP : cadrage strict et refus des origines ambiguës (25 octobre 2026)
+
+Le serveur de diagnostic (lecture seule, loopback) impose une ligne de
+requête à trois champs exacts et les seules versions HTTP/1.0 ou 1.1.
+Les caractères NUL, données/pipelines dans le même message et en-têtes
+`Content-Length` / `Transfer-Encoding` sont refusés. `Host` est
+unique et `Origin`, `Referer` et `Sec-Fetch-Site` ne peuvent pas
+apparaître plusieurs fois, même avec des valeurs identiques. La CI
+injecte de vraies requêtes TCP malformées en plus des tests navigateur
+et vérifie les codes 400/403/405 ; aucune opération de nettoyage n'est
+activée. C'est une réduction de surface d'attaque du helper, pas une
+élévation de droits ni une preuve matérielle de la console.
+
+
 ## Métadonnées Galerie : refus d'accès et lecture partielle (25 octobre 2026)
 
 Le lecteur natif des fichiers compagnons `.dat` marque désormais
