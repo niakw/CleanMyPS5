@@ -919,6 +919,32 @@ int main(){
         mock_ampr_post_headers+mock_ampr_post_bodies==controls_before);
  press(cross);finish_scan();
  assert(compression_view==7u&&recovery_checked);
+ /* No in-memory checkpoint may authorize a POST without a fresh scan.
+  * A recovery requires TWO separate controller confirmations. */
+ recovery_inventory=Cmp5RecoveryInventory{};
+ recovery_inventory.count=1u;
+ std::strcpy(recovery_inventory.entries[0].title_id,"PPSA12345");
+ std::strcpy(recovery_inventory.entries[0].destination,
+             "/mnt/usb0/homebrew");
+ recovery_inventory.entries[0].stage=CMP5_RECOVERY_PACK;
+ recovery_checked=true;recovery_selection=0u;
+ press(triangle);assert(compression_view==8u);
+ press(circle);assert(compression_view==7u);
+ press(triangle);assert(compression_view==8u);
+ press(cross);assert(compression_view==9u);
+ press(cross);assert(compression_view==10u);
+ finish_scan();
+ assert(recovery_resume_attempted&&!recovery_resume_accepted&&
+        !recovery_resume_unknown);
+ assert(mock_ampr_resumes==0u);
+ assert(mock_ampr_pauses+mock_ampr_resumes+
+        mock_ampr_post_headers+mock_ampr_post_bodies==controls_before);
+ scene(canvas);
+ press(circle);assert(compression_view==7u);
+ press(triangle);assert(compression_view==7u); // no repeated POST
+ recovery_resume_attempted=false;recovery_resume_accepted=false;
+ recovery_resume_unknown=false;recovery_checked=false;
+ recovery_inventory=Cmp5RecoveryInventory{};
  press(circle);assert(compression_view==5u);
  press(circle);
  assert(compression_view==0u); // Restore actual stats origin.
