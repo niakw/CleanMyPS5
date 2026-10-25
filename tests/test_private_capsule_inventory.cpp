@@ -65,6 +65,10 @@ int main(){
                           &commit,&temporary)&&commit&&!temporary);
  assert(group_entry_name(".GRP_0123456789ABCDEF__2.part",
                           &commit,&temporary)&&!commit&&temporary);
+ assert(group_entry_name(".GRP_0123456789ABCDEF__COMMIT.part",
+                          &commit,&temporary)&&!commit&&temporary);
+ assert(group_entry_name(".GRP_0123456789ABCDEF__ORIGINS.part",
+                          &commit,&temporary)&&!commit&&temporary);
  assert(!group_entry_name("GRP_0123456789ABCDEF__5",
                           &commit,&temporary));
  make_file(root,"GRP_0123456789ABCDEF__COMMIT",0600,256u);
@@ -75,14 +79,18 @@ int main(){
  assert(std::strcmp(list.group_ids[0],"GRP_0123456789ABCDEF")==0);
  assert(list.count==0u);
  make_file(root,".GRP_0123456789ABCDEF__2.part",0600);
+ make_file(root,".GRP_0123456789ABCDEF__COMMIT.part",0600);
+ make_file(root,".GRP_0123456789ABCDEF__ORIGINS.part",0600);
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&list.partial&&list.group_count==1u);
- assert(list.staged==1u);
+ assert(list.staged==3u);
  for(const char*name:{
   "GRP_0123456789ABCDEF__COMMIT",
   "GRP_0123456789ABCDEF__ORIGINS",
   "GRP_0123456789ABCDEF__1",
-  ".GRP_0123456789ABCDEF__2.part"
+  ".GRP_0123456789ABCDEF__2.part",
+  ".GRP_0123456789ABCDEF__COMMIT.part",
+  ".GRP_0123456789ABCDEF__ORIGINS.part"
  }){
   char entry[512]{};
   assert(std::snprintf(entry,sizeof(entry),"%s/%s",root,name)>0);
