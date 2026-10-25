@@ -257,9 +257,24 @@ static inline bool cmp5_game_output_create_unique(
    S_ISDIR(held.st_mode)&&S_ISDIR(named.st_mode)&&
    held.st_dev==parent.st_dev&&held.st_dev==named.st_dev&&
    held.st_ino==named.st_ino;
+ /* mkdirat pins the opened parent, but that parent can be renamed or
+  * its mount replaced while creating the title and private checkpoint.
+  * The authorized destination PATH must still name that same inode.
+  * mkdir changes parent timestamps/link count, so compare stable identity. */
+ struct stat parent_held={0},parent_visible={0};
+ if(ok)ok=fstat(fd,&parent_held)==0&&
+   cmp5_game_path_stat(root,dest,true,&parent_visible)&&
+   parent.st_dev==parent_held.st_dev&&
+   parent.st_ino==parent_held.st_ino&&
+   parent.st_uid==parent_held.st_uid&&
+   parent.st_mode==parent_held.st_mode&&
+   parent_held.st_dev==parent_visible.st_dev&&
+   parent_held.st_ino==parent_visible.st_ino&&
+   parent_held.st_uid==parent_visible.st_uid&&
+   parent_held.st_mode==parent_visible.st_mode;
  if(child>=0)close(child);
  close(fd);
- if(!ok)return false; /* leave uncommitted output for inspection */
+ if(!ok)return false; /* keep partial output for manual inspection */
  *out=held;
  return true;
 }
