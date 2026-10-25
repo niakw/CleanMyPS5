@@ -33,15 +33,24 @@ spec.loader.exec_module(module)
 
 title = "PPSA99784"
 pin = "a" * 40
+helper_payload = b"\x7fELF" + b"R" * 128
 
 def package(folder: Path, *, traversal: bool = False, wrong_id: bool = False,
-            duplicate: bool = False, symlink: bool = False) -> None:
+            duplicate: bool = False, symlink: bool = False,
+            omit_engine: bool = False, omit_helper: bool = False,
+            mismatch_helper: bool = False) -> None:
     with ZipFile(folder / f"{title}.zip", "w") as z:
         params = {"titleId": "PPSA00000" if wrong_id else title}
         z.writestr(f"{title}/sce_sys/param.json", json.dumps(params))
         z.writestr(f"{title}/eboot.bin", b"\x4f\x15\x3d\x1d" + b"A" * 80)
         z.writestr(f"{title}/sce_sys/icon0.png", b"\x89PNG\r\n\x1a\n")
         z.writestr(f"{title}/sce_module/libc.prx", b"B" * 100)
+        if not omit_engine:
+            z.writestr(f"{title}/assets/cleanmyps5-compression.elf",
+                       b"\x7fELF" + b"L" * 128)
+        if not omit_helper:
+            z.writestr(f"{title}/assets/cleanmyps5-helper.elf",
+                       helper_payload + (b"BAD" if mismatch_helper else b""))
         if traversal:
             z.writestr(f"{title}/../../escape.txt", "bad")
         if duplicate:
@@ -56,7 +65,7 @@ with tempfile.TemporaryDirectory() as root:
     folder = Path(root)
     package(folder)
     helper = folder / "cleanmyps5-helper.elf"
-    helper.write_bytes(b"\x7fELF" + b"R" * 128)
+    helper.write_bytes(helper_payload)
     module.write(folder, title, pin)
     module.check(folder, title, pin)
     manifest = json.loads((folder / "manifest.json").read_text())
@@ -97,7 +106,9 @@ with tempfile.TemporaryDirectory() as root:
     package(folder)
 
     for args in ({"traversal": True}, {"wrong_id": True},
-                 {"duplicate": True}, {"symlink": True}):
+                 {"duplicate": True}, {"symlink": True},
+                 {"omit_engine": True}, {"omit_helper": True},
+                 {"mismatch_helper": True}):
         package(folder, **args)
         try:
             module.expected_manifest(folder, title, pin)
