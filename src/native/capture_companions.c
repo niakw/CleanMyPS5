@@ -15,6 +15,7 @@
 #include <unistd.h>
 #define MAX_TOTAL (512ULL*1024ULL*1024ULL) /* Host backup contract only. */
 static int cancelled(Cmp5CancelCheck check,void*ctx){return check&&check(ctx);}
+static int denied_error(int e){return e==EACCES||e==EPERM;}
 static int same_file(const struct stat*a,const struct stat*b){
 #if defined(__APPLE__)
  const int nsec=a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
@@ -152,15 +153,25 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  if(parent_len>=sizeof(directory)-1u)return 0;
  memcpy(directory,path+1,parent_len-1u);directory[parent_len-1u]=0;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(fd<0)return 0;
+ if(fd<0){
+  if(failure&&denied_error(errno))*failure=CMP5_COMPANION_FAILURE_PERMISSION_DENIED;
+  return 0;
+ }
  char*save=NULL;
  for(char*part=strtok_r(directory,"/",&save);part;part=strtok_r(NULL,"/",&save)){
   if(part[0]=='.'){close(fd);return 0;}
   int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-  close(fd);if(child<0)return 0;fd=child;
+  const int error=errno;
+  close(fd);
+  if(child<0){
+   if(failure&&denied_error(error))*failure=CMP5_COMPANION_FAILURE_PERMISSION_DENIED;
+   return 0;
+  }
+  fd=child;
  }
  struct stat selected;
  if(fstatat(fd,slash+1,&selected,AT_SYMLINK_NOFOLLOW)!=0){
+  if(failure&&denied_error(errno))*failure=CMP5_COMPANION_FAILURE_PERMISSION_DENIED;
   close(fd);return 0;
  }
  if(!cmp5_snapshot_matches(primary,&selected)){
@@ -171,14 +182,23 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  struct stat parent_before;
  if(fstat(anchored_fd,&parent_before)!=0){close(fd);return 0;}
  DIR*dir=fdopendir(fd);
- if(!dir){close(fd);return 0;}
+ if(!dir){
+  if(failure&&denied_error(errno))*failure=CMP5_COMPANION_FAILURE_PERMISSION_DENIED;
+  close(fd);return 0;
+ }
  uint32_t gathered=0,visits=0;uint64_t total=0;
  int invalid=0,found_primary=0;
  struct stat scanned[CMP5_GROUP_MAX];
  struct dirent*entry;
  for(;;){
   errno=0;entry=readdir(dir);
-  if(!entry){if(errno!=0)invalid=1;break;}
+  if(!entry){
+   if(errno!=0){
+    if(failure&&denied_error(errno))*failure=CMP5_COMPANION_FAILURE_PERMISSION_DENIED;
+    invalid=1;
+   }
+   break;
+  }
   if(cancelled(cancel,context)){
    if(failure)*failure=CMP5_COMPANION_FAILURE_CANCELLED;
    invalid=1;break;
@@ -219,12 +239,15 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
    invalid=1;break;
   } /* Never claim an unsupported group is complete. */
   struct stat st;
-  if(fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW)!=0||
-     !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||
-     (type==3&&st.st_size>65536)||
+  const int read_stat=fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW);
+  const int stat_error=errno;
+  if(read_stat!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
+     st.st_size<=0||(type==3&&st.st_size>65536)||
      gathered>=CMP5_GROUP_MAX||
      (uint64_t)st.st_size>max_total-total){
-   if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
+   if(failure)*failure=read_stat!=0&&denied_error(stat_error)?
+     CMP5_COMPANION_FAILURE_PERMISSION_DENIED:
+     CMP5_COMPANION_FAILURE_AMBIGUOUS;
    invalid=1;break;
   }
   size_t filename_length=strlen(name);
@@ -261,9 +284,13 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  }
  for(uint32_t i=0;!invalid&&i<gathered;i++){
   const char*leaf=strrchr(out[i].preview_path,'/');
-  if(!leaf||fstatat(anchored_fd,leaf+1,&check,AT_SYMLINK_NOFOLLOW)!=0||
-     !same_file(&scanned[i],&check)||check.st_nlink!=1){
-   if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
+  const int checked=leaf?
+    fstatat(anchored_fd,leaf+1,&check,AT_SYMLINK_NOFOLLOW):-1;
+  const int error=errno;
+  if(checked!=0||!same_file(&scanned[i],&check)||check.st_nlink!=1){
+   if(failure)*failure=checked!=0&&denied_error(error)?
+     CMP5_COMPANION_FAILURE_PERMISSION_DENIED:
+     CMP5_COMPANION_FAILURE_CHANGED;
    invalid=1;
   }
  }

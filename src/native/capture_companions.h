@@ -30,7 +30,8 @@ typedef enum {
  CMP5_COMPANION_FAILURE_CANCELLED=5,
  CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY=6,
  CMP5_COMPANION_FAILURE_THUMBNAIL_UNAVAILABLE=7,
- CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE=8
+ CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE=8,
+ CMP5_COMPANION_FAILURE_PERMISSION_DENIED=9
 } Cmp5CompanionFailure;
 /* Only the known thumbnails/photo/<same relative stem>.jpg.jpeg path is
  * inspected, without reading the image body. Absence there says nothing

@@ -19,6 +19,18 @@ original `.dat` et d'un `.meta`. Déduire une règle globale d'un seul de ces
 modèles risquerait d'effacer la mauvaise ressource ou de laisser une capture
 fantôme dans l'interface Sony.
 
+## Couverture des refus de permissions lors des compagnons (25 octobre 2026)
+
+L'inspection en lecture seule distingue désormais les erreurs POSIX
+`EACCES` et `EPERM` lors de l'ouverture de la racine, de la traversée
+des dossiers et de la vérification des variantes de capture
+(`.dat` compris). Un compagnon non accessible ne devient ni un
+fichier « suspect », ni une preuve de dossier complet : l'interface
+affiche **accès refusé**, sans révéler son chemin, et aucun compteur
+de groupe fiable n'est publié. La planification d'une sauvegarde privée
+est également refusée. Des fixtures injectent ces deux erreurs dans
+le `fstatat` des compagnons et vérifient le refus sans écriture.
+
 ## Comportement conservateur de CleanMyPS5
 
 - `capture_companions.c` recherche uniquement les composants **dans le même

@@ -2539,6 +2539,8 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
    reason="VARIANTE INCONNUE OU FICHIER SUSPECT";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_UNSUPPORTED_DEPENDENCY)
    reason="METADONNEE GALERIE NON PRISE EN CHARGE";
+  else if(companion_summary.failure==CMP5_COMPANION_FAILURE_PERMISSION_DENIED)
+   reason="ACCES REFUSE A UN FICHIER DE LA GALERIE";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_CHANGED)
    reason="FICHIER OU DOSSIER MODIFIE PENDANT LE SCAN";
   else if(companion_summary.failure==CMP5_COMPANION_FAILURE_THUMBNAIL_UNAVAILABLE)
