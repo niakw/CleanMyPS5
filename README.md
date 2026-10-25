@@ -114,7 +114,15 @@ retrouve l'état du moteur local sans créer une nouvelle conversion.
 Le build effectue aussi les régressions hôte du moteur AMPR/LZ4
 (compresser, vérifier, interrompre et reprendre des données synthétiques).
 La pause et la reprise depuis la page d'un travail restent limitées
-au jeu dont l'identifiant a été vérifié.
+au jeu dont l'identifiant a été vérifié. Depuis le moniteur, **Carré**
+affiche les checkpoints conservés sur disque. **Triangle**, puis deux
+confirmations distinctes avec **Croix**, permettent de demander la
+reprise d'une conversion interrompue après fermeture de l'application.
+Un nouveau scan du checkpoint et un contrôle d'inactivité du moteur
+précèdent le POST ; le worker vérifie indépendamment la source et les
+fichiers d'état. Aucune suppression de l'original, aucun retry
+automatique si l'accusé est perdu. **Cette reprise reste non validée sur
+console PS5 13.60**, même si les tests hôte sont verts.
 
 **Images de jeux :** L1/R1 fait défiler Statistiques, Dossiers et
 Images. Sur l'onglet Images, haut/bas sélectionne un fichier
