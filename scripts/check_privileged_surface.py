@@ -8,10 +8,11 @@ APPROVED = frozenset({
  "capture_companions.c", "diagnostics.c", "media_preview.c",
  "video_metadata.c", "webm_metadata.c"
 })
-BACKUP_UNITS = frozenset({"verified_backup.c", "sha256.c"})
+BACKUP_UNITS = frozenset({"verified_backup.c", "verified_group.c", "sha256.c"})
 BACKUP_WRITERS = frozenset({
  "native/private_media_backup.hpp",
  "src/native/verified_backup.c",
+ "src/native/verified_group.c",
 })
 # Deny mutation paths in all reviewed read-only first-party code.
 BAD = re.compile(
@@ -41,6 +42,19 @@ def check_backup_writer(content: str, name: str) -> None:
    'mkdirat(root,"cmp5-private-backups",0700)',
    'cmp5_backup_media("/",&item,workspace,out.capsule_id,',
    "cmp5_verify_backup(workspace,out.capsule_id,",
+  )
+ elif name == "src/native/verified_group.c":
+  required = (
+   "#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY",
+   "cmp5_backup_group(",
+   "cmp5_verify_group(",
+   "cmp5_validate_capture_group(",
+   "cmp5_backup_media(",
+   "cmp5_verify_backup(",
+   "cmp5_workspace_has_capacity(dir,total,count+2u)",
+   "empty_group_namespace(",
+   "publish_origin_map(",
+   "publish_manifest(",
   )
  else:
   required = (
@@ -174,9 +188,9 @@ def check_builder(content: str) -> set[str]:
                   ("native","preview_decode.c","cmp5_preview_decode.c")})
  if len(overlays)!=len(expected) or set(overlays)!=expected:
   raise ValueError("Unreviewed or renamed C/C++ native title overlay")
- if "verified_group.c" in content or (
-     "sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' " not in content):
-  raise ValueError("Native backup must exclude the host-only Gallery restore engine")
+ if ("sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' " not in content or
+     "sed -i '1i#define CMP5_NATIVE_GROUP_BACKUP_ONLY 1' " not in content):
+  raise ValueError("Native backup must compile both host-only restore engines out")
  return set(sources)
 
 def check(root: Path) -> None:
