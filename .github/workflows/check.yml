@@ -40,6 +40,11 @@ jobs:
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation
           /tmp/cmp5-native-navigation
+      - name: Test safe LZ4 recovery after title restart
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_recovery_resume.cpp -o /tmp/cmp5-recovery-resume-host
+          /tmp/cmp5-recovery-resume-host
       - name: Native archive integrity fixture
         run: python3 tests/test_native_release_manifest.py
       - name: Verify release gates do not claim untested PS5 compatibility
