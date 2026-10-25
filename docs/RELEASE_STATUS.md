@@ -4,7 +4,7 @@
 
 Le serveur de diagnostic (lecture seule, loopback) impose une ligne de
 requête à trois champs exacts et les seules versions HTTP/1.0 ou 1.1.
-Les caractères NUL, données/pipelines dans le même message et en-têtes
+Les caractères NUL (refusés dès la réception, avant le parsing), données/pipelines dans le même message et en-têtes
 `Content-Length` / `Transfer-Encoding` sont refusés. `Host` est
 unique et `Origin`, `Referer` et `Sec-Fetch-Site` ne peuvent pas
 apparaître plusieurs fois, même avec des valeurs identiques. La CI
