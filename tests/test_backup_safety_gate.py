@@ -17,17 +17,31 @@ for token in ('#include "elevation.hpp"', 'elevation::request(',
         f"Unreviewed native title privilege operation: {token}"
 sources=(root/"src/native/verified_backup.c").read_text(encoding="utf-8")
 
-# Permit host-only test code, but never silently package writes into the title.
-for token in ("verified_backup.h","verified_backup.c",
-              "verified_group.h","verified_group.c",
-              "cmp5_backup_media(","cmp5_restore_backup(",
+# The native title may now COPY one media file into a private workspace
+# but must not ship the host restore/group writer or expose helper writes.
+assert '#include "private_media_backup.hpp"' in native
+assert 'CMP5_NATIVE_BACKUP_ONLY 1' in builder
+assert 'cp "$project/src/native/verified_backup.c"' in builder
+assert 'cmp5_verified_backup.c' in builder
+assert '/download0/cmp5-private-backups' in (
+    root/"native/private_media_backup.hpp").read_text()
+assert "cmp5_backup_media(" in (
+    root/"native/private_media_backup.hpp").read_text()
+assert "cmp5_verify_backup(" in (
+    root/"native/private_media_backup.hpp").read_text()
+assert "cmp5_backup_media(" not in server
+assert "cmp5_restore_backup(" not in native
+for token in ("verified_group.h","verified_group.c",
               "cmp5_backup_group(","cmp5_restore_group(",
               "cmp5_inspect_group_recovery(",
               "cmp5_inspect_restored_group_recovery(",
               "cmp5_inspect_backup_restore_pair("):
-    assert token not in native, f"Unvalidated native backup activation: {token}"
-    assert token not in builder, f"Unvalidated title packaging: {token}"
-    assert token not in server, f"Unvalidated helper endpoint: {token}"
+    assert token not in native, f"Unsafe native Gallery restoration: {token}"
+    assert token not in builder, f"Unsafe packaged Gallery restoration: {token}"
+    assert token not in server, f"Unsafe diagnostic helper mutation: {token}"
+# The preprocessor disables all restore definitions in the PS5 binary.
+assert "#ifndef CMP5_NATIVE_BACKUP_ONLY" in sources
+assert '#include "elevation.hpp"' not in native
 
 # No gallery file deletion or renaming exists even in the isolated prototype.
 assert "renameat(" not in sources
@@ -68,4 +82,4 @@ assert "cmp5_backup_media(" in group and "cmp5_restore_backup(" in group
 assert "cmp5_inspect_backup_restore_pair(" in group
 assert "unlinkat" in group and "linkat" in group
 assert "renameat(" not in group and "rmdir(" not in group
-print("Backup engine safety gate: host-only, no gallery mutation, PASS")
+print("Backup engine safety gate: additive private native backup; Gallery restore excluded, PASS")
