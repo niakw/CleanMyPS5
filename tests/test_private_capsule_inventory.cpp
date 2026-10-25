@@ -127,6 +127,34 @@ int main(){
   * Neither directory nor capsule may be silently removed by the scan. */
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&!list.partial&&!list.count&&!list.group_count);
+ /* In-place modification is not a rename of the directory. Its inode
+  * remains the same while its contents and mtime/ctime change. Reject
+  * instead of presenting a potentially incomplete catalogue. */
+ make_file(root,"CAP_2222222222222222",0600);
+ struct Mutation {
+  const char*path;
+  unsigned calls=0u;
+  bool changed=false;
+ } mutation{root};
+ const auto add_during_scan=[](void*context)->int{
+  auto*state=static_cast<Mutation*>(context);
+  if(++state->calls==3u){
+   make_file(state->path,"CAP_3333333333333333",0600);
+   state->changed=true;
+  }
+  return 0;
+ };
+ list.checked=true;list.count=9u;list.group_count=3u;
+ assert(!scan_at(root,&list,add_during_scan,&mutation));
+ assert(mutation.changed);
+ assert(!list.checked&&!list.partial&&!list.count&&!list.group_count);
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.checked&&!list.partial&&list.count==2u);
+ for(const char*name:{"CAP_2222222222222222","CAP_3333333333333333"}){
+  char path[512]{};
+  assert(std::snprintf(path,sizeof(path),"%s/%s",root,name)>0);
+  assert(unlink(path)==0);
+ }
  assert(rmdir(root)==0);
  char old_capsule[550]{};
  assert(std::snprintf(old_capsule,sizeof(old_capsule),
