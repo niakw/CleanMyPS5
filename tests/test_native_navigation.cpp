@@ -812,6 +812,22 @@ int main(){
  assert(backup_outcome.status==cmp5_private_backup::Result::verified);
  assert(backup_outcome.bytes==30ULL*1024*1024);
  press(circle);assert(screen==Screen::detail);
+ /* Archived capsule selection is independent from the current Gallery
+  * snapshot; synthetic checks have no real private volume or write calls. */
+ press(l1);assert(screen==Screen::capsules);
+ finish_scan();
+ assert(!private_inventory.checked);
+ private_inventory=cmp5_private_backup::Inventory{};
+ private_inventory.checked=true;private_inventory.count=1u;
+ std::strcpy(private_inventory.ids[0],backup_id);
+ private_inventory_selection=0u;
+ press(cross);assert(screen==Screen::backup&&backup_verify_only&&
+                     backup_from_inventory);
+ finish_scan();
+ assert(backup_outcome.status==cmp5_private_backup::Result::verified);
+ assert(mock_private_verify_calls==checks_before+3u);
+ press(circle);assert(screen==Screen::capsules);
+ press(circle);assert(screen==Screen::detail);
  mock_private_capsule_valid=false;
  /* Recreate the race where Circle navigates away while the preview
   * worker reports busy, then completes after the input handler returns. */
