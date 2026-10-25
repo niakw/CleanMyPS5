@@ -71,6 +71,31 @@ inline bool private_workspace_ready() noexcept {
  close(root);
  return ok;
 }
+/* Read-only post-restart check of the *currently selected source version*.
+ * Do not call private_workspace_ready(): that helper may create a folder.
+ * A new source inode/timestamp produces a different capsule label, so a
+ * historical backup is not falsely described as this version's backup.
+ * Capsule integrity alone does not establish Sony's Gallery index safety. */
+inline Outcome verify_existing(const Cmp5MediaCandidate&item,
+                               Cmp5CancelCheck cancel,
+                               void*context) noexcept {
+ Outcome out{};
+ if(!capsule_name(item,out.capsule_id)){
+  out.status=Result::denied;return out;
+ }
+ if(cancel&&cancel(context)){
+  out.status=Result::denied;return out;
+ }
+ Cmp5BackupReceipt capsule{};
+ if(!cmp5_verify_backup(workspace,out.capsule_id,&capsule,
+                        cancel,context)||!capsule.published||
+    capsule.bytes!=item.bytes||(cancel&&cancel(context))){
+  out.status=Result::verification_failed;return out;
+ }
+ out.status=Result::verified;
+ out.bytes=capsule.bytes;
+ return out;
+}
 /* Only one Cmp5MediaCandidate from a successful native scan may be passed.
  * We revalidate its inode and timestamps inside cmp5_backup_media().
  * No alternate workspace or source path is accepted from the UI. */
