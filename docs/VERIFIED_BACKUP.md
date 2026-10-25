@@ -1,8 +1,8 @@
-# Copie vérifiée et restauration : prototype hôte non destructif
+# Sauvegarde privée vérifiée : titre PS5 et restauration sur hôte seulement
 
 ## Portée exacte
 
-`src/native/verified_backup.c` implémente un **prototype indépendant** de copie de sauvegarde de captures connues, de vérification et de restauration **dans un second dossier privé appartenant à l'application**. Ce code n'est **pas** compilé dans le titre `PPSA99784`, n'est exposé ni dans l'interface native ni par le helper, et **n'autorise aucune suppression ou modification de la Galerie PS5**.
+`src/native/verified_backup.c` implémente un **prototype indépendant** de copie de sauvegarde de captures connues, de vérification et de restauration **dans un second dossier privé appartenant à l'application**. Les fonctions de **copie et vérification** sont compilées dans le titre `PPSA99784`, y compris pour les groupes de compagnons visibles. En revanche, les fonctions de **restauration sont exclues du binaire PS5 par les gardes `CMP5_NATIVE_BACKUP_ONLY` et `CMP5_NATIVE_GROUP_BACKUP_ONLY`** et ne sont pas disponibles depuis le helper. **Aucune suppression ni modification de la Galerie PS5 n'est autorisée.**
 
 L'objectif est d'éprouver le contrat de sauvegarde avant une éventuelle opération de maintenance, et non de prétendre que les bases de données/index multimédias PS5 sont restaurables aujourd'hui. Le moteur ne modifie jamais le fichier source.
 
@@ -21,13 +21,13 @@ L'objectif est d'éprouver le contrat de sauvegarde avant une éventuelle opéra
 - Le test en C, lancé en CI sur Linux et macOS avec et sans sanitizers, compare l'empreinte à `hashlib.sha256`, vérifie la copie identique, le refus des liens physiques, l'annulation à mi-copie, le refus de collision, la restauration et la détection d'une capsule altérée.
 
 
-Le planificateur `cmp5_plan_capture_group` et la vérification structurale `cmp5_validate_capture_group` sont maintenant partagés par les tests hôte et le titre natif, **sans** y importer `verified_backup.c` ni `verified_group.c`. L'inspection native présente seulement des compteurs et ne crée aucune capsule, ne restaure aucun objet et n'autorise aucune écriture dans la galerie. L'interface utilise en outre `cmp5_inspect_capture_companions` pour les résultats à un seul fichier ; l'ancien contrat `cmp5_plan_capture_group` ne change pas et exige toujours au moins deux membres pour la logique de sauvegarde hôte.
+Le planificateur `cmp5_plan_capture_group` et la vérification structurale `cmp5_validate_capture_group` sont partagés par les tests hôte et le titre natif. Le titre importe les portions **sauvegarde privée et vérification** de `verified_backup.c` et `verified_group.c`, avec les restaurations désactivées à la compilation. Les copies ne sont possibles qu'après deux confirmations dans l'interface et ne concernent que le dossier privé `/download0/cmp5-private-backups`. Rien n'écrit dans la Galerie. L'interface utilise en outre `cmp5_inspect_capture_companions` pour les résultats à un seul fichier ; l'ancien contrat `cmp5_plan_capture_group` ne change pas et exige toujours au moins deux membres pour la logique de sauvegarde hôte.
 
-## Sauvegarde groupée hôte : transaction logique
+## Sauvegarde groupée : transaction privée partagée entre hôte et titre natif
 
-`src/native/verified_group.c` utilise les fonctions de sauvegarde individuelle et le planificateur en lecture seule désormais extrait dans `src/native/capture_companions.c` sans les exposer à la console. Un planificateur **strictement en lecture seule** peut désormais rechercher les variantes partageant exactement le nom de base et le dossier d'une capture déjà identifiée. Il conserve au maximum quatre entrées, refuse tout dossier insuffisamment parcouru (limite 1 024 entrées), tout lien symbolique, tout inode remplacé, toute variante inconnue et tout doublon d'extension. Cette méthode **ne garantit pas** que toutes les dépendances d'une capture PS5 (miniatures, index de base, formats propriétaires) aient été identifiées ; elle ne vaut donc jamais autorisation de nettoyage. Pour `REC_001.jxr`, `REC_001.jpg` et `REC_001.dat`, la sauvegarde génère des capsules anonymisées `ALBUM__1`, `ALBUM__2`, `ALBUM__3`, puis un marqueur `ALBUM__COMMIT` de 256 octets. Il contient les tailles et empreintes SHA-256, ainsi qu'un condensat de manifeste. Ce condensat détecte une corruption accidentelle mais **n'est pas une signature cryptographique contre un adversaire possédant le dossier privé**.
+`src/native/verified_group.c` utilise les fonctions de sauvegarde individuelle et le planificateur en lecture seule désormais extrait dans `src/native/capture_companions.c` avec un mode de compilation natif limité à la sauvegarde. Un planificateur **strictement en lecture seule** peut désormais rechercher les variantes partageant exactement le nom de base et le dossier d'une capture déjà identifiée. Il conserve au maximum quatre entrées, refuse tout dossier insuffisamment parcouru (limite 1 024 entrées), tout lien symbolique, tout inode remplacé, toute variante inconnue et tout doublon d'extension. Cette méthode **ne garantit pas** que toutes les dépendances d'une capture PS5 (miniatures, index de base, formats propriétaires) aient été identifiées ; elle ne vaut donc jamais autorisation de nettoyage. Pour `REC_001.jxr`, `REC_001.jpg` et `REC_001.dat`, la sauvegarde génère des capsules anonymisées `ALBUM__1`, `ALBUM__2`, `ALBUM__3`, puis un marqueur `ALBUM__COMMIT` de 256 octets. Il contient les tailles et empreintes SHA-256, ainsi qu'un condensat de manifeste. Ce condensat détecte une corruption accidentelle mais **n'est pas une signature cryptographique contre un adversaire possédant le dossier privé**.
 
-**Couverture complète des compagnons visibles (tests hôte) :** l'API de sauvegarde exige maintenant une nouvelle énumération du dossier d'origine par descripteur sécurisé. Le nombre et l'identité des membres demandés doivent correspondre exactement à tous les fichiers de même nom de base qui sont visibles et validables (y compris les variantes `.dat`). Omettre volontairement un compagnon visible bloque la transaction **avant la première écriture privée**. Une seconde énumération après copie et avant publication de `__COMMIT` rejette l'apparition tardive d'une variante ou le remplacement d'un inode : des capsules peuvent rester isolées, mais aucun marqueur de groupe complet n'est publié. Les tests injectent une variante `.png` pendant la copie et contrôlent l'absence de `__COMMIT`. Cette garantie est limitée au **dossier observé** ; elle ne prouve toujours pas l'exhaustivité des bases, index et miniatures de la Galerie PS5. Elle n'autorise aucune suppression.
+**Couverture des compagnons visibles (tests hôte, moteur natif partagé) :** l'API de sauvegarde exige maintenant une nouvelle énumération du dossier d'origine par descripteur sécurisé. Le nombre et l'identité des membres demandés doivent correspondre exactement à tous les fichiers de même nom de base qui sont visibles et validables (y compris les variantes `.dat`). Omettre volontairement un compagnon visible bloque la transaction **avant la première écriture privée**. Une seconde énumération après copie et avant publication de `__COMMIT` rejette l'apparition tardive d'une variante ou le remplacement d'un inode : des capsules peuvent rester isolées, mais aucun marqueur de groupe complet n'est publié. Les tests injectent une variante `.png` pendant la copie et contrôlent l'absence de `__COMMIT`. Cette garantie est limitée au **dossier observé** ; elle ne prouve toujours pas l'exhaustivité des bases, index et miniatures de la Galerie PS5. Elle n'autorise aucune suppression.
 
 Une interruption avant le dernier marqueur laisse éventuellement des capsules isolées ; elles ne constituent **pas** un groupe utilisable. Un deuxième lancement sur les mêmes identifiants refuse les collisions au lieu d'écraser les anciens composants. La restauration vers un autre dossier privé crée les fichiers `ALBUM__1` à `ALBUM__3`, vérifie chacun par SHA-256, puis publie `ALBUM__RESTORED`. Le système ne promet donc **ni restauration atomique du contenu en cas d'arrêt au milieu, ni récupération automatique des fichiers partiels** : il promet seulement qu'un marqueur de groupe complet ne soit créé qu'après vérification de chaque membre.
 
@@ -37,7 +37,7 @@ ctest --test-dir build -R 'verified_backup_fixture|verified_group_fixture' --out
 
 Les tests couvrent la corruption d'une capsule, la modification d'un fichier restauré, les interruptions, les identifiants interdits, les variantes sans média principal, les noms de base différents et les doublons d'extensions.
 
-## Correspondance d'origine persistante des albums (prototype hôte)
+## Correspondance d'origine persistante des albums (sauvegarde native et tests hôte)
 
 Une sauvegarde contenant seulement des capsules anonymes et leur SHA-256 ne
 permettait pas de retrouver **quel composant était à restaurer où** après
@@ -108,7 +108,7 @@ Cette comparaison ne restaure **pas** les entrées d'index, miniatures ou associ
 
 ## Ce qui n'est pas encore prouvé
 
-Ce prototype ne restaure **pas** les captures dans `/user/av_contents` et ne répare aucune base d'index multimédia. Il sait maintenant valider logiquement un groupe de **2 à 4 composants de même nom de base**, dont les versions JXR/JPG et un sidecar `.dat` d'au plus 64 Kio ; les miniatures PS5 dans d'autres répertoires ne sont pas encore associées. Un groupe n'est marqué complet qu'après validation SHA-256 de tous ses membres. Une restauration groupée n'écrit que dans un **second espace privé** et publie à son tour un marqueur une fois les composants revérifiés. Les composants partiels laissés par un arrêt brutal sont ignorés sans marqueur, mais **leur nettoyage et leur reprise automatique restent à développer**. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
+Ce prototype ne restaure **pas** les captures dans `/user/av_contents` et ne répare aucune base d'index multimédia. Il sait maintenant valider logiquement un groupe de **2 à 4 composants de même nom de base**, dont les versions JXR/JPG et un sidecar `.dat` d'au plus 64 Kio ; le chemin connu d'une miniature externe peut être inclus, mais aucune autre convention de miniatures ni les index propriétaires Sony ne sont prouvés. Un groupe n'est marqué complet qu'après validation SHA-256 de tous ses membres. Une restauration groupée n'écrit que dans un **second espace privé** et publie à son tour un marqueur une fois les composants revérifiés. Les composants partiels laissés par un arrêt brutal sont ignorés sans marqueur, mais **leur nettoyage et leur reprise automatique restent à développer**. Un fichier `.*.part` éventuellement laissé par une interruption brutale reste isolé : il n'est jamais pris pour une sauvegarde finalisée. Les garanties de durabilité en cas de panne de stockage n'ont pas été démontrées sur PS5 13.60.
 
 **Aucune suppression, aucune quarantaine du fichier original et aucune restauration système ne doivent être activées** avant la vérification des permissions du titre, des index multimédias, d'un protocole de sauvegarde multi-fichiers, des journaux de reprise et des tests réels sur le firmware ciblé.
 
@@ -206,10 +206,10 @@ extérieur qui ne respecte pas les verrous.
 
 **Ce test ne libère pas d'espace disque**, n'établit ni l'autorisation
 de nettoyer des caches PS5 ni les relations avec les index Sony.
-L'implémentation reste EXCLUE du titre PS5 et du helper privilégié,
+La partie restauration reste EXCLUE du titre PS5 et du helper privilégié,
 et ne propose aucun endpoint permettant de muter une console.
 
-## Contrôle commun d'espace libre (hôte uniquement)
+## Contrôle commun d'espace libre (sauvegarde native / restauration hôte)
 
 Avant de créer la première capsule de sauvegarde ou le premier fichier
 restauré dans un **dossier privé**, les transactions individuelles et
@@ -230,7 +230,7 @@ Ce contrôle ponctuel n'est **pas une réservation de capacité**. Une
 toujours ses erreurs, fsync et les capsules incomplètes. Rien n'est
 restauré dans la Galerie PS5 et aucune suppression n'est activée.
 
-## Précontrôle de l'espace de noms avant toute copie (hôte uniquement)
+## Précontrôle de l'espace de noms avant toute copie (sauvegarde native / restauration hôte)
 
 La restauration et la sauvegarde de groupe rejettent désormais **avant
 le premier fichier écrit** tout composant, marqueur ou fragment `.part`
