@@ -19,9 +19,16 @@
 #include <unistd.h>
 #define MARK_SIZE 256u
 #define BODY_DIGEST_OFFSET 184u
+/* Private-only mapping of original Gallery locators to ordered capsules.
+ * Four fixed records: pathname[256], bytes[8], media_type[4]. */
+#define ORIGIN_RECORD_SIZE 268u
+#define ORIGIN_HEADER_SIZE 44u
+#define ORIGIN_DIGEST_OFFSET (ORIGIN_HEADER_SIZE+CMP5_GROUP_MAX*ORIGIN_RECORD_SIZE)
+#define ORIGIN_SIZE (ORIGIN_DIGEST_OFFSET+32u)
 #define MAX_TOTAL (512ULL*1024ULL*1024ULL)
 #define BLOCK 65536u
 static const uint8_t group_magic[8]={'C','M','P','5','G','R','P','2'};
+static const uint8_t origin_magic[8]={'C','M','P','5','M','A','P','1'};
 static int cancelled(Cmp5CancelCheck check,void*ctx){return check&&check(ctx);}
 static void u32(uint8_t*p,uint32_t n){
  p[0]=(uint8_t)(n>>24);p[1]=(uint8_t)(n>>16);
@@ -57,6 +64,9 @@ static void member_name(char out[48],const char*id,unsigned index){
 }
 static void marker_name(char out[48],const char*id,int restored){
  (void)snprintf(out,48,"%s__%s",id,restored?"RESTORED":"COMMIT");
+}
+static void origin_name(char out[48],const char*id){
+ (void)snprintf(out,48,"%s__ORIGINS",id);
 }
 static int safe_dir(const char*path){
  return cmp5_open_private_workspace(path);
