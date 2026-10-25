@@ -9,6 +9,7 @@
 #include "verified_group.h"
 #include "verified_backup.h"
 #include "media_snapshot.h"
+#include "sha256.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -128,6 +129,21 @@ int main(int argc,char**argv){
  struct stat map_stat={0};
  assert(fstat(map_fd,&map_stat)==0&&(map_stat.st_mode&077)==0);
  assert(pwrite(map_fd,"X",1,44)==1);
+ assert(!cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
+ /* Even an attacker who recalculates the checksum must not turn the
+  * private map into an unrestricted or traversing PS5 target path. */
+ unsigned char map_wire[1148];
+ assert(pread(map_fd,map_wire,sizeof(map_wire),0)==(ssize_t)sizeof(map_wire));
+ static const char forbidden[]=
+   "/user/av_contents/photo/../../system_data/private.jpg";
+ memset(map_wire+44,0,256);
+ memcpy(map_wire+44,forbidden,sizeof(forbidden));
+ Cmp5Sha256 sha;unsigned char map_digest[32];
+ cmp5_sha256_init(&sha);
+ cmp5_sha256_update(&sha,map_wire,1116u);
+ cmp5_sha256_final(&sha,map_digest);
+ memcpy(map_wire+1116,map_digest,32u);
+ assert(pwrite(map_fd,map_wire,sizeof(map_wire),0)==(ssize_t)sizeof(map_wire));
  assert(close(map_fd)==0);
  assert(!cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
  assert(!cmp5_read_group_origin_map(backup,"REORDER",
