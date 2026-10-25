@@ -47,6 +47,13 @@ def check_engine(root: Path) -> None:
         "check preflight anchored source": 'cmp5_game_path_stat("/",p,false,&cmp5_check_source)',
         "check preflight anchored destination": 'cmp5_game_path_stat("/",dst,true,&cmp5_check_dest)',
         "check preflight denies forbidden trees": "game_preflight_path_not_allowed",
+        "check preflight verifies SMP owner": "smp_game_info(smp,&cmp5_owner)",
+        "check preflight exact SMP path": "strcmp(cmp5_owner.path,p)!=0",
+        "check preflight rejects mismatched owner": "game_preflight_owner_mismatch",
+        "check preflight source revalidation": 'cmp5_game_path_still_same("/",p,false,&cmp5_check_source)',
+        "check preflight destination revalidation": 'cmp5_game_path_still_same("/",dst,true,&cmp5_check_dest)',
+        "check preflight rejects stale metadata": "game_preflight_source_changed",
+        "bounded SMP title": "strnlen(g->title_id,sizeof(g->title_id))",
         "require SMP for direct images": "image_title_required",
         "image owner gate checks actual file type": "cmp5_source_requires_smp(r.source, &cmp5_source_snapshot)",
         "SMP image ownership": "strcmp(owner.path, r.source) != 0",
@@ -100,9 +107,11 @@ def check_engine(root: Path) -> None:
     else:
         block=http[start:end]
         anchor=block.find('cmp5_game_path_stat("/",p,false,&cmp5_check_source)')
-        execute=block.find("job_preflight(p, smp, dst")
-        if anchor<0 or execute<0 or anchor>=execute:
-            missing.append("preflight probes source before anchored validation")
+        owner=block.find("smp_game_info(smp,&cmp5_owner)")
+        execute=block.find("job_preflight(p,smp,dst")
+        final=block.find('cmp5_game_path_still_same("/",p,false,&cmp5_check_source)')
+        if anchor<0 or owner<0 or execute<0 or final<0 or not anchor<owner<execute<final:
+            missing.append("preflight SMP ownership/identity checks out of order")
     if 'form_get(body, "name", r.name' in http:
         missing.append("caller-selected output directory still accepted")
     if '#ifdef E2A_HOST\n    if (e2a_mkdir_p(req.dest_base) != 0)' not in job:

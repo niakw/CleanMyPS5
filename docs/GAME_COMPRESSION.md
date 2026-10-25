@@ -199,7 +199,11 @@ les racines privées et les chemins dont un parent est un lien symbolique.
 les images sans identifiant ShadowMountPlus et les `.ffpfsc` déjà
 compressés. `/api/cmp5-image` vérifie à nouveau l'identité du fichier
 après la consultation de SMP. Le contrôle du build impose les vérifications
-avant l'accès aux métadonnées. Cela n'élève aucun privilège ni ne démontre
+avant l'accès aux métadonnées. Pour un fichier-image, le Title ID,
+le type et le chemin doivent aussi correspondre au propriétaire réellement
+déclaré par SMP, avant toute analyse. Après le précontrôle, la source et la
+destination sont revalidées et une substitution annule le résultat.
+La lecture du Title ID fixe dans la liste SMP est désormais bornée. Cela n'élève aucun privilège ni ne démontre
 le lancement d'un jeu converti sur PS5 13.60.
 
 ## Images ShadowMountPlus sans seconde application

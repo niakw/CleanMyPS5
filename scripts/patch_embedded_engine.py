@@ -463,7 +463,8 @@ static void cmp5_image_resolve(int fd, const char *args) {
     send_json(fd,409,"{\\"error\\":\\"not_unambiguously_managed\\"}");return;
   }
   smp_game *g=&items[match];
-  const size_t tidlen=strlen(g->title_id);
+  /* Never read beyond a malformed nonterminated SMP title_id array. */
+  const size_t tidlen=strnlen(g->title_id,sizeof(g->title_id));
   bool valid=tidlen==9&&g->managed&&g->source_available&&
              !strcmp(g->source_type,"image");
   for(size_t i=0;i<tidlen&&valid;i++){
@@ -508,7 +509,27 @@ static void cmp5_image_resolve(int fd, const char *args) {
       send_json(fd,403,"{\\"error\\":\\"game_preflight_path_not_allowed\\"}");
       free(req);return;
     }
-    if (job_preflight(p, smp, dst, out, sizeof out) == 0) send_json(fd, 200, out);''')
+    /* The SMP Title ID must own THIS selected image, not an unrelated
+     * image handed in by another client on the loopback socket. */
+    if(S_ISREG(cmp5_check_source.st_mode)){
+      smp_game cmp5_owner={0};
+      if(smp_game_info(smp,&cmp5_owner)!=0 ||
+         !cmp5_owner.managed ||
+         strcmp(cmp5_owner.title_id,smp)!=0 ||
+         strcmp(cmp5_owner.path,p)!=0 ||
+         strcmp(cmp5_owner.source_type,"image")!=0){
+        send_json(fd,409,"{\\"error\\":\\"game_preflight_owner_mismatch\\"}");
+        free(req);return;
+      }
+    }
+    const int cmp5_preflight_rc=job_preflight(p,smp,dst,out,sizeof out);
+    if(!cmp5_game_path_still_same("/",p,false,&cmp5_check_source) ||
+       !cmp5_game_path_still_same("/",dst,true,&cmp5_check_dest)){
+      send_json(fd,409,"{\\"error\\":\\"game_preflight_source_changed\\"}");
+      free(req);return;
+    }
+    if(cmp5_preflight_rc==0) send_json(fd,200,out);
+    else send_json(fd,500,"{\\"error\\":\\"preflight\\"}");''')
     change(httpd,
            'else if (strcmp(path, "/api/check") == 0) {',
            '''else if (strcmp(path, "/api/cmp5-image") == 0 && !post) {
