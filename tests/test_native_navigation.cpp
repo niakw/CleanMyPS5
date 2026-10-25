@@ -1399,6 +1399,17 @@ int main(){
   game_progress.bytes_done=450ULL*1024*1024;
   game_progress.bytes_total=1000ULL*1024*1024;
   save(Screen::compression,"01d-compression-monitor");
+  /* The offline checkpoint view renders from synthetic title identifiers.
+   * A recorded stage is not authorization to resume the game. */
+  recovery_inventory=Cmp5RecoveryInventory{};
+  recovery_inventory.count=1u;
+  std::strcpy(recovery_inventory.entries[0].title_id,"PPSA12345");
+  std::strcpy(recovery_inventory.entries[0].destination,"/mnt/usb0/homebrew");
+  recovery_inventory.entries[0].stage=CMP5_RECOVERY_COPY;
+  recovery_checked=true;recovery_selection=0u;
+  compression_view=7u;
+  save(Screen::compression,"01i-compression-recovery");
+  recovery_checked=false;
   game_progress_checked=false;
   compression_view=0;
   cleanup_page=0u;
