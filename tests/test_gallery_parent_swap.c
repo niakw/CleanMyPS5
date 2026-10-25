@@ -76,8 +76,18 @@ int main(int argc,char**argv){
  assert(stat(moved_parent,&st)==0&&S_ISDIR(st.st_mode));
  Cmp5MediaCandidate group[CMP5_GROUP_MAX]={{0}};
  unsigned count=99;
- assert(!cmp5_plan_capture_group(root,&selected,group,&count,NULL,NULL));
- assert(count==0u);
+ if(mode==1){
+  /* The primary photo parent itself is gone: re-reading it must fail. */
+  assert(!cmp5_plan_capture_group(root,&selected,group,&count,NULL,NULL));
+  assert(count==0u);
+ }else{
+  /* A NEW scan after a thumbnail move sees only the known path's
+   * absence. It may still inspect the visible JPG/JXR and DAT pair.
+   * It cannot infer where Sony may have moved the thumbnail. */
+  assert(cmp5_plan_capture_group(root,&selected,group,&count,NULL,NULL));
+  assert(count==2u);
+  for(unsigned i=0;i<count;i++)assert(group[i].media_type!=4u);
+ }
  puts("Renamed Gallery parent and thumbnail parent refused: PASS");
  return 0;
 }
