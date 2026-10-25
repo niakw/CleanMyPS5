@@ -17,8 +17,9 @@ for token in ('#include "elevation.hpp"', 'elevation::request(',
         f"Unreviewed native title privilege operation: {token}"
 sources=(root/"src/native/verified_backup.c").read_text(encoding="utf-8")
 
-# The native title may now COPY one media file into a private workspace
-# but must not ship the host restore/group writer or expose helper writes.
+# The native title may COPY a single media item or a validated visible
+# companion group into its private workspace. Neither variant may contain
+# Gallery restoration, cleanup or writes to Sony's media/index directories.
 assert '#include "private_media_backup.hpp"' in native
 assert 'CMP5_NATIVE_BACKUP_ONLY 1' in builder
 assert 'cp "$project/src/native/verified_backup.c"' in builder
@@ -31,14 +32,18 @@ assert "cmp5_verify_backup(" in (
     root/"native/private_media_backup.hpp").read_text()
 assert "cmp5_backup_media(" not in server
 assert "cmp5_restore_backup(" not in native
-for token in ("verified_group.h","verified_group.c",
-              "cmp5_backup_group(","cmp5_restore_group(",
-              "cmp5_inspect_group_recovery(",
+for token in ("cmp5_restore_group(","cmp5_restore_backup(",
               "cmp5_inspect_restored_group_recovery(",
               "cmp5_inspect_backup_restore_pair("):
     assert token not in native, f"Unsafe native Gallery restoration: {token}"
     assert token not in builder, f"Unsafe packaged Gallery restoration: {token}"
     assert token not in server, f"Unsafe diagnostic helper mutation: {token}"
+assert 'CMP5_NATIVE_GROUP_BACKUP_ONLY 1' in builder
+assert 'cp "$project/src/native/verified_group.c"' in builder
+group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
+assert "#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY" in group
+assert "cmp5_backup_group(" in group
+assert "cmp5_verify_group(" in group
 # The preprocessor disables all restore definitions in the PS5 binary.
 assert "#ifndef CMP5_NATIVE_BACKUP_ONLY" in sources
 assert '#include "elevation.hpp"' not in native
@@ -76,7 +81,6 @@ screen=native.split("void show_companions(",1)[1].split("void show_photo(",1)[0]
 assert "preview_path" not in screen and "snapshot_inode" not in screen
 assert "CMP5_COMPANION_FAILURE_DIRECTORY_LIMIT" in screen
 assert "cmp5_capture_companions.c" in builder
-assert "verified_group.c" not in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
 assert "cmp5_backup_media(" in group and "cmp5_restore_backup(" in group
 assert "cmp5_inspect_backup_restore_pair(" in group
