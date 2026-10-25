@@ -12,8 +12,24 @@
  * was observed but before the scanner rechecks the mount path. */
 static char swap_parent[550];
 static int swap_armed;
+static int inject_readdir_error,inject_closedir_error;
+static int readdir_error_pending,closedir_error_pending;
 static struct dirent* test_readdir(DIR*dir){
  struct dirent*entry=readdir(dir);
+ if(entry&&!strcmp(entry->d_name,"CUSA54321")){
+  if(inject_readdir_error){
+   inject_readdir_error=0;
+   readdir_error_pending=1;
+  }
+  if(inject_closedir_error){
+   inject_closedir_error=0;
+   closedir_error_pending=1;
+  }
+ }
+ if(!entry&&readdir_error_pending){
+  readdir_error_pending=0;
+  errno=EIO;
+ }
  if(swap_parent[0]){
   if(swap_armed){
    char displaced[600];
@@ -26,8 +42,19 @@ static struct dirent* test_readdir(DIR*dir){
  }
  return entry;
 }
+static int test_closedir(DIR*dir){
+ int rc=closedir(dir);
+ if(rc==0&&closedir_error_pending){
+  closedir_error_pending=0;
+  errno=EIO;
+  return -1;
+ }
+ return rc;
+}
 #define readdir test_readdir
+#define closedir test_closedir
 #include "../src/native/recovery_inventory.h"
+#undef closedir
 #undef readdir
 #include <stdlib.h>
 static void create_dir(const char*root,const char*path){
@@ -99,6 +126,24 @@ int main(void){
                  "%s-replaced",original_parent)>0);
  assert(rmdir(original_parent)==0);
  assert(rename(displaced,original_parent)==0);
+ /* A read error after a valid record is observed invalidates that entire
+  * volume, while other volumes retain their independently valid records. */
+ inject_readdir_error=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!inject_readdir_error&&!readdir_error_pending);
+ assert(results.partial&&results.count==2);
+ assert(!strcmp(results.entries[0].title_id,"PPSA12345"));
+ assert(!strcmp(results.entries[1].title_id,"PPSA67890"));
+ /* Failure to close the directory is also an incomplete traversal. */
+ inject_closedir_error=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!inject_closedir_error&&!closedir_error_pending);
+ assert(results.partial&&results.count==2);
+ assert(!strcmp(results.entries[0].title_id,"PPSA12345"));
+ assert(!strcmp(results.entries[1].title_id,"PPSA67890"));
+ /* Control: after injected I/O errors the complete scan recovers. */
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==3&&!results.partial);
  char name[550];
  snprintf(name,sizeof(name),"%s/mnt/ext0/homebrew/PPSA67890/.e2a-state/stage",root);
  assert(unlink(name)==0);
