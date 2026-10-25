@@ -134,7 +134,7 @@ jobs:
           mkdir -p dist/ui-traces
           CMP5_NATIVE_PREVIEW_DIR=dist/ui-traces /tmp/cmp5-native-navigation
           python3 tests/render_native_preview.py dist/ui-traces dist/native-ui-preview
-          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 27
+          test "$(find dist/native-ui-preview -name '*.png' | wc -l)" -eq 30
       - name: Validate cross-directory gallery thumbnail evidence without writes
         run: |
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
