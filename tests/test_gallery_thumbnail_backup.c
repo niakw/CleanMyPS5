@@ -181,6 +181,34 @@ int main(int argc,char**argv){
   assert(n>0&&(size_t)n<sizeof(restored_name));
   compare(source_files[i],restored_name);
  }
+ /* Source identity is a read-only observation, never permission to mutate
+  * Sony media: the same old path can point to a completely new inode. */
+ Cmp5OriginLiveState live[CMP5_GROUP_MAX]={0};
+ assert(cmp5_inspect_group_originals(root,backup,"THUMB",live,NULL,NULL));
+ for(unsigned i=0;i<count;i++)assert(live[i]==CMP5_ORIGIN_UNCHANGED);
+ char moved_photo[512];
+ assert(snprintf(moved_photo,sizeof(moved_photo),"%s.moved",photo)>0);
+ assert(rename(photo,moved_photo)==0);
+ assert(cmp5_inspect_group_originals(root,backup,"THUMB",live,NULL,NULL));
+ assert(live[1]==CMP5_ORIGIN_MISSING);
+ assert(live[0]==CMP5_ORIGIN_UNCHANGED&&
+        live[2]==CMP5_ORIGIN_UNCHANGED);
+ /* Copy identical bytes to the old name, but with a DIFFERENT inode. */
+ int old=open(moved_photo,O_RDONLY|O_NOFOLLOW);
+ int replacement=open(photo,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ assert(old>=0&&replacement>=0);
+ unsigned char chunk[256];
+ for(;;){
+  const ssize_t length=read(old,chunk,sizeof(chunk));
+  assert(length>=0);
+  if(length==0)break;
+  assert(write(replacement,chunk,(size_t)length)==length);
+ }
+ assert(close(old)==0&&close(replacement)==0);
+ assert(cmp5_inspect_group_originals(root,backup,"THUMB",live,NULL,NULL));
+ assert(live[1]==CMP5_ORIGIN_CHANGED);
+ assert(live[0]==CMP5_ORIGIN_UNCHANGED&&
+        live[2]==CMP5_ORIGIN_UNCHANGED);
  puts("Gallery JPG/DAT/external thumbnail: private SHA-256 backup and restore PASS");
  return 0;
 }
