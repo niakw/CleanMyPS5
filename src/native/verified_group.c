@@ -19,16 +19,18 @@
 #include <unistd.h>
 #define MARK_SIZE 256u
 #define BODY_DIGEST_OFFSET 184u
-/* Private-only mapping of original Gallery locators to ordered capsules.
- * Four fixed records: pathname[256], bytes[8], media_type[4]. */
-#define ORIGIN_RECORD_SIZE 268u
+/* Private-only mapping of original Gallery locators AND snapshot identities
+ * to ordered capsules. v2: path[256], bytes[8], type[4],
+ * dev[8], inode[8], ctime[8], mtime[8], mtime_ns[4], ctime_ns[4].
+ * Host-only, no Gallery write paths. */
+#define ORIGIN_RECORD_SIZE 308u
 #define ORIGIN_HEADER_SIZE 44u
 #define ORIGIN_DIGEST_OFFSET (ORIGIN_HEADER_SIZE+CMP5_GROUP_MAX*ORIGIN_RECORD_SIZE)
 #define ORIGIN_SIZE (ORIGIN_DIGEST_OFFSET+32u)
 #define MAX_TOTAL (512ULL*1024ULL*1024ULL)
 #define BLOCK 65536u
 static const uint8_t group_magic[8]={'C','M','P','5','G','R','P','2'};
-static const uint8_t origin_magic[8]={'C','M','P','5','M','A','P','1'};
+static const uint8_t origin_magic[8]={'C','M','P','5','M','A','P','2'};
 static int cancelled(Cmp5CancelCheck check,void*ctx){return check&&check(ctx);}
 static void u32(uint8_t*p,uint32_t n){
  p[0]=(uint8_t)(n>>24);p[1]=(uint8_t)(n>>16);
@@ -200,17 +202,30 @@ static int parse_origin_map(const uint8_t raw[ORIGIN_SIZE],
    if(*cursor)return 0;
   const uint64_t bytes=g64(record+256u);
   const uint32_t media_type=g32(record+264u);
-  if(bytes!=pieces[i].bytes||!bytes)return 0;
+  const uint64_t device=g64(record+268u),inode=g64(record+276u);
+  const uint64_t ctime=g64(record+284u),mtime=g64(record+292u);
+  const uint32_t mtime_ns=g32(record+300u),ctime_ns=g32(record+304u);
+  if(bytes!=pieces[i].bytes||!bytes||!device||!inode||
+     !ctime||!mtime||ctime>INT64_MAX||mtime>INT64_MAX||
+     mtime_ns>=1000000000u||ctime_ns>=1000000000u)return 0;
   memcpy(proposed.entries[i].path,record,256u);
   proposed.entries[i].bytes=bytes;
   proposed.entries[i].media_type=media_type;
+  proposed.entries[i].snapshot_device=device;
+  proposed.entries[i].snapshot_inode=inode;
+  proposed.entries[i].snapshot_ctime=(int64_t)ctime;
+  proposed.entries[i].modified_at=(int64_t)mtime;
+  proposed.entries[i].snapshot_mtime_nsec=mtime_ns;
+  proposed.entries[i].snapshot_ctime_nsec=ctime_ns;
   memcpy(snapshot[i].preview_path,record,256u);
   snapshot[i].bytes=bytes;
   snapshot[i].media_type=media_type;
-  /* Synthetic non-aliasing identities are used ONLY for validation of
-   * the recorded path/type relationships, never as filesystem proof. */
-  snapshot[i].snapshot_device=1u;
-  snapshot[i].snapshot_inode=(uint64_t)i+1u;
+  snapshot[i].snapshot_device=device;
+  snapshot[i].snapshot_inode=inode;
+  snapshot[i].snapshot_ctime=(int64_t)ctime;
+  snapshot[i].modified_at=(int64_t)mtime;
+  snapshot[i].snapshot_mtime_nsec=mtime_ns;
+  snapshot[i].snapshot_ctime_nsec=ctime_ns;
  }
  if(!cmp5_validate_capture_group(snapshot,count))return 0;
  if(out)*out=proposed;
@@ -251,9 +266,19 @@ static int publish_origin_map(int dir,const char*id,
   const size_t length=strnlen(path,sizeof(parts[i].preview_path));
   if(!length||length>=sizeof(parts[i].preview_path))return 0;
   uint8_t*record=raw+ORIGIN_HEADER_SIZE+i*ORIGIN_RECORD_SIZE;
+  if(!parts[i].snapshot_device||!parts[i].snapshot_inode||
+     parts[i].snapshot_ctime<=0||parts[i].modified_at<=0||
+     parts[i].snapshot_mtime_nsec>=1000000000u||
+     parts[i].snapshot_ctime_nsec>=1000000000u)return 0;
   memcpy(record,path,length);
   u64(record+256u,parts[i].bytes);
   u32(record+264u,parts[i].media_type);
+  u64(record+268u,parts[i].snapshot_device);
+  u64(record+276u,parts[i].snapshot_inode);
+  u64(record+284u,(uint64_t)parts[i].snapshot_ctime);
+  u64(record+292u,(uint64_t)parts[i].modified_at);
+  u32(record+300u,parts[i].snapshot_mtime_nsec);
+  u32(record+304u,parts[i].snapshot_ctime_nsec);
  }
  hash(raw,ORIGIN_DIGEST_OFFSET,raw+ORIGIN_DIGEST_OFFSET);
  char name[48];origin_name(name,id);
