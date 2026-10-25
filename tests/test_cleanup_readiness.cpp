@@ -47,6 +47,12 @@ int main(){
   assert(state.missing_proofs==0u);
   assert(state.first_blocker==Blocker::console_mutation_unavailable);
  }
+ assert(cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+   cmp5_privilege::Operation::backup_private_media));
+ assert(!cmp5_privilege::allows(cmp5_privilege::Actor::diagnostic_helper,
+   cmp5_privilege::Operation::backup_private_media));
+ assert(!cmp5_privilege::allows(cmp5_privilege::Actor::compression_engine,
+   cmp5_privilege::Operation::backup_private_media));
  assert(!cmp5_privilege::can_delete(cmp5_privilege::Actor::native_title));
  assert(!cmp5_privilege::can_delete(cmp5_privilege::Actor::diagnostic_helper));
  assert(!cmp5_privilege::can_delete(cmp5_privilege::Actor::compression_engine));
