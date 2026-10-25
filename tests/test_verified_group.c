@@ -346,6 +346,26 @@ int main(int argc,char**argv){
  assert(a.count==3&&a.bytes==media[0].bytes+media[1].bytes+media[2].bytes);
  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
  assert(!memcmp(a.manifest_sha256,b.manifest_sha256,32));
+ /* A self-consistent SHA cannot legitimize a publicly readable backup.
+  * Exercise the COMMIT, member and sensitive origins map separately. */
+ for(unsigned exposed=0;exposed<3u;exposed++){
+  const char*name=exposed==0?"ALBUM__COMMIT":
+                    exposed==1?"ALBUM__1":"ALBUM__ORIGINS";
+  char private_file[512],not_restored[512];
+  assert(snprintf(private_file,sizeof(private_file),
+                  "%s/%s",private,name)>0);
+  assert(chmod(private_file,0644)==0);
+  assert(!cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
+  Cmp5RecoveryReport exposed_state={0};
+  assert(cmp5_inspect_group_recovery(private,"ALBUM",&exposed_state));
+  assert(exposed_state.state==CMP5_RECOVERY_INVALID);
+  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
+  assert(snprintf(not_restored,sizeof(not_restored),
+                  "%s/ALBUM__1",restored)>0);
+  assert(access(not_restored,F_OK)!=0);
+  assert(chmod(private_file,0600)==0);
+  assert(cmp5_verify_group(private,"ALBUM",&b,NULL,NULL));
+ }
  /* A complete group must be verifiable, while missing IDs remain empty. */
  Cmp5RecoveryReport recovery={0};
  assert(cmp5_inspect_group_recovery(private,"ALBUM",&recovery));
