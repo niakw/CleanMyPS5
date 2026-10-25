@@ -65,6 +65,17 @@ après fermeture reste donc bloquée. Les fixtures Linux/macOS
 simulent des volumes et des checkpoints légitimes et falsifiés.
 La simulation DualSense vérifie l'absence de commande de modification.
 
+**Annulation et erreurs d'E/S :** le parcours natif vérifie désormais
+l'annulation entre chaque volume et chaque entrée. Un appui sur Cercle
+interrompt le scan aux prochaines bornes coopératives et ne publie
+aucune liste de checkpoints tronquée par cette annulation. Une erreur
+`readdir` ou `closedir` invalide les candidats collectés sur le
+volume concerné, sans effacer les résultats indépendants des autres
+volumes ; elle produit un avertissement de couverture partielle.
+Les tests hôte provoquent ces erreurs après découverte d'une entrée et
+vérifient ensuite qu'une nouvelle analyse normale récupère les
+résultats. Un appel système bloquant peut toujours retarder l'annulation.
+
 **Couverture et changement de volume :** un stockage absent peut être un
 support USB volontairement débranché ; un stockage refusé, un chemin
 symbolique ou une ouverture anormale déclenche au contraire une alerte de
