@@ -1449,7 +1449,11 @@ void run_game_preflight() noexcept {
  game_preflight_checked=true;
 }
 void run_recovery_inventory() noexcept {
+ /* An earlier successful scan must not survive a cancelled or failed rescan
+  * as a stale in-memory candidate list. */
  recovery_checked=false;
+ recovery_inventory=Cmp5RecoveryInventory{};
+ recovery_selection=0u;
  Cmp5RecoveryInventory sample{};
  if(cmp5_scan_recovery_inventory_cancel("/",&sample,cancellation_hook,nullptr)&&
     !cancellation_hook(nullptr)){
