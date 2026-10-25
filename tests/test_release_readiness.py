@@ -21,10 +21,9 @@ PACKAGE = {
     "firmware1360HardwareValidated": False,
     "cleanupEnabled": False,
     "runtimePermission": "not-guaranteed",
-    "helper": "separate-browser-free-payload",
+    "helper": "bundled-readonly-opt-in",
     "files": [
         {"name": "PPSA99784.zip", "bytes": 1234, "sha256": "a" * 64},
-        {"name": "cleanmyps5-helper.elf", "bytes": 5678, "sha256": "b" * 64},
     ],
 }
 
@@ -55,6 +54,14 @@ with tempfile.TemporaryDirectory() as work:
     assert len(result["blockingConditions"]) == 5
     assert all(item["status"] != "verified" for item in result["blockingConditions"])
     assert not result["nativeArtifact"]["hasExperimentalFfpkg"]
+    assert not result["nativeArtifact"]["optionalStandaloneHelper"]
+    assert result["nativeArtifact"]["bundledHelperRequiresSecondInstall"] is False
+    optional = copy.deepcopy(PACKAGE)
+    optional["files"].append(
+        {"name": "cleanmyps5-helper.elf", "bytes": 5678, "sha256": "b" * 64}
+    )
+    write(optional)
+    assert inspect(source)["nativeArtifact"]["optionalStandaloneHelper"]
 
     candidate = copy.deepcopy(PACKAGE)
     candidate["files"].append(
@@ -71,12 +78,12 @@ with tempfile.TemporaryDirectory() as work:
         {"format": "signed-retail-package"},
         {"titleId": "PPSA99785"},
         {"files": []},
-        {"files": [PACKAGE["files"][0]]},
+        {"files": [{"name": "cleanmyps5-helper.elf", "bytes": 12, "sha256": "a" * 64}]},
         {"files": [PACKAGE["files"][0], PACKAGE["files"][0]]},
         {"files": [*PACKAGE["files"], {"name": "../private.key", "bytes": 1, "sha256": "c" * 64}]},
         {"files": [*PACKAGE["files"], {"name": "unknown.bin", "bytes": 1, "sha256": "c" * 64}]},
-        {"files": [dict(PACKAGE["files"][0], bytes=True), PACKAGE["files"][1]]},
-        {"files": [dict(PACKAGE["files"][0], name=7), PACKAGE["files"][1]]},
+        {"files": [dict(PACKAGE["files"][0], bytes=True)]},
+        {"files": [dict(PACKAGE["files"][0], name=7)]},
         {"files": [
             dict(PACKAGE["files"][0], sha256="not-a-hash"),
             PACKAGE["files"][1],
