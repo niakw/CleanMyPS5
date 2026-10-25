@@ -365,6 +365,7 @@ int cmp5_verify_group(const char*workspace,const char*id,
   uint32_t final_count=0;
   ok=read_manifest(dir,id,0,final_marker,final_part,&final_count,NULL)&&
    final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+   read_origin_map(dir,id,marker,part,count,NULL)&&
    verification_namespace_clean(dir,id,0,count)&&
    !cancelled(cancel,ctx)&&
    workspace_unchanged(dir,workspace,&dir_before);
@@ -488,7 +489,10 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  if(!matches_visible_companions(root,parts,count,cancel,ctx))
   goto backup_done;
  uint8_t manifest[MARK_SIZE];manifest_header(manifest,pieces,count);
- ok=publish_manifest(dir,id,0,manifest,cancel,ctx);
+ /* Map first, then COMMIT: interrupted mappings alone never claim success.
+  * Its sensitive original paths stay inside the private backup directory. */
+ ok=publish_origin_map(dir,id,parts,count,manifest,cancel,ctx);
+ if(ok)ok=publish_manifest(dir,id,0,manifest,cancel,ctx);
  if(ok)ok=cmp5_verify_group(workspace,id,r,cancel,ctx);
 backup_done:
  close(dir); /* releases flock after verification */
@@ -620,6 +624,12 @@ static int expected_recovery_name(const char*name,const char*id,int restored){
  for(unsigned i=0;i<CMP5_GROUP_MAX+1u;i++){
   if(i==CMP5_GROUP_MAX)marker_name(candidate,id,restored);
   else member_name(candidate,id,i);
+  if(strcmp(name,candidate)==0)return 1;
+  (void)snprintf(stage,sizeof(stage),".%s.part",candidate);
+  if(strcmp(name,stage)==0)return 1;
+ }
+ if(!restored){
+  origin_name(candidate,id);
   if(strcmp(name,candidate)==0)return 1;
   (void)snprintf(stage,sizeof(stage),".%s.part",candidate);
   if(strcmp(name,stage)==0)return 1;
