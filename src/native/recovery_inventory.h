@@ -14,6 +14,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#if defined(__cplusplus)
+#define CMP5_RECOVERY_ZERO {}
+#else
+#define CMP5_RECOVERY_ZERO {0}
+#endif
+
 #define CMP5_RECOVERY_MAX 8u
 #define CMP5_RECOVERY_DIRECTORY_LIMIT 256u
 /* Numeric stage type permits the explicit zero = unverified sentinel
@@ -97,7 +103,7 @@ static inline bool cmp5_recovery_parent_stat(const char*root,
 }
 static inline bool cmp5_recovery_parent_still_same(const char*root,
                                             const char*base,const struct stat*before){
- struct stat now={0};
+ struct stat now=CMP5_RECOVERY_ZERO;
  return before&&cmp5_recovery_parent_stat(root,base,&now)&&
         cmp5_recovery_same(before,&now);
 }
@@ -123,7 +129,7 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
  close(fd);
  if(title_fd<0)return -1;
  int state_fd=openat(title_fd,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- struct stat title_a={0},title_b={0},state={0};
+ struct stat title_a=CMP5_RECOVERY_ZERO,title_b=CMP5_RECOVERY_ZERO,state=CMP5_RECOVERY_ZERO;
  bool ok=state_fd>=0&&fstat(title_fd,&title_a)==0&&
    S_ISDIR(title_a.st_mode)&&fstat(state_fd,&state)==0&&
    S_ISDIR(state.st_mode);
@@ -133,7 +139,7 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
    openat(fresh_parent,title,O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
  int fresh_state=fresh_title>=0?
    openat(fresh_title,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
- struct stat state_b={0};
+ struct stat state_b=CMP5_RECOVERY_ZERO;
  ok=ok&&fresh_state>=0&&fstat(fresh_title,&title_b)==0&&
     cmp5_recovery_same(&title_a,&title_b)&&
     fstat(fresh_state,&state_b)==0&&
@@ -157,15 +163,15 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  if(dir<0)return false;
  int request=openat(dir,"request.bin",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  int stage=openat(dir,"stage",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
- struct stat req_first={0},req_after={0},req_named={0};
- struct stat first={0},after={0},named={0},state_first={0},state_after={0};
+ struct stat req_first=CMP5_RECOVERY_ZERO,req_after=CMP5_RECOVERY_ZERO,req_named=CMP5_RECOVERY_ZERO;
+ struct stat first=CMP5_RECOVERY_ZERO,after=CMP5_RECOVERY_ZERO,named=CMP5_RECOVERY_ZERO,state_first=CMP5_RECOVERY_ZERO,state_after=CMP5_RECOVERY_ZERO;
  bool ok=request>=0&&stage>=0&&
     fstat(dir,&state_first)==0&&S_ISDIR(state_first.st_mode)&&
     fstat(request,&req_first)==0&&S_ISREG(req_first.st_mode)&&
     req_first.st_nlink==1&&req_first.st_size>=512&&req_first.st_size<=4096&&
     fstat(stage,&first)==0&&S_ISREG(first.st_mode)&&first.st_nlink==1&&
     (first.st_size==4||first.st_size==6);
- char value[7]={0};
+ char value[7]=CMP5_RECOVERY_ZERO;
  if(ok){
   size_t done=0;
   while(done<(size_t)first.st_size){
@@ -197,7 +203,7 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  if(stage>=0)close(stage);
  if(ok){
   const int again=cmp5_recovery_open_checkpoint_dir(root,state_dir);
-  struct stat held={0},current={0};
+  struct stat held=CMP5_RECOVERY_ZERO,current=CMP5_RECOVERY_ZERO;
   ok=again>=0&&fstat(dir,&held)==0&&
      fstat(again,&current)==0&&held.st_dev==current.st_dev&&
      held.st_ino==current.st_ino;
@@ -216,7 +222,7 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
   if(storage==0)snprintf(dest,sizeof(dest),"/data/homebrew");
   else snprintf(dest,sizeof(dest),"/mnt/%s%u/homebrew",
                 storage&1u?"usb":"ext",(storage-1u)/2u);
-  struct stat parent_before={0},parent_after={0};
+  struct stat parent_before=CMP5_RECOVERY_ZERO,parent_after=CMP5_RECOVERY_ZERO;
   if(!cmp5_recovery_parent_stat(root,dest,&parent_before)){
    /* A disconnected device is not automatically a corrupt checkpoint. */
    int fd=cmp5_recovery_parent_fd(root,dest);
@@ -266,4 +272,5 @@ static inline bool cmp5_scan_recovery_inventory(const char*root,
  }
  return true;
 }
+#undef CMP5_RECOVERY_ZERO
 #endif
