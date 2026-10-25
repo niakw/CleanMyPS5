@@ -26,17 +26,17 @@ Ce découplage est intentionnel : l'installabilité d'un titre ne lui confère p
 
 - `dist/native/PPSA99784.zip` : archive contenant uniquement le dossier `PPSA99784/` pour un gestionnaire enregistrant des titres homebrew.
 - `dist/native/PPSA99784.ffpkg` : package UFS2 homebrew, généré par la CI avec `.NET 8` et les outils épinglés du template ; compatible seulement avec les gestionnaires qui prennent en charge ce format, non validé sur FW 13.60.
-- `dist/native/cleanmyps5-helper.elf` : moteur d'inspection à lancer avec un chargeur ELF approprié ; ne lance pas le navigateur.
+- `PPSA99784/assets/cleanmyps5-helper.elf` : helper de diagnostic **déjà dans l'archive du titre**, à lancer facultativement avec le chargeur ELF existant depuis l'interface. Aucune installation séparée.
 - `dist/native/manifest.json` : version du contrat, identifiant du titre, révision épinglée et empreintes SHA-256 exactes des fichiers produits, y compris le `.ffpkg` lorsqu'il existe. Permet de détecter un package ou helper modifié/incompatible avant transfert.
 - `cleanmyps5.elf` : ancienne variante navigateur conservée tant que les fonctionnalités de l'interface native ne sont pas équivalentes.
 
-À partir du dépôt, `make native-app` génère le dossier ZIP et le helper, ainsi que le manifeste ; `CMP5_BUILD_FFPKG=1 make native-app` génère en plus le package UFS2 si `.NET 8` est installé. Le script télécharge dans un dossier temporaire un outil de compilation natif **épinglé sur un commit précis**, remplace le code et l'icône de démonstration, compile le titre, compile le helper séparément et vérifie les fichiers produits. Aucune dépendance, image personnelle ou configuration réseau n'est introduite dans les sources suivies par Git.
+À partir du dépôt, `make native-app` génère le ZIP autonome avec les deux ELF embarqués, ainsi que le manifeste ; `CMP5_BUILD_FFPKG=1 make native-app` génère en plus le package UFS2 si `.NET 8` est installé. Le helper compilé reste dans les assets du même titre ; une copie autonome de débogage n'est plus distribuée par défaut. Le script télécharge dans un dossier temporaire un outil de compilation natif **épinglé sur un commit précis**, remplace le code et l'icône de démonstration, compile le titre, compile le helper séparément et vérifie les fichiers produits. Aucune dépendance, image personnelle ou configuration réseau n'est introduite dans les sources suivies par Git.
 
 ## Installation de test, sans toucher au firmware
 
 1. Extraire `PPSA99784.zip` et déposer **le dossier `PPSA99784`** dans `/data/homebrew/PPSA99784/` avec un serveur FTP déjà disponible sur la console.
 2. Le gestionnaire de homebrews ou monteur de titres compatible doit déclarer ce dossier dans l'interface PS5. Copier le dossier par FTP ne garantit pas à lui seul qu'un raccourci apparaisse. Ne pas le faire passer pour un installateur PKG officiel.
-3. Le titre exécute son propre inventaire **sans helper**. Le helper peut être chargé séparément plus tard si la couverture native est insuffisante ; ce n'est pas une étape d'installation obligatoire. Si un ancien `cleanmyps5.elf` tourne sur le port 8877, l'arrêter d'abord.
+3. Le titre exécute son propre inventaire **sans helper**. Le helper **déjà embarqué dans ce titre** peut être démarré facultativement via le chargeur ELF du jailbreak depuis l'interface si la couverture native est insuffisante : aucune autre application à installer. Si un ancien `cleanmyps5.elf` tourne sur le port 8877, l'arrêter d'abord.
 4. Depuis l'accueil PS5, lancer **CleanMyPS5** comme une application : Haut/Bas sélectionnent une des quatre rubriques, Croix ouvre le détail ou relance le contrôle, Cercle retourne au menu. La rubrique Stockage réalise sa propre sonde de droits même si le helper est arrêté.
 5. Si `ENGINE OFFLINE OR NETWORK RESTRICTED` apparaît, vérifier le chargeur du helper, les permissions réseau loopback du titre, l'occupation du port et la notification de démarrage. Ne jamais interpréter ce message comme une autorisation de monter ou modifier `/data`.
 
