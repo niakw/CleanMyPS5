@@ -1,5 +1,27 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Inventaire privé : concurrence et identifiants bornés (25 octobre 2026)
+
+La revue native des capsules est maintenant rejetée si le même inode de
+répertoire a subi une modification détectable de taille, de mode, de liens
+ou d'horodatage (mtime/ctime à la précision disponible) pendant sa lecture.
+Le chemin canonique est également réouvert et son identité revérifiée avant
+toute publication de compteurs. Une fixture modifie réellement le contenu
+d'un dossier privé pendant `readdir`, vérifie le refus de publier un
+inventaire périmé, puis constate que les fichiers sont intacts et à nouveau
+visibles au scan suivant.
+
+Les identifiants `CAP_...` et `GRP_...` sont contrôlés avec une limite
+stricte de 20 caractères plus le terminateur ; les champs trop longs ou
+non terminés sont rejetés avant vérification des archives. La fixture
+inclut des buffers de 21 octets sans terminateur.
+
+Ces contrôles détectent des changements observables mais ne fournissent
+pas de snapshot transactionnel atomique sur tous les systèmes de fichiers.
+Ils ne prouvent ni intégrité d'un contenu par eux-mêmes, ni restaurabilité
+des index Sony ; un groupe sélectionné doit toujours être revalidé et
+haché indépendamment. La suppression des médias PS5 reste désactivée.
+
 ## Archives natives : chemin stable et transactions temporaires visibles (25 octobre 2026)
 
 L'inventaire natif en lecture seule des capsules et des groupes de sauvegarde
