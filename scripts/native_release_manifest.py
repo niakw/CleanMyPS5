@@ -86,18 +86,20 @@ def expected_manifest(folder: Path, title: str, pin: str) -> dict:
     archive = folder / f"{title}.zip"
     helper = folder / "cleanmyps5-helper.elf"
     validate_zip(archive, title)
-    if not helper.is_file() or helper.is_symlink() or helper.stat().st_size < 64:
-        raise ValueError("Separate read-only helper ELF missing")
-    # The optional standalone ELF is a debugging copy of the helper inside
-    # the ONE installable native title, never another required application.
-    # Compare decompressed archive bytes, not filenames or untrusted metadata.
-    bundled_digest = hashlib.sha256()
-    with ZipFile(archive) as package:
-        with package.open(f"{title}/assets/cleanmyps5-helper.elf") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                bundled_digest.update(block)
-    if bundled_digest.hexdigest() != sha256(helper):
-        raise ValueError("Standalone helper differs from bundled native-title ELF")
+    # The helper and compression engine are REQUIRED inside the title ZIP.
+    # An external copy of the diagnostic helper is OPTIONAL for developers;
+    # a normal user must not need to install or download another ELF.
+    if helper.is_symlink() or (helper.exists() and
+            (not helper.is_file() or helper.stat().st_size < 64)):
+        raise ValueError("Unsafe optional standalone helper ELF")
+    if helper.is_file():
+        bundled_digest = hashlib.sha256()
+        with ZipFile(archive) as package:
+            with package.open(f"{title}/assets/cleanmyps5-helper.elf") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    bundled_digest.update(block)
+        if bundled_digest.hexdigest() != sha256(helper):
+            raise ValueError("Optional standalone helper differs from bundled ELF")
     pkg = folder / f"{title}.ffpkg"
     if pkg.exists():
         if not pkg.is_file() or pkg.is_symlink() or pkg.stat().st_size < 0x10560:
@@ -108,7 +110,11 @@ def expected_manifest(folder: Path, title: str, pin: str) -> dict:
             if stream.read(4) != bytes.fromhex("19015419"):
                 raise ValueError("Homebrew FFPKG UFS2 superblock missing")
     files = []
-    sources=(archive, helper, pkg) if pkg.exists() else (archive, helper)
+    sources = [archive]
+    if helper.is_file():
+        sources.append(helper)
+    if pkg.exists():
+        sources.append(pkg)
     for path in sources:
         files.append({
             "name": path.name,
@@ -119,7 +125,7 @@ def expected_manifest(folder: Path, title: str, pin: str) -> dict:
         "schemaVersion": 1,
         "titleId": title,
         "format": "unsigned-homebrew-title-folder",
-        "helper": "separate-browser-free-payload",
+        "helper": "bundled-readonly-opt-in",
         "runtimePermission": "not-guaranteed",
         "firmware1360HardwareValidated": False,
         "cleanupEnabled": False,
@@ -140,7 +146,7 @@ def check(folder: Path, title: str, pin: str) -> None:
     manifest = json.loads(target.read_text(encoding="utf-8"))
     if manifest != expected_manifest(folder, title, pin):
         raise ValueError("Native release manifest hash or contract mismatch")
-    print("Native title + helper SHA-256 manifest: PASS")
+    print("One-title native archive + optional developer helper SHA-256: PASS")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5 or sys.argv[1] not in ("write", "check"):
