@@ -498,6 +498,35 @@ backup_done:
  close(dir); /* releases flock after verification */
  return ok;
 }
+/* Read-only post-restart recovery of the ordered source locators.
+ * This remains a HOST-ONLY private-space audit: callers cannot use it to
+ * write into a PS5 Gallery or alter Sony's separate media indexes. */
+int cmp5_read_group_origin_map(const char*workspace,const char*id,
+ Cmp5OriginMap*r,Cmp5CancelCheck cancel,void*ctx){
+ if(r)memset(r,0,sizeof(*r));
+ if(!r||!valid_id(id)||cancelled(cancel,ctx))return 0;
+ Cmp5GroupReceipt verified={0};
+ if(!cmp5_verify_group(workspace,id,&verified,cancel,ctx))return 0;
+ int dir=safe_dir(workspace);
+ if(dir<0)return 0;
+ struct stat before={0};
+ uint8_t marker[MARK_SIZE],final_marker[MARK_SIZE];
+ Cmp5BackupReceipt receipts[CMP5_GROUP_MAX],final_parts[CMP5_GROUP_MAX];
+ uint32_t count=0,final_count=0;
+ Cmp5OriginMap restored={0};
+ int ok=fstat(dir,&before)==0&&
+  read_manifest(dir,id,0,marker,receipts,&count,NULL)&&
+  count==verified.count&&
+  read_origin_map(dir,id,marker,receipts,count,&restored)&&
+  read_manifest(dir,id,0,final_marker,final_parts,&final_count,NULL)&&
+  final_count==count&&memcmp(marker,final_marker,MARK_SIZE)==0&&
+  verification_namespace_clean(dir,id,0,count)&&
+  workspace_unchanged(dir,workspace,&before)&&
+  !cancelled(cancel,ctx);
+ close(dir);
+ if(ok)*r=restored;
+ return ok;
+}
 int cmp5_verify_restored_group(const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
