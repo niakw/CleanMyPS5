@@ -12,8 +12,15 @@ static char moved_output_from[512],moved_output_to[512];
 static int move_output_after_create=0;
 static char moved_title_from[512],moved_title_to[512];
 static int move_title_after_stat=0;
+static int expose_checkpoint_mode_once=0;
 static int injected_fstatat(int fd,const char*name,struct stat*out,int flags){
  const int result=fstatat(fd,name,out,flags);
+ if(result==0&&expose_checkpoint_mode_once&&
+    !strcmp(name,".e2a-state")){
+  /* Simulate a filesystem which ignores mode 0700. */
+  out->st_mode|=0077;
+  expose_checkpoint_mode_once=0;
+ }
  if(result==0&&move_title_after_stat&&!strcmp(name,"PPSA88888")){
   assert(rename(moved_title_from,moved_title_to)==0);
   assert(mkdir(moved_title_from,0755)==0);
@@ -355,6 +362,21 @@ int main(void) {
  assert(rmdir(displaced_checkpoint)==0);
  assert(rmdir(moved_title_to)==0);
  assert(rmdir(moved_title_from)==0);
+ /* The storage driver can ignore restrictive mkdir permissions.
+  * The app must decline a publicly readable private checkpoint. */
+ expose_checkpoint_mode_once=1;
+ struct stat unsafe_output={0};
+ assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                        "PPSA99999",&unsafe_output));
+ assert(!expose_checkpoint_mode_once);
+ assert(unsafe_output.st_ino==0);
+ assert(snprintf(displaced_title,sizeof(displaced_title),
+   "%s/PPSA99999",moved_output_from)>0);
+ assert(snprintf(displaced_checkpoint,sizeof(displaced_checkpoint),
+   "%s/.e2a-state",displaced_title)>0);
+ assert(stat(displaced_checkpoint,&displaced_stat)==0);
+ assert(rmdir(displaced_checkpoint)==0);
+ assert(rmdir(displaced_title)==0);
  assert(rmdir(old_dest)==0);
  assert(unlink(image)==0);
  assert(rmdir(folder)==0);
