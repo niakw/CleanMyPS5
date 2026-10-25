@@ -221,6 +221,22 @@ int main(int argc,char**argv){
   write_capsule(dir,name,data[i],lens[i],receipts[i].sha256);
  }
  write_member(dir,"BACKUP__COMMIT",manifest,sizeof(manifest));
+ /* Legacy digest-only backup has no persistent member-to-source map.
+  * It may be byte-identical, but is not a restorable verified album. */
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ Cmp5MediaCandidate origin_parts[2]={{0}};
+ strcpy(origin_parts[0].preview_path,
+  "/user/av_contents/photo/NPXS00000/GAME123/REC_001.jpg");
+ strcpy(origin_parts[1].preview_path,
+  "/user/av_contents/photo/NPXS00000/GAME123/REC_001.dat");
+ for(unsigned i=0;i<2;i++){
+  origin_parts[i].bytes=(uint64_t)lens[i];
+  origin_parts[i].media_type=i==0u?1u:3u;
+  origin_parts[i].snapshot_device=1u;
+  origin_parts[i].snapshot_inode=(uint64_t)i+1u;
+ }
+ assert(cmp5_validate_capture_group(origin_parts,2u));
+ assert(publish_origin_map(dir,"BACKUP",origin_parts,2u,manifest,NULL,NULL));
  assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
  setup_watch(workspace,"BACKUP__COMMIT","BACKUP_MOVED",0);
  calls=0;
