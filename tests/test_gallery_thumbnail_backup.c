@@ -104,6 +104,37 @@ int main(int argc,char**argv){
    &reordered_receipt,NULL,NULL));
  assert(reordered_receipt.count==3u);
  assert(cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
+ /* The ordered original Gallery locators survive program restart in the
+  * private workspace, bound to the same receipt as the three capsules. */
+ Cmp5OriginMap origins={0},reordered_origins={0};
+ assert(cmp5_read_group_origin_map(backup,"THUMB",&origins,NULL,NULL));
+ assert(origins.count==count);
+ for(unsigned i=0;i<count;i++){
+  assert(strcmp(origins.entries[i].path,group[i].preview_path)==0);
+  assert(origins.entries[i].bytes==group[i].bytes);
+  assert(origins.entries[i].media_type==group[i].media_type);
+ }
+ assert(cmp5_read_group_origin_map(backup,"REORDER",&reordered_origins,
+                                  NULL,NULL));
+ for(unsigned i=0;i<count;i++)
+  assert(strcmp(reordered_origins.entries[i].path,
+                reordered[i].preview_path)==0);
+ /* A different ordered map cannot be trusted just because the capsules
+  * hash correctly: reject tampered path metadata before restoration. */
+ char map_path[512];
+ assert(snprintf(map_path,sizeof(map_path),"%s/REORDER__ORIGINS",backup)>0);
+ int map_fd=open(map_path,O_RDWR|O_NOFOLLOW);
+ assert(map_fd>=0);
+ struct stat map_stat={0};
+ assert(fstat(map_fd,&map_stat)==0&&(map_stat.st_mode&077)==0);
+ assert(pwrite(map_fd,"X",1,44)==1);
+ assert(close(map_fd)==0);
+ assert(!cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
+ assert(!cmp5_read_group_origin_map(backup,"REORDER",
+                                    &reordered_origins,NULL,NULL));
+ Cmp5RecoveryReport broken={0};
+ assert(cmp5_inspect_group_recovery(backup,"REORDER",&broken));
+ assert(broken.state==CMP5_RECOVERY_INVALID);
  assert(cmp5_verify_group(backup,"THUMB",&verified,NULL,NULL));
  assert(verified.count==3u&&verified.bytes==result.bytes&&
         memcmp(verified.manifest_sha256,result.manifest_sha256,32)==0);
