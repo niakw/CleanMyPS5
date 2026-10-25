@@ -1471,7 +1471,9 @@ void run_recovery_inventory() noexcept {
  * The worker independently revalidates its source and output identity. */
 void run_recovery_resume() noexcept {
  if(recovery_resume_attempted)return;
- recovery_resume_attempted=true;
+ /* A PRE-SEND refusal (engine offline, stale path, changed queue) did not
+  * modify storage and permits a fresh two-step confirmation. Once BODY
+  * transmission may have begun, never retry with uncertain acknowledgement. */
  recovery_resume_accepted=false;recovery_resume_unknown=false;
  if(!cmp5_compression::recovery_candidate_fresh(recovery_chosen,
       [](const char*root,Cmp5RecoveryInventory*out) noexcept {
@@ -1490,6 +1492,7 @@ void run_recovery_resume() noexcept {
  recovery_resume_accepted=ampr_safe_command("/api/resume",form,
                                            &could_have_acted);
  recovery_resume_unknown=!recovery_resume_accepted&&could_have_acted;
+ recovery_resume_attempted=recovery_resume_accepted||could_have_acted;
 }
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
@@ -2858,7 +2861,9 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
       "CHECKPOINT OU IDENTITE NON CONFIRMEE",Color::yellow);
   panel(canvas,681,"FICHIERS D ORIGINE",
     "AUCUNE SUPPRESSION  SORTIE PARTIELLE CONSERVEE",Color::yellow);
-  footer(canvas,"X CONSULTER MONITEUR  CERCLE RETOUR  AUCUN RETRY");
+  footer(canvas,recovery_resume_attempted?
+    "X MONITEUR  CERCLE RETOUR  AUCUN RENVOI POSSIBLE":
+    "X MONITEUR  CERCLE RETOUR  RETENTER APRES NOUVEAU CONTROLE");
   return;
  }
  if(compression_view==7u){
