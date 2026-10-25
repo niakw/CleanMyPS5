@@ -20,6 +20,25 @@ struct Inventory {
  char ids[inventory_limit][32]{};
  char group_ids[inventory_limit][32]{};
 };
+/* The directory inode can remain stable while files are added, removed,
+ * renamed or replaced. Do not publish a "complete" stale inventory when
+ * its directory metadata changed during traversal. This is an observation
+ * fence, not an atomic snapshot or authorisation to restore Gallery files. */
+inline bool same_inventory_directory(const struct stat&a,
+                                     const struct stat&b) noexcept {
+#if defined(__APPLE__)
+ const bool nano=a.st_mtimespec.tv_nsec==b.st_mtimespec.tv_nsec&&
+                 a.st_ctimespec.tv_nsec==b.st_ctimespec.tv_nsec;
+#else
+ const bool nano=a.st_mtim.tv_nsec==b.st_mtim.tv_nsec&&
+                 a.st_ctim.tv_nsec==b.st_ctim.tv_nsec;
+#endif
+ return nano&&S_ISDIR(a.st_mode)&&S_ISDIR(b.st_mode)&&
+   a.st_dev==b.st_dev&&a.st_ino==b.st_ino&&
+   a.st_mode==b.st_mode&&a.st_uid==b.st_uid&&a.st_gid==b.st_gid&&
+   a.st_nlink==b.st_nlink&&a.st_size==b.st_size&&
+   a.st_mtime==b.st_mtime&&a.st_ctime==b.st_ctime;
+}
 inline bool valid_capsule_id(const char*id) noexcept {
  if(!id||std::strlen(id)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
  for(unsigned i=4u;i<20u;i++){
@@ -168,10 +187,11 @@ inline bool scan_at(const char*folder,Inventory*out,
   * An obsolete listing is not a valid post-restart archive inventory.
   * Verification of a selected capsule still reopens and rehashes it. */
  const int current=good?cmp5_open_private_workspace(folder):-1;
- struct stat fresh{};
- if(current<0||fstat(current,&fresh)!=0||
-    !S_ISDIR(fresh.st_mode)||anchor.st_dev!=fresh.st_dev||
-    anchor.st_ino!=fresh.st_ino)good=false;
+ struct stat held_after{},fresh{};
+ if(current<0||fstat(fd,&held_after)!=0||
+    fstat(current,&fresh)!=0||
+    !same_inventory_directory(anchor,held_after)||
+    !same_inventory_directory(anchor,fresh))good=false;
  if(current>=0)close(current);
  close(fd);
  if(!good)return false;
