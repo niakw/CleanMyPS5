@@ -42,6 +42,19 @@ typedef struct {
 int cmp5_read_group_origin_map(const char *private_workspace,
  const char *group_id,Cmp5OriginMap *result,
  Cmp5CancelCheck cancel,void *context);
+/* Host-only, read-only comparison of each recorded source name with the
+ * inode and high-resolution timestamps saved at backup time.
+ * Not a Sony Gallery index check and NEVER a write authorization. */
+typedef enum {
+ CMP5_ORIGIN_UNKNOWN=0,
+ CMP5_ORIGIN_UNCHANGED=1,
+ CMP5_ORIGIN_MISSING=2,
+ CMP5_ORIGIN_CHANGED=3
+} Cmp5OriginLiveState;
+int cmp5_inspect_group_originals(const char *test_root,
+ const char *private_workspace,const char *group_id,
+ Cmp5OriginLiveState states[CMP5_GROUP_MAX],
+ Cmp5CancelCheck cancel,void *context);
 /* Restores into a *different, pre-existing, 0700 private directory*.
  * The __RESTORED commit marker indicates that every raw member was verified.
  * NEVER restores to /user/av_contents or repairs the PS5 gallery database. */
