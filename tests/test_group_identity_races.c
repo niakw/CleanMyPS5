@@ -238,6 +238,22 @@ int main(int argc,char**argv){
  assert(cmp5_validate_capture_group(origin_parts,2u));
  assert(publish_origin_map(dir,"BACKUP",origin_parts,2u,manifest,NULL,NULL));
  assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ /* A valid origin-map digest does not excuse a pathname switch, chmod or
+  * second hardlink while its bytes are read. Revalidate the opened inode. */
+ setup_watch(workspace,"BACKUP__ORIGINS","BACKUP_ORIGINS_MOVED",1);
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ assert(triggered);
+ assert(rename(moved,watched)==0);
+ setup_watch(workspace,"BACKUP__ORIGINS","BACKUP_ORIGINS_UNUSED",2);
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ assert(triggered);
+ assert(chmod(watched,0600)==0);
+ setup_watch(workspace,"BACKUP__ORIGINS","BACKUP_ORIGINS_LINK",3);
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ assert(triggered);
+ assert(unlink(moved)==0);
+ action=0;
+ assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
  /* A valid origin map may have been published before a power loss,
   * without the final COMMIT. It is INCOMPLETE, never EMPTY. */
  Cmp5RecoveryReport origin_report={0};
