@@ -241,6 +241,16 @@ add_test(NAME game_images_read_errors COMMAND ${Python3_EXECUTABLE}
  ${CMAKE_SOURCE_DIR}/tests/test_game_images_read_errors.py
  $<TARGET_FILE:cmp5-game-images-read-errors>)
 
+# Read-only discovery of AMPR checkpoints after the title has exited.
+# This never reads saved job options or authorizes a resume operation.
+add_executable(cmp5-recovery-inventory-tests tests/test_recovery_inventory.c)
+target_include_directories(cmp5-recovery-inventory-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-recovery-inventory-tests PRIVATE
+   -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME recovery_inventory_fixture COMMAND cmp5-recovery-inventory-tests)
+
 # Host-only shared capacity gate. Simulate full/read-only/unknown volumes
 # before starting any private backup or private restore transaction.
 add_executable(cmp5-private-workspace-capacity
