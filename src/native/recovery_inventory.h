@@ -83,8 +83,12 @@ static inline int cmp5_recovery_parent_fd(const char*root,const char*dest){
   if(!len||len>=sizeof(piece)){close(fd);return -1;}
   memcpy(piece,start,len);piece[len]=0;
   int next=openat(fd,piece,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-  close(fd);
-  if(next<0)return -1;
+  const int open_error=next<0?errno:0;
+  (void)close(fd);
+  /* Do not let close() mask ENOENT/EACCES/ENOTDIR from openat().
+   * The caller relies on errno to distinguish an absent volume from
+   * an inaccessible or unsafe volume. */
+  if(next<0){errno=open_error;return -1;}
   fd=next;
   if(!slash)break;
   start=slash+1;
