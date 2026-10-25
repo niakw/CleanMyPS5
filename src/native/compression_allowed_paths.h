@@ -247,11 +247,11 @@ static inline bool cmp5_game_output_create_unique(
   close(fd);return false;
  }
  /* mkdirat never reuses an existing file, directory or dangling link. */
- if(mkdirat(fd,title_id,0777)!=0){close(fd);return false;}
+ if(mkdirat(fd,title_id,0755)!=0){close(fd);return false;}
  struct stat held={0},named={0};
  const int child=openat(fd,title_id,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  bool ok=child>=0 &&
-   mkdirat(child,".e2a-state",0777)==0 &&
+   mkdirat(child,".e2a-state",0700)==0 &&
    fstat(child,&held)==0&&
    fstatat(fd,title_id,&named,AT_SYMLINK_NOFOLLOW)==0&&
    S_ISDIR(held.st_mode)&&S_ISDIR(named.st_mode)&&
