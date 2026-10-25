@@ -114,6 +114,14 @@ int main(int argc,char**argv){
   assert(strcmp(origins.entries[i].path,group[i].preview_path)==0);
   assert(origins.entries[i].bytes==group[i].bytes);
   assert(origins.entries[i].media_type==group[i].media_type);
+  assert(origins.entries[i].snapshot_device==group[i].snapshot_device);
+  assert(origins.entries[i].snapshot_inode==group[i].snapshot_inode);
+  assert(origins.entries[i].modified_at==group[i].modified_at);
+  assert(origins.entries[i].snapshot_ctime==group[i].snapshot_ctime);
+  assert(origins.entries[i].snapshot_mtime_nsec==
+         group[i].snapshot_mtime_nsec);
+  assert(origins.entries[i].snapshot_ctime_nsec==
+         group[i].snapshot_ctime_nsec);
  }
  assert(cmp5_read_group_origin_map(backup,"REORDER",&reordered_origins,
                                   NULL,NULL));
@@ -132,7 +140,7 @@ int main(int argc,char**argv){
  assert(!cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
  /* Even an attacker who recalculates the checksum must not turn the
   * private map into an unrestricted or traversing PS5 target path. */
- unsigned char map_wire[1148];
+ unsigned char map_wire[1308]; /* CMP5MAP2, 4 bounded 308-byte records */
  assert(pread(map_fd,map_wire,sizeof(map_wire),0)==(ssize_t)sizeof(map_wire));
  static const char forbidden[]=
    "/user/av_contents/photo/../../system_data/private.jpg";
@@ -140,9 +148,9 @@ int main(int argc,char**argv){
  memcpy(map_wire+44,forbidden,sizeof(forbidden));
  Cmp5Sha256 sha;unsigned char map_digest[32];
  cmp5_sha256_init(&sha);
- cmp5_sha256_update(&sha,map_wire,1116u);
+ cmp5_sha256_update(&sha,map_wire,sizeof(map_wire)-32u);
  cmp5_sha256_final(&sha,map_digest);
- memcpy(map_wire+1116,map_digest,32u);
+ memcpy(map_wire+sizeof(map_wire)-32u,map_digest,32u);
  assert(pwrite(map_fd,map_wire,sizeof(map_wire),0)==(ssize_t)sizeof(map_wire));
  assert(close(map_fd)==0);
  assert(!cmp5_verify_group(backup,"REORDER",NULL,NULL,NULL));
