@@ -164,6 +164,7 @@ static int read_manifest(int dir,const char*id,int restored,
  if(fd<0)return 0;
  struct stat before,after,named;
  const int valid=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
+  before.st_uid==geteuid()&&(before.st_mode&0077)==0&&
   before.st_nlink==1&&before.st_size==(off_t)MARK_SIZE&&
   read_exact(fd,contents,MARK_SIZE)&&fstat(fd,&after)==0&&
   fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
@@ -358,6 +359,7 @@ static int raw_restored(int dir,const char*name,uint64_t size,
  if(fd<0)return 0;
  struct stat before,after,named;
  int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
+   before.st_uid==geteuid()&&(before.st_mode&0077)==0&&
    before.st_nlink==1&&before.st_size>0&&(uint64_t)before.st_size==size;
  Cmp5Sha256 h;cmp5_sha256_init(&h);
  uint8_t block[BLOCK];
@@ -771,7 +773,8 @@ static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
  if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
   return errno==ENOENT;
  *present=1;
- if(!S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<0||
+ if(!S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
+    (st.st_mode&0077)!=0||st.st_nlink!=1||st.st_size<0||
     (uint64_t)st.st_size>MAX_TOTAL+64u)*unsafe=1;
  return 1;
 }
