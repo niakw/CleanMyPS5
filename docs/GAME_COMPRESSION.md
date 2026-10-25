@@ -190,6 +190,17 @@ NUL est rejetée : détection de l'image, précontrôle et reprise de job.
 Les tests C couvrent les champs invalides et la CI inspecte le C
 effectivement transformé. Les données de jeu originales sont conservées.
 
+**Durcissements du contrôleur du 25 octobre :** la génération des requêtes
+Pause et Reprise refuse désormais les destinations autres que
+`/data/homebrew` et les 16 dossiers `/mnt/usbN/homebrew` ou
+`/mnt/extN/homebrew` (N de 0 à 7), avant même l'appel au service local.
+Le moteur conserve son contrôle indépendant des chemins et des identités
+de dossiers. La comparaison des champs de ShadowMountPlus s'arrête
+également au terminateur de la chaîne attendue : un champ fixe long ne
+force plus une recherche de longueur excessive dans une courte chaîne
+littérale. Les fixtures testent les chemins interdits et les champs fixes
+de 128 octets. Ces contrôles ne valident pas la jouabilité PS5.
+
 ## Dossiers de dump portant une extension d'image (25 octobre 2026)
 
 La détection native différencie maintenant le **type du système de
