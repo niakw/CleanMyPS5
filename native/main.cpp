@@ -18,6 +18,7 @@
 #include "privilege_contract.hpp"
 #include "cleanup_readiness.hpp"
 #include "capture_companions.h"
+#include "private_media_backup.hpp"
 #include "diagnostics.h"
 #include "media_preview.h"
 #include "video_metadata.h"
@@ -81,7 +82,7 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=5;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression, backup };
 enum class Link { unchecked, ok, offline };
 constexpr std::size_t core_access_count=6u;
 constexpr std::size_t local_path_count=22u;
@@ -380,6 +381,11 @@ bool general_audit_completed=false;
 std::atomic<unsigned> general_audit_stage{0};
 unsigned analyze_page=0;
 unsigned cleanup_page=0;
+/* The snapshot is copied before a worker starts, so a catalog rescan
+ * cannot change which source file is being backed up. */
+Cmp5MediaCandidate backup_selected{};
+cmp5_private_backup::Outcome backup_outcome{};
+unsigned backup_step=0u;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -728,6 +734,10 @@ void run_companion_check() noexcept {
   companion_summary=observed;
   companion_checked=success;
  }
+}
+void run_private_backup() noexcept {
+ backup_outcome=cmp5_private_backup::backup_one(
+   backup_selected,cancellation_hook,nullptr);
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
@@ -1509,7 +1519,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1524,6 +1534,7 @@ void* background_task(void*) noexcept {
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
   case Task::companions: run_companion_check(); break;
+  case Task::private_backup: run_private_backup(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
   case Task::helper_start: run_embedded_readonly_helper(); break;
@@ -1683,7 +1694,7 @@ void poll_pad() noexcept {
     companion_checked=false;
    }
    screen=(screen==Screen::photo||screen==Screen::video_info||
-            screen==Screen::companions)?Screen::detail:
+            screen==Screen::companions||screen==Screen::backup)?Screen::detail:
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::apps?Screen::access:
@@ -1758,7 +1769,24 @@ void poll_pad() noexcept {
    }
    continue;
   }
+  if(screen==Screen::backup){
+   if(backup_step==0u&&(pressed&cross))backup_step=1u;
+   else if(backup_step==1u&&(pressed&cross)){
+    backup_step=2u;
+    (void)begin_task(Task::private_backup);
+   }
+   continue;
+  }
   if(screen==Screen::detail){
+   if((pressed&r2)&&detail_index<media_review.count){
+    const auto&item=media_review.entries[detail_index];
+    char id[32]{};
+    if(cmp5_private_backup::capsule_name(item,id)){
+     backup_selected=item;backup_outcome={};backup_step=0u;
+     screen=Screen::backup;
+    }
+    continue;
+   }
    if((pressed&square)&&detail_index<media_review.count){
     screen=Screen::companions;
     (void)begin_task(Task::companions);
@@ -2652,8 +2680,42 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
    marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
    marked_for_review[detail_index]?Color::cyan:Color::yellow);
  footer(canvas,item.media_type==2u?
-  "X INFOS MP4/WEBM  CARRE FICHIERS LIES  TRIANGLE MARQUER  CERCLE":
-  "X APERCU PHOTO  CARRE FICHIERS LIES  TRIANGLE MARQUER  CERCLE");
+  "X INFOS VIDEO  CARRE LIES  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE":
+  "X APERCU PHOTO  CARRE LIES  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE");
+}
+void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
+ panel(canvas,310,"SAUVEGARDE PRIVEE DE CAPTURE",
+   "AUCUN FICHIER GALERIE NE SERA SUPPRIME",Color::cyan);
+ panel(canvas,452,"EMPLACEMENT DE SAUVEGARDE",
+   "STOCKAGE PRIVE DE L APPLICATION  /DOWNLOAD0",Color::cyan);
+ if(backup_step<2u){
+  panel(canvas,586,backup_step?"CONFIRMATION 2/2":"CONFIRMATION 1/2",
+    "COPIER UN SEUL MEDIA SANS SES INDEX SONY",Color::yellow);
+  panel(canvas,720,"CAPACITE ET INTEGRITE",
+    "LIMITE 512 MIO  SHA-256  COPIE SANS ECRASEMENT");
+  footer(canvas,"X CONFIRMER  CERCLE ANNULER  RIEN NE SERA EFFACE");
+  return;
+ }
+ if(task_busy()){
+  panel(canvas,586,"SAUVEGARDE EN COURS",
+    "COPIE + VERIFICATION SHA-256 SUR UN WORKER",Color::cyan);
+  footer(canvas,"CERCLE ANNULER  ORIGINAL PRESERVE");
+  return;
+ }
+ const bool success=backup_outcome.status==cmp5_private_backup::Result::verified &&
+  !task_cancelled()&&!task_failed();
+ panel(canvas,586,success?"COPIE VERIFIEE":"SAUVEGARDE NON CONFIRMEE",
+   success?"SHA-256 IDENTIQUE  ORIGINAL INCHANGE":
+    task_cancelled()?"OPERATION ANNULEE  RESTE PRIVE POSSIBLE":
+    backup_outcome.status==cmp5_private_backup::Result::storage_unavailable?
+      "DOSSIER PRIVE INACCESSIBLE  AUCUNE SUPPRESSION":
+      "SOURCE OU COPIE NON VALIDEE  AUCUNE SUPPRESSION",
+   success?Color::cyan:Color::yellow);
+ if(success)
+  panel(canvas,735,"IDENTIFIANT DE CAPSULE PRIVEE",backup_outcome.capsule_id);
+ else
+  panel(canvas,735,"REPRISE","UNE COPIE PARTIELLE RESTE POUR INSPECTION");
+ footer(canvas,"CERCLE RETOUR  RESTAURATION GALERIE NON AUTORISEE");
 }
 void show_companions(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
@@ -3240,6 +3302,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::search?"RECHERCHE DES CAPTURES":
    screen==Screen::games?"CAPTURES PAR JEU":
    screen==Screen::detail?"DETAIL DE LA CAPTURE":
+    screen==Screen::backup?"SAUVEGARDE PRIVEE":
    screen==Screen::photo?"APERCU PHOTO":
    screen==Screen::video_info?"INFORMATIONS VIDEO":
    screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":
@@ -3256,6 +3319,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::search:show_search(canvas);break;
   case Screen::games:show_games(canvas);break;
   case Screen::detail:show_detail(canvas);break;
+   case Screen::backup:show_private_backup(canvas);break;
   case Screen::photo:show_photo(canvas);break;
   case Screen::video_info:show_video_info(canvas);break;
   case Screen::official:show_official(canvas);break;
