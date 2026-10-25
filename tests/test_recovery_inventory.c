@@ -57,6 +57,13 @@ static int test_closedir(DIR*dir){
 #undef closedir
 #undef readdir
 #include <stdlib.h>
+static int cancel_immediately(void*ignored){
+ (void)ignored;return 1;
+}
+static int cancel_after_observation(void*context){
+ const Cmp5RecoveryInventory*results=(const Cmp5RecoveryInventory*)context;
+ return results&&results->count!=0u;
+}
 static void create_dir(const char*root,const char*path){
  char full[512];
  int n=snprintf(full,sizeof(full),"%s%s",root,path);
@@ -108,6 +115,20 @@ int main(void){
  }
  assert(pack==1&&copy==1&&verify==1);
  assert(!results.partial&&!results.unavailable);
+ /* Cancel before scanning or after recording the first item. Neither
+  * may publish a partial candidate list or stale coverage counters. */
+ memset(&results,0xA5,sizeof(results));
+ assert(!cmp5_scan_recovery_inventory_cancel(root,&results,
+                                            cancel_immediately,NULL));
+ assert(results.count==0u&&results.hidden==0u&&
+        results.folders_checked==0u&&!results.partial);
+ assert(!cmp5_scan_recovery_inventory_cancel(root,&results,
+                                            cancel_after_observation,&results));
+ assert(results.count==0u&&results.hidden==0u&&
+        results.folders_checked==0u&&!results.partial);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==3u&&!results.partial);
+
  /* Nonexistent removable volume is not an authorization error. */
  errno=0;
  assert(cmp5_recovery_parent_fd(root,"/mnt/usb7/homebrew")==-1);
