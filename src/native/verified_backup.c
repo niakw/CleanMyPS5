@@ -201,7 +201,9 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
  if(source<0)return 0;
  int dir=private_dir(workspace);
  if(dir<0){close(source);return 0;}
- if(!cmp5_workspace_has_capacity(dir,c->bytes,1u)){
+ struct stat destination_root={0};
+ if(fstat(dir,&destination_root)!=0||
+    !cmp5_workspace_has_capacity(dir,c->bytes,1u)){
   close(source);close(dir);return 0;
  }
  char temp[56];int stage=start_stage(dir,id,temp);
@@ -227,10 +229,19 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
      full_write(stage,header,sizeof(header))&&fsync(stage)==0;}
  close(stage);
  if(ok&&canceled(cancel,ctx))ok=0;
+ if(ok)ok=private_directory_identity_current(dir,workspace,&destination_root);
+ if(ok)ok=publish(dir,temp,id);
+ /* Do not issue a success receipt for a detached workspace or a
+  * replacement capsule under the just-published name. Re-open and hash
+  * the published artifact independently before returning success. */
  if(ok){
-  ok=publish(dir,temp,id);
-  if(ok){r->published=1;r->bytes=c->bytes;memcpy(r->sha256,digest,32);}
+  Cmp5BackupReceipt checked={0};
+  ok=cmp5_verify_backup(workspace,id,&checked,cancel,ctx)&&
+    checked.published&&checked.bytes==c->bytes&&
+    memcmp(checked.sha256,digest,32)==0&&
+    private_directory_identity_current(dir,workspace,&destination_root);
  }
+ if(ok){r->published=1;r->bytes=c->bytes;memcpy(r->sha256,digest,32);}
  if(!ok)(void)unlinkat(dir,temp,0);
  close(dir);
  return ok;
