@@ -8,13 +8,15 @@
 #include <unistd.h>
 #include <cstdlib>
 
-static void make_file(const char*root,const char*name,mode_t mode){
+static void make_file(const char*root,const char*name,mode_t mode,
+                      std::size_t count=65u){
  char path[512]{};
  assert(std::snprintf(path,sizeof(path),"%s/%s",root,name)>0);
  const int fd=open(path,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,mode);
  assert(fd>=0);
- unsigned char buf[65]{};
- assert(write(fd,buf,sizeof(buf))==(ssize_t)sizeof(buf));
+ unsigned char buf[2048]{};
+ assert(count>0u&&count<=sizeof(buf));
+ assert(write(fd,buf,count)==(ssize_t)count);
  assert(close(fd)==0);
  assert(chmod(path,mode)==0);
 }
@@ -55,6 +57,36 @@ int main(){
  assert(list.checked&&list.partial&&list.count==1u);
  assert(unlink(linked)==0);
  assert(unlink(file)==0);
+ assert(valid_group_id("GRP_0123456789ABCDEF"));
+ assert(!valid_group_id("GRP_0123456789ABCDEG"));
+ bool commit=false,temporary=false;
+ assert(group_entry_name("GRP_0123456789ABCDEF__COMMIT",
+                          &commit,&temporary)&&commit&&!temporary);
+ assert(group_entry_name(".GRP_0123456789ABCDEF__2.part",
+                          &commit,&temporary)&&!commit&&temporary);
+ assert(!group_entry_name("GRP_0123456789ABCDEF__5",
+                          &commit,&temporary));
+ make_file(root,"GRP_0123456789ABCDEF__COMMIT",0600,256u);
+ make_file(root,"GRP_0123456789ABCDEF__ORIGINS",0600,1308u);
+ make_file(root,"GRP_0123456789ABCDEF__1",0600,65u);
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.checked&&!list.partial&&list.group_count==1u);
+ assert(std::strcmp(list.group_ids[0],"GRP_0123456789ABCDEF")==0);
+ assert(list.count==0u);
+ make_file(root,".GRP_0123456789ABCDEF__2.part",0600);
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.checked&&list.partial&&list.group_count==1u);
+ assert(list.staged==1u);
+ for(const char*name:{
+  "GRP_0123456789ABCDEF__COMMIT",
+  "GRP_0123456789ABCDEF__ORIGINS",
+  "GRP_0123456789ABCDEF__1",
+  ".GRP_0123456789ABCDEF__2.part"
+ }){
+  char entry[512]{};
+  assert(std::snprintf(entry,sizeof(entry),"%s/%s",root,name)>0);
+  assert(unlink(entry)==0);
+ }
  assert(rmdir(root)==0);
  std::puts("Private native capsule inventory: read-only boundaries PASS");
 }
