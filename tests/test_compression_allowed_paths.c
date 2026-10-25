@@ -158,9 +158,15 @@ int main(void) {
  /* Refuse existing managed title output, including dangling symlinks. */
  assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
  struct stat created={0};
- assert(cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
-                                       "PPSA55555",&created));
+ /* Even under a maximally permissive process umask, game output must
+  * not be world writable and the checkpoint must be private. */
+ mode_t saved_umask=umask(0);
+ const bool created_ok=cmp5_game_output_create_unique(
+   sandbox,"/mnt/usb0/homebrew","PPSA55555",&created);
+ (void)umask(saved_umask);
+ assert(created_ok);
  assert(S_ISDIR(created.st_mode));
+ assert((created.st_mode&0777)==0755);
  assert(cmp5_game_resume_path_still_same(sandbox,
         "/mnt/usb0/homebrew/PPSA55555",&created));
  assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
@@ -174,6 +180,7 @@ int main(void) {
                  "%s/mnt/usb0/homebrew/PPSA55555/.e2a-state",sandbox)>0);
  struct stat checkpoint={0};
  assert(stat(created_path,&checkpoint)==0&&S_ISDIR(checkpoint.st_mode));
+ assert((checkpoint.st_mode&0777)==0700);
  int state_handle=cmp5_game_open_checkpoint_dir(
    sandbox,"/mnt/usb0/homebrew/PPSA55555/.e2a-state");
  assert(state_handle>=0);
