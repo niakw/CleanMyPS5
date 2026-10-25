@@ -249,12 +249,12 @@ int main(int argc,char**argv){
         (ssize_t)(sizeof("FOREIGN_COMMIT_STAGE_DO_NOT_DELETE")-1u));
  assert(strcmp(foreign_stage,"FOREIGN_COMMIT_STAGE_DO_NOT_DELETE")==0);
  assert(close(foreign_fd)==0);
- struct stat swapped={0};
- assert(fstatat(dir,"SWAPPED__COMMIT",&swapped,AT_SYMLINK_NOFOLLOW)<0&&
+ struct stat stage_stat={0};
+ assert(fstatat(dir,"SWAPPED__COMMIT",&stage_stat,AT_SYMLINK_NOFOLLOW)<0&&
         errno==ENOENT);
- assert(fstatat(dir,".SWAPPED__COMMIT.original",&swapped,
+ assert(fstatat(dir,".SWAPPED__COMMIT.original",&stage_stat,
                 AT_SYMLINK_NOFOLLOW)==0&&
-        swapped.st_size==(off_t)MARK_SIZE);
+        stage_stat.st_size==(off_t)MARK_SIZE);
  assert(unlinkat(dir,".SWAPPED__COMMIT.part",0)==0);
  assert(unlinkat(dir,".SWAPPED__COMMIT.original",0)==0);
  /* Aborted publish must preserve a stage name swapped before cleanup. */
