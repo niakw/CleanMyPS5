@@ -398,6 +398,8 @@ bool backup_from_inventory=false;
 Screen capsule_return_screen=Screen::detail;
 cmp5_private_backup::Inventory private_inventory{};
 unsigned private_inventory_selection=0;
+bool private_inventory_groups=false;
+bool group_verify_only=false,group_from_inventory=false;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -760,6 +762,15 @@ void run_private_group_backup() noexcept {
      cmp5_privilege::Operation::backup_private_media))return;
  group_outcome=cmp5_private_backup::backup_visible_group(
      group_primary,cancellation_hook,nullptr);
+}
+void run_private_group_verify() noexcept {
+ group_outcome={};
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+      cmp5_privilege::Operation::verify_private_media))return;
+ if(private_inventory_selection>=private_inventory.group_count)return;
+ group_outcome=cmp5_private_backup::verify_saved_group(
+    private_inventory.group_ids[private_inventory_selection],
+    cancellation_hook,nullptr);
 }
 void run_private_backup_verify() noexcept {
  backup_outcome={};
@@ -1561,7 +1572,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1578,6 +1589,7 @@ void* background_task(void*) noexcept {
   case Task::companions: run_companion_check(); break;
   case Task::private_backup: run_private_backup(); break;
   case Task::private_group_backup: run_private_group_backup(); break;
+  case Task::private_group_verify: run_private_group_verify(); break;
   case Task::private_backup_verify: run_private_backup_verify(); break;
   case Task::private_inventory: run_capsule_inventory(); break;
   case Task::images: run_game_image_scan(); break;
@@ -1741,7 +1753,8 @@ void poll_pad() noexcept {
    screen=(screen==Screen::photo||screen==Screen::video_info||
             screen==Screen::companions||
             (screen==Screen::backup&&!backup_from_inventory))?Screen::detail:
-     screen==Screen::group_backup?Screen::companions:
+     screen==Screen::group_backup?
+       (group_from_inventory?Screen::capsules:Screen::companions):
      screen==Screen::capsules?capsule_return_screen:
      (screen==Screen::backup&&backup_from_inventory)?Screen::capsules:
      (screen==Screen::detail||screen==Screen::search||
@@ -1805,6 +1818,7 @@ void poll_pad() noexcept {
       detail_index<media_review.count){
     group_primary=media_review.entries[detail_index];
     group_outcome={};group_step=0u;
+    group_verify_only=false;group_from_inventory=false;
     screen=Screen::group_backup;
    }
    continue;
@@ -1829,17 +1843,30 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::capsules){
-   if(private_inventory.checked&&private_inventory.count){
+   if(pressed&l1||pressed&r1){
+    private_inventory_groups=!private_inventory_groups;
+    private_inventory_selection=0u;
+    continue;
+   }
+   const unsigned options=private_inventory_groups?
+     private_inventory.group_count:private_inventory.count;
+   if(private_inventory.checked&&options){
     if(pressed&up)private_inventory_selection=
-     (private_inventory_selection+private_inventory.count-1u)%
-      private_inventory.count;
+     (private_inventory_selection+options-1u)%options;
     if(pressed&down)private_inventory_selection=
-     (private_inventory_selection+1u)%private_inventory.count;
+     (private_inventory_selection+1u)%options;
     if(pressed&cross){
-     backup_verify_only=true;backup_from_inventory=true;
-     backup_outcome={};backup_step=2u;
-     screen=Screen::backup;
-     (void)begin_task(Task::private_backup_verify);
+     if(private_inventory_groups){
+      group_verify_only=true;group_from_inventory=true;
+      group_outcome={};group_step=2u;
+      screen=Screen::group_backup;
+      (void)begin_task(Task::private_group_verify);
+     }else{
+      backup_verify_only=true;backup_from_inventory=true;
+      backup_outcome={};backup_step=2u;
+      screen=Screen::backup;
+      (void)begin_task(Task::private_backup_verify);
+     }
      continue;
     }
    }
@@ -1847,6 +1874,7 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::group_backup){
+   if(group_verify_only)continue;
    if(group_step==0u&&(pressed&cross))group_step=1u;
    else if(group_step==1u&&(pressed&cross)){
     group_step=2u;
