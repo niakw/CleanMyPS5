@@ -50,6 +50,14 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_private_capsule_inventory.cpp -o /tmp/cmp5-private-capsule-inventory-host
           /tmp/cmp5-private-capsule-inventory-host
+      - name: Exercise PS5 backup-only group engine on synthetic private media
+        run: |
+          cc -std=c11 -Wall -Wextra -Wpedantic -Werror \
+            -DCMP5_NATIVE_GROUP_BACKUP_ONLY=1 -Isrc/native \
+            tests/test_native_group_backup.c src/native/capture_companions.c \
+            src/native/verified_group.c src/native/verified_backup.c \
+            src/native/sha256.c -o /tmp/cmp5-native-groups-host
+          python3 tests/test_native_group_backup.py /tmp/cmp5-native-groups-host
       - name: Native archive integrity fixture
         run: python3 tests/test_native_release_manifest.py
       - name: Verify release gates do not claim untested PS5 compatibility
