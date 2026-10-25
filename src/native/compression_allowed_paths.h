@@ -25,8 +25,12 @@ static inline bool cmp5_game_smp_field_eq(const char *field,size_t capacity,
  /* The peer field can itself come from an untrusted saved checkpoint.
   * The caller's known fixed-width SMP capacity is also an upper bound
   * on any string that could legitimately match it. */
- const char *expected_end=(const char *)memchr(expected,0,capacity);
- return expected_end&&(size_t)(expected_end-expected)==n&&
+ /* A trusted expected value may be a short string literal (e.g. "image")
+  * while field capacity is much larger. Never pass that larger capacity to
+  * memchr(expected): its object need not contain that many bytes. */
+ size_t expected_len=0;
+ while(expected_len<capacity&&expected[expected_len]!=0)expected_len++;
+ return expected_len<capacity&&expected_len==n&&
         memcmp(field,expected,n)==0;
 }
 static inline bool cmp5_safe_component(const char *name) {
