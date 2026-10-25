@@ -199,13 +199,18 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
     fstat(stage,&first)==0&&S_ISREG(first.st_mode)&&first.st_nlink==1&&
     (first.st_size==4||first.st_size==6);
  char value[7]=CMP5_RECOVERY_ZERO;
+ int read_error=0,recheck_error=0;
  if(ok){
   size_t done=0;
   while(done<(size_t)first.st_size){
    ssize_t r=read(stage,value+done,(size_t)first.st_size-done);
    if(r>0)done+=(size_t)r;
    else if(r<0&&errno==EINTR)continue;
-   else{ok=false;break;}
+   else{
+    /* A truncated or unreadable stage is unknown, never a proven absence. */
+    read_error=r<0?errno:EIO;
+    ok=false;break;
+   }
   }
   if(ok){
    const char *expected=first.st_size==4?NULL:"verify";
@@ -230,6 +235,7 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  if(stage>=0)close(stage);
  if(ok){
   const int again=cmp5_recovery_open_checkpoint_dir(root,state_dir);
+   recheck_error=again<0?errno:0;
   struct stat held=CMP5_RECOVERY_ZERO,current=CMP5_RECOVERY_ZERO;
   ok=again>=0&&fstat(dir,&held)==0&&
      fstat(again,&current)==0&&held.st_dev==current.st_dev&&
@@ -243,6 +249,8 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
    * is simply rejected, but an inaccessible/unsafe path is unknown. */
   if(request_error)errno=request_error;
   else if(stage_error)errno=stage_error;
+  else if(read_error)errno=read_error;
+  else if(recheck_error)errno=recheck_error;
   else errno=0;
  }
  return ok;
