@@ -166,7 +166,9 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  int dir=cmp5_recovery_open_checkpoint_dir(root,state_dir);
  if(dir<0)return false;
  int request=openat(dir,"request.bin",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ const int request_error=request<0?errno:0;
  int stage=openat(dir,"stage",O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ const int stage_error=stage<0?errno:0;
  struct stat req_first=CMP5_RECOVERY_ZERO,req_after=CMP5_RECOVERY_ZERO,req_named=CMP5_RECOVERY_ZERO;
  struct stat first=CMP5_RECOVERY_ZERO,after=CMP5_RECOVERY_ZERO,named=CMP5_RECOVERY_ZERO,state_first=CMP5_RECOVERY_ZERO,state_after=CMP5_RECOVERY_ZERO;
  bool ok=request>=0&&stage>=0&&
@@ -214,7 +216,14 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
   if(again>=0)close(again);
  }
  close(dir);
- if(!ok)*out=0;
+ if(!ok){
+  *out=0;
+  /* Successful subsequent syscalls/close can mask the first access
+   * denial. Keep that provenance so inventory cannot claim full coverage. */
+  if(request_error==EACCES||request_error==EPERM||
+     stage_error==EACCES||stage_error==EPERM)
+   errno=EACCES;
+ }
  return ok;
 }
 /* Cancellation is cooperative at each root/entry boundary; it never
@@ -275,7 +284,13 @@ static inline bool cmp5_scan_recovery_inventory_cancel(
    }
    if(!cmp5_recovery_title(entry->d_name))continue;
    Cmp5RecoveryStage stage=0;
-   if(!cmp5_recovery_inspect(root,dest,entry->d_name,&stage))continue;
+   errno=0;
+   if(!cmp5_recovery_inspect(root,dest,entry->d_name,&stage)){
+    /* The native title may not share the privileged packer's UID.
+     * An unreadable checkpoint means incomplete coverage, NOT zero jobs. */
+    if(errno==EACCES||errno==EPERM)out->partial=1;
+    continue;
+   }
    if(out->count<CMP5_RECOVERY_MAX){
     Cmp5RecoveryCandidate*c=&out->entries[out->count++];
     memcpy(c->title_id,entry->d_name,10u);
