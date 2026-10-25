@@ -281,8 +281,12 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
 }
 static int verify_open(int fd,Cmp5BackupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  struct stat before,after;
- if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||before.st_nlink!=1||
-    before.st_size<(off_t)HEADER_SIZE)return 0;
+ /* The SHA-256 authenticates bytes against the local header, not
+  * whether private capture material has become publicly readable or
+  * is owned by a different actor. Fail closed even for valid digests. */
+ if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
+    before.st_uid!=geteuid()||(before.st_mode&0077)!=0||
+    before.st_nlink!=1||before.st_size<(off_t)HEADER_SIZE)return 0;
  uint64_t count=0;uint8_t expected[32];
  if(!read_header(fd,&count,expected)||
     (uint64_t)before.st_size!=count+HEADER_SIZE)return 0;
@@ -334,6 +338,7 @@ static int verify_restored_file(int dir,const char*id,
  if(fd<0)return 0;
  struct stat before={0},after={0},named={0};
  int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
+   before.st_uid==geteuid()&&(before.st_mode&0077)==0&&
    before.st_nlink==1&&before.st_size>0&&
    (uint64_t)before.st_size==expected->bytes;
  uint8_t data[BUFFER_SIZE],digest[32]={0};
