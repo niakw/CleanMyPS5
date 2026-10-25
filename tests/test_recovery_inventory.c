@@ -81,6 +81,10 @@ int main(void){
  }
  assert(pack==1&&copy==1&&verify==1);
  assert(!results.partial&&!results.unavailable);
+ /* Nonexistent removable volume is not an authorization error. */
+ errno=0;
+ assert(cmp5_recovery_parent_fd(root,"/mnt/usb7/homebrew")==-1);
+ assert(errno==ENOENT);
  /* Changing one root must never erase valid results from other roots. */
  assert(snprintf(swap_parent,sizeof(swap_parent),
                  "%s/mnt/usb0/homebrew",root)>0);
@@ -116,6 +120,9 @@ int main(void){
  snprintf(name,sizeof(name),"%s/mnt/usb0/homebrew",root);
  assert(rename(name,strcat(strcpy((char[550]){0},name),"-renamed"))==0);
  assert(symlink("/data/homebrew",name)==0);
+ errno=0;
+ assert(cmp5_recovery_parent_fd(root,"/mnt/usb0/homebrew")==-1);
+ assert(errno!=ENOENT);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==1&&results.partial&&results.unavailable>=1u&&
         !strcmp(results.entries[0].title_id,"PPSA67890"));
