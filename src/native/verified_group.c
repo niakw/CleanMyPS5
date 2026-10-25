@@ -591,11 +591,13 @@ static Cmp5OriginLiveState inspect_source_once(int root,
    original.snapshot_mtime_nsec=entry->snapshot_mtime_nsec;
    original.snapshot_ctime_nsec=entry->snapshot_ctime_nsec;
    struct stat observed={0},repeat={0};
-   const int valid=fstat(current,&observed)==0&&
-     cmp5_snapshot_matches(&original,&observed)&&
-     fstat(current,&repeat)==0&&
-     cmp5_snapshot_matches(&original,&repeat);
-   state=valid?CMP5_ORIGIN_UNCHANGED:CMP5_ORIGIN_CHANGED;
+   /* An I/O failure is UNKNOWN rather than proof of replacement.
+    * Only two successful metadata reads may establish CHANGED/UNCHANGED. */
+   if(fstat(current,&observed)==0&&fstat(current,&repeat)==0){
+    const int valid=cmp5_snapshot_matches(&original,&observed)&&
+                    cmp5_snapshot_matches(&original,&repeat);
+    state=valid?CMP5_ORIGIN_UNCHANGED:CMP5_ORIGIN_CHANGED;
+   }
   }
   part=next;
  }
