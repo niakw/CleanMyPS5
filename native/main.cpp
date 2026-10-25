@@ -1348,6 +1348,9 @@ void run_game_resume() noexcept {
      std::strcmp(current.title_id,game_smp_title)!=0||
      std::strcmp(current.image_type,game_image_type)!=0)return;
  }
+ // Resume only a game output under a specifically authorized root.
+ // A saved or stale UI value is not itself a permission grant.
+ if(!cmp5_compression::allowed_destination(game_dest_checked))return;
  // Resume the fixed output created by THIS UI, never an arbitrary
  // checkpoint or source folder entered by another process.
  char dest[256]{};
