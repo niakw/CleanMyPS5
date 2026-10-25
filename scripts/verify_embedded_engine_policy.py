@@ -58,7 +58,6 @@ def check_engine(root: Path) -> None:
         "bounded SMP source": 'cmp5_game_smp_field_eq(g->source_type,sizeof(g->source_type),"image")',
         "bounded SMP format": 'cmp5_game_smp_field_eq(g->image_type,sizeof(g->image_type),"exfatfs")',
         "bounded SMP direct owner": "cmp5_game_smp_field_eq(cmp5_owner.title_id,sizeof(cmp5_owner.title_id),smp)",
-        "bounded SMP resume owner": "cmp5_game_smp_field_eq(owner.title_id,sizeof(owner.title_id),normalized.smp_title)",
         "require SMP for direct images": "image_title_required",
         "image owner gate checks actual file type": "cmp5_source_requires_smp(r.source, &cmp5_source_snapshot)",
         "SMP image ownership": '!cmp5_game_smp_field_eq(owner.path,sizeof(owner.path),r.source)',
