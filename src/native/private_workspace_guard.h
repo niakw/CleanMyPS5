@@ -44,7 +44,8 @@ static inline int cmp5_workspace_prefix(const char*path,const char*root){
 static inline int cmp5_workspace_name_ok(const char*path){
  if(!path||path[0]!='/'||path[1]=='\0')return 0;
  size_t length=0;
- while(path[length]&&length<PATH_MAX)length++;
+ /* Check the bound before dereferencing a fixed-width, unterminated path. */
+ while(length<PATH_MAX&&path[length])length++;
  if(length>=PATH_MAX||path[length-1]=='/')return 0;
  for(const char*p=path+1;*p;){
   const char*slash=strchr(p,'/');
