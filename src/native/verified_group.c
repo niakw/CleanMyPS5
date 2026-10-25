@@ -470,7 +470,9 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
   if(parts[i].bytes>MAX_TOTAL-total)clear=0;
   else total+=parts[i].bytes;
  }
- if(clear)clear=cmp5_workspace_has_capacity(dir,total,count+1u);
+ /* Each backup writes count capsules, one private origin map, and COMMIT.
+  * Do not under-budget the fourth member or misstate available space. */
+ if(clear)clear=cmp5_workspace_has_capacity(dir,total,count+2u);
  if(!clear)goto backup_done;
  Cmp5BackupReceipt pieces[CMP5_GROUP_MAX]={{0}};
  for(unsigned i=0;i<count;i++){
