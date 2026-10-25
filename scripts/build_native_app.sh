@@ -31,6 +31,7 @@ cp "$project/native/main.cpp" "$tmp/native-toolchain/src/main.cpp"
 # double-buffered redraws before compiling the installed controller UI.
 python3 "$project/scripts/enable_interactive_videoout.py" "$tmp/native-toolchain/src/demo_renderer.cpp"
 python3 "$project/scripts/enable_native_preview_blit.py"   "$tmp/native-toolchain/src/demo_renderer.hpp" "$tmp/native-toolchain/src/demo_renderer.cpp"
+cp "$project/native/http_header_guard.hpp" "$tmp/native-toolchain/src/http_header_guard.hpp"
 cp "$project/native/loopback_protocol.hpp" "$tmp/native-toolchain/src/loopback_protocol.hpp"
 cp "$project/native/overview_protocol.hpp" "$tmp/native-toolchain/src/overview_protocol.hpp"
 cp "$project/native/compression_bridge.hpp" "$tmp/native-toolchain/src/compression_bridge.hpp"
