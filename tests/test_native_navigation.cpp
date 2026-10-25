@@ -1482,6 +1482,17 @@ int main(){
   };
   selected=2;
   save(Screen::menu,"01-menu");
+  /* Library preview is independent from Gallery discovery. The archive
+   * identifiers are synthetic and do not represent the user's captures. */
+  capsule_return_screen=Screen::menu;
+  private_inventory=cmp5_private_backup::Inventory{};
+  private_inventory.checked=true;private_inventory.count=2u;
+  std::strcpy(private_inventory.ids[0],"CAP_0123456789ABCDEF");
+  std::strcpy(private_inventory.ids[1],"CAP_9999999999999999");
+  private_inventory_selection=0u;
+  save(Screen::capsules,"01a-home-private-archives");
+  private_inventory={};private_inventory_selection=0u;
+  capsule_return_screen=Screen::detail;
   // These native UI captures are synthetic and certify only rendering
   // across both pages, not PS5 device coverage or filesystem permissions.
   general_audit_completed=true;
