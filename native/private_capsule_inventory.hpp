@@ -110,8 +110,11 @@ inline bool scan_at(const char*folder,Inventory*out,
   if(std::strcmp(entry->d_name,".")==0||
      std::strcmp(entry->d_name,"..")==0)continue;
   if(++observed>inventory_scan_limit){found.partial=true;break;}
-  const std::size_t len=strnlen(entry->d_name,32u);
-  if(len==32u){found.partial=true;continue;}
+  /* Group COMMIT/ORIGINS staging names can be 34-35 bytes.
+   * A 32-byte bound incorrectly discarded them without incrementing the
+   * interrupted-transaction count. Names >= 40 remain untrusted. */
+  const std::size_t len=strnlen(entry->d_name,40u);
+  if(len==40u){found.partial=true;continue;}
   const bool is_capsule=valid_capsule_id(entry->d_name);
   char staged_id[21]{};
   if(len==26u&&entry->d_name[0]=='.')
