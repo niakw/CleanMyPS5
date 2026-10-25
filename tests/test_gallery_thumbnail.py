@@ -26,11 +26,27 @@ with tempfile.TemporaryDirectory() as work:
     thumb.mkdir(parents=True)
     matching.write_bytes(b"JPEG-CANDIDATE-ONLY")
     verify(original,relative,"found")
+    # A second same-stem thumbnail or a hidden interrupted transaction
+    # is a dependency the current private backup cannot represent.
+    for sibling_name in ("REC_001.png","REC_001.jpg.jpeg.tmp",
+                         ".REC_001.part","rec_001.extra"):
+        other=thumb/sibling_name
+        other.write_bytes(b"UNDECLARED THUMBNAIL/STATE")
+        verify(original,relative,"unsafe")
+        other.unlink()
+        verify(original,relative,"found")
     denied=subprocess.run(
         [str(denied_binary),str(root),str(original),relative],
         capture_output=True,text=True,timeout=10)
     assert denied.returncode==0,(denied.stdout,denied.stderr)
     matching.unlink()
+    verify(original,relative,"missing")
+    # The expected leaf is absent, but visible same-stem variants still
+    # prohibit claiming a complete private recovery group.
+    orphan=thumb/"REC_001.webp"
+    orphan.write_bytes(b"UNSUPPORTED FORMAT")
+    verify(original,relative,"unsafe")
+    orphan.unlink()
     verify(original,relative,"missing")
     matching.symlink_to(original)
     verify(original,relative,"unsafe")

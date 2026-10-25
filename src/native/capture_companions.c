@@ -64,6 +64,58 @@ static int gallery_parent_current(const char*root,const char*full,
  close(fd);
  return stable;
 }
+/* Inventory the KNOWN cross-tree thumbnail directory, not only the
+ * expected leaf. An additional same-stem thumbnail, sidecar or hidden
+ * transaction is an unsupported dependency, even when .jpg.jpeg exists.
+ * This is metadata-only and deliberately does not infer other Sony roots.
+ * fdopendir owns an independently opened handle (not dup) so a previous
+ * scan's cursor cannot conceal later entries. */
+static Cmp5ThumbnailState known_thumbnail_namespace(int parent,
+                                                   const char*expected,
+                                                   Cmp5CancelCheck cancel,
+                                                   void*context){
+ static const char suffix[]=".jpg.jpeg";
+ const size_t n=strlen(expected),tail=sizeof(suffix)-1u;
+ if(n<=tail||strcmp(expected+n-tail,suffix)!=0)
+  return CMP5_THUMBNAIL_UNSAFE;
+ const size_t stem_len=n-tail;
+ int separate=openat(parent,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(separate<0)return errno==EACCES||errno==EPERM?
+  CMP5_THUMBNAIL_INACCESSIBLE:CMP5_THUMBNAIL_UNSAFE;
+ DIR*scan=fdopendir(separate);
+ if(!scan){int err=errno;close(separate);
+  return err==EACCES||err==EPERM?
+   CMP5_THUMBNAIL_INACCESSIBLE:CMP5_THUMBNAIL_UNSAFE;
+ }
+ Cmp5ThumbnailState result=CMP5_THUMBNAIL_CANDIDATE_FOUND;
+ unsigned visited=0;
+ for(;;){
+  if(cancelled(cancel,context)){
+   result=CMP5_THUMBNAIL_INACCESSIBLE;break;
+  }
+  errno=0;
+  struct dirent*entry=readdir(scan);
+  if(!entry){
+   if(errno!=0)result=errno==EACCES||errno==EPERM?
+    CMP5_THUMBNAIL_INACCESSIBLE:CMP5_THUMBNAIL_UNSAFE;
+   break;
+  }
+  if(++visited>1024u){result=CMP5_THUMBNAIL_UNSAFE;break;}
+  const char*name=entry->d_name;
+  if(!strcmp(name,".")||!strcmp(name,".."))continue;
+  const size_t len=strlen(name);
+  const char*maybe=name;
+  if(maybe[0]=='.'){++maybe;}
+  if(len>=stem_len+1u&&
+     strncasecmp(maybe,expected,stem_len)==0&&
+     maybe[stem_len]=='.'&&strcmp(name,expected)!=0){
+   result=CMP5_THUMBNAIL_UNSAFE;break;
+  }
+ }
+ if(closedir(scan)!=0&&result==CMP5_THUMBNAIL_CANDIDATE_FOUND)
+  result=CMP5_THUMBNAIL_UNSAFE;
+ return result;
+}
 /* Read-only cross-directory evidence, never a complete dependency graph.
  * Some gallery implementations reference <stem>.jpg.jpeg thumbnails under
  * /user/av_contents/thumbnails/photo/ with the same relative directory.
@@ -120,10 +172,22 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  if(cancelled(cancel,context)){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
  struct stat parent_before={0},parent_after={0},named={0},opened={0};
  if(fstat(fd,&parent_before)!=0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
+ const Cmp5ThumbnailState siblings=known_thumbnail_namespace(
+  fd,leaf,cancel,context);
+ if(siblings!=CMP5_THUMBNAIL_CANDIDATE_FOUND){close(fd);return siblings;}
  if(fstatat(fd,leaf,&named,AT_SYMLINK_NOFOLLOW)!=0){
-  const int error=errno;close(fd);
-  return error==ENOENT?CMP5_THUMBNAIL_KNOWN_PATH_ABSENT:
-    CMP5_THUMBNAIL_INACCESSIBLE;
+  const int error=errno;
+  struct stat parent_after_absence={0};
+  const bool stable_absence=error==ENOENT&&
+    fstat(fd,&parent_after_absence)==0&&
+    same_file(&parent_before,&parent_after_absence)&&
+    gallery_parent_current(root,locator,
+                           (size_t)(strrchr(locator,'/')-locator),
+                           &parent_before)&&!cancelled(cancel,context);
+  close(fd);
+  if(stable_absence)return CMP5_THUMBNAIL_KNOWN_PATH_ABSENT;
+  return error==EACCES||error==EPERM?
+    CMP5_THUMBNAIL_INACCESSIBLE:CMP5_THUMBNAIL_UNSAFE;
  }
  if(!S_ISREG(named.st_mode)||named.st_nlink!=1||named.st_size<=0||
     (uint64_t)named.st_size>64u*1024u*1024u){

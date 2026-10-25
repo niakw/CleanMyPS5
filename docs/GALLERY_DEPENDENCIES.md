@@ -31,6 +31,24 @@ de groupe fiable n'est publié. La planification d'une sauvegarde privée
 est également refusée. Des fixtures injectent ces deux erreurs dans
 le `fstatat` des compagnons et vérifient le refus sans écriture.
 
+## Miniatures : variantes visibles inconnues dans le même dossier (25 octobre 2026)
+
+L'examen en lecture seule du dossier `thumbnails/photo` du stem
+sélectionné parcourt maintenant au plus **1 024 entrées**, à l'aide
+d'un descripteur indépendant et de `O_NOFOLLOW`. Un fichier
+`REC_001.png`, `REC_001.jpg.jpeg.tmp`, `.REC_001.part` ou une
+variante de casse du même stem empêche de considérer le seul
+`REC_001.jpg.jpeg` comme une couverture suffisante.
+Cela vaut aussi si la miniature attendue est absente : l'existence
+d'une variante visible conduit à un état **suspect**, et non à une
+absence rassurante. La lecture d'un dossier incomplète ou annulée
+bloque également l'observation. Une absence n'est publiée qu'après
+revalidation de l'identité du dossier et de son emplacement.
+Le planificateur de sauvegarde privée refuse alors le groupe entier,
+sans modification des captures, miniatures ni index Sony.
+Cette couverture du dossier *connu* ne garantit toujours pas la
+découverte de toutes les dépendances système.
+
 ## Renommage des dossiers Galerie pendant l'inspection (25 octobre 2026)
 
 Un descripteur de dossier ouvert reste lisible même après renommage
