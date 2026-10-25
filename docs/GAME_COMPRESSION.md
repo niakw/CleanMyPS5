@@ -81,6 +81,11 @@ partielle** au lieu de présenter l'absence de checkpoint comme acquise.
 Une fixture simule explicitement `EACCES` sur cette lecture. Le moteur
 AMPR et l'interface native peuvent avoir des identités système
 distinctes : les permissions ne sont pas élevées artificiellement.
+Les erreurs `EIO`, les chemins dangereux ou les fichiers remplacés
+pendant la revérification (`ESTALE`) déclenchent aussi une couverture
+partielle. Les tests hôte simulent notamment la lecture réussie d'un
+marqueur suivie d'une erreur de contrôle de ses métadonnées. Un
+checkpoint malformé n'est jamais promu en reprise autorisée.
 
 **Couverture et changement de volume :** un stockage absent peut être un
 support USB volontairement débranché ; un stockage refusé, un chemin
