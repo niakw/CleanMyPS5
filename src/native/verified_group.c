@@ -165,16 +165,31 @@ static int publish_manifest(int dir,const char*id,int restored,
  int fd=openat(dir,temp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
  if(fd<0)return 0;
  int ok=write_exact(fd,manifest,MARK_SIZE)&&fsync(fd)==0;
+ /* Keep the writer fd until AFTER publication. A different private file
+  * can replace .part while fsync runs; linkat(temp,name) would otherwise
+  * publish that unrelated inode. Do not delete any name on failure. */
+ struct stat written={0},staged={0};
+ if(ok)ok=fstat(fd,&written)==0&&S_ISREG(written.st_mode)&&
+   written.st_nlink==1&&written.st_size==(off_t)MARK_SIZE&&
+   fstatat(dir,temp,&staged,AT_SYMLINK_NOFOLLOW)==0&&
+   same_file(&written,&staged);
+ if(cancelled(cancel,ctx)||!ok){close(fd);return 0;}
+ if(linkat(dir,temp,dir,name,0)!=0){close(fd);return 0;}
+ /* A replacement during publication must never receive the legitimate
+  * COMMIT receipt or be unlinked as if it were our own staging file. */
+ struct stat published={0},current={0},current_stage={0};
+ ok=fstat(fd,&current)==0&&current.st_nlink==2&&
+   fstatat(dir,name,&published,AT_SYMLINK_NOFOLLOW)==0&&
+   fstatat(dir,temp,&current_stage,AT_SYMLINK_NOFOLLOW)==0&&
+   same_file(&current,&published)&&same_file(&current,&current_stage);
+ if(!ok){close(fd);return 0;}
+ /* This last pathname unlink cannot be conditional on inode identity
+  * in portable POSIX. The private 0700 workspace and exclusive flock
+  * serialize cooperating writers; an uncooperative same-user attacker
+  * can still race this final syscall. */
+ ok=unlinkat(dir,temp,0)==0;
  close(fd);
- /* A failed marker cannot safely unlink temp by its NAME: an independent
-  * process may have renamed our original and put a different private file
-  * there. Keep .part intact for explicit recovery inspection. */
- if(cancelled(cancel,ctx)||!ok)return 0;
- if(linkat(dir,temp,dir,name,0)!=0)return 0;
- /* On successful atomic publication, the marker's staging hardlink must
-  * disappear before a verified receipt can be reported. */
- if(unlinkat(dir,temp,0)!=0)return 0;
- return fsync(dir)==0;
+ return ok&&fsync(dir)==0;
 }
 static int raw_restored(int dir,const char*name,uint64_t size,
  const uint8_t expected[32],Cmp5CancelCheck cancel,void*ctx){
