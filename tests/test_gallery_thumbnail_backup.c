@@ -92,6 +92,17 @@ int main(int argc,char**argv){
  assert(strcmp(group[2].preview_path,
   "/user/av_contents/thumbnails/photo/NPXS00000/GAME123/REC_001.jpg.jpeg")==0);
  Cmp5GroupReceipt result={0},verified={0};
+ /* An unsupported source identity is rejected BEFORE the first copy;
+  * no capsules or origin map should be created by this preflight. */
+ Cmp5MediaCandidate unmappable[CMP5_GROUP_MAX]={{0}};
+ memcpy(unmappable,group,sizeof(unmappable));
+ unmappable[1].snapshot_inode=0u;
+ assert(!cmp5_backup_group(root,unmappable,count,backup,"NOIDENT",
+                            &result,NULL,NULL));
+ char unexpected_capsule[512];
+ assert(snprintf(unexpected_capsule,sizeof(unexpected_capsule),
+   "%s/NOIDENT__1",backup)>0);
+ assert(access(unexpected_capsule,F_OK)!=0);
  /* A caller cannot omit a known thumbnail and still commit the group. */
  assert(!cmp5_backup_group(root,group,2u,backup,"OMITTED",&result,NULL,NULL));
  assert(result.count==0u);
