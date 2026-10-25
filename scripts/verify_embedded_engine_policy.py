@@ -163,7 +163,7 @@ def check_engine(root: Path) -> None:
             "queue rechecks SMP title": '!cmp5_game_smp_field_eq(owner.title_id,sizeof(owner.title_id),normalized.smp_title)',
             "queue requires managed available image": '!owner.managed || !owner.source_available',
             "queue requires image owner": '!cmp5_game_smp_field_eq(owner.source_type,sizeof(owner.source_type),"image")',
-            "queue excludes compressed PFSC": 'strcmp(owner.image_type, "exfatfs") != 0',
+            "queue excludes compressed PFSC": '!cmp5_game_smp_field_eq(owner.image_type,sizeof(owner.image_type),"exfatfs")',
 
             "queue derives title ID": 'snprintf(normalized.name, sizeof normalized.name, "%s", trusted_id);',
         }.items():
