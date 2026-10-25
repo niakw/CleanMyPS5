@@ -170,6 +170,114 @@ static int read_manifest(int dir,const char*id,int restored,
   parse_manifest(contents,receipts,count,result);
  close(fd);return valid;
 }
+/* An origin map is necessary for any later, explicit repair plan:
+ * digest-only capsules do not say which original Gallery file each
+ * restored member belonged to. The sensitive locators remain in a private
+ * 0700 workspace and are NEVER inserted into native UI or public receipts.
+ * It binds to the SHA-256 digest of the committed ordered group manifest,
+ * not merely its group ID or a filename. */
+static int parse_origin_map(const uint8_t raw[ORIGIN_SIZE],
+ const uint8_t manifest[MARK_SIZE],const Cmp5BackupReceipt *pieces,
+ uint32_t count,Cmp5OriginMap*out){
+ uint8_t calculated[32];
+ hash(raw,ORIGIN_DIGEST_OFFSET,calculated);
+ if(memcmp(raw,origin_magic,8)!=0||g32(raw+8)!=count||
+    count<2u||count>CMP5_GROUP_MAX||
+    memcmp(raw+12,manifest+BODY_DIGEST_OFFSET,32)!=0||
+    memcmp(raw+ORIGIN_DIGEST_OFFSET,calculated,32)!=0)return 0;
+ Cmp5OriginMap proposed={0};
+ Cmp5MediaCandidate snapshot[CMP5_GROUP_MAX]={{0}};
+ proposed.count=count;
+ for(unsigned i=0;i<CMP5_GROUP_MAX;i++){
+  const uint8_t*record=raw+ORIGIN_HEADER_SIZE+i*ORIGIN_RECORD_SIZE;
+  if(i>=count){
+   for(unsigned j=0;j<ORIGIN_RECORD_SIZE;j++)if(record[j])return 0;
+   continue;
+  }
+  const uint8_t*end=memchr(record,0,256u);
+  if(!end||end==record)return 0;
+  for(const uint8_t*cursor=end+1;cursor<record+256u;cursor++)
+   if(*cursor)return 0;
+  const uint64_t bytes=g64(record+256u);
+  const uint32_t media_type=g32(record+264u);
+  if(bytes!=pieces[i].bytes||!bytes)return 0;
+  memcpy(proposed.entries[i].path,record,256u);
+  proposed.entries[i].bytes=bytes;
+  proposed.entries[i].media_type=media_type;
+  memcpy(snapshot[i].preview_path,record,256u);
+  snapshot[i].bytes=bytes;
+  snapshot[i].media_type=media_type;
+  /* Synthetic non-aliasing identities are used ONLY for validation of
+   * the recorded path/type relationships, never as filesystem proof. */
+  snapshot[i].snapshot_device=1u;
+  snapshot[i].snapshot_inode=(uint64_t)i+1u;
+ }
+ if(!cmp5_validate_capture_group(snapshot,count))return 0;
+ if(out)*out=proposed;
+ return 1;
+}
+static int read_origin_map(int dir,const char*id,
+ const uint8_t manifest[MARK_SIZE],const Cmp5BackupReceipt*pieces,
+ uint32_t count,Cmp5OriginMap*out){
+ char name[48];origin_name(name,id);
+ int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(fd<0)return 0;
+ struct stat before={0},after={0},named={0};
+ uint8_t raw[ORIGIN_SIZE];
+ Cmp5OriginMap result={0};
+ const int ok=fstat(fd,&before)==0&&S_ISREG(before.st_mode)&&
+  before.st_uid==geteuid()&&(before.st_mode&0077)==0&&
+  before.st_nlink==1&&before.st_size==(off_t)ORIGIN_SIZE&&
+  read_exact(fd,raw,ORIGIN_SIZE)&&
+  fstat(fd,&after)==0&&
+  fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0&&
+  same_file(&before,&after)&&same_file(&before,&named)&&
+  parse_origin_map(raw,manifest,pieces,count,&result);
+ close(fd);
+ if(ok&&out)*out=result;
+ return ok;
+}
+static int publish_origin_map(int dir,const char*id,
+ const Cmp5MediaCandidate*parts,uint32_t count,
+ const uint8_t manifest[MARK_SIZE],Cmp5CancelCheck cancel,void*ctx){
+ if(!parts||count<2u||count>CMP5_GROUP_MAX||
+    !cmp5_validate_capture_group(parts,count))return 0;
+ uint8_t raw[ORIGIN_SIZE]={0};
+ memcpy(raw,origin_magic,8);
+ u32(raw+8,count);
+ memcpy(raw+12,manifest+BODY_DIGEST_OFFSET,32u);
+ for(unsigned i=0;i<count;i++){
+  const char*path=parts[i].preview_path;
+  const size_t length=strnlen(path,sizeof(parts[i].preview_path));
+  if(!length||length>=sizeof(parts[i].preview_path))return 0;
+  uint8_t*record=raw+ORIGIN_HEADER_SIZE+i*ORIGIN_RECORD_SIZE;
+  memcpy(record,path,length);
+  u64(record+256u,parts[i].bytes);
+  u32(record+264u,parts[i].media_type);
+ }
+ hash(raw,ORIGIN_DIGEST_OFFSET,raw+ORIGIN_DIGEST_OFFSET);
+ char name[48];origin_name(name,id);
+ char temp[64];(void)snprintf(temp,sizeof(temp),".%s.part",name);
+ int fd=openat(dir,temp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ if(fd<0)return 0;
+ int ok=write_exact(fd,raw,ORIGIN_SIZE)&&fsync(fd)==0;
+ struct stat written={0},staged={0};
+ if(ok)ok=fstat(fd,&written)==0&&S_ISREG(written.st_mode)&&
+  written.st_uid==geteuid()&&(written.st_mode&0077)==0&&
+  written.st_nlink==1&&written.st_size==(off_t)ORIGIN_SIZE&&
+  fstatat(dir,temp,&staged,AT_SYMLINK_NOFOLLOW)==0&&
+  same_file(&written,&staged);
+ if(!ok||cancelled(cancel,ctx)){close(fd);return 0;}
+ if(linkat(dir,temp,dir,name,0)!=0){close(fd);return 0;}
+ struct stat published={0},current={0},stage_current={0};
+ ok=fstat(fd,&current)==0&&current.st_nlink==2&&
+  fstatat(dir,name,&published,AT_SYMLINK_NOFOLLOW)==0&&
+  fstatat(dir,temp,&stage_current,AT_SYMLINK_NOFOLLOW)==0&&
+  same_file(&current,&published)&&same_file(&current,&stage_current);
+ if(ok)ok=unlinkat(dir,temp,0)==0;
+ close(fd);
+ return ok&&fsync(dir)==0;
+}
 static int publish_manifest(int dir,const char*id,int restored,
  const uint8_t manifest[MARK_SIZE],Cmp5CancelCheck cancel,void*ctx){
  char name[48];marker_name(name,id,restored);
