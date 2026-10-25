@@ -206,7 +206,6 @@ jobs:
           path: |
             dist/native/PPSA99784.zip
             dist/native/PPSA99784.ffpkg
-            dist/native/cleanmyps5-helper.elf
             dist/native/manifest.json
             dist/native/release-readiness.json
           if-no-files-found: error
