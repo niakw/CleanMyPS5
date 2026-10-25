@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory() as tmp:
     with (unpacked/"content.bin").open("wb") as f:f.truncate(3*1024**3)
     # A same-suffix folder without a usable executable is not a game.
     invalid=top/"EMPTY.ffpkg"
-    (invalid/"sce_sys").mkdir()
+    (invalid/"sce_sys").mkdir(parents=True)
     (invalid/"eboot.bin").touch()
     # Extension detection is not proof that any image really contains a game.
     # A synthetic 23 GiB file is used to exercise the large-size threshold.
