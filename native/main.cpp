@@ -9,6 +9,7 @@
 #include "homebrew.h"
 #include "game_images.h"
 #include "recovery_inventory.h"
+#include "recovery_resume.hpp"
 #include "compression_bridge.hpp"
 #include "compression_stream.hpp"
 #include "compression_preflight.hpp"
@@ -824,6 +825,9 @@ bool game_progress_checked=false;
 Cmp5RecoveryInventory recovery_inventory{};
 bool recovery_checked=false;
 unsigned recovery_selection=0;
+Cmp5RecoveryCandidate recovery_chosen{};
+bool recovery_resume_attempted=false,recovery_resume_accepted=false;
+bool recovery_resume_unknown=false;
 bool game_pause_attempted=false,game_pause_accepted=false,game_pause_unknown=false;
 bool game_resume_attempted=false,game_resume_accepted=false,game_resume_unknown=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
@@ -1462,6 +1466,31 @@ void run_recovery_inventory() noexcept {
   recovery_checked=true;
  }
 }
+/* Explicit post-restart recovery: compare the chosen checkpoint against
+ * a FRESH on-disk inventory and the engine's current state before POST.
+ * The worker independently revalidates its source and output identity. */
+void run_recovery_resume() noexcept {
+ if(recovery_resume_attempted)return;
+ recovery_resume_attempted=true;
+ recovery_resume_accepted=false;recovery_resume_unknown=false;
+ if(!cmp5_compression::recovery_candidate_fresh(recovery_chosen,
+      [](const char*root,Cmp5RecoveryInventory*out) noexcept {
+       return cmp5_scan_recovery_inventory_cancel(root,out,
+                 cancellation_hook,nullptr);
+      })||cancellation_hook(nullptr))return;
+ char version[32]{};
+ cmp5_compression::GameProgress state{};
+ if(!check_local_ampr(version)||!ampr_read_progress(&state)||
+    !cmp5_compression::recovery_engine_ready(recovery_chosen,state)||
+    cancellation_hook(nullptr))return;
+ char form[256]{};
+ if(!cmp5_compression::recovery_resume_body(recovery_chosen,
+                                            form,sizeof(form)))return;
+ bool could_have_acted=false;
+ recovery_resume_accepted=ampr_safe_command("/api/resume",form,
+                                           &could_have_acted);
+ recovery_resume_unknown=!recovery_resume_accepted&&could_have_acted;
+}
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
  game_images_checked=false;
@@ -1477,7 +1506,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1501,6 +1530,7 @@ void* background_task(void*) noexcept {
   case Task::game_pause: run_game_pause(); break;
   case Task::game_resume: run_game_resume(); break;
   case Task::recovery_scan: run_recovery_inventory(); break;
+  case Task::recovery_resume: run_recovery_resume(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -1619,13 +1649,16 @@ void poll_pad() noexcept {
   const std::uint32_t pressed=buttons&~previous;
   previous=buttons;
   if(pressed&circle){
-   if(screen==Screen::compression&&compression_view==4u&&task_busy()){
+   if(screen==Screen::compression&&
+      (compression_view==4u||compression_view==10u)&&task_busy()){
     // A posted job cannot be "undone" by dismissing the title UI.
     continue;
    }
    if(!task_busy()&&screen==Screen::compression&&compression_view>=2u){
     if(compression_view==7u){
      compression_view=5u;
+    }else if(compression_view>=8u&&compression_view<=10u){
+     compression_view=7u;
     }else{
      compression_view=compression_view==5u?
        compression_monitor_return_view:(!game_source_is_image?1u:6u);
@@ -1817,6 +1850,31 @@ void poll_pad() noexcept {
        (recovery_selection+1u)%recovery_inventory.count;
     }
     if(pressed&cross)(void)begin_task(Task::recovery_scan);
+    if((pressed&triangle)&&!recovery_resume_attempted&&recovery_checked&&
+       !recovery_inventory.partial&&!recovery_inventory.hidden&&
+       recovery_selection<recovery_inventory.count){
+     recovery_chosen=recovery_inventory.entries[recovery_selection];
+     compression_view=8u;
+    }
+    continue;
+   }
+   if(compression_view==8u){
+    if(pressed&cross)compression_view=9u;
+    continue;
+   }
+   if(compression_view==9u){
+    if(pressed&cross){
+     compression_view=10u;
+     (void)begin_task(Task::recovery_resume);
+    }
+    continue;
+   }
+   if(compression_view==10u){
+    if(pressed&cross){
+     compression_monitor_return_view=7u;compression_view=5u;
+     game_progress_refresh.defer(compression_monotonic_ns());
+     (void)begin_task(Task::game_progress);
+    }
     continue;
    }
    if(compression_view==5u){
@@ -2770,6 +2828,40 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(compression_view==8u||compression_view==9u){
+  const bool second=compression_view==9u;
+  panel(canvas,310,second?"CONFIRMATION 2/2":"CONFIRMATION 1/2",
+    "REPRENDRE UNE CONVERSION LZ4 INTERROMPUE ?",Color::yellow);
+  panel(canvas,451,"JEU ENREGISTRE",recovery_chosen.title_id);
+  panel(canvas,585,"STOCKAGE DE LA SORTIE",recovery_chosen.destination);
+  panel(canvas,720,"CONTROLES AVANT ENVOI",
+    "CHECKPOINT + TITRE + ETAT DU MOTEUR + SOURCE REVALIDES",Color::yellow);
+  canvas.text(125,884,"SOURCE ORIGINALE PRESERVEE  AUCUN NETTOYAGE",2,Color::cyan);
+  footer(canvas,second?
+    "X DEMANDER REPRISE  CERCLE ANNULER  PAS DE RELANCE AUTOMATIQUE":
+    "X CONTINUER  CERCLE ANNULER  AUCUN FICHIER MODIFIE");
+  return;
+ }
+ if(compression_view==10u){
+  panel(canvas,315,"REPRISE LZ4 APRES REDEMARRAGE",
+    recovery_chosen.title_id,Color::cyan);
+  if(task_busy())
+   panel(canvas,483,"CONTROLES EN COURS",
+      "CHECKPOINT ET MOTEUR EN COURS DE REVALIDATION");
+  else if(recovery_resume_accepted)
+   panel(canvas,483,"DEMANDE ACCEPTEE",
+      "X MONITEUR  VERIFIER LA PROGRESSION",Color::cyan);
+  else if(recovery_resume_unknown)
+   panel(canvas,483,"REPONSE PERDUE",
+      "L ENVOI A PU ABOUTIR  NE PAS REPETER",Color::yellow);
+  else
+   panel(canvas,483,"REPRISE REFUSEE",
+      "CHECKPOINT OU IDENTITE NON CONFIRMEE",Color::yellow);
+  panel(canvas,681,"FICHIERS D ORIGINE",
+    "AUCUNE SUPPRESSION  SORTIE PARTIELLE CONSERVEE",Color::yellow);
+  footer(canvas,"X CONSULTER MONITEUR  CERCLE RETOUR  AUCUN RETRY");
+  return;
+ }
  if(compression_view==7u){
   panel(canvas,307,"ETATS AMPR PRESENTS SUR DISQUE",
     "INVENTAIRE LECTURE SEULE  REPRISE NON AUTORISEE");
@@ -2823,7 +2915,9 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
   canvas.text(125,934,
     "EXISTENCE DU FICHIER != AUTORISATION DU JEU NI RESTAURATION",
     2,Color::yellow);
-  footer(canvas,"HAUT/BAS CHOISIR  X RECONTROLER  CERCLE MONITEUR  AUCUNE ECRITURE");
+  footer(canvas,recovery_resume_attempted?
+     "X RECONTROLER  REPRISE DEJA TENTEE  CERCLE MONITEUR":
+     "HAUT/BAS CHOISIR  X RECONTROLER  TRIANGLE REPRISE  CERCLE MONITEUR");
   return;
  }
  if(compression_view==5u){
