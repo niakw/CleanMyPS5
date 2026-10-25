@@ -47,6 +47,9 @@ une version de format, le nombre de composants, l'empreinte du manifeste,
 puis les chemins d'origine, types et tailles dans **l'ordre exact** des
 capsules. Un SHA-256 protège aussi les octets du fichier de correspondance.
 Les chemins ne sont jamais ajoutés au reçu public ni aux diagnostics natifs.
+L'empreinte du fichier détecte les corruptions et incohérences, mais
+**n'authentifie pas** le contenu contre une personne ayant déjà les droits
+d'écriture sur le dossier privé : celle-ci pourrait recalculer le SHA-256.
 
 Cette correspondance reste **sensible** : elle expose les chemins des
 captures à quiconque peut lire le dossier de sauvegarde. Elle n'est créée
