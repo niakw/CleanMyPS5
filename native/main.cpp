@@ -736,6 +736,9 @@ void run_companion_check() noexcept {
  }
 }
 void run_private_backup() noexcept {
+ backup_outcome={};
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+      cmp5_privilege::Operation::backup_private_media))return;
  backup_outcome=cmp5_private_backup::backup_one(
    backup_selected,cancellation_hook,nullptr);
 }
