@@ -17,6 +17,15 @@ int main(void) {
                                 unterminated));
  assert(cmp5_game_smp_field_eq(source_type,sizeof(source_type),"image"));
  assert(!cmp5_game_smp_field_eq(source_type,sizeof(source_type),"images"));
+ /* The expected literal is shorter than the SMP fixed-width field. */
+ char wide_source_type[128]={0};
+ memcpy(wide_source_type,"image",6);
+ assert(cmp5_game_smp_field_eq(wide_source_type,sizeof(wide_source_type),"image"));
+ assert(!cmp5_game_smp_field_eq(wide_source_type,sizeof(wide_source_type),"images"));
+ char expected_unterminated[128];
+ memset(expected_unterminated,'i',sizeof(expected_unterminated));
+ assert(!cmp5_game_smp_field_eq(wide_source_type,sizeof(wide_source_type),
+                                expected_unterminated));
  const char image_type[16]="exfatfs";
  assert(cmp5_game_smp_field_eq(image_type,sizeof(image_type),"exfatfs"));
  assert(!cmp5_game_smp_field_eq(source_type,3,"image"));
