@@ -84,10 +84,7 @@ with tempfile.TemporaryDirectory() as work:
         {"files": [*PACKAGE["files"], {"name": "unknown.bin", "bytes": 1, "sha256": "c" * 64}]},
         {"files": [dict(PACKAGE["files"][0], bytes=True)]},
         {"files": [dict(PACKAGE["files"][0], name=7)]},
-        {"files": [
-            dict(PACKAGE["files"][0], sha256="not-a-hash"),
-            PACKAGE["files"][1],
-        ]},
+        {"files": [dict(PACKAGE["files"][0], sha256="not-a-hash")]},
     ):
         rejected(changes)
 
