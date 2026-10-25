@@ -307,22 +307,29 @@ static void handle(int fd,const char*root,int port){
   if(got<0&&errno==EINTR)continue;
   if(got<=0)return;
   length+=(size_t)got;req[length]=0;
+  /* A NUL from the network cannot be represented by strstr(): detect
+   * it before searching for the header terminator, and answer 400 rather
+   * than silently dropping the connection on EOF. */
+  if(memchr(req,0,length)!=NULL){
+   plain(fd,400,"NUL in request");return;
+  }
   if(strstr(req,"\r\n\r\n"))break;
  }
  const char*end_headers=strstr(req,"\r\n\r\n");
  if(!end_headers){plain(fd,400,"Incomplete headers");return;}
  /* Byte-level check before any C-string parsing, including pipelined
   * requests or a NUL that truncates an apparent Host header. */
- if(memchr(req,0,length)!=NULL||
-    (size_t)(end_headers+4-req)!=length){
-  plain(fd,400,"Ambiguous request framing");return;
- }
  char method[12],path[3072];
  if(!parse_request_line(req,method,sizeof(method),path,sizeof(path))){
   plain(fd,400,"Bad request line");return;
  }
  int is_head=strcmp(method,"HEAD")==0;
+ /* Preserve the existing 405 contract for POST/PUT with a request body.
+  * GET and HEAD have no legal body framing in this read-only service. */
  if(strcmp(method,"GET")!=0&&!is_head){plain(fd,405,"GET and video HEAD only");return;}
+ if((size_t)(end_headers+4-req)!=length){
+  plain(fd,400,"Ambiguous request framing");return;
+ }
  if(!validate_local_headers(req,port)){plain(fd,403,"Local origin required");return;}
  if(is_head && strncmp(path,"/api/video?file=",16)!=0){plain(fd,405,"HEAD is limited to video metadata");return;}
 #if defined(PS5) && defined(CMP5_DIAGNOSTIC_HELPER)
