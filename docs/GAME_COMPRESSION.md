@@ -26,6 +26,21 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Réservation atomique de la sortie de conversion (25 octobre 2026)
+
+Le worker de compression PS5 ne crée plus son nouveau dossier de jeu
+par un `mkdir` sur un chemin absolu suivi de `mkdir -p`.
+Après validation, il descend la racine de stockage **par descripteurs
+`O_NOFOLLOW`**, puis réserve le dossier du Title ID et son état
+`.e2a-state` avec deux `mkdirat` exclusifs. Une sortie occupée
+(y compris un lien symbolique) est refusée et aucune conversion n'y
+fusionne ses fichiers. L'identité du dossier nouvellement créé est
+revalidée avant la première écriture de l'état de conversion. Les
+sorties partielles ne sont jamais effacées automatiquement en cas
+d'erreur. Le chemin hôte amont reste inchangé pour ses propres tests ;
+le build du moteur PS5 inspecte explicitement ces garanties et les
+fixtures exercent les collisions de noms.
+
 ## Rejet des faux fichiers-images pendant la conversion (25 octobre 2026)
 
 Le contrôle par descripteur distingue désormais les **répertoires**

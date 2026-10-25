@@ -93,6 +93,24 @@ def check_engine(root: Path) -> None:
         missing.append("regular game files must have convertible image suffix")
     if "cmp5_game_source_allowed(path)" not in game_paths[source_start:source_end]:
         missing.append("converter source still requires the lexical allowlist")
+    # The worker creates the output and its checkpoint using mkdirat from
+    # a no-follow descriptor to the admitted storage root. Ordinary
+    # string-based mkdir() remains only in upstream host-only fixtures.
+    worker_start=job.find("static void run_job(")
+    worker_end=job.find("int job_enqueue(",worker_start)
+    worker=job[worker_start:worker_end] if worker_start>=0 and worker_end>=0 else ""
+    if ('cmp5_game_output_create_unique("/", req.dest_base, req.name'
+            not in worker or
+        'cmp5_game_resume_path_still_same("/", dest, &cmp5_created_output)'
+            not in worker):
+        missing.append("worker missing anchored exclusive title output")
+    create_start=game_paths.find("static inline bool cmp5_game_output_create_unique(")
+    create_end=game_paths.find("static inline bool cmp5_game_resume_path_stat(",create_start)
+    create=game_paths[create_start:create_end] if create_start>=0 and create_end>=0 else ""
+    if ("mkdirat(fd,title_id,0777)" not in create or
+        'mkdirat(child,".e2a-state",0777)' not in create or
+        "O_DIRECTORY|O_NOFOLLOW" not in create):
+        missing.append("new title and checkpoint directory must be anchored")
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
     exact_checks = (

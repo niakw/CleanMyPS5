@@ -148,6 +148,27 @@ int main(void) {
  assert(!cmp5_game_destination_allowed("/user/savedata"));
  /* Refuse existing managed title output, including dangling symlinks. */
  assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ struct stat created={0};
+ assert(cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                       "PPSA55555",&created));
+ assert(S_ISDIR(created.st_mode));
+ assert(cmp5_game_resume_path_still_same(sandbox,
+        "/mnt/usb0/homebrew/PPSA55555",&created));
+ assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                        "PPSA55555",&created));
+ assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                        "../WRONG",&created));
+ assert(!cmp5_game_output_create_unique(sandbox,"/user/savedata",
+                                        "PPSA66666",&created));
+ char created_path[512];
+ assert(snprintf(created_path,sizeof(created_path),
+                 "%s/mnt/usb0/homebrew/PPSA55555/.e2a-state",sandbox)>0);
+ struct stat checkpoint={0};
+ assert(stat(created_path,&checkpoint)==0&&S_ISDIR(checkpoint.st_mode));
+ assert(rmdir(created_path)==0);
+ assert(snprintf(created_path,sizeof(created_path),
+                 "%s/mnt/usb0/homebrew/PPSA55555",sandbox)>0);
+ assert(rmdir(created_path)==0);
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA1234A"));
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew",".."));
  char reserved[512];
@@ -177,6 +198,8 @@ int main(void) {
  assert(rmdir(reserved)==0);
  assert(symlink("/system_data",reserved)==0);
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(!cmp5_game_output_create_unique(sandbox,"/mnt/usb0/homebrew",
+                                        "PPSA12345",&created));
  assert(!cmp5_game_resume_path_stat(sandbox,
    "/mnt/usb0/homebrew/PPSA12345",&resume_snapshot));
  assert(unlink(reserved)==0);

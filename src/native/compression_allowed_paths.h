@@ -208,6 +208,57 @@ static inline bool cmp5_game_output_vacant(const char*root,const char*dest,
  close(dir);
  return found<0&&error==ENOENT;
 }
+/* Reserve a NEW title output and private checkpoint directory atomically
+ * relative to descriptor-anchored, O_NOFOLLOW storage directories.
+ * A plain mkdir("/mnt/usbN/homebrew/TITLE") can follow a replaced
+ * homebrew parent. Never remove output after errors; partial output is
+ * deliberately retained for an explicit audit or resume.
+ */
+static inline bool cmp5_game_output_create_unique(
+ const char*root,const char*dest,const char*title_id,struct stat*out){
+ if(out)memset(out,0,sizeof(*out));
+ if(!root||!*root||!dest||!title_id||!out||
+    !cmp5_game_destination_allowed(dest)||strlen(title_id)!=9)return false;
+ for(unsigned i=0;i<9;i++){
+  const char c=title_id[i];
+  if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
+ }
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return false;
+ for(const char*cur=dest+1;*cur;){
+  const char*slash=strchr(cur,'/');
+  const size_t n=slash?(size_t)(slash-cur):strlen(cur);
+  char part[65];
+  if(!n||n>=sizeof(part)){close(fd);return false;}
+  memcpy(part,cur,n);part[n]=0;
+  const int child=openat(fd,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(fd);
+  if(child<0)return false;
+  fd=child;
+  if(!slash)break;
+  cur=slash+1;
+ }
+ struct stat parent={0};
+ if(fstat(fd,&parent)!=0||!S_ISDIR(parent.st_mode)){
+  close(fd);return false;
+ }
+ /* mkdirat never reuses an existing file, directory or dangling link. */
+ if(mkdirat(fd,title_id,0777)!=0){close(fd);return false;}
+ struct stat held={0},named={0};
+ const int child=openat(fd,title_id,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ bool ok=child>=0 &&
+   mkdirat(child,".e2a-state",0777)==0 &&
+   fstat(child,&held)==0&&
+   fstatat(fd,title_id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+   S_ISDIR(held.st_mode)&&S_ISDIR(named.st_mode)&&
+   held.st_dev==parent.st_dev&&held.st_dev==named.st_dev&&
+   held.st_ino==named.st_ino;
+ if(child>=0)close(child);
+ close(fd);
+ if(!ok)return false; /* leave uncommitted output for inspection */
+ *out=held;
+ return true;
+}
 /* Resume reads persisted job options: first ensure this is an allowed,
  * direct Title ID output directory with no symlinks or nested mounts. */
 static inline bool cmp5_game_resume_path_stat(const char*root,

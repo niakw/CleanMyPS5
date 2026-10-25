@@ -59,11 +59,22 @@ def main(root: Path):
     if (e2a_mkdir_p(req.dest_base) != 0)
       FAIL("dest_unavailable", "host destination root is unavailable");
 #endif
+#ifdef E2A_HOST
     if (mkdir(dest, 0777) != 0)
       FAIL("dest_exists_or_unavailable", "destination is occupied or unavailable");
     created = true;
     if (e2a_mkdir_p(state_dir) != 0)
-      FAIL("dest_create", "cannot initialize private output state");''')
+      FAIL("dest_create", "cannot initialize private output state");
+#else
+    struct stat cmp5_created_output={0};
+    if (!cmp5_game_path_on_disk("/", req.source, false) ||
+        !cmp5_game_output_create_unique("/", req.dest_base, req.name,
+                                        &cmp5_created_output))
+      FAIL("dest_exists_or_unavailable", "destination is occupied or unavailable");
+    created = true;
+    if (!cmp5_game_resume_path_still_same("/", dest, &cmp5_created_output))
+      FAIL("dest_changed", "created output was renamed or replaced");
+#endif''')
 
     # A local process could swap the title output directory AFTER a failed
     # worker stopped. The upstream cancellation/error handlers recursively
