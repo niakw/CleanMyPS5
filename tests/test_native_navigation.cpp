@@ -772,6 +772,23 @@ int main(){
  press(circle);
  assert(screen==Screen::detail);
  assert(!photo_ready&&decoded_photo.pixels==nullptr);
+ /* A signed-off native private backup is a distinct operation from
+  * selecting/marking media. Two separate X presses are mandatory.
+  * This host fixture has no /download0 and cannot access a real Gallery. */
+ auto&candidate=media_review.entries[detail_index];
+ candidate.snapshot_device=42u;candidate.snapshot_inode=1234u;
+ candidate.modified_at=1700000000;candidate.snapshot_ctime=1700000001;
+ char backup_id[32]{};
+ assert(cmp5_private_backup::capsule_name(candidate,backup_id));
+ press(r2);assert(screen==Screen::backup&&backup_step==0u);
+ press(cross);assert(backup_step==1u);
+ press(circle);assert(screen==Screen::detail);
+ press(r2);assert(screen==Screen::backup&&backup_step==0u);
+ press(cross);assert(backup_step==1u);
+ press(cross);assert(backup_step==2u);
+ finish_scan();
+ assert(backup_outcome.status!=cmp5_private_backup::Result::verified);
+ press(circle);assert(screen==Screen::detail);
  /* Recreate the race where Circle navigates away while the preview
   * worker reports busy, then completes after the input handler returns. */
  const std::uint8_t late_frame[8]={0};
