@@ -1544,6 +1544,11 @@ int main(){
   std::strcpy(private_inventory.ids[1],"CAP_9999999999999999");
   private_inventory_selection=0u;
   save(Screen::capsules,"01a-home-private-archives");
+  private_inventory.group_count=1u;
+  std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
+  private_inventory_groups=true;
+  save(Screen::capsules,"01aa-home-group-archives");
+  private_inventory_groups=false;
   private_inventory={};private_inventory_selection=0u;
   capsule_return_screen=Screen::detail;
   // These native UI captures are synthetic and certify only rendering
@@ -1651,6 +1656,15 @@ int main(){
     CMP5_THUMBNAIL_CANDIDATE_FOUND,2u,1u,1u,30ULL*1024*1024+256u};
   companion_checked=true;
   save(Screen::companions,"06b-companions");
+  group_verify_only=false;group_step=0u;
+  save(Screen::group_backup,"06ba-group-confirm");
+  group_step=2u;
+  group_outcome=cmp5_private_backup::GroupOutcome{};
+  group_outcome.status=cmp5_private_backup::GroupStatus::verified;
+  group_outcome.receipt.count=3u;
+  group_outcome.receipt.bytes=30ULL*1024*1024+256u;
+  save(Screen::group_backup,"06bb-group-verified");
+  group_outcome={};group_step=0u;
   companion_summary=Cmp5CompanionReport{CMP5_COMPANIONS_SINGLE,CMP5_COMPANION_FAILURE_NONE,
     CMP5_THUMBNAIL_KNOWN_PATH_ABSENT,1u,1u,0u,10ULL*1024*1024};
   save(Screen::companions,"06c-single-capture");
