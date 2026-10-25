@@ -1435,6 +1435,17 @@ int main(){
   recovery_checked=true;recovery_selection=0u;
   compression_view=7u;
   save(Screen::compression,"01i-compression-recovery");
+  recovery_chosen=recovery_inventory.entries[0];
+  compression_view=8u;
+  save(Screen::compression,"01j-recovery-confirm-1");
+  compression_view=9u;
+  save(Screen::compression,"01k-recovery-confirm-2");
+  compression_view=10u;
+  recovery_resume_attempted=true;
+  recovery_resume_accepted=false;recovery_resume_unknown=true;
+  save(Screen::compression,"01l-recovery-reply-unknown");
+  recovery_resume_attempted=false;recovery_resume_unknown=false;
+  compression_view=7u;
   recovery_checked=false;
   game_progress_checked=false;
   compression_view=0;
