@@ -440,9 +440,12 @@ static void cmp5_image_resolve(int fd, const char *args) {
        strcasecmp(suffix,".ffpfs"))) {
     send_json(fd,400,"{\\"error\\":\\"unsupported_image\\"}");return;
   }
+  /* Lookup is only permitted in known game roots. No symlinked
+   * intermediate path can redirect an otherwise legitimate query. */
   struct stat st;
-  if(lstat(path,&st)!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
-     st.st_size<=0) {
+  if(!cmp5_game_source_allowed(path) ||
+     !cmp5_game_path_stat("/",path,false,&st) ||
+     !S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0) {
     send_json(fd,409,"{\\"error\\":\\"unstable_source\\"}");return;
   }
   enum { LIMIT=512 };
@@ -471,21 +474,11 @@ static void cmp5_image_resolve(int fd, const char *args) {
   const bool type_ok=!strcmp(g->image_type,"exfatfs")||
        !strcmp(g->image_type,"ufs")||!strcmp(g->image_type,"pfs");
   struct stat after;
-  if(lstat(path,&after)!=0) {
+  if(!cmp5_game_path_stat("/",path,false,&after) ||
+     !cmp5_game_same_stat(&st,&after)) {
     free(items);send_json(fd,409,"{\\"error\\":\\"source_changed\\"}");return;
   }
-#if defined(__APPLE__)
-  const bool subsecond_same=after.st_mtimespec.tv_nsec==st.st_mtimespec.tv_nsec&&
-      after.st_ctimespec.tv_nsec==st.st_ctimespec.tv_nsec;
-#else
-  const bool subsecond_same=after.st_mtim.tv_nsec==st.st_mtim.tv_nsec&&
-      after.st_ctim.tv_nsec==st.st_ctim.tv_nsec;
-#endif
-  if(!valid||!type_ok||!subsecond_same||
-     !S_ISREG(after.st_mode)||after.st_nlink!=1||
-     after.st_dev!=st.st_dev||after.st_ino!=st.st_ino||
-     after.st_size!=st.st_size||after.st_mode!=st.st_mode||
-     after.st_mtime!=st.st_mtime||after.st_ctime!=st.st_ctime){
+  if(!valid||!type_ok||!S_ISREG(after.st_mode)||after.st_nlink!=1){
     free(items);send_json(fd,409,"{\\"error\\":\\"image_unavailable_or_incompatible\\"}");return;
   }
   char response[180];
@@ -498,6 +491,24 @@ static void cmp5_image_resolve(int fd, const char *args) {
 """
     change(httpd, 'static void api_list(int fd, int (*fn)(char *, size_t)) {',
            image_resolve + 'static void api_list(int fd, int (*fn)(char *, size_t)) {')
+    # Upstream /api/check is read-only but performs unbounded path-based
+    # preflight. The trusted title and any other local client must obey
+    # the same whitelist before touching media or storage metadata.
+    change(httpd,
+           '    if (job_preflight(p, smp, dst, out, sizeof out) == 0) send_json(fd, 200, out);',
+           '''    struct stat cmp5_check_source={0},cmp5_check_dest={0};
+    if(!cmp5_game_source_allowed(p) ||
+       !cmp5_game_destination_allowed(dst) ||
+       !cmp5_game_path_stat("/",p,false,&cmp5_check_source) ||
+       !cmp5_game_path_stat("/",dst,true,&cmp5_check_dest) ||
+       (S_ISREG(cmp5_check_source.st_mode) &&
+        (!cmp5_source_requires_smp(p,&cmp5_check_source) || !smp[0] ||
+         !strcasecmp(strrchr(p,'.'),".ffpfsc"))) ||
+       (S_ISDIR(cmp5_check_source.st_mode) && smp[0])) {
+      send_json(fd,403,"{\\"error\\":\\"game_preflight_path_not_allowed\\"}");
+      free(req);return;
+    }
+    if (job_preflight(p, smp, dst, out, sizeof out) == 0) send_json(fd, 200, out);''')
     change(httpd,
            'else if (strcmp(path, "/api/check") == 0) {',
            '''else if (strcmp(path, "/api/cmp5-image") == 0 && !post) {

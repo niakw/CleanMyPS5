@@ -189,6 +189,19 @@ compression/récupération LZ4, les interruptions et reprises, l'intégrité
 des manifests et le maintien des sources. C'est un test hôte, pas un
 essai réel sur PS5.
 
+## Contrôle des API de prévalidation directement accessibles (25 octobre 2026)
+
+Le moteur embarqué applique désormais les listes blanches de sources et
+destinations aussi aux routes locales en lecture seule `/api/check` et
+`/api/cmp5-image`. La résolution par descripteurs `O_NOFOLLOW` exclut
+les racines privées et les chemins dont un parent est un lien symbolique.
+`/api/check` refuse les fichiers autres que les images prises en charge,
+les images sans identifiant ShadowMountPlus et les `.ffpfsc` déjà
+compressés. `/api/cmp5-image` vérifie à nouveau l'identité du fichier
+après la consultation de SMP. Le contrôle du build impose les vérifications
+avant l'accès aux métadonnées. Cela n'élève aucun privilège ni ne démontre
+le lancement d'un jeu converti sur PS5 13.60.
+
 ## Images ShadowMountPlus sans seconde application
 
 L'onglet **Images** ajouté à CleanMyPS5 affiche une liste bornée à

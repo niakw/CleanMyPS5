@@ -38,6 +38,15 @@ def check_engine(root: Path) -> None:
         "only explicit pause path": 'strcmp(path, "/api/pause")',
         "only explicit resume path": 'strcmp(path, "/api/resume")',
         "image metadata endpoint": '"/api/cmp5-image"',
+        "image lookup source allowlist": "cmp5_game_source_allowed(path)",
+        "image lookup anchored source": 'cmp5_game_path_stat("/",path,false,&st)',
+        "image lookup anchored recheck": 'cmp5_game_path_stat("/",path,false,&after)',
+        "image lookup snapshot identity": 'cmp5_game_same_stat(&st,&after)',
+        "check preflight source allowlist": "cmp5_game_source_allowed(p)",
+        "check preflight destination allowlist": "cmp5_game_destination_allowed(dst)",
+        "check preflight anchored source": 'cmp5_game_path_stat("/",p,false,&cmp5_check_source)',
+        "check preflight anchored destination": 'cmp5_game_path_stat("/",dst,true,&cmp5_check_dest)',
+        "check preflight denies forbidden trees": "game_preflight_path_not_allowed",
         "require SMP for direct images": "image_title_required",
         "image owner gate checks actual file type": "cmp5_source_requires_smp(r.source, &cmp5_source_snapshot)",
         "SMP image ownership": "strcmp(owner.path, r.source) != 0",
@@ -71,6 +80,29 @@ def check_engine(root: Path) -> None:
         missing.append("missing initial/second path identity checks")
     if http.count('cmp5_game_output_vacant("/", r.dest_base, r.smp_title)') != 2:
         missing.append("managed image output missing either collision guard")
+    image_start=http.find("static void cmp5_image_resolve(")
+    image_end=http.find("static void api_list(",image_start)
+    if image_start<0 or image_end<0:
+        missing.append("image resolver audit span absent")
+    else:
+        image=http[image_start:image_end]
+        before=image.find('cmp5_game_path_stat("/",path,false,&st)')
+        listing=image.find("smp_list_games(")
+        after=image.find('cmp5_game_path_stat("/",path,false,&after)')
+        if before<0 or listing<0 or after<0 or not before<listing<after:
+            missing.append("image lookup must anchor before and after SMP inventory")
+        if "lstat(" in image:
+            missing.append("image lookup still uses unanchored lstat")
+    start=http.find('else if (strcmp(path, "/api/check") == 0)')
+    end=http.find('else if (strcmp(path, "/api/settings") == 0)',start)
+    if start<0 or end<0:
+        missing.append("read-only preflight audit span absent")
+    else:
+        block=http[start:end]
+        anchor=block.find('cmp5_game_path_stat("/",p,false,&cmp5_check_source)')
+        execute=block.find("job_preflight(p, smp, dst")
+        if anchor<0 or execute<0 or anchor>=execute:
+            missing.append("preflight probes source before anchored validation")
     if 'form_get(body, "name", r.name' in http:
         missing.append("caller-selected output directory still accepted")
     if '#ifdef E2A_HOST\n    if (e2a_mkdir_p(req.dest_base) != 0)' not in job:

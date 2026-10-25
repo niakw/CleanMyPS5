@@ -85,6 +85,20 @@ int main(void) {
                                    &game_folder));
  assert(rmdir(extracted)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
+ /* Image lookup must never inspect unauthorized console directories,
+  * and direct preflight must use a proven writable target root. */
+ struct stat preflight_source={0},preflight_dest={0};
+ assert(!cmp5_game_source_allowed("/user/savedata/PRIVATE.exfat"));
+ assert(!cmp5_game_path_stat(sandbox,"/user/savedata/PRIVATE.exfat",
+                             false,&preflight_source));
+ assert(!cmp5_game_source_allowed("/system_data/priv/GAME.ffpkg"));
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/GAME.exfat",
+                            false,&preflight_source));
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/homebrew",
+                            true,&preflight_dest));
+ assert(cmp5_source_requires_smp("/mnt/usb0/GAME.exfat",
+                                 &preflight_source));
+ assert(!cmp5_game_destination_allowed("/user/savedata"));
  /* Refuse existing managed title output, including dangling symlinks. */
  assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
  assert(!cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA1234A"));
