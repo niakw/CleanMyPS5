@@ -193,7 +193,14 @@ static void read_gallery_sidecar(Scan*s,int parentfd,const char*basename,
  const size_t required=available<160u?available:160u;
  size_t got=0;
  while(got<required){
-  ssize_t n=read(fd,raw+got,required-got);
+  /* Bound each individual read by the remaining local buffer capacity,
+   * independently of the file-size metadata returned by fstat. */
+  if(got>=160u)break;
+  const size_t remaining=required-got;
+  const size_t space=160u-got;
+  const size_t wanted=remaining<space?remaining:space;
+  if(!wanted)break;
+  ssize_t n=read(fd,raw+got,wanted);
   if(n<0&&errno==EINTR)continue;
   if(n<=0)break;
   got+=(size_t)n;
