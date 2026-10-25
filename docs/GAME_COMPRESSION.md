@@ -75,6 +75,12 @@ volumes ; elle produit un avertissement de couverture partielle.
 Les tests hôte provoquent ces erreurs après découverte d'une entrée et
 vérifient ensuite qu'une nouvelle analyse normale récupère les
 résultats. Un appel système bloquant peut toujours retarder l'annulation.
+Si le processus natif n'a pas les droits de lire un `request.bin` ou
+un marqueur `stage` dans `.e2a-state`, le scan indique **couverture
+partielle** au lieu de présenter l'absence de checkpoint comme acquise.
+Une fixture simule explicitement `EACCES` sur cette lecture. Le moteur
+AMPR et l'interface native peuvent avoir des identités système
+distinctes : les permissions ne sont pas élevées artificiellement.
 
 **Couverture et changement de volume :** un stockage absent peut être un
 support USB volontairement débranché ; un stockage refusé, un chemin
