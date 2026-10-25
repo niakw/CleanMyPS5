@@ -19,6 +19,7 @@
 #include "cleanup_readiness.hpp"
 #include "capture_companions.h"
 #include "private_media_backup.hpp"
+#include "private_capsule_inventory.hpp"
 #include "diagnostics.h"
 #include "media_preview.h"
 #include "video_metadata.h"
@@ -82,7 +83,7 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=5;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression, backup };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression, backup, capsules };
 enum class Link { unchecked, ok, offline };
 constexpr std::size_t core_access_count=6u;
 constexpr std::size_t local_path_count=22u;
@@ -387,6 +388,9 @@ Cmp5MediaCandidate backup_selected{};
 cmp5_private_backup::Outcome backup_outcome{};
 unsigned backup_step=0u;
 bool backup_verify_only=false;
+bool backup_from_inventory=false;
+cmp5_private_backup::Inventory private_inventory{};
+unsigned private_inventory_selection=0;
 constexpr unsigned game_capacity=256;
 struct GameSummary {
  char id[24]{};
@@ -747,8 +751,21 @@ void run_private_backup_verify() noexcept {
  backup_outcome={};
  if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
       cmp5_privilege::Operation::verify_private_media))return;
- backup_outcome=cmp5_private_backup::verify_existing(
+ if(backup_from_inventory)
+  backup_outcome=cmp5_private_backup::verify_by_id(
+   private_inventory.ids[private_inventory_selection],
+   cancellation_hook,nullptr);
+ else
+  backup_outcome=cmp5_private_backup::verify_existing(
    backup_selected,cancellation_hook,nullptr);
+}
+void run_capsule_inventory() noexcept {
+ private_inventory=cmp5_private_backup::Inventory{};
+ private_inventory_selection=0u;
+ cmp5_private_backup::Inventory checked{};
+ if(cmp5_private_backup::scan(&checked,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr))
+  private_inventory=checked;
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
@@ -1530,7 +1547,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1547,6 +1564,7 @@ void* background_task(void*) noexcept {
   case Task::companions: run_companion_check(); break;
   case Task::private_backup: run_private_backup(); break;
   case Task::private_backup_verify: run_private_backup_verify(); break;
+  case Task::private_inventory: run_capsule_inventory(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
   case Task::helper_start: run_embedded_readonly_helper(); break;
@@ -1706,7 +1724,9 @@ void poll_pad() noexcept {
     companion_checked=false;
    }
    screen=(screen==Screen::photo||screen==Screen::video_info||
-            screen==Screen::companions||screen==Screen::backup)?Screen::detail:
+            screen==Screen::companions||screen==Screen::capsules||
+            (screen==Screen::backup&&!backup_from_inventory))?Screen::detail:
+     (screen==Screen::backup&&backup_from_inventory)?Screen::capsules:
      (screen==Screen::detail||screen==Screen::search||
            screen==Screen::games)?Screen::review:
      screen==Screen::apps?Screen::access:
@@ -1781,6 +1801,24 @@ void poll_pad() noexcept {
    }
    continue;
   }
+  if(screen==Screen::capsules){
+   if(private_inventory.checked&&private_inventory.count){
+    if(pressed&up)private_inventory_selection=
+     (private_inventory_selection+private_inventory.count-1u)%
+      private_inventory.count;
+    if(pressed&down)private_inventory_selection=
+     (private_inventory_selection+1u)%private_inventory.count;
+    if(pressed&cross){
+     backup_verify_only=true;backup_from_inventory=true;
+     backup_outcome={};backup_step=2u;
+     screen=Screen::backup;
+     (void)begin_task(Task::private_backup_verify);
+     continue;
+    }
+   }
+   if(pressed&triangle)(void)begin_task(Task::private_inventory);
+   continue;
+  }
   if(screen==Screen::backup){
    if(!backup_verify_only){
     if(backup_step==0u&&(pressed&cross))backup_step=1u;
@@ -1792,12 +1830,19 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::detail){
+   if((pressed&l1)&&detail_index<media_review.count){
+    private_inventory={};private_inventory_selection=0u;
+    screen=Screen::capsules;
+    (void)begin_task(Task::private_inventory);
+    continue;
+   }
    if((pressed&(r2|l2))&&detail_index<media_review.count){
     const auto&item=media_review.entries[detail_index];
     char id[32]{};
     if(cmp5_private_backup::capsule_name(item,id)){
      backup_selected=item;backup_outcome={};
      backup_verify_only=(pressed&l2)!=0u;
+     backup_from_inventory=false;
      backup_step=backup_verify_only?2u:0u;
      screen=Screen::backup;
      if(backup_verify_only)
@@ -2698,8 +2743,44 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
    marked_for_review[detail_index]?"MARQUE A REVOIR":"NON MARQUE",
    marked_for_review[detail_index]?Color::cyan:Color::yellow);
  footer(canvas,item.media_type==2u?
-  "X INFOS VIDEO  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE":
-  "X APERCU PHOTO  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE");
+  "L1 ARCHIVES  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE":
+  "L1 ARCHIVES  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE");
+}
+void show_capsules(ps5::demo::Canvas&canvas) noexcept {
+ panel(canvas,286,"CAPSULES PRIVEES",
+   "NOMS ANONYMES  AUCUNE LISTE DES CHEMINS SONY",Color::cyan);
+ if(task_busy()){
+  panel(canvas,470,"INVENTAIRE EN COURS",
+    "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
+  footer(canvas,"CERCLE ANNULER  AUCUNE ECRITURE");
+  return;
+ }
+ if(!private_inventory.checked){
+  panel(canvas,460,"INVENTAIRE NON DISPONIBLE",
+    "STOCKAGE PRIVE INACCESSIBLE OU NON PRESENT",Color::yellow);
+  footer(canvas,"TRIANGLE RECONTROLER  CERCLE DETAIL");
+  return;
+ }
+ if(!private_inventory.count){
+  panel(canvas,460,"AUCUNE CAPSULE CONFIRMEE",
+    private_inventory.partial?"DOSSIER PARTIEL OU RESIDUS A AUDITER":
+      "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIQUE");
+  footer(canvas,"TRIANGLE RECONTROLER  CERCLE DETAIL");
+  return;
+ }
+ const unsigned page=private_inventory_selection/5u;
+ const unsigned start=page*5u;
+ for(unsigned i=start;i<private_inventory.count&&i<start+5u;i++){
+  char line[48]{};
+  (void)std::snprintf(line,sizeof(line),"%s",
+                        private_inventory.ids[i]);
+  panel(canvas,422+(i-start)*103u,
+    i==private_inventory_selection?"CAPSULE SELECTIONNEE":"CAPSULE",
+    line,i==private_inventory_selection?Color::cyan:Color::white);
+ }
+ if(private_inventory.partial)
+  canvas.text(130,940,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
+ footer(canvas,"HAUT/BAS CHOISIR  X VERIFIER SHA-256  TRIANGLE SCANNER  CERCLE");
 }
 void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,310,backup_verify_only?
@@ -3328,6 +3409,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::games?"CAPTURES PAR JEU":
    screen==Screen::detail?"DETAIL DE LA CAPTURE":
     screen==Screen::backup?"SAUVEGARDE PRIVEE":
+    screen==Screen::capsules?"CAPSULES SAUVEGARDEES":
    screen==Screen::photo?"APERCU PHOTO":
    screen==Screen::video_info?"INFORMATIONS VIDEO":
    screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":
@@ -3345,6 +3427,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::games:show_games(canvas);break;
   case Screen::detail:show_detail(canvas);break;
    case Screen::backup:show_private_backup(canvas);break;
+   case Screen::capsules:show_capsules(canvas);break;
   case Screen::photo:show_photo(canvas);break;
   case Screen::video_info:show_video_info(canvas);break;
   case Screen::official:show_official(canvas);break;
