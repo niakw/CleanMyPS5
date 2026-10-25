@@ -761,6 +761,26 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
   ok=recovery_entry(dir,stage,&present,&unsafe);
   result.staged_parts+=(uint32_t)present;
  }
+ /* The origin map is published before COMMIT. A power loss between
+  * those two publications leaves an INCOMPLETE private transaction,
+  * not an empty namespace. No sensitive locator is returned in reports. */
+ int origin_present=0,origin_stage_present=0;
+ if(ok&&!restored){
+  origin_name(name,id);
+  ok=recovery_entry(dir,name,&origin_present,&unsafe);
+  if(ok&&origin_present){
+   struct stat origin={0};
+   if(fstatat(dir,name,&origin,AT_SYMLINK_NOFOLLOW)!=0||
+      !S_ISREG(origin.st_mode)||origin.st_nlink!=1||
+      origin.st_uid!=geteuid()||(origin.st_mode&0077)!=0||
+      origin.st_size!=(off_t)ORIGIN_SIZE)unsafe=1;
+  }
+  if(ok){
+   (void)snprintf(stage,sizeof(stage),".%s.part",name);
+   ok=recovery_entry(dir,stage,&origin_stage_present,&unsafe);
+   result.staged_parts+=(uint32_t)origin_stage_present;
+  }
+ }
  if(ok)ok=inspect_namespace(dir,id,restored,&result.unexpected_entries);
  if(!ok){close(dir);return 0;}
  if(unsafe||result.unexpected_entries)result.state=CMP5_RECOVERY_INVALID;
@@ -774,7 +794,7 @@ static int inspect_recovery(const char*workspace,const char*id,int restored,
   result.state=complete&&result.staged_parts==0u&&
     result.published_parts==verified.count?
      CMP5_RECOVERY_VERIFIED:CMP5_RECOVERY_INVALID;
- }else if(result.published_parts||result.staged_parts)
+ }else if(result.published_parts||result.staged_parts||origin_present)
   result.state=CMP5_RECOVERY_INCOMPLETE;
  else result.state=CMP5_RECOVERY_EMPTY;
  /* Even EMPTY is an identity-sensitive claim: an attacker may replace the
