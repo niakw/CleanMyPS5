@@ -252,6 +252,19 @@ static int read_origin_map(int dir,const char*id,
  if(ok&&out)*out=result;
  return ok;
 }
+/* Reject unsupported origin metadata BEFORE the first capsule copy,
+ * rather than leaving a 512-MiB partial backup that cannot be committed. */
+static int origin_snapshots_persistable(const Cmp5MediaCandidate*parts,
+ uint32_t count){
+ if(!parts||count<2u||count>CMP5_GROUP_MAX)return 0;
+ for(uint32_t i=0;i<count;i++){
+  if(!parts[i].snapshot_device||!parts[i].snapshot_inode||
+     parts[i].snapshot_ctime<=0||parts[i].modified_at<=0||
+     parts[i].snapshot_mtime_nsec>=1000000000u||
+     parts[i].snapshot_ctime_nsec>=1000000000u)return 0;
+ }
+ return 1;
+}
 static int publish_origin_map(int dir,const char*id,
  const Cmp5MediaCandidate*parts,uint32_t count,
  const uint8_t manifest[MARK_SIZE],Cmp5CancelCheck cancel,void*ctx){
@@ -480,8 +493,8 @@ int cmp5_backup_group(const char*root,const Cmp5MediaCandidate*parts,
  uint32_t count,const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
- if(!r||!valid_id(id)||!matches_visible_companions(root,parts,count,
-      cancel,ctx))return 0;
+ if(!r||!valid_id(id)||!origin_snapshots_persistable(parts,count)||
+    !matches_visible_companions(root,parts,count,cancel,ctx))return 0;
  int dir=safe_dir(workspace);
  if(dir<0)return 0;
  if(flock(dir,LOCK_EX|LOCK_NB)!=0){close(dir);return 0;}
