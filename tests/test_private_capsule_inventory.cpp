@@ -28,6 +28,14 @@ int main(){
  assert(!valid_capsule_id("CAP_0123456789abcdef"));
  assert(!valid_capsule_id("CAP_0123456789ABCDEF/../"));
  assert(!valid_capsule_id("CAP_0000000000000000.part"));
+ char cap_unterminated[21]{};
+ std::memcpy(cap_unterminated,"CAP_",4u);
+ std::memset(cap_unterminated+4,'A',17u);
+ assert(!valid_capsule_id(cap_unterminated));
+ char grp_unterminated[21]{};
+ std::memcpy(grp_unterminated,"GRP_",4u);
+ std::memset(grp_unterminated+4,'A',17u);
+ assert(!valid_group_id(grp_unterminated));
  char area[]="/tmp/cmp5-capsules-XXXXXX";
  char*root=mkdtemp(area);
  assert(root!=nullptr);
