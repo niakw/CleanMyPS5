@@ -40,7 +40,7 @@ inline bool same_inventory_directory(const struct stat&a,
    a.st_mtime==b.st_mtime&&a.st_ctime==b.st_ctime;
 }
 inline bool valid_capsule_id(const char*id) noexcept {
- if(!id||std::strlen(id)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
  for(unsigned i=4u;i<20u;i++){
   const char c=id[i];
   if(!((c>='0'&&c<='9')||(c>='A'&&c<='F')))return false;
@@ -50,7 +50,7 @@ inline bool valid_capsule_id(const char*id) noexcept {
 /* Discover a committed group by a bounded, name-only marker. Presence
  * is NOT proof: cmp5_verify_group must rehash all members on selection. */
 inline bool valid_group_id(const char*id) noexcept {
- if(!id||std::strlen(id)!=20u||std::memcmp(id,"GRP_",4u)!=0)return false;
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"GRP_",4u)!=0)return false;
  for(unsigned i=4u;i<20u;i++){
   const char v=id[i];
   if(!((v>='0'&&v<='9')||(v>='A'&&v<='F')))return false;
