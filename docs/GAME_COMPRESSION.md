@@ -33,7 +33,13 @@ fichiers** et l'extension du nom. Un répertoire appelé `EXTRACTED.exfat`
 et contenant un `eboot.bin` non vide ainsi que `sce_sys` est classé
 comme **dossier de jeu**, jamais comme fichier-image exFAT.
 Inversement, un répertoire `.ffpkg` avec un `eboot.bin` vide n'est
-pas présenté comme un jeu valide. L'analyse reste uniquement
+pas présenté comme un jeu valide. Le moteur AMPR embarqué n'exige plus
+un propriétaire ShadowMountPlus pour ces **dossiers** de jeux simplement
+parce qu'ils portent une extension d'image ; il continue de l'exiger
+pour les **fichiers réguliers** de mêmes extensions. L'identité du jeu
+contenu dans un dossier reste obligatoirement établie par le moteur.
+Cette distinction est vérifiée par un test C et par l'audit du moteur
+C réellement transformé avant le build PS5. L'analyse reste uniquement
 métadonnée et lecture seule : le moteur de conversion devra confirmer
 séparément la compatibilité réelle, et la jouabilité n'est toujours pas
 prouvée sur PS5 13.60.

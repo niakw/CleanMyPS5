@@ -273,12 +273,11 @@ def main(root: Path):
            '  (void)queue_only;',
            '''  /* CleanMyPS5: image paths require a real ShadowMountPlus
    * title. A local client must not bypass checks by omitting smp=. */
-  const char *cmp5_ext = strrchr(r.source, '.');
-  if (!r.smp_title[0] && cmp5_ext &&
-      (!strcasecmp(cmp5_ext, ".exfat") ||
-       !strcasecmp(cmp5_ext, ".ffpkg") ||
-       !strcasecmp(cmp5_ext, ".ffpfs") ||
-       !strcasecmp(cmp5_ext, ".ffpfsc"))) {
+  /* Extracted game directories may be named *.exfat or *.ffpkg.
+   * Only regular image files need an SMP owner. Game directories still
+   * require e2a_read_game() and an independently verified Title ID. */
+  if (!r.smp_title[0] &&
+      cmp5_source_requires_smp(r.source, &cmp5_source_snapshot)) {
     send_json(fd, 409, "{\\"error\\":\\"image_title_required\\"}");
     return;
   }

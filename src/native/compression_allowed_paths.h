@@ -42,6 +42,15 @@ static inline bool cmp5_image_suffix(const char *name) {
  return dot && (!strcasecmp(dot, ".exfat") || !strcasecmp(dot, ".ffpkg") ||
                 !strcasecmp(dot, ".ffpfs") || !strcasecmp(dot, ".ffpfsc"));
 }
+/* An image extension on a DIRECTORY can name an extracted game dump.
+ * Only a regular image FILE must be linked to ShadowMountPlus.
+ * The caller must obtain metadata via the descriptor-anchored path guard.
+ */
+static inline bool cmp5_source_requires_smp(const char *path,
+                                            const struct stat *observed) {
+ return path && observed && S_ISREG(observed->st_mode) &&
+        cmp5_image_suffix(path);
+}
 static inline bool cmp5_game_source_allowed(const char *path) {
  if (!path || path[0] != '/' || strlen(path) >= 192) return false;
  if (cmp5_direct_child(path, "/data/homebrew/") ||

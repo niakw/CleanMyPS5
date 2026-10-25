@@ -39,6 +39,7 @@ def check_engine(root: Path) -> None:
         "only explicit resume path": 'strcmp(path, "/api/resume")',
         "image metadata endpoint": '"/api/cmp5-image"',
         "require SMP for direct images": "image_title_required",
+        "image owner gate checks actual file type": "cmp5_source_requires_smp(r.source, &cmp5_source_snapshot)",
         "SMP image ownership": "strcmp(owner.path, r.source) != 0",
         "SMP managed source": "!owner.managed || !owner.source_available",
         "SMP identity": "strcmp(owner.title_id, r.smp_title) != 0",

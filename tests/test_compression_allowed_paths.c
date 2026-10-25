@@ -64,6 +64,26 @@ int main(void) {
  assert(fputs("SYNTHETIC_GAME_IMAGE",out)>=0&&fclose(out)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/data/homebrew/PPSA12345",false));
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/GAME.exfat",false));
+ /* Image extension alone is not an image file. The engine must use the
+  * exact file type from its descriptor-anchored admission snapshot. */
+ struct stat image_file={0},game_folder={0};
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/GAME.exfat",false,&image_file));
+ assert(cmp5_source_requires_smp("/mnt/usb0/GAME.exfat",&image_file));
+ assert(cmp5_source_requires_smp("/mnt/usb0/GAME.EXFAT",&image_file));
+ assert(cmp5_source_requires_smp("/mnt/usb0/GAME.ffpfsc",&image_file));
+ assert(!cmp5_source_requires_smp("/mnt/usb0/GAME.exfat",NULL));
+ assert(!cmp5_source_requires_smp(NULL,&image_file));
+ assert(cmp5_game_path_stat(sandbox,"/data/homebrew/PPSA12345",false,&game_folder));
+ assert(!cmp5_source_requires_smp("/data/homebrew/PPSA12345",&game_folder));
+ char extracted[512];
+ assert(snprintf(extracted,sizeof(extracted),
+                 "%s/mnt/usb0/homebrew/EXTRACTED.exfat",sandbox)>0);
+ assert(mkdir(extracted,0700)==0);
+ assert(cmp5_game_path_stat(sandbox,"/mnt/usb0/homebrew/EXTRACTED.exfat",
+                            false,&game_folder));
+ assert(!cmp5_source_requires_smp("/mnt/usb0/homebrew/EXTRACTED.exfat",
+                                   &game_folder));
+ assert(rmdir(extracted)==0);
  assert(cmp5_game_path_on_disk(sandbox,"/mnt/usb0/homebrew",true));
  /* Refuse existing managed title output, including dangling symlinks. */
  assert(cmp5_game_output_vacant(sandbox,"/mnt/usb0/homebrew","PPSA12345"));
