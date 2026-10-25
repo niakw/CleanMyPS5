@@ -245,16 +245,19 @@ int main(int argc,char**argv){
  assert(cmp5_inspect_group_recovery(workspace,"ORPHAN",&origin_report));
  assert(origin_report.state==CMP5_RECOVERY_INCOMPLETE);
  assert(origin_report.published_parts==0u&&!origin_report.marker_present);
+ assert(origin_report.origin_map_present&&!origin_report.origin_map_staged);
  /* A lone temporary origin mapping is also evidence of interruption. */
  write_member(dir,".STAGED__ORIGINS.part","INCOMPLETE",10u);
  assert(cmp5_inspect_group_recovery(workspace,"STAGED",&origin_report));
  assert(origin_report.state==CMP5_RECOVERY_INCOMPLETE);
  assert(origin_report.staged_parts==1u);
+ assert(!origin_report.origin_map_present&&origin_report.origin_map_staged);
  /* An invalid/oversized map cannot masquerade as an incomplete but
   * otherwise trustworthy published record. */
  write_member(dir,"INVALID__ORIGINS","CORRUPT",7u);
  assert(cmp5_inspect_group_recovery(workspace,"INVALID",&origin_report));
  assert(origin_report.state==CMP5_RECOVERY_INVALID);
+ assert(origin_report.origin_map_present&&!origin_report.origin_map_staged);
  setup_watch(workspace,"BACKUP__COMMIT","BACKUP_MOVED",0);
  calls=0;
  assert(!cmp5_verify_group(workspace,"BACKUP",&result,
