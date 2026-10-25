@@ -2,10 +2,34 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include "../src/native/recovery_inventory.h"
 #include <assert.h>
-#include <stdlib.h>
+#include <dirent.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+/* Simulate a removable volume being replaced after its valid checkpoint
+ * was observed but before the scanner rechecks the mount path. */
+static char swap_parent[550];
+static int swap_armed;
+static struct dirent* test_readdir(DIR*dir){
+ struct dirent*entry=readdir(dir);
+ if(swap_parent[0]){
+  if(swap_armed){
+   char displaced[600];
+   assert(snprintf(displaced,sizeof(displaced),"%s-replaced",swap_parent)>0);
+   assert(rename(swap_parent,displaced)==0);
+   assert(mkdir(swap_parent,0700)==0);
+   swap_parent[0]=0;
+   swap_armed=0;
+  }else if(entry&&!strcmp(entry->d_name,"CUSA54321"))swap_armed=1;
+ }
+ return entry;
+}
+#define readdir test_readdir
+#include "../src/native/recovery_inventory.h"
+#undef readdir
+#include <stdlib.h>
 static void create_dir(const char*root,const char*path){
  char full[512];
  int n=snprintf(full,sizeof(full),"%s%s",root,path);
@@ -56,6 +80,21 @@ int main(void){
   if(results.entries[i].stage==CMP5_RECOVERY_VERIFY)verify++;
  }
  assert(pack==1&&copy==1&&verify==1);
+ assert(!results.partial&&!results.unavailable);
+ /* Changing one root must never erase valid results from other roots. */
+ assert(snprintf(swap_parent,sizeof(swap_parent),
+                 "%s/mnt/usb0/homebrew",root)>0);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.partial&&results.count==2&&results.hidden==0);
+ assert(!strcmp(results.entries[0].title_id,"PPSA12345"));
+ assert(!strcmp(results.entries[1].title_id,"PPSA67890"));
+ char original_parent[550],displaced[600];
+ assert(snprintf(original_parent,sizeof(original_parent),
+                 "%s/mnt/usb0/homebrew",root)>0);
+ assert(snprintf(displaced,sizeof(displaced),
+                 "%s-replaced",original_parent)>0);
+ assert(rmdir(original_parent)==0);
+ assert(rename(displaced,original_parent)==0);
  char name[550];
  snprintf(name,sizeof(name),"%s/mnt/ext0/homebrew/PPSA67890/.e2a-state/stage",root);
  assert(unlink(name)==0);
@@ -78,7 +117,7 @@ int main(void){
  assert(rename(name,strcat(strcpy((char[550]){0},name),"-renamed"))==0);
  assert(symlink("/data/homebrew",name)==0);
  assert(cmp5_scan_recovery_inventory(root,&results));
- assert(results.count==1&&
+ assert(results.count==1&&results.partial&&results.unavailable>=1u&&
         !strcmp(results.entries[0].title_id,"PPSA67890"));
  puts("CleanMyPS5 offline checkpoint inventory: PASS");
  return 0;
