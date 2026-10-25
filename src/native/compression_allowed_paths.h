@@ -263,15 +263,19 @@ static inline bool cmp5_game_output_create_unique(
    S_ISDIR(checkpoint.st_mode)&&S_ISDIR(checkpoint_opened.st_mode)&&
    held.st_dev==parent.st_dev&&held.st_dev==named.st_dev&&
    held.st_ino==named.st_ino&&
+   held.st_uid==geteuid()&&named.st_uid==held.st_uid&&
+   held.st_mode==named.st_mode&&
+   /* mkdirat(mode) is affected by umask and some removable filesystems
+    * ignore modes. A 0700 game title may be unlaunchable as another UID;
+    * an inaccessible or exposed checkpoint cannot safely be resumed. */
+   (held.st_mode&0777)==0755&&
    checkpoint.st_dev==held.st_dev&&
    checkpoint.st_dev==checkpoint_opened.st_dev&&
    checkpoint.st_ino==checkpoint_opened.st_ino&&
    checkpoint.st_uid==held.st_uid&&
    checkpoint.st_uid==checkpoint_opened.st_uid&&
-   /* Some external filesystems ignore chmod/mkdir modes. Never report
-    * success when resume metadata would be group/world accessible. */
-   (checkpoint.st_mode&0077)==0&&
-   (checkpoint_opened.st_mode&0077)==0;
+   checkpoint.st_mode==checkpoint_opened.st_mode&&
+   (checkpoint.st_mode&0777)==0700;
  /* mkdirat pins the opened parent, but that parent can be renamed or
   * its mount replaced while creating the title and private checkpoint.
   * The authorized destination PATH must still name that same inode.
