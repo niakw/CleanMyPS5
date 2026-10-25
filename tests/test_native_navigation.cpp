@@ -1003,6 +1003,12 @@ int main(){
  assert(game_resume_attempted&&game_resume_accepted);
  assert(mock_ampr_resumes==2u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ /* The engine has actually restarted the previous paused job. Do not
+  * re-arm another resume until an explicit RUNNING status is observed. */
+ press(cross);finish_scan();
+ assert(game_progress_checked&&
+        game_progress.state==cmp5_compression::JobState::running);
+ assert(!game_resume_accepted);
  /* A recoverable error now keeps the partial directory intact.
   * Triangle may request a resume for THIS previously approved title;
   * it must not enqueue a fresh /api/start or delete the source. */
@@ -1030,7 +1036,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==19u); // Auto-pause, scoped resume and extra progress probes.
+ assert(mock_ampr_gets==20u); // Auto-pause and confirmed restart probes.
  /* A real image requires a one-to-one SMP title identity at PRE and POST. */
  mock_ampr_online=true;
  mock_ampr_post_bodies=0u;
