@@ -2803,13 +2803,20 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
     canvas.text(125,842,stage,2,Color::cyan);
    }else{
     panel(canvas,575,"AUCUN CHECKPOINT CONFIRME",
-      "AUCUN ETAT VALIDE TROUVE SUR LES VOLUMES ACCESSIBLES",Color::yellow);
+      recovery_inventory.partial?
+       "INVENTAIRE PARTIEL  D AUTRES ETATS PEUVENT ETRE MASQUES":
+       "AUCUN ETAT VALIDE TROUVE SUR LES VOLUMES ACCESSIBLES",
+      Color::yellow);
    }
    if(recovery_inventory.partial||recovery_inventory.unavailable){
     char warning[140]{};
-    (void)std::snprintf(warning,sizeof(warning),
-      "CONTROLE PARTIEL  %u STOCKAGES NON ACCESSIBLES",
-      recovery_inventory.unavailable);
+    if(recovery_inventory.unavailable)
+     (void)std::snprintf(warning,sizeof(warning),
+       "CONTROLE PARTIEL  %u STOCKAGES NON ACCESSIBLES",
+       recovery_inventory.unavailable);
+    else
+     (void)std::snprintf(warning,sizeof(warning),
+       "CONTROLE PARTIEL  CHEMIN OU CHECKPOINT NON VERIFIABLE");
     canvas.text(125,895,warning,2,Color::yellow);
    }
   }
