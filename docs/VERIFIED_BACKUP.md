@@ -149,8 +149,14 @@ Les transitions utilisent uniquement des noms fixes dans la même
 arborescence privée. Un état intermédiaire avec deux noms présents,
 une collision, un lien symbolique, une source modifiée ou une capsule
 absente est **ambigu / refusé**, sans tentative d'effacement automatique.
-La CI teste une transaction complète, une restauration et ces refus,
-avec les vraies routines de sauvegarde et SHA-256.
+Juste avant de retirer l'un des deux noms, la transaction vérifie à
+nouveau **les deux liens physiques et leurs empreintes SHA-256** contre
+la sauvegarde indépendante. Les tests modifient réellement les octets
+après la synchronisation du checkpoint, pendant la quarantaine puis
+pendant la restauration. Dans les deux cas, la suppression du nom est
+refusée et les deux entrées restent disponibles pour un audit manuel.
+Cette vérification ne rend pas `unlinkat` atomique face à un processus
+extérieur qui ne respecte pas les verrous.
 
 **Ce test ne libère pas d'espace disque**, n'établit ni l'autorisation
 de nettoyer des caches PS5 ni les relations avec les index Sony.
