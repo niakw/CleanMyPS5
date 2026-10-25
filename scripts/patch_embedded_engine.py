@@ -161,13 +161,15 @@ def main(root: Path):
   return 0;
 #endif
 }''')
+    # Patch the six-space inventory call first: the four-space call is a
+    # substring of it, and the patcher intentionally demands unique anchors.
+    change(jobc,
+           '      stage_get(state_dir, stage, sizeof stage);',
+           '''      if (stage_get(state_dir, stage, sizeof stage) != 0) continue;''')
     change(jobc,
            '    stage_get(state_dir, stage, sizeof stage);',
            '''    if (stage_get(state_dir, stage, sizeof stage) != 0)
       FAIL("state_invalid", "missing, swapped or malformed resume stage");''')
-    change(jobc,
-           '      stage_get(state_dir, stage, sizeof stage);',
-           '''      if (stage_get(state_dir, stage, sizeof stage) != 0) continue;''')
 
     # A RESUME or RETRY rehydrates a job_request from .e2a-state rather than
     # parsing /api/start. Pin every dangerous field again at the *last*
