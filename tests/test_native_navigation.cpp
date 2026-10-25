@@ -934,14 +934,16 @@ int main(){
  press(cross);assert(compression_view==9u);
  press(cross);assert(compression_view==10u);
  finish_scan();
- assert(recovery_resume_attempted&&!recovery_resume_accepted&&
-        !recovery_resume_unknown);
+ assert(!recovery_resume_attempted&&!recovery_resume_accepted&&
+        !recovery_resume_unknown); /* no POST, so no retry lock */
  assert(mock_ampr_resumes==0u);
  assert(mock_ampr_pauses+mock_ampr_resumes+
         mock_ampr_post_headers+mock_ampr_post_bodies==controls_before);
  scene(canvas);
  press(circle);assert(compression_view==7u);
- press(triangle);assert(compression_view==7u); // no repeated POST
+ press(triangle);assert(compression_view==8u); // safe NEW confirmation
+ press(circle);assert(compression_view==7u);
+ assert(mock_ampr_resumes==0u);
  recovery_resume_attempted=false;recovery_resume_accepted=false;
  recovery_resume_unknown=false;recovery_checked=false;
  recovery_inventory=Cmp5RecoveryInventory{};
