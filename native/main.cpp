@@ -2820,8 +2820,8 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
   "L1 ARCHIVES  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE");
 }
 void show_capsules(ps5::demo::Canvas&canvas) noexcept {
- panel(canvas,286,"CAPSULES PRIVEES",
-   "NOMS ANONYMES  AUCUNE LISTE DES CHEMINS SONY",Color::cyan);
+ panel(canvas,286,private_inventory_groups?"GROUPES PRIVES":"CAPSULES PRIVEES",
+   "L1/R1 BASCULER  AUCUN CHEMIN GALERIE AFFICHE",Color::cyan);
  if(task_busy()){
   panel(canvas,470,"INVENTAIRE EN COURS",
     "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
@@ -2836,8 +2836,11 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
     "TRIANGLE RECONTROLER  CERCLE DETAIL");
   return;
  }
- if(!private_inventory.count){
-  panel(canvas,460,"AUCUNE CAPSULE CONFIRMEE",
+ const unsigned items=private_inventory_groups?
+   private_inventory.group_count:private_inventory.count;
+ if(!items){
+  panel(canvas,460,private_inventory_groups?
+      "AUCUN GROUPE PUBLIE":"AUCUNE CAPSULE CONFIRMEE",
     private_inventory.partial?"DOSSIER PARTIEL OU RESIDUS A AUDITER":
       "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIQUE");
   footer(canvas,capsule_return_screen==Screen::menu?
@@ -2847,19 +2850,18 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  }
  const unsigned page=private_inventory_selection/5u;
  const unsigned start=page*5u;
- for(unsigned i=start;i<private_inventory.count&&i<start+5u;i++){
-  char line[48]{};
-  (void)std::snprintf(line,sizeof(line),"%s",
-                        private_inventory.ids[i]);
+ for(unsigned i=start;i<items&&i<start+5u;i++){
+  const char*name=private_inventory_groups?
+    private_inventory.group_ids[i]:private_inventory.ids[i];
   panel(canvas,422+(i-start)*103u,
-    i==private_inventory_selection?"CAPSULE SELECTIONNEE":"CAPSULE",
-    line,i==private_inventory_selection?Color::cyan:Color::white);
+    i==private_inventory_selection?"ARCHIVE SELECTIONNEE":"ARCHIVE",
+    name,i==private_inventory_selection?Color::cyan:Color::white);
  }
  if(private_inventory.partial)
   canvas.text(130,940,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
  footer(canvas,capsule_return_screen==Screen::menu?
-    "HAUT/BAS CHOISIR  X SHA-256  TRIANGLE SCANNER  CERCLE ACCUEIL":
-    "HAUT/BAS CHOISIR  X SHA-256  TRIANGLE SCANNER  CERCLE DETAIL");
+    "L1/R1 TYPE  X SHA-256  TRIANGLE SCANNER  CERCLE ACCUEIL":
+    "L1/R1 TYPE  X SHA-256  TRIANGLE SCANNER  CERCLE DETAIL");
 }
 void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,310,backup_verify_only?
@@ -2907,11 +2909,12 @@ void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  footer(canvas,"CERCLE RETOUR  RESTAURATION GALERIE NON AUTORISEE");
 }
 void show_group_backup(ps5::demo::Canvas&canvas) noexcept {
- panel(canvas,315,"COPIE PRIVEE DES FICHIERS ASSOCIES",
+ panel(canvas,315,group_verify_only?
+   "VERIFICATION DU GROUPE ARCHIVE":"COPIE PRIVEE DES FICHIERS ASSOCIES",
    "PAS UNE RESTAURATION DE LA GALERIE",Color::cyan);
  panel(canvas,456,"GROUPE OBSERVE",
    "2 A 4 FICHIERS DE MEME CAPTURE  512 MIO MAX",Color::cyan);
- if(group_step<2u){
+ if(group_step<2u&&!group_verify_only){
   panel(canvas,596,group_step?"CONFIRMATION 2/2":"CONFIRMATION 1/2",
     "COPIE REEVALUANT CHAQUE FICHIER SOURCE",Color::yellow);
   panel(canvas,742,"FICHIERS ORIGINAUX",
@@ -2920,8 +2923,10 @@ void show_group_backup(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  if(task_busy()){
-  panel(canvas,596,"VERIFICATION ET COPIE DU GROUPE",
-    "SHA-256  MANIFESTE PUBLIE APRES TOUS LES FICHIERS",Color::cyan);
+  panel(canvas,596,group_verify_only?
+   "RELECTURE DU GROUPE ARCHIVE":"VERIFICATION ET COPIE DU GROUPE",
+   group_verify_only?"SHA-256 DE CHAQUE CAPSULE ET DU MANIFESTE":
+     "SHA-256  MANIFESTE PUBLIE APRES TOUS LES FICHIERS",Color::cyan);
   footer(canvas,"CERCLE ANNULER  RESIDUS PRIVES POSSIBLES");
   return;
  }
@@ -2941,7 +2946,9 @@ void show_group_backup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,750,"COPIE PRIVEE VERIFIEE",receipt,Color::cyan);
  }else panel(canvas,750,"ECHEC SECURISE",
    "RESIDUS PRIVES NON EFFACES  INSPECTION NECESSAIRE",Color::yellow);
- footer(canvas,"CERCLE FICHIERS ASSOCIES  INDEX SONY NON VALIDES");
+ footer(canvas,group_verify_only?
+   "CERCLE ARCHIVES  AUCUNE MODIFICATION":
+   "CERCLE FICHIERS ASSOCIES  INDEX SONY NON VALIDES");
 }
 void show_companions(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
