@@ -37,6 +37,39 @@ ctest --test-dir build -R 'verified_backup_fixture|verified_group_fixture' --out
 
 Les tests couvrent la corruption d'une capsule, la modification d'un fichier restauré, les interruptions, les identifiants interdits, les variantes sans média principal, les noms de base différents et les doublons d'extensions.
 
+## Correspondance d'origine persistante des albums (prototype hôte)
+
+Une sauvegarde contenant seulement des capsules anonymes et leur SHA-256 ne
+permettait pas de retrouver **quel composant était à restaurer où** après
+fermeture de l'application. Le prototype produit donc maintenant, **avant**
+le marqueur `__COMMIT`, un fichier privé `<ID>__ORIGINS` de taille fixe :
+une version de format, le nombre de composants, l'empreinte du manifeste,
+puis les chemins d'origine, types et tailles dans **l'ordre exact** des
+capsules. Un SHA-256 protège aussi les octets du fichier de correspondance.
+Les chemins ne sont jamais ajoutés au reçu public ni aux diagnostics natifs.
+
+Cette correspondance reste **sensible** : elle expose les chemins des
+captures à quiconque peut lire le dossier de sauvegarde. Elle n'est créée
+que dans un espace privé vérifié (0700 ; fichier de mode 0600) par le
+**prototype hôte** et **n'est pas exportée** dans l'application PS5 ou
+par le helper. Elle n'est **pas chiffrée** et ne doit donc pas être
+copiée vers un support partagé. Aucun mécanisme de nettoyage de
+la Galerie n'en dépend à ce stade.
+
+La lecture `cmp5_read_group_origin_map` fonctionne après fermeture,
+revérifie l'intégrité des capsules et du manifeste, l'inode du fichier de
+correspondance, les identifiants, extensions, tailles et associations
+photo/vidéo/`.dat`/miniature, et n'émet la correspondance qu'en cas de
+cohérence. Un groupe historique dépourvu de cette table reste consultable
+comme fragments privés, mais **ne satisfait plus le contrat d'album
+restaurable vérifié**. Les tests couvrent les ordres de membres différents,
+la corruption d'un chemin enregistré et les marqueurs hérités.
+
+**Limite importante :** une correspondance de noms n'est pas une
+sauvegarde transactionnelle des index, des bases ni des associations Sony.
+Le moteur ne sait toujours pas reconstruire une Galerie PS5 complète, et
+l'écriture vers `/user/av_contents` reste interdite.
+
 ## Audit de reprise après interruption (lecture seule)
 
 Le moteur dispose de deux contrôles complémentaires, **uniquement pour les dossiers privés du prototype sur ordinateur** : `cmp5_inspect_group_recovery` vérifie les capsules et le marqueur `__COMMIT`, tandis que `cmp5_inspect_restored_group_recovery` vérifie les fichiers bruts restaurés et le marqueur `__RESTORED`. Le second valide les empreintes SHA-256 des fichiers restaurés, pas uniquement celles des capsules sauvegardées. Les contrôles parcourent jusqu'à 4 096 entrées de répertoire, refusent les éléments inattendus dans l'espace de noms du groupe (par exemple `ALBUM__5`, `.ALBUM__5.part` ou un marqueur étranger) et vérifient les liens symboliques/physiques sans les suivre. Ils retournent quatre états :
