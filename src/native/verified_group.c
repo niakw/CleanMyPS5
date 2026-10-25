@@ -349,6 +349,9 @@ static int publish_manifest(int dir,const char*id,int restored,
  close(fd);
  return ok&&fsync(dir)==0;
 }
+/* The installed PS5 title compiles ONLY private backup and verification.
+ * All RESTORED file writers stay confined to the host integration suite. */
+#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
 static int raw_restored(int dir,const char*name,uint64_t size,
  const uint8_t expected[32],Cmp5CancelCheck cancel,void*ctx){
  int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
@@ -372,7 +375,8 @@ static int raw_restored(int dir,const char*name,uint64_t size,
   named.st_nlink==1&&!cancelled(cancel,ctx);
  close(fd);return ok;
 }
-/* All direct receipts must reject incomplete or ambiguous namespaces. */
+#endif /* !CMP5_NATIVE_GROUP_BACKUP_ONLY */
+ /* All direct receipts must reject incomplete or ambiguous namespaces. */
 static int verification_namespace_clean(int dir,const char*id,
                                         int restored,uint32_t count);
 int cmp5_verify_group(const char*workspace,const char*id,
@@ -650,6 +654,7 @@ int cmp5_inspect_group_originals(const char*root,const char*workspace,
  if(ok)memcpy(states,inspected,sizeof(inspected));
  return ok;
 }
+#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
 int cmp5_verify_restored_group(const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
@@ -757,8 +762,10 @@ restore_done:
  return ok;
 }
 
-/* Recovery audits inspect only a private, pre-existing 0700 workspace.
+#endif /* !CMP5_NATIVE_GROUP_BACKUP_ONLY */
+ /* Recovery audits inspect only a private, pre-existing 0700 workspace.
  * No PS5 gallery file is opened for write or modified by these routines. */
+#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
 static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
  struct stat st;*present=0;
  if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
@@ -768,7 +775,8 @@ static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
     (uint64_t)st.st_size>MAX_TOTAL+64u)*unsafe=1;
  return 1;
 }
-/* Reject unknown files within a group namespace, e.g. ALBUM__5,
+#endif /* !CMP5_NATIVE_GROUP_BACKUP_ONLY */
+ /* Reject unknown files within a group namespace, e.g. ALBUM__5,
  * .ALBUM__5.part, a foreign commit marker or an undeclared sidecar.
  * Checking only the four expected names would silently ignore them. */
 static int expected_recovery_name(const char*name,const char*id,int restored){
@@ -855,6 +863,7 @@ static int verification_namespace_clean(int dir,const char*id,
  }
  return 1;
 }
+#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
 static int inspect_recovery(const char*workspace,const char*id,int restored,
  Cmp5RecoveryReport*report){
  if(!report)return 0;
@@ -1008,3 +1017,4 @@ int cmp5_inspect_backup_restore_pair(const char*backup,const char*backup_id,
  *report=found;
  return 1;
 }
+#endif /* !CMP5_NATIVE_GROUP_BACKUP_ONLY */
