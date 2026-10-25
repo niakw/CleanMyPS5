@@ -209,6 +209,13 @@ int main(int argc,char**argv){
  assert(live[1]==CMP5_ORIGIN_CHANGED);
  assert(live[0]==CMP5_ORIGIN_UNCHANGED&&
         live[2]==CMP5_ORIGIN_UNCHANGED);
+ /* Never follow a symlink that later occupies the original Gallery path. */
+ assert(unlink(photo)==0);
+ assert(symlink(moved_photo,photo)==0);
+ assert(cmp5_inspect_group_originals(root,backup,"THUMB",live,NULL,NULL));
+ assert(live[1]==CMP5_ORIGIN_UNKNOWN);
+ assert(live[0]==CMP5_ORIGIN_UNCHANGED&&
+        live[2]==CMP5_ORIGIN_UNCHANGED);
  puts("Gallery JPG/DAT/external thumbnail: private SHA-256 backup and restore PASS");
  return 0;
 }
