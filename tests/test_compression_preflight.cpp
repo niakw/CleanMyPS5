@@ -120,6 +120,19 @@ int main(){
  assert(!form_encode_path("/data/homebrew/",encoded,sizeof(encoded)));
  assert(!form_encode_path("/data//PPSA",encoded,sizeof(encoded)));
  char pause[256]{};
+ /* Pause and resume may only address the agreed game output roots.
+  * In particular, the controller itself must reject user/system paths. */
+ assert(allowed_destination("/data/homebrew"));
+ assert(allowed_destination("/mnt/usb0/homebrew"));
+ assert(allowed_destination("/mnt/ext7/homebrew"));
+ assert(!allowed_destination(nullptr));
+ assert(!allowed_destination("/mnt/usb8/homebrew"));
+ assert(!allowed_destination("/mnt/usb0/homebrew/../savedata"));
+ assert(!allowed_destination("/mnt/usb0/homebrew/"));
+ assert(!allowed_destination("/user/savedata"));
+ assert(!allowed_destination("/data/homebrew/../user"));
+ assert(!build_pause_body("/user/savedata","PPSA12345",pause,sizeof(pause)));
+ assert(!build_pause_body("/mnt/usb8/homebrew","PPSA12345",pause,sizeof(pause)));
  assert(build_pause_body("/mnt/usb0/homebrew","PPSA12345",pause,sizeof(pause)));
  assert(std::strcmp(pause,
    "dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345")==0);
