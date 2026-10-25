@@ -17,11 +17,13 @@ int main(){
  assert(!refresh.armed()&&!refresh.due(UINT64_MAX));
  refresh.defer(UINT64_MAX);
  assert(!refresh.armed()); // Reject impossible monotonic timestamp overflow.
- const std::string sample=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false,"title_id":"PPSA12345"})";
+ const std::string sample=R"({"service":"CleanMyPS5-AMPR","state":"running","percent":45,"bytes_done":450,"bytes_total":1000,"queue_len":1,"launch_checked":false,"title_id":"PPSA12345","phase":"pack","reason":"none"})";
  GameProgress p{};
  assert(parse_progress(sample.data(),sample.size(),&p));
  assert(p.state==JobState::running&&p.percent==45&&p.bytes_done==450&&
-   p.bytes_total==1000&&p.queue_len==1&&!p.launch_checked&&std::strcmp(p.title_id,"PPSA12345")==0);
+   p.bytes_total==1000&&p.queue_len==1&&!p.launch_checked&&
+   p.phase==JobPhase::pack&&p.reason==PauseReason::none&&
+   std::strcmp(p.title_id,"PPSA12345")==0);
  const auto bad=[](const std::string&s){
   GameProgress p{};return !parse_progress(s.data(),s.size(),&p);
  };
@@ -41,6 +43,19 @@ int main(){
  assert(bad(mutate("\"launch_checked\":false","\"launch_checked\":true,\"secret\":12")));
  assert(bad(sample.substr(0,sample.size()-1)));
  assert(bad(sample+"\n"));
+ assert(bad(mutate("\"phase\":\"pack\"","\"phase\":\"download\"")));
+ assert(bad(mutate("\"reason\":\"none\"","\"reason\":\"/mnt/usb0\"")));
+ assert(bad(mutate("\"phase\":\"pack\"","\"phase\":\"pack\",\"phase\":\"done\"")));
+ assert(bad(mutate("\"state\":\"running\"","\"state\":\"paused\"")));
+ for(const auto reason:{"paused_source","paused_dest","paused_full","paused_game","paused_user","other"}){
+  std::string paused=mutate("\"state\":\"running\"","\"state\":\"paused\"");
+  const auto where=paused.find("\"reason\":\"none\"");assert(where!=std::string::npos);
+  paused.replace(where,std::strlen("\"reason\":\"none\""),
+                 std::string("\"reason\":\"")+reason+"\"");
+  assert(parse_progress(paused.data(),paused.size(),&p));
+  assert(p.state==JobState::paused&&p.reason!=PauseReason::none);
+ }
+ assert(std::strcmp(phase_label(JobPhase::verify),"VERIFICATION INTEGRITE")==0);
  std::string done=mutate("\"state\":\"running\"","\"state\":\"done\"");
  assert(parse_progress(done.data(),done.size(),&p)&&p.state==JobState::done);
  assert(!p.launch_checked); // finished packing != launch proof

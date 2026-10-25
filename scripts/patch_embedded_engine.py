@@ -530,16 +530,34 @@ static void cmp5_progress(int fd) {
   int pct=status.percent;
   if(pct<0)pct=0;
   if(pct>100)pct=100;
-  char out[256];
+  static const char *const phases[]={"idle","starting","waiting","pack",
+    "copy","verify","paused","done","error","cancelled"};
+  static const char *const reasons[]={"paused_user","paused_source",
+    "paused_dest","paused_full","paused_game"};
+  const char *phase="other",*reason="none";
+  for(size_t i=0;i<sizeof(phases)/sizeof(phases[0]);++i)
+    if(strncmp(status.phase,phases[i],sizeof(status.phase))==0){
+      phase=phases[i];break;
+    }
+  if(status.state==JOB_PAUSED){
+    reason="other";
+    for(size_t i=0;i<sizeof(reasons)/sizeof(reasons[0]);++i)
+      if(strncmp(status.code,reasons[i],sizeof(status.code))==0){
+        reason=reasons[i];break;
+      }
+  }
+  /* No paths, titles or user-controlled messages in diagnostics. */
+  char out[384];
   snprintf(out,sizeof out,
     "{\\"service\\":\\"CleanMyPS5-AMPR\\",\\"state\\":\\"%s\\","
     "\\"percent\\":%d,\\"bytes_done\\":%llu,\\"bytes_total\\":%llu,"
-    "\\"queue_len\\":%d,\\"launch_checked\\":%s,\\"title_id\\":\\"%.9s\\"}",
+    "\\"queue_len\\":%d,\\"launch_checked\\":%s,\\"title_id\\":\\"%.9s\\","
+    "\\"phase\\":\\"%s\\",\\"reason\\":\\"%s\\"}",
     names[index],pct,
     (unsigned long long)status.bytes_done,
     (unsigned long long)status.bytes_total,
     status.queue_len,
-    status.launch_checked?"true":"false",status.title_id);
+    status.launch_checked?"true":"false",status.title_id,phase,reason);
   send_json(fd,200,out);
 }
 """

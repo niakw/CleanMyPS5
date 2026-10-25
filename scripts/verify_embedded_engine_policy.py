@@ -15,6 +15,9 @@ def check_engine(root: Path) -> None:
     job = (root / "src/job.c").read_text()
     game_paths = (root / "src/cmp5_compression_allowed_paths.h").read_text()
     required = {
+        "progress phase whitelist": 'const char *phase="other",*reason="none";',
+        "progress reason only for paused": "if(status.state==JOB_PAUSED)",
+        "progress enum code bounded": 'strncmp(status.code,reasons[i],sizeof(status.code))',
         "scoped pause endpoint": 'cmp5_job_pause_dest(pause_dest)',
         "scoped pause rejects wrong game": "pause_target_changed",
         "loopback-only listener": "addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);",

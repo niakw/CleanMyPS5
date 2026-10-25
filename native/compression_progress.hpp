@@ -20,8 +20,38 @@ struct ProgressRefresh {
  }
 };
 enum class JobState { idle,running,done,error,cancelled,paused };
+enum class JobPhase { idle,starting,waiting,pack,copy,verify,paused,done,error,cancelled,other };
+enum class PauseReason { none,user,source_unavailable,destination_unavailable,destination_full,game_active,other };
+inline const char* phase_label(JobPhase v) noexcept {
+ switch(v){
+  case JobPhase::starting:return "DEMARRAGE";
+  case JobPhase::waiting:return "ATTENTE DU JEU";
+  case JobPhase::pack:return "COMPRESSION LZ4";
+  case JobPhase::copy:return "COPIE DES FICHIERS";
+  case JobPhase::verify:return "VERIFICATION INTEGRITE";
+  case JobPhase::paused:return "EN PAUSE";
+  case JobPhase::done:return "TERMINE";
+  case JobPhase::error:return "ERREUR";
+  case JobPhase::cancelled:return "INTERROMPU";
+  case JobPhase::other:return "ETAPE NON IDENTIFIEE";
+  default:return "INACTIF";
+ }
+}
+inline const char* reason_label(PauseReason v) noexcept {
+ switch(v){
+  case PauseReason::user:return "PAUSE DEMANDEE";
+  case PauseReason::source_unavailable:return "RECONNECTER STOCKAGE SOURCE";
+  case PauseReason::destination_unavailable:return "RECONNECTER STOCKAGE DESTINATION";
+  case PauseReason::destination_full:return "ESPACE DESTINATION INSUFFISANT";
+  case PauseReason::game_active:return "FERMER LE JEU POUR REPRENDRE";
+  case PauseReason::other:return "MOTIF NON IDENTIFIE";
+  default:return "AUCUN MOTIF SIGNALE";
+ }
+}
 struct GameProgress {
  JobState state=JobState::idle;
+ JobPhase phase=JobPhase::idle;
+ PauseReason reason=PauseReason::none;
  unsigned percent=0,queue_len=0;
  std::uint64_t bytes_done=0,bytes_total=0;
  bool launch_checked=false; /* prelaunch check, NOT tested gameplay */
@@ -77,7 +107,31 @@ public:
    if(chars<4u?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
    value.title_id[chars++]=c;
   }
+  if(!token("\",\"phase\":\""))return false;
+  if(token("idle"))value.phase=JobPhase::idle;
+  else if(token("starting"))value.phase=JobPhase::starting;
+  else if(token("waiting"))value.phase=JobPhase::waiting;
+  else if(token("pack"))value.phase=JobPhase::pack;
+  else if(token("copy"))value.phase=JobPhase::copy;
+  else if(token("verify"))value.phase=JobPhase::verify;
+  else if(token("paused"))value.phase=JobPhase::paused;
+  else if(token("done"))value.phase=JobPhase::done;
+  else if(token("error"))value.phase=JobPhase::error;
+  else if(token("cancelled"))value.phase=JobPhase::cancelled;
+  else if(token("other"))value.phase=JobPhase::other;
+  else return false;
+  if(!token("\",\"reason\":\""))return false;
+  if(token("none"))value.reason=PauseReason::none;
+  else if(token("paused_user"))value.reason=PauseReason::user;
+  else if(token("paused_source"))value.reason=PauseReason::source_unavailable;
+  else if(token("paused_dest"))value.reason=PauseReason::destination_unavailable;
+  else if(token("paused_full"))value.reason=PauseReason::destination_full;
+  else if(token("paused_game"))value.reason=PauseReason::game_active;
+  else if(token("other"))value.reason=PauseReason::other;
+  else return false;
   if(!token("\"}")||p!=end||
+     (value.state!=JobState::paused&&value.reason!=PauseReason::none)||
+     (value.state==JobState::paused&&value.reason==PauseReason::none)||
      (chars!=0u&&chars!=9u)||
      (value.bytes_total&&value.bytes_done>value.bytes_total))return false;
   value.percent=static_cast<unsigned>(pct);
