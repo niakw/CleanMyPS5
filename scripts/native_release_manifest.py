@@ -22,6 +22,8 @@ REQUIRED_IN_ZIP = (
     "sce_sys/param.json",
     "sce_sys/icon0.png",
     "sce_module/libc.prx",
+    "assets/cleanmyps5-helper.elf",
+    "assets/cleanmyps5-compression.elf",
 )
 
 def sha256(path: Path) -> str:
@@ -86,6 +88,16 @@ def expected_manifest(folder: Path, title: str, pin: str) -> dict:
     validate_zip(archive, title)
     if not helper.is_file() or helper.is_symlink() or helper.stat().st_size < 64:
         raise ValueError("Separate read-only helper ELF missing")
+    # The optional standalone ELF is a debugging copy of the helper inside
+    # the ONE installable native title, never another required application.
+    # Compare decompressed archive bytes, not filenames or untrusted metadata.
+    bundled_digest = hashlib.sha256()
+    with ZipFile(archive) as package:
+        with package.open(f"{title}/assets/cleanmyps5-helper.elf") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                bundled_digest.update(block)
+    if bundled_digest.hexdigest() != sha256(helper):
+        raise ValueError("Standalone helper differs from bundled native-title ELF")
     pkg = folder / f"{title}.ffpkg"
     if pkg.exists():
         if not pkg.is_file() or pkg.is_symlink() or pkg.stat().st_size < 0x10560:
