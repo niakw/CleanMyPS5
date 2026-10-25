@@ -8,6 +8,11 @@ APPROVED = frozenset({
  "capture_companions.c", "diagnostics.c", "media_preview.c",
  "video_metadata.c", "webm_metadata.c"
 })
+BACKUP_UNITS = frozenset({"verified_backup.c", "sha256.c"})
+BACKUP_WRITERS = frozenset({
+ "native/private_media_backup.hpp",
+ "src/native/verified_backup.c",
+})
 # Deny mutation paths in all reviewed read-only first-party code.
 BAD = re.compile(
  r"\b(?:unlink|unlinkat|remove|rename|renameat|renameat2|rmdir|mkdir|"
@@ -27,6 +32,35 @@ def check_reader(content: str, name: str) -> None:
  if match:
   raise ValueError(f"{name}: unreviewed filesystem write or credential mutation: {match.group()}")
 
+def check_backup_writer(content: str, name: str) -> None:
+ """A deliberately narrow, additive-only exception to the READ-ONLY gate."""
+ if name == "native/private_media_backup.hpp":
+  required = (
+   'workspace="/download0/cmp5-private-backups"',
+   'open("/download0",O_RDONLY|O_DIRECTORY|O_NOFOLLOW)',
+   'mkdirat(root,"cmp5-private-backups",0700)',
+   'cmp5_backup_media("/",&item,workspace,out.capsule_id,',
+   "cmp5_verify_backup(workspace,out.capsule_id,",
+  )
+ else:
+  required = (
+   "#ifndef CMP5_NATIVE_BACKUP_ONLY",
+   "cmp5_backup_media(",
+   "cmp5_verify_backup(",
+   "CMP5_BACKUP_LIMIT",
+   "O_CREAT|O_EXCL|O_NOFOLLOW",
+   "private_directory_identity_current",
+   'if(unlinkat(dir,temp,0)!=0)return 0;',
+  )
+ if not all(value in content for value in required):
+  raise ValueError(f"{name}: unreviewed native backup capability")
+ # Privilege changes, external commands, system file mutations and
+ # arbitrary path rewrites are prohibited even in these writer units.
+ if re.search(r"\b(?:rename|renameat|rmdir|chown|fchown|chmod|fchmod|"
+              r"setuid|seteuid|setgid|execve|posix_spawn|system|"
+              r"popen|dlopen|syscall|sceKernelWrite)\s*\(", content):
+  raise ValueError(f"{name}: prohibited native backup mutation")
+
 GENERATED_HEADERS = frozenset({"demo_renderer.hpp", "scan_rules.h", "stb_image.h"})
 
 def check_title_headers(root: Path, builder: str, sources: set[str]) -> None:
@@ -38,7 +72,7 @@ def check_title_headers(root: Path, builder: str, sources: set[str]) -> None:
  if len(staging) != len(copied):
   raise ValueError("Duplicate or remapped native title header staging")
  todo = [root/"native/main.cpp", root/"native/preview_decode.c"]
- todo += [root/"src/native"/name for name in sorted(sources)]
+ todo += [root/"src/native"/name for name in sorted(sources | BACKUP_UNITS)]
  checked: set[Path] = set()
  while todo:
   path = todo.pop()
@@ -48,7 +82,11 @@ def check_title_headers(root: Path, builder: str, sources: set[str]) -> None:
    raise ValueError(f"Missing native source: {path}")
   checked.add(path)
   text = path.read_text()
-  check_reader(text, str(path.relative_to(root)))
+  location=str(path.relative_to(root))
+  if location in BACKUP_WRITERS:
+   check_backup_writer(text, location)
+  else:
+   check_reader(text, location)
   includes = re.findall(r'^\s*#\s*include\s+"([^"]+)"',
                         text, flags=re.MULTILINE)
   for name in includes:
@@ -122,8 +160,8 @@ def check_builder(content: str) -> set[str]:
  sources = re.findall(
   r'cp "\$project/src/native/([A-Za-z0-9_]+\.c)" '
   r'"\$tmp/native-toolchain/src/[A-Za-z0-9_]+\.c"', content)
- if len(sources)!=len(APPROVED) or set(sources)!=APPROVED:
-  raise ValueError("Native compiler source list differs from reviewed readers")
+ if len(sources)!=len(APPROVED | BACKUP_UNITS) or set(sources)!=(APPROVED | BACKUP_UNITS):
+  raise ValueError("Native compiler source list differs from reviewed readers and additive backup")
  if 'cp "$project/native/preview_decode.c"' not in content:
   raise ValueError("Native preview decoder source missing")
  # Any extra or renamed C/C++ overlay changes what executes inside
@@ -131,13 +169,14 @@ def check_builder(content: str) -> set[str]:
  overlays = re.findall(
   r'cp "\$project/(src/native|native)/([A-Za-z0-9_]+\.(?:c|cc|cpp|cxx))" '
   r'"\$tmp/native-toolchain/src/([A-Za-z0-9_]+\.(?:c|cc|cpp|cxx))"',content)
- expected = {("src/native",name,"cmp5_"+name) for name in APPROVED}
+ expected = {("src/native",name,"cmp5_"+name) for name in (APPROVED | BACKUP_UNITS)}
  expected.update({("native","main.cpp","main.cpp"),
                   ("native","preview_decode.c","cmp5_preview_decode.c")})
  if len(overlays)!=len(expected) or set(overlays)!=expected:
   raise ValueError("Unreviewed or renamed C/C++ native title overlay")
- if "verified_group.c" in content or "verified_backup.c" in content:
-  raise ValueError("Unvalidated host-only backup/restore linked into PS5")
+ if "verified_group.c" in content or (
+     "sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' " not in content):
+  raise ValueError("Native backup must exclude the host-only Gallery restore engine")
  return set(sources)
 
 def check(root: Path) -> None:
