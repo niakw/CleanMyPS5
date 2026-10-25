@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -15,6 +16,15 @@ static char swap_parent[550];
 static int swap_armed;
 static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
+static int deny_request_once;
+static int test_openat(int dir,const char*name,int flags){
+ if(deny_request_once&&!strcmp(name,"request.bin")){
+  deny_request_once=0;
+  errno=EACCES;
+  return -1;
+ }
+ return openat(dir,name,flags);
+}
 static struct dirent* test_readdir(DIR*dir){
  struct dirent*entry=readdir(dir);
  if(entry&&!strcmp(entry->d_name,"CUSA54321")){
@@ -54,7 +64,9 @@ static int test_closedir(DIR*dir){
 }
 #define readdir test_readdir
 #define closedir test_closedir
+#define openat test_openat
 #include "../src/native/recovery_inventory.h"
+#undef openat
 #undef closedir
 #undef readdir
 #include <stdlib.h>
@@ -127,6 +139,14 @@ int main(void){
                                             cancel_after_observation,&results));
  assert(results.count==0u&&results.hidden==0u&&
         results.folders_checked==0u&&!results.partial);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==3u&&!results.partial);
+ /* A private checkpoint denied by the sandbox is unknown, not missing.
+  * The unaffected volumes remain safely inventoried. */
+ deny_request_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!deny_request_once);
+ assert(results.count==2u&&results.partial);
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3u&&!results.partial);
 
