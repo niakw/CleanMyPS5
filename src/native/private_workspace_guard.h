@@ -58,6 +58,8 @@ static inline int cmp5_workspace_name_ok(const char*path){
 }
 static inline int cmp5_workspace_forbidden(const char*canonical){
  const char*protected_roots[]={"/user","/system","/system_ex",
+                               "/system_data","/app0","/update",
+                               "/dev","/proc",
                                "/data/etaHEN","/data/pldmgr"};
  for(size_t i=0;i<sizeof(protected_roots)/sizeof(protected_roots[0]);i++)
   if(cmp5_workspace_prefix(canonical,protected_roots[i]))return 1;

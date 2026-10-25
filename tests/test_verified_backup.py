@@ -34,11 +34,14 @@ with tempfile.TemporaryDirectory() as temp:
     assert source.read_bytes()==data
     assert (restore/'SAVED').read_bytes()==data
     assert (backup/'ONE').read_bytes()!=data
-    assert not list(backup.glob('*.part'))
+    # Failed copies are now retained for audit, never automatically
+    # unlinked by a stale pathname after another writer can replace it.
+    assert (backup/'.ABORTED.part').is_file()
+    assert not (backup/'.ONE.part').exists() # early output collision denial
     assert not (restore/'ANOTHER').exists()
     assert not (backup/'BAD').exists()
     assert not (backup/'ABORTED').exists()
-    assert not (backup/'.ABORTED.part').exists()
+    assert (backup/'.ABORTED.part').is_file()
     assert not (backup/'HARDLINK').exists()
     assert not (backup/'ALIAS_DIR').exists()
     assert not (backup/'SYMLINK').exists()

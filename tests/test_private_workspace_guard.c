@@ -9,7 +9,10 @@
 #include <unistd.h>
 int main(void){
  const char*invalid[]={"/","/user","/user/av_contents/photo/private",
-  "/system/private","/system_ex/payloads","/data/etaHEN/private",
+  "/system/private","/system_ex/payloads",
+  "/system_data/private","/app0/internal","/update/cache",
+  "/dev/other","/proc/self",
+  "/data/etaHEN/private",
   "/data/pldmgr/payloads","relative","/tmp/../private",
   "/tmp/./private","/tmp//private","/tmp/private/"};
  for(size_t i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++){

@@ -205,6 +205,14 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
     !cmp5_workspace_has_capacity(dir,c->bytes,1u)){
   close(source);close(dir);return 0;
  }
+ /* A duplicate published ID must be rejected before allocating/copying
+  * potentially 512 MiB. Publication below still uses linkat for an
+  * atomic no-clobber check if another process wins after this preflight. */
+ struct stat occupied={0};
+ errno=0;
+ if(fstatat(dir,id,&occupied,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT){
+  close(source);close(dir);return 0;
+ }
  char temp[56];int stage=start_stage(dir,id,temp);
  if(stage<0){close(source);close(dir);return 0;}
  uint8_t header[HEADER_SIZE]={0};memcpy(header,magic,8);put64(header+8,c->bytes);
@@ -241,7 +249,10 @@ int cmp5_backup_media(const char*root,const Cmp5MediaCandidate*c,
     private_directory_identity_current(dir,workspace,&destination_root);
  }
  if(ok){r->published=1;r->bytes=c->bytes;memcpy(r->sha256,digest,32);}
- if(!ok)(void)unlinkat(dir,temp,0);
+ /* Never delete a staging NAME after an error: another writer can
+  * replace that pathname while our original fd is open. POSIX unlinkat
+  * has no conditional inode-match. Retain the untrusted .part for manual
+  * offline audit; O_EXCL makes accidental reuse fail closed. */
  close(dir);
  return ok;
 }
@@ -341,6 +352,12 @@ int cmp5_restore_backup(const char*backup,const char*id,
     !cmp5_workspace_has_capacity(target,verified.bytes,1u)){
   close(source);close(source_dir);close(target);return 0;
  }
+ struct stat occupied={0};
+ errno=0;
+ if(fstatat(target,newname,&occupied,AT_SYMLINK_NOFOLLOW)==0||
+    errno!=ENOENT){
+  close(source);close(source_dir);close(target);return 0;
+ }
  if(lseek(source,HEADER_SIZE,SEEK_SET)!=(off_t)HEADER_SIZE){
   close(source);close(source_dir);close(target);return 0;
  }
@@ -372,7 +389,8 @@ int cmp5_restore_backup(const char*backup,const char*id,
     private_directory_identity_current(source_dir,backup,&source_root)&&
     private_directory_identity_current(target,destination,&target_root);
  if(ok&&r)*r=verified;
- if(!ok)(void)unlinkat(target,temp,0);
+ /* Preserve failed private staging files. They can have been replaced
+  * after creation; never unlink a name whose inode we cannot pin. */
  close(source);close(source_dir);
  close(target);
  return ok;

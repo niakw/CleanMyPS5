@@ -1,5 +1,26 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Échecs des copies privées : interdiction d'effacer un temporaire remplacé (25 octobre 2026)
+
+Le prototype **hôte uniquement** de sauvegarde/restauration laisse désormais
+les fichiers `.part` non publiés en place après un échec ou une
+annulation. L'ancien nettoyage automatique avec `unlinkat(dir, nom)`
+pouvait effacer un fichier tiers déposé sous le même nom après la
+création du temporaire ; POSIX n'offre pas de suppression conditionnelle
+sur l'identité de l'inode. Les nouveaux tests remplacent artificiellement
+le fichier temporaire durant `fsync`, provoquent `EIO` et vérifient que
+le fichier de remplacement demeure intact dans les deux sens.
+Les noms `.part` résiduels bloquent volontairement toute réutilisation
+automatique (`O_EXCL`) jusqu'à audit manuel. Les noms déjà publiés
+sont désormais refusés **avant** une nouvelle copie lourde, avec
+`linkat` toujours utilisé pour le refus atomique final.
+Les racines PS5 `/system_data`, `/app0`, `/update` et les
+pseudo-filesystems `/dev`, `/proc` sont explicitement interdits
+comme espaces privés de laboratoire. Aucune écriture dans la Galerie
+réelle et aucune suppression sur console ne sont autorisées.
+
+
+
 ## Helper HTTP : cadrage strict et refus des origines ambiguës (25 octobre 2026)
 
 Le serveur de diagnostic (lecture seule, loopback) impose une ligne de

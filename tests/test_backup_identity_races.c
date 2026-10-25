@@ -18,8 +18,27 @@
 static char watching[1024],moved[1024];
 static int armed,triggered,restore_only,fail_directory_fsync;
 static int corrupt_published_restore;
+static int replace_stage,stage_replaced;
+static char watched_stage[1024],moved_stage[1024];
+static const char stage_sentinel[]="UNRELATED PRIVATE FILE - NEVER DELETE";
+
 static int intercepted_fsync(int fd){
  struct stat st;
+ if(replace_stage&&!stage_replaced&&fstat(fd,&st)==0&&
+    S_ISREG(st.st_mode)){
+  struct stat named;
+  if(stat(watched_stage,&named)==0&&
+     st.st_dev==named.st_dev&&st.st_ino==named.st_ino){
+   assert(rename(watched_stage,moved_stage)==0);
+   int decoy=open(watched_stage,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+   assert(decoy>=0);
+   assert(write(decoy,stage_sentinel,sizeof(stage_sentinel)-1u)==
+          (ssize_t)(sizeof(stage_sentinel)-1u));
+   assert(close(decoy)==0);
+   stage_replaced=1;
+   errno=EIO;return -1;
+  }
+ }
  if(fail_directory_fsync&&fstat(fd,&st)==0&&S_ISDIR(st.st_mode)){
   errno=EIO;return -1;
  }
@@ -108,6 +127,25 @@ int main(int argc,char**argv){
   assert(!cmp5_backup_media(root,&item,backup,"SWAPPED",&receipt,
     change_workspace_during_read,&state));
   assert(state.changed&&!receipt.published);
+ }else if(!strcmp(action,"backup-stage-swapped")){
+  assert(snprintf(watched_stage,sizeof(watched_stage),
+                  "%s/.INJECT.part",backup)>0);
+  assert(snprintf(moved_stage,sizeof(moved_stage),
+                  "%s/.INJECT.original",backup)>0);
+  replace_stage=1;
+  assert(!cmp5_backup_media(root,&item,backup,"INJECT",&receipt,NULL,NULL));
+  assert(stage_replaced&&!receipt.published);
+  assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
+ }else if(!strcmp(action,"restore-stage-swapped")){
+  assert(snprintf(watched_stage,sizeof(watched_stage),
+                  "%s/.RESTAGE.part",restore)>0);
+  assert(snprintf(moved_stage,sizeof(moved_stage),
+                  "%s/.RESTAGE.original",restore)>0);
+  replace_stage=1;
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"RESTAGE",
+                              &receipt,NULL,NULL));
+  assert(stage_replaced&&!receipt.published);
+  assert(access(watched_stage,F_OK)==0&&access(moved_stage,F_OK)==0);
  }else if(!strcmp(action,"backup-publish-tamper")){
   corrupt_published_restore=1;
   assert(!cmp5_backup_media(root,&item,backup,"BROKEN",&receipt,
