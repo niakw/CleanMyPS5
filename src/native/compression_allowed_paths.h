@@ -249,15 +249,29 @@ static inline bool cmp5_game_output_create_unique(
  }
  /* mkdirat never reuses an existing file, directory or dangling link. */
  if(mkdirat(fd,title_id,0755)!=0){close(fd);return false;}
- struct stat held={0},named={0};
+ struct stat held={0},named={0},checkpoint={0},checkpoint_opened={0};
  const int child=openat(fd,title_id,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- bool ok=child>=0 &&
-   mkdirat(child,".e2a-state",0700)==0 &&
+ const bool state_created=child>=0&&mkdirat(child,".e2a-state",0700)==0;
+ const int state_fd=state_created?
+   openat(child,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ bool ok=state_created&&state_fd>=0&&
    fstat(child,&held)==0&&
    fstatat(fd,title_id,&named,AT_SYMLINK_NOFOLLOW)==0&&
+   fstat(state_fd,&checkpoint_opened)==0&&
+   fstatat(child,".e2a-state",&checkpoint,AT_SYMLINK_NOFOLLOW)==0&&
    S_ISDIR(held.st_mode)&&S_ISDIR(named.st_mode)&&
+   S_ISDIR(checkpoint.st_mode)&&S_ISDIR(checkpoint_opened.st_mode)&&
    held.st_dev==parent.st_dev&&held.st_dev==named.st_dev&&
-   held.st_ino==named.st_ino;
+   held.st_ino==named.st_ino&&
+   checkpoint.st_dev==held.st_dev&&
+   checkpoint.st_dev==checkpoint_opened.st_dev&&
+   checkpoint.st_ino==checkpoint_opened.st_ino&&
+   checkpoint.st_uid==held.st_uid&&
+   checkpoint.st_uid==checkpoint_opened.st_uid&&
+   /* Some external filesystems ignore chmod/mkdir modes. Never report
+    * success when resume metadata would be group/world accessible. */
+   (checkpoint.st_mode&0077)==0&&
+   (checkpoint_opened.st_mode&0077)==0;
  /* mkdirat pins the opened parent, but that parent can be renamed or
   * its mount replaced while creating the title and private checkpoint.
   * The authorized destination PATH must still name that same inode.
@@ -288,6 +302,7 @@ static inline bool cmp5_game_output_create_unique(
      title_visible.st_uid==held.st_uid&&
      title_visible.st_mode==held.st_mode;
  }
+ if(state_fd>=0)close(state_fd);
  if(child>=0)close(child);
  close(fd);
  if(!ok)return false; /* keep partial output for manual inspection */
