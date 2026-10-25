@@ -135,6 +135,15 @@ int main(int argc,char**argv){
  Cmp5RecoveryReport broken={0};
  assert(cmp5_inspect_group_recovery(backup,"REORDER",&broken));
  assert(broken.state==CMP5_RECOVERY_INVALID);
+ /* An invalid origin map blocks restoration BEFORE any restored member is
+  * created. A SHA-valid capsule set alone no longer qualifies as an album. */
+ Cmp5GroupReceipt refused={0};
+ assert(!cmp5_restore_group(backup,"REORDER",restore,&refused,NULL,NULL));
+ assert(refused.count==0u);
+ char absent_member[512];
+ assert(snprintf(absent_member,sizeof(absent_member),
+   "%s/REORDER__1",restore)>0);
+ assert(access(absent_member,F_OK)!=0);
  assert(cmp5_verify_group(backup,"THUMB",&verified,NULL,NULL));
  assert(verified.count==3u&&verified.bytes==result.bytes&&
         memcmp(verified.manifest_sha256,result.manifest_sha256,32)==0);
