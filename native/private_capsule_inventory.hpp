@@ -86,6 +86,10 @@ inline bool scan_at(const char*folder,Inventory*out,
  if(!folder||!out||(cancel&&cancel(context)))return false;
  const int fd=cmp5_open_private_workspace(folder);
  if(fd<0)return false;
+ struct stat anchor{};
+ if(fstat(fd,&anchor)!=0||!S_ISDIR(anchor.st_mode)){
+  close(fd);return false;
+ }
  /* PS5 libc does not export dirfd(): keep a separately owned anchor
   * for fstatat while fdopendir owns a duplicate for traversal. */
  const int iter=dup(fd);
@@ -154,6 +158,18 @@ inline bool scan_at(const char*folder,Inventory*out,
   ++found.count;
  }
  if(closedir(stream)!=0)good=false;
+ if(cancel&&cancel(context))good=false;
+ /* A pinned fd stays readable after a directory is renamed or replaced.
+  * Reopen the original workspace pathname using the full 0700/private
+  * guard and compare identities before publishing ANY catalogue entry.
+  * An obsolete listing is not a valid post-restart archive inventory.
+  * Verification of a selected capsule still reopens and rehashes it. */
+ const int current=good?cmp5_open_private_workspace(folder):-1;
+ struct stat fresh{};
+ if(current<0||fstat(current,&fresh)!=0||
+    !S_ISDIR(fresh.st_mode)||anchor.st_dev!=fresh.st_dev||
+    anchor.st_ino!=fresh.st_ino)good=false;
+ if(current>=0)close(current);
  close(fd);
  if(!good)return false;
  found.checked=true;
