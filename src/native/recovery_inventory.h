@@ -130,9 +130,11 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
  int fd=cmp5_recovery_parent_fd(root,parent);
  if(fd<0)return -1;
  int title_fd=openat(fd,title,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ const int title_open_error=title_fd<0?errno:0;
  close(fd);
- if(title_fd<0)return -1;
+ if(title_fd<0){errno=title_open_error;return -1;}
  int state_fd=openat(title_fd,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ const int state_open_error=state_fd<0?errno:0;
  struct stat title_a=CMP5_RECOVERY_ZERO,title_b=CMP5_RECOVERY_ZERO,state=CMP5_RECOVERY_ZERO;
  bool ok=state_fd>=0&&fstat(title_fd,&title_a)==0&&
    S_ISDIR(title_a.st_mode)&&fstat(state_fd,&state)==0&&
@@ -152,7 +154,14 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
  if(fresh_title>=0)close(fresh_title);
  if(fresh_parent>=0)close(fresh_parent);
  close(title_fd);
- if(!ok){if(state_fd>=0)close(state_fd);return -1;}
+ if(!ok){
+  if(state_fd>=0)close(state_fd);
+  /* Preserve access-denied provenance across successful revalidation
+   * attempts and close calls; otherwise native UI may claim full coverage. */
+  if(state_open_error==EACCES||state_open_error==EPERM)
+   errno=state_open_error;
+  return -1;
+ }
  return state_fd;
 }
 static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
