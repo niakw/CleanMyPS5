@@ -528,8 +528,7 @@ static void cmp5_image_resolve(int fd, const char *args) {
       send_json(fd,409,"{\\"error\\":\\"game_preflight_source_changed\\"}");
       free(req);return;
     }
-    if(cmp5_preflight_rc==0) send_json(fd,200,out);
-    else send_json(fd,500,"{\\"error\\":\\"preflight\\"}");''')
+    if(cmp5_preflight_rc==0) send_json(fd,200,out);''')
     change(httpd,
            'else if (strcmp(path, "/api/check") == 0) {',
            '''else if (strcmp(path, "/api/cmp5-image") == 0 && !post) {
