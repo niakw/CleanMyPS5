@@ -42,10 +42,13 @@ Les tests couvrent la corruption d'une capsule, la modification d'un fichier res
 Une sauvegarde contenant seulement des capsules anonymes et leur SHA-256 ne
 permettait pas de retrouver **quel composant était à restaurer où** après
 fermeture de l'application. Le prototype produit donc maintenant, **avant**
-le marqueur `__COMMIT`, un fichier privé `<ID>__ORIGINS` de taille fixe :
+le marqueur `__COMMIT`, un fichier privé `<ID>__ORIGINS` de taille fixe
+au format **CMP5MAP2** :
 une version de format, le nombre de composants, l'empreinte du manifeste,
-puis les chemins d'origine, types et tailles dans **l'ordre exact** des
-capsules. Un SHA-256 protège aussi les octets du fichier de correspondance.
+puis les chemins d'origine, types, tailles, périphériques, inodes,
+dates mtime/ctime et fractions de seconde dans **l'ordre exact** des
+capsules. La version antérieure CMP5MAP1 sans identité des sources n'est
+plus considérée comme une preuve suffisante de restauration. Un SHA-256 protège aussi les octets du fichier de correspondance.
 Les chemins ne sont jamais ajoutés au reçu public ni aux diagnostics natifs.
 L'empreinte du fichier détecte les corruptions et incohérences, mais
 **n'authentifie pas** le contenu contre une personne ayant déjà les droits
@@ -61,9 +64,16 @@ la Galerie n'en dépend à ce stade.
 
 La lecture `cmp5_read_group_origin_map` fonctionne après fermeture,
 revérifie l'intégrité des capsules et du manifeste, l'inode du fichier de
-correspondance, les identifiants, extensions, tailles et associations
-photo/vidéo/`.dat`/miniature, et n'émet la correspondance qu'en cas de
-cohérence. Un groupe historique dépourvu de cette table reste consultable
+correspondance, les identifiants, extensions, tailles, identités
+dev/inode/mtime/ctime et associations photo/vidéo/`.dat`/miniature,
+et n'émet la correspondance qu'en cas de cohérence.
+La nouvelle inspection hôte `cmp5_inspect_group_originals` peut ensuite,
+**sans écrire**, rouvrir les fichiers sous une racine explicite en refusant
+les liens symboliques : elle distingue `UNCHANGED`, `MISSING`,
+`CHANGED` et `UNKNOWN`. Un fichier neuf avec le même chemin, la même
+taille et les mêmes octets n'est pas considéré comme l'original si son
+inode a changé. Les identifiants peuvent être instables après remount ;
+en cas d'incertitude, le résultat ne vaut jamais autorisation de nettoyage. Un groupe historique dépourvu de cette table reste consultable
 comme fragments privés, mais **ne satisfait plus le contrat d'album
 restaurable vérifié**. Les tests couvrent les ordres de membres différents,
 la corruption d'un chemin enregistré et les marqueurs hérités.
