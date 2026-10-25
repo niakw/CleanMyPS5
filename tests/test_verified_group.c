@@ -603,6 +603,9 @@ int main(int argc,char**argv){
  unexpected=fopen(restore_surplus,"wb");assert(unexpected);
  assert(fputs("UNCOMMITTED",unexpected)>=0&&fclose(unexpected)==0);
  assert(cmp5_inspect_restored_group_recovery(restored,"WAITING",&recovery));
+ assert(recovery.state==CMP5_RECOVERY_INVALID);
+ assert(chmod(restore_surplus,0600)==0);
+ assert(cmp5_inspect_restored_group_recovery(restored,"WAITING",&recovery));
  assert(recovery.state==CMP5_RECOVERY_INCOMPLETE&&
         recovery.published_parts==1u&&!recovery.marker_present);
  assert(unlink(restore_surplus)==0);
