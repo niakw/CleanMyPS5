@@ -194,6 +194,23 @@ jobs:
         run: |
           bash scripts/build_native_app.sh
           test -s dist/native/PPSA99784.ffpkg
+          # Both executable helpers must be packaged as inert title assets.
+          # Nothing separately installed/downloaded to run this app.
+          test ! -e dist/native/cleanmyps5-helper.elf
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          folder = Path("dist/native")
+          manifest = json.loads((folder / "manifest.json").read_text())
+          assert {x["name"] for x in manifest["files"]} == {
+              "PPSA99784.zip", "PPSA99784.ffpkg"
+          }
+          with ZipFile(folder / "PPSA99784.zip") as package:
+              members = set(package.namelist())
+              assert "PPSA99784/assets/cleanmyps5-helper.elf" in members
+              assert "PPSA99784/assets/cleanmyps5-compression.elf" in members
+          PY
       - name: Write evidence-restricted release readiness report
         run: |
           python3 tests/test_release_readiness.py
