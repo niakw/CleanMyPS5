@@ -16,6 +16,17 @@ sur tous les systèmes de fichiers et montages PS5. La sortie initiale
 reste séparée de l'original, et les checkpoints ne sont pas supprimés
 automatiquement.
 
+**Montage remplacé en cours de création :** après avoir créé le dossier
+du jeu et son checkpoint privé, le moteur revérifie par descripteurs
+`O_NOFOLLOW` que le chemin de destination désigne encore le même
+répertoire, et que le nom de Title ID désigne encore le dossier créé.
+Un remplacement du dossier parent ou du sous-dossier du jeu invalide
+l'opération, sans détruire automatiquement la sortie partielle.
+Les fixtures hôte injectent ces deux substitutions à des moments
+distincts de la création. Cette vérification ponctuelle ne protège pas
+contre une substitution ultérieure : le worker doit toujours revalider
+les chemins aux étapes suivantes.
+
 ## Recherche technique du 23 octobre 2026
 
 Une image PS5 **`.exfat` n'est pas une archive LZ4**. La compresser
