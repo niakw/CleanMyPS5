@@ -94,6 +94,24 @@ int cmp5_verify_backup(const char*folder,const char*id,Cmp5BackupReceipt*r,
  if(r){*r=Cmp5BackupReceipt{};r->bytes=30ULL*1024*1024;r->published=1;}
  return 1;
 }
+int cmp5_plan_capture_group(const char*,const Cmp5MediaCandidate*,
+ Cmp5MediaCandidate*,uint32_t*,Cmp5CancelCheck,void*){
+ /* Never scan a real host Gallery or mint an apparently complete group. */
+ return 0;
+}
+int cmp5_validate_capture_group(const Cmp5MediaCandidate*,uint32_t){
+ return 0;
+}
+int cmp5_backup_group(const char*,const Cmp5MediaCandidate*,uint32_t,
+ const char*,const char*,Cmp5GroupReceipt*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic navigation must never write group capsules");
+ return 0;
+}
+int cmp5_verify_group(const char*,const char*,Cmp5GroupReceipt*,
+ Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic navigation must never mark groups verified");
+ return 0;
+}
 int sceUserServiceInitialize(const void*){return 0;}
 int sceUserServiceGetInitialUser(int *id){*id=1;return 0;}
 int scePadInit(void){return 0;}
@@ -777,6 +795,17 @@ int main(){
  assert(companion_summary.state==CMP5_COMPANIONS_MULTIPLE);
  assert(companion_summary.nominal_bytes==30ULL*1024*1024+256u);
  scene(canvas);
+ /* A visible companion group requires two affirmative controller actions.
+  * Without a fresh source plan, it must fail BEFORE any private write. */
+ press(triangle);assert(screen==Screen::group_backup&&group_step==0u);
+ press(cross);assert(group_step==1u);
+ press(circle);assert(screen==Screen::companions);
+ press(triangle);assert(screen==Screen::group_backup&&group_step==0u);
+ press(cross);assert(group_step==1u);
+ press(cross);assert(group_step==2u);
+ finish_scan();
+ assert(group_outcome.status!=cmp5_private_backup::GroupStatus::verified);
+ press(circle);assert(screen==Screen::companions);
  press(circle);
  assert(screen==Screen::detail);
  assert(!companion_checked&&!companion_summary.files);
