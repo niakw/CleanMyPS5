@@ -53,6 +53,9 @@ cp "$project/src/native/homebrew.h" "$tmp/native-toolchain/src/homebrew.h"
 # Read-only game image format survey; the native title never packs/mounts.
 cp "$project/src/native/game_images.c" "$tmp/native-toolchain/src/cmp5_game_images.c"
 cp "$project/src/native/game_images.h" "$tmp/native-toolchain/src/game_images.h"
+# Read-only checkpoint discovery reuses the same nofollow path guard as AMPR.
+cp "$project/src/native/compression_allowed_paths.h" "$tmp/native-toolchain/src/compression_allowed_paths.h"
+cp "$project/src/native/recovery_inventory.h" "$tmp/native-toolchain/src/recovery_inventory.h"
 # The game's bounded directory scan needs its shared nanosecond identity check.
 cp "$project/src/native/game_scan_identity.h" "$tmp/native-toolchain/src/game_scan_identity.h"
 # Shared descriptor-anchored companion discovery contains no backup/write API.
