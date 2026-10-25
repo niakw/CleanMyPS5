@@ -135,10 +135,10 @@ def check_engine(root: Path) -> None:
     create_start=game_paths.find("static inline bool cmp5_game_output_create_unique(")
     create_end=game_paths.find("static inline bool cmp5_game_resume_path_stat(",create_start)
     create=game_paths[create_start:create_end] if create_start>=0 and create_end>=0 else ""
-    if ("mkdirat(fd,title_id,0777)" not in create or
-        'mkdirat(child,".e2a-state",0777)' not in create or
+    if ("mkdirat(fd,title_id,0755)" not in create or
+        'mkdirat(child,".e2a-state",0700)' not in create or
         "O_DIRECTORY|O_NOFOLLOW" not in create):
-        missing.append("new title and checkpoint directory must be anchored")
+        missing.append("new title and private checkpoint directories must be anchored and use restricted modes")
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
     exact_checks = (
