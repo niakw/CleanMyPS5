@@ -56,20 +56,23 @@ with tempfile.TemporaryDirectory() as temp:
     replaced_workspace.rename(backup)
     run("restore-rename",moved_backup)
     # The rename is real; no successful result or completed restored file.
-    assert moved_backup.is_file() and not (restored/"SAVED").exists()
+    assert moved_backup.is_file() and not (restored/"RENAMED").exists()
+    assert (restored/".RENAMED.part").exists()
     moved_backup.rename(backup/"GOOD")
     # Restore must reject both SOURCE and DESTINATION directory replacement
     # during an otherwise valid copy, without publishing a success receipt.
     swapped_backup=Path(temp)/"restore-backup-relocated"
     run("restore-backup-workspace-swap",swapped_backup)
     assert swapped_backup.is_dir() and (swapped_backup/"GOOD").is_file()
-    assert not (restored/"SAVED").exists()
+    assert not (restored/"BACKUPSWAP").exists()
+    assert (restored/".BACKUPSWAP.part").exists()
     backup.rmdir()
     swapped_backup.rename(backup)
     swapped_target=Path(temp)/"restore-target-relocated"
     run("restore-target-workspace-swap",swapped_target)
-    assert swapped_target.is_dir() and not (swapped_target/"SAVED").exists()
-    assert restored.is_dir() and not (restored/"SAVED").exists()
+    assert swapped_target.is_dir() and not (swapped_target/"TARGETSWAP").exists()
+    assert (swapped_target/".TARGETSWAP.part").exists()
+    assert restored.is_dir() and not (restored/"TARGETSWAP").exists()
     restored.rmdir()
     swapped_target.rename(restored)
     # A target altered just after the atomic name publication must not be

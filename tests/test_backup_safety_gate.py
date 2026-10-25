@@ -32,8 +32,12 @@ for token in ("verified_backup.h","verified_backup.c",
 # No gallery file deletion or renaming exists even in the isolated prototype.
 assert "renameat(" not in sources
 assert "rmdir(" not in sources
-assert "unlinkat(dir,temp,0)" in sources
-assert "unlinkat(target,temp,0)" in sources
+# Never delete a failed staging pathname: another writer may have
+# replaced the temporary file since the creator opened it.
+assert "if(!ok)(void)unlinkat(dir,temp,0)" not in sources
+assert "if(!ok)(void)unlinkat(target,temp,0)" not in sources
+# A successfully published capsule still removes its own staging link.
+assert "if(unlinkat(dir,temp,0)!=0)return 0;" in sources
 assert "linkat(dir,temp,dir,id,0)" in sources
 assert "snapshot_matches" in sources
 # The extracted companion planner is allowed in the installed title only

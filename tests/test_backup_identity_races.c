@@ -172,18 +172,18 @@ int main(int argc,char**argv){
   (void)snprintf(watching,sizeof(watching),"%s/GOOD",backup);
   (void)snprintf(moved,sizeof(moved),"%s",new_path);
   restore_only=1;
-  assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,NULL,NULL));
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"RENAMED",&receipt,NULL,NULL));
   assert(triggered&&!receipt.published);
  }else if(!strcmp(action,"restore-backup-workspace-swap")){
   restore_only=1;
   SwapWorkspace state={backup,new_path,0u,0};
-  assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"BACKUPSWAP",&receipt,
     change_workspace_during_restore,&state));
   assert(state.changed&&!receipt.published);
  }else if(!strcmp(action,"restore-target-workspace-swap")){
   restore_only=1;
   SwapWorkspace state={restore,new_path,0u,0};
-  assert(!cmp5_restore_backup(backup,"GOOD",restore,"SAVED",&receipt,
+  assert(!cmp5_restore_backup(backup,"GOOD",restore,"TARGETSWAP",&receipt,
     change_workspace_during_restore,&state));
   assert(state.changed&&!receipt.published);
  }else if(!strcmp(action,"restore-publish-tamper")){
