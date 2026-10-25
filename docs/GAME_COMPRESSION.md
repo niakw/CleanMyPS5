@@ -26,6 +26,29 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Découverte persistante des checkpoints après fermeture (25 octobre 2026)
+
+Depuis le moniteur AMPR (Triangle), **Carré** ouvre un écran
+« Conversions interrompues sur disque ». Il recherche dans les
+17 racines de destination explicitement admises un dossier de jeu
+à identifiant Title ID et un sous-dossier `.e2a-state` contenant
+`request.bin` et une étape `pack`, `copy` ou `verify`.
+Le contrôle utilise des descripteurs `O_NOFOLLOW`, limite chaque
+énumération à 256 noms, compare les identités de fichiers avant/après
+lecture et vérifie que les chemins n'ont pas été substitués.
+L'écran affiche les candidats (8 maximum), leurs supports et leurs
+étapes, ainsi que les limites de couverture. Il fonctionne même si
+le moteur n'est plus actif, tant que le stockage est accessible.
+
+Le bouton X relance **uniquement l'inventaire**. Aucun POST de reprise,
+écrasement, suppression ou montage n'est envoyé. Cet inventaire ne
+lit ni ne valide le contenu des options sérialisées de `request.bin` :
+c'est une condition de présence, **pas** la preuve que la conversion
+appartenait à CleanMyPS5 ou que sa reprise est sûre. Une reprise
+après fermeture reste donc bloquée. Les fixtures Linux/macOS
+simulent des volumes et des checkpoints légitimes et falsifiés.
+La simulation DualSense vérifie l'absence de commande de modification.
+
 ## Moniteur AMPR : étape et cause de pause (25 octobre 2026)
 
 L'API compacte du moteur expose maintenant des champs `phase` et

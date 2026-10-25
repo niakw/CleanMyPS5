@@ -906,6 +906,20 @@ int main(){
  assert(game_progress.title_id[0]==0);
  assert(mock_ampr_gets==2u);
  scene(canvas);
+ /* A reopened title can inspect existing checkpoint metadata without
+  * issuing pause/resume/start or touching the saved job request body. */
+ const unsigned controls_before=mock_ampr_pauses+mock_ampr_resumes+
+   mock_ampr_post_headers+mock_ampr_post_bodies;
+ press(square);
+ assert(compression_view==7u);
+ finish_scan();
+ assert(recovery_checked);
+ scene(canvas);
+ assert(mock_ampr_pauses+mock_ampr_resumes+
+        mock_ampr_post_headers+mock_ampr_post_bodies==controls_before);
+ press(cross);finish_scan();
+ assert(compression_view==7u&&recovery_checked);
+ press(circle);assert(compression_view==5u);
  press(circle);
  assert(compression_view==0u); // Restore actual stats origin.
  press(triangle);finish_scan();

@@ -8,6 +8,7 @@
 #include "duplicates.h"
 #include "homebrew.h"
 #include "game_images.h"
+#include "recovery_inventory.h"
 #include "compression_bridge.hpp"
 #include "compression_stream.hpp"
 #include "compression_preflight.hpp"
@@ -820,6 +821,9 @@ std::uint64_t compression_monotonic_ns() noexcept {
  return seconds*1000000000ULL+static_cast<std::uint64_t>(ts.tv_nsec);
 }
 bool game_progress_checked=false;
+Cmp5RecoveryInventory recovery_inventory{};
+bool recovery_checked=false;
+unsigned recovery_selection=0;
 bool game_pause_attempted=false,game_pause_accepted=false,game_pause_unknown=false;
 bool game_resume_attempted=false,game_resume_accepted=false,game_resume_unknown=false;
 char game_source_checked[192]{},game_dest_checked[48]{};
@@ -1441,6 +1445,15 @@ void run_game_preflight() noexcept {
  game_preflight_transport=true;
  game_preflight_checked=true;
 }
+void run_recovery_inventory() noexcept {
+ recovery_checked=false;
+ Cmp5RecoveryInventory sample{};
+ if(cmp5_scan_recovery_inventory("/",&sample)&&!cancellation_hook(nullptr)){
+  recovery_inventory=sample;
+  recovery_selection=0;
+  recovery_checked=true;
+ }
+}
 void run_game_image_scan() noexcept {
  game_images=Cmp5GameImageStats{};
  game_images_checked=false;
@@ -1456,7 +1469,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1479,6 +1492,7 @@ void* background_task(void*) noexcept {
   case Task::game_progress: run_game_progress(); break;
   case Task::game_pause: run_game_pause(); break;
   case Task::game_resume: run_game_resume(); break;
+  case Task::recovery_scan: run_recovery_inventory(); break;
   default: break;
  }
  // Reject incomplete results and publish completion AFTER all writes.
@@ -1602,9 +1616,13 @@ void poll_pad() noexcept {
     continue;
    }
    if(!task_busy()&&screen==Screen::compression&&compression_view>=2u){
-    compression_view=compression_view==5u?
-      compression_monitor_return_view:(!game_source_is_image?1u:6u);
-    game_preflight_checked=false;
+    if(compression_view==7u){
+     compression_view=5u;
+    }else{
+     compression_view=compression_view==5u?
+       compression_monitor_return_view:(!game_source_is_image?1u:6u);
+     game_preflight_checked=false;
+    }
     continue;
    }
    if(task_busy())scan_cancel_requested.store(true,std::memory_order_release);
@@ -1783,7 +1801,22 @@ void poll_pad() noexcept {
     (void)begin_task(Task::game_progress);
     continue;
    }
+   if(compression_view==7u){
+    if(recovery_checked&&recovery_inventory.count){
+     if(pressed&up)recovery_selection=
+       (recovery_selection+recovery_inventory.count-1u)%recovery_inventory.count;
+     if(pressed&down)recovery_selection=
+       (recovery_selection+1u)%recovery_inventory.count;
+    }
+    if(pressed&cross)(void)begin_task(Task::recovery_scan);
+    continue;
+   }
    if(compression_view==5u){
+    if(pressed&square){
+     compression_view=7u;
+     (void)begin_task(Task::recovery_scan);
+     continue;
+    }
     if(pressed&l1||pressed&r1){
      compression_view=compression_adjacent_tab(compression_monitor_return_view,
                                               (pressed&r1)!=0u);
@@ -2729,6 +2762,55 @@ void show_autoload(ps5::demo::Canvas&canvas) noexcept {
  canvas.text(125,1005,"REFERENCES SEULEMENT  EXECUTION NON PROUVEE  AUCUNE ECRITURE",3,Color::cyan);
 }
 void show_compression(ps5::demo::Canvas&canvas) noexcept {
+ if(compression_view==7u){
+  panel(canvas,307,"CONVERSIONS INTERROMPUES SUR DISQUE",
+    "INVENTAIRE LECTURE SEULE  REPRISE NON AUTORISEE");
+  if(task_busy()){
+   panel(canvas,467,"CHECKPOINTS AMPR",
+     "INSPECTION DES EMPLACEMENTS DE JEUX AUTORISES",Color::cyan);
+  }else if(!recovery_checked){
+   panel(canvas,467,"CHECKPOINTS AMPR",
+     "LECTURE NON DISPONIBLE  AUCUN RESULTAT CERTIFIE",Color::yellow);
+  }else{
+   char total[160]{};
+   (void)std::snprintf(total,sizeof(total),
+      "%u CANDIDATS  %u NON AFFICHES  %u DOSSIERS PARCOURUS",
+      recovery_inventory.count,recovery_inventory.hidden,
+      recovery_inventory.folders_checked);
+   panel(canvas,448,"ETAT DES RECHERCHES",total,
+      recovery_inventory.partial?Color::yellow:Color::cyan);
+   if(recovery_inventory.count){
+    if(recovery_selection>=recovery_inventory.count)recovery_selection=0u;
+    const Cmp5RecoveryCandidate&candidate=
+      recovery_inventory.entries[recovery_selection];
+    char name[160]{};
+    (void)std::snprintf(name,sizeof(name),
+      "CANDIDAT %u/%u  %s",recovery_selection+1u,
+      recovery_inventory.count,candidate.title_id);
+    panel(canvas,575,"JEU AVEC ETAT ENREGISTRE",name,Color::cyan);
+    panel(canvas,707,"STOCKAGE OBSERVE",candidate.destination);
+    const char*stage=candidate.stage==CMP5_RECOVERY_PACK?
+      "PACK LZ4":candidate.stage==CMP5_RECOVERY_COPY?
+      "COPIE":"VERIFICATION";
+    canvas.text(125,842,stage,2,Color::cyan);
+   }else{
+    panel(canvas,575,"AUCUN CHECKPOINT CONFIRME",
+      "UN SUPPORT ABSENT OU UN ETAT INVALIDE RESTE NON CONNU",Color::yellow);
+   }
+   if(recovery_inventory.partial||recovery_inventory.unavailable){
+    char warning[140]{};
+    (void)std::snprintf(warning,sizeof(warning),
+      "CONTROLE PARTIEL  %u STOCKAGES NON ACCESSIBLES",
+      recovery_inventory.unavailable);
+    canvas.text(125,895,warning,2,Color::yellow);
+   }
+  }
+  canvas.text(125,934,
+    "EXISTENCE DU FICHIER != AUTORISATION DU JEU NI RESTAURATION",
+    2,Color::yellow);
+  footer(canvas,"HAUT/BAS CHOISIR  X RECONTROLER  CERCLE MONITEUR  AUCUNE ECRITURE");
+  return;
+ }
  if(compression_view==5u){
   panel(canvas,307,"TACHE LZ4 DU MOTEUR INTEGRE",
     "LECTURE SEULE  MEME APRES REOUVERTURE DE CLEANMYPS5");
@@ -2767,7 +2849,7 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      "UNE TACHE TERMINEE NE GARANTIT PAS LE DEMARRAGE DU JEU",
      2,Color::yellow);
   }
-  footer(canvas,"AUTO 8 S  X ACTUALISER  L1/R1 ONGLETS  CERCLE RETOUR");
+  footer(canvas,"AUTO 8 S  X ACTUALISER  CARRE CHECKPOINTS  CERCLE RETOUR");
   return;
  }
  if(compression_view==4u){
