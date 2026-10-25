@@ -263,15 +263,26 @@ inline bool form_encode_path(const char*path,char*out,std::size_t cap) noexcept 
     !std::strcmp(component,"."))return false;
  out[j]=0;return true;
 }
+/* Duplicate the narrow destination grammar on the UI side. The engine has
+ * an independent descriptor-anchored check, but the controller must never
+ * construct a mutation request for an arbitrary console directory. */
+inline bool allowed_destination(const char*base) noexcept {
+ if(!base)return false;
+ if(std::strcmp(base,"/data/homebrew")==0)return true;
+ if(std::strncmp(base,"/mnt/",5)!=0)return false;
+ const char*p=base+5;
+ if(std::strncmp(p,"usb",3)&&std::strncmp(p,"ext",3))return false;
+ return p[3]>='0'&&p[3]<='7'&&
+        std::strcmp(p+4,"/homebrew")==0;
+}
 /* Scoped reversible pause, never a global command. The native app sends
  * the output planned during preflight; the worker separately requires
  * that this is the actively running game's exact output directory. */
 inline bool build_pause_body(const char*base,const char*title_id,
                              char*out,std::size_t cap) noexcept {
- if(!base||!title_id||!out||cap<24u)return false;
+ if(!allowed_destination(base)||!title_id||!out||cap<24u)return false;
  const auto base_len=std::strlen(base);
- if(base_len==0u||base_len>120u||base[0]!='/'||
-    std::strlen(title_id)!=9u)return false;
+ if(base_len>120u||std::strlen(title_id)!=9u)return false;
  for(unsigned i=0;i<9u;i++){
   const char c=title_id[i];
   if(i<4u?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
