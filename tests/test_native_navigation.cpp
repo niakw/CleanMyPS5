@@ -57,6 +57,8 @@ bool mock_ampr_image_check=false;
 bool mock_ampr_image_bytes_inconsistent=false;
 bool mock_ampr_changed_source_bytes=false;
 unsigned mock_ampr_queued_work=0;
+bool mock_private_capsule_valid=false;
+unsigned mock_private_verify_calls=0;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -81,10 +83,16 @@ int cmp5_backup_media(const char*,const Cmp5MediaCandidate*,const char*,
  assert(false&&"Synthetic UI must not write a PS5 media capsule");
  return 0;
 }
-int cmp5_verify_backup(const char*,const char*,Cmp5BackupReceipt*,
+int cmp5_verify_backup(const char*folder,const char*id,Cmp5BackupReceipt*r,
  Cmp5CancelCheck,void*){
- assert(false&&"Synthetic UI must not approve a PS5 media capsule");
- return 0;
+ /* Simulated read-only capsule check; no host filesystem is accessed.
+  * The write path remains a fatal assertion in this navigation fixture. */
+ assert(std::strcmp(folder,"/download0/cmp5-private-backups")==0);
+ assert(std::strncmp(id,"CAP_",4)==0&&std::strlen(id)==20u);
+ ++mock_private_verify_calls;
+ if(!mock_private_capsule_valid)return 0;
+ if(r){*r=Cmp5BackupReceipt{};r->bytes=30ULL*1024*1024;r->published=1;}
+ return 1;
 }
 int sceUserServiceInitialize(const void*){return 0;}
 int sceUserServiceGetInitialUser(int *id){*id=1;return 0;}
@@ -789,6 +797,22 @@ int main(){
  finish_scan();
  assert(backup_outcome.status!=cmp5_private_backup::Result::verified);
  press(circle);assert(screen==Screen::detail);
+ /* After a UI restart the capsule identity is derived from the current
+  * source snapshot; L2 checks storage without creating or writing files. */
+ const unsigned checks_before=mock_private_verify_calls;
+ press(l2);assert(screen==Screen::backup&&backup_verify_only);
+ finish_scan();
+ assert(mock_private_verify_calls==checks_before+1u);
+ assert(backup_outcome.status==cmp5_private_backup::Result::verification_failed);
+ press(circle);assert(screen==Screen::detail);
+ mock_private_capsule_valid=true;
+ press(l2);assert(screen==Screen::backup&&backup_verify_only);
+ finish_scan();
+ assert(mock_private_verify_calls==checks_before+2u);
+ assert(backup_outcome.status==cmp5_private_backup::Result::verified);
+ assert(backup_outcome.bytes==30ULL*1024*1024);
+ press(circle);assert(screen==Screen::detail);
+ mock_private_capsule_valid=false;
  /* Recreate the race where Circle navigates away while the preview
   * worker reports busy, then completes after the input handler returns. */
  const std::uint8_t late_frame[8]={0};
