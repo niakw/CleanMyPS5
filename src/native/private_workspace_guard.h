@@ -23,7 +23,7 @@
 static inline int cmp5_workspace_has_capacity(int fd,uint64_t bytes,
  uint32_t outputs){
  if(fd<0||bytes==0||bytes>512ULL*1024ULL*1024ULL||
-    outputs==0||outputs>5u)return 0;
+    outputs==0||outputs>6u)return 0; /* 4 capsules + origin map + COMMIT */
  struct statvfs volume;
  if(fstatvfs(fd,&volume)!=0||(volume.f_flag&ST_RDONLY))return 0;
  const uint64_t block=(uint64_t)volume.f_frsize;
