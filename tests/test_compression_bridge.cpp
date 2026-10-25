@@ -39,6 +39,12 @@ int main(){
  auto malformed=ok;malformed.insert(malformed.find("\r\n\r\n"),
                                     "\r\nContent Length: 30");
  assert(bad(malformed));
+ auto long_name=ok;
+ long_name.insert(long_name.find("\r\n\r\n"),
+                  "\r\n"+std::string(700,'X')+": untrusted");
+ assert(bad(long_name));
+ assert(cmp5_http::classify((std::string(3000,'Q')+": value").data(),
+                            3007)==cmp5_http::Field::other);
  auto wrong=ok;wrong[7]='1';assert(bad(wrong));
  assert(!parse_hello_http(nullptr,0,&h));
  assert(!parse_hello_http(ok.data(),ok.size(),nullptr));

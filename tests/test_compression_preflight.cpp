@@ -39,6 +39,14 @@ int main(){
  malformed_header.insert(malformed_header.find("\r\n\r\n"),
                          "\r\nBad Header: nope");
  assert(!parse_ampr_http(malformed_header.data(),malformed_header.size(),&framed));
+ // Untrusted header names longer than fixed literals must never read
+ // past their bounds, including in sanitizer builds.
+ auto oversized_name=wire;
+ oversized_name.insert(oversized_name.find("\r\n\r\n"),
+                       "\r\n"+std::string(700,'X')+": opaque");
+ assert(!parse_ampr_http(oversized_name.data(),oversized_name.size(),&framed));
+ assert(cmp5_http::classify((std::string(3000,'Q')+": value").data(),
+                            3007)==cmp5_http::Field::other);
 
  assert(pre.ready()&&pre.image_bytes==0&&pre.source_bytes==12345&&
   pre.need_max==16000&&pre.dest_total==64000&&

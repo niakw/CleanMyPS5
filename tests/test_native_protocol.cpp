@@ -77,6 +77,14 @@ int main(){
                  "Content-Length: 2\r\nBad Header: invalid\r\n\r\n{}"));
  assert(!accepts("HTTP/1.1 200 NotOK\r\nContent-Type: application/json\r\n"
                  "Content-Length: 2\r\n\r\n{}"));
+ auto large_name=good;
+ large_name.insert(large_name.find("\r\n\r\n"),
+                   "\r\n"+std::string(1500,'Q')+": ignored");
+ assert(!accepts(large_name));
+ // Direct guard probe beyond the total HTTP frame limit; no overread.
+ std::string huge_header=std::string(3000,'Z')+": value";
+ assert(cmp5_http::classify(huge_header.data(),huge_header.size())==
+        cmp5_http::Field::other);
  assert(!accepts("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                  "Content-Length: 2\r\n\r\n[]"));
  assert(!accepts(good+"trailing"));

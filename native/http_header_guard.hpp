@@ -13,17 +13,21 @@ inline bool token_char(unsigned char c) noexcept {
     c=='*'||c=='+'||c=='-'||c=='.'||c=='^'||c=='_'||
     c=='`'||c=='|'||c=='~';
 }
+/* Capture string-literal extent in its TYPE before comparing untrusted
+ * field names. A longer input must NEVER index beyond a short literal.
+ * Template rejects unknown-size, dynamically supplied field names. */
+template<std::size_t N>
 inline bool ascii_ci_equal(const char*start,std::size_t n,
-                           const char*literal) noexcept {
- for(std::size_t i=0;i<n;i++){
+                           const char (&literal)[N]) noexcept {
+ if(!start||n!=N-1)return false;
+ for(std::size_t i=0;i<N-1;i++){
   unsigned char x=static_cast<unsigned char>(start[i]);
   unsigned char y=static_cast<unsigned char>(literal[i]);
-  if(!y)return false;
   if(x>='A'&&x<='Z')x=static_cast<unsigned char>(x+32);
   if(y>='A'&&y<='Z')y=static_cast<unsigned char>(y+32);
   if(x!=y)return false;
  }
- return literal[n]=='\0';
+ return true;
 }
 inline Field classify(const char*line,std::size_t n) noexcept {
  if(!line||n==0)return Field::invalid;

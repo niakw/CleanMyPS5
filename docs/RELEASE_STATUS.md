@@ -1,5 +1,15 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Comparaison de noms HTTP sans accès hors limites (25 octobre 2026)
+
+La classification des champs des trois protocoles de lecture locale utilise
+désormais une comparaison dont la taille du nom attendu est connue à la
+compilation. Tout nom reçu de longueur différente est rejeté avant lecture
+du littéral. Les tests incluent des noms d'en-têtes de 700 à 3 000 caractères
+et s'exécutent sous AddressSanitizer/UBSan en plus des builds Linux/macOS.
+C'est une protection contre un dépassement de lecture côté décodeur, pas
+une preuve d'authentification du service local.
+
 ## Durcissement de la lecture HTTP locale (25 octobre 2026)
 
 Les trois décodeurs HTTP du titre, du helper et du moteur AMPR appliquent
