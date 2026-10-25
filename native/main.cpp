@@ -2813,6 +2813,8 @@ void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
      "SHA-256 RECONTROLE  L INDEX SONY RESTE INCONNU":
      "SHA-256 IDENTIQUE  ORIGINAL INCHANGE"):
     task_cancelled()?"OPERATION ANNULEE  RESTE PRIVE POSSIBLE":
+    backup_verify_only?
+      "CAPSULE NON VERIFIABLE  AUCUNE MODIFICATION":
     backup_outcome.status==cmp5_private_backup::Result::storage_unavailable?
       "DOSSIER PRIVE INACCESSIBLE  AUCUNE SUPPRESSION":
       "SOURCE OU COPIE NON VALIDEE  AUCUNE SUPPRESSION",
@@ -2820,7 +2822,9 @@ void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  if(success)
   panel(canvas,735,"IDENTIFIANT DE CAPSULE PRIVEE",backup_outcome.capsule_id);
  else
-  panel(canvas,735,"REPRISE","UNE COPIE PARTIELLE RESTE POUR INSPECTION");
+  panel(canvas,735,backup_verify_only?"LECTURE SEULE":"REPRISE",
+    backup_verify_only?"AUCUN FICHIER MODIFIE":
+      "UNE COPIE PARTIELLE PEUT RESTER A INSPECTER");
  footer(canvas,"CERCLE RETOUR  RESTAURATION GALERIE NON AUTORISEE");
 }
 void show_companions(ps5::demo::Canvas&canvas) noexcept {
