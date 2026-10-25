@@ -51,7 +51,7 @@ int main(void){
  assert(!cmp5_workspace_has_capacity(7,0u,1u));
  assert(!cmp5_workspace_has_capacity(7,513ULL*1024ULL*1024ULL,2u));
  assert(!cmp5_workspace_has_capacity(7,1u,0u));
- assert(!cmp5_workspace_has_capacity(7,1u,6u));
+ assert(!cmp5_workspace_has_capacity(7,1u,7u));
  assert(calls==1);
  const uint64_t payload=1048576u;
  const uint64_t reserve=4096u*2u+1048576u+576u;
@@ -61,6 +61,15 @@ int main(void){
  assert(!cmp5_workspace_has_capacity(7,payload,2u));
  simulated.f_bavail=blocks;
  assert(cmp5_workspace_has_capacity(7,payload,2u));
+ /* Full four-media album: capsules(4) + private origins(1) + COMMIT(1).
+  * At the exact threshold, five outputs fit and six do not. */
+ const uint64_t complete_reserve=4096u*6u+1048576u+576u;
+ const uint64_t complete_blocks=(payload+complete_reserve+4095u)/4096u;
+ simulated.f_bavail=complete_blocks-1u;
+ assert(cmp5_workspace_has_capacity(7,payload,5u));
+ assert(!cmp5_workspace_has_capacity(7,payload,6u));
+ simulated.f_bavail=complete_blocks;
+ assert(cmp5_workspace_has_capacity(7,payload,6u));
  simulated.f_flag=ST_RDONLY;
  assert(!cmp5_workspace_has_capacity(7,payload,2u));
  simulated.f_flag=0u;
