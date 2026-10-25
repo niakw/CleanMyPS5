@@ -17,6 +17,23 @@ int cmp5_backup_group(const char *root,const Cmp5MediaCandidate *parts,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
 int cmp5_verify_group(const char *private_workspace,const char *group_id,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
+/* HOST-ONLY recoverable origin mapping. Stored only in the 0700 private
+ * backup workspace, never in a UI report or transmitted to the console.
+ * The map binds each ordered backup capsule to its original *locator*,
+ * type and length. It does not prove Gallery index/database completeness
+ * and provides NO privilege to restore into /user or delete originals. */
+typedef struct {
+ char path[256];
+ uint64_t bytes;
+ uint32_t media_type;
+} Cmp5OriginEntry;
+typedef struct {
+ uint32_t count;
+ Cmp5OriginEntry entries[CMP5_GROUP_MAX];
+} Cmp5OriginMap;
+int cmp5_read_group_origin_map(const char *private_workspace,
+ const char *group_id,Cmp5OriginMap *result,
+ Cmp5CancelCheck cancel,void *context);
 /* Restores into a *different, pre-existing, 0700 private directory*.
  * The __RESTORED commit marker indicates that every raw member was verified.
  * NEVER restores to /user/av_contents or repairs the PS5 gallery database. */
