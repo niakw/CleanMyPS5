@@ -36,8 +36,12 @@ inline bool scan_at(const char*folder,Inventory*out,
  if(!folder||!out||(cancel&&cancel(context)))return false;
  const int fd=cmp5_open_private_workspace(folder);
  if(fd<0)return false;
- DIR*stream=fdopendir(fd);
- if(!stream){close(fd);return false;}
+ /* PS5 libc does not export dirfd(): keep a separately owned anchor
+  * for fstatat while fdopendir owns a duplicate for traversal. */
+ const int iter=dup(fd);
+ if(iter<0){close(fd);return false;}
+ DIR*stream=fdopendir(iter);
+ if(!stream){close(iter);close(fd);return false;}
  Inventory found{};
  unsigned observed=0u;
  bool good=true;
@@ -55,16 +59,18 @@ inline bool scan_at(const char*folder,Inventory*out,
   const std::size_t len=strnlen(entry->d_name,32u);
   if(len==32u){found.partial=true;continue;}
   const bool is_capsule=valid_capsule_id(entry->d_name);
-  const bool is_stage=len==26u&&
-   entry->d_name[0]=='.'&&
-   valid_capsule_id(entry->d_name+1)&&
+  char staged_id[21]{};
+  if(len==26u&&entry->d_name[0]=='.')
+   std::memcpy(staged_id,entry->d_name+1,20u);
+  const bool is_stage=len==26u&&entry->d_name[0]=='.'&&
+   valid_capsule_id(staged_id)&&
    std::strcmp(entry->d_name+21,".part")==0;
   if(is_stage){
    ++found.staged;found.partial=true;continue;
   }
   if(!is_capsule){found.partial=true;continue;}
   struct stat st{};
-  if(fstatat(dirfd(stream),entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0||
+  if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0||
      !S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
      st.st_nlink!=1||(st.st_mode&0077)!=0||
      st.st_size<=64||st.st_size>(off_t)(CMP5_BACKUP_LIMIT+64u)){
@@ -76,6 +82,7 @@ inline bool scan_at(const char*folder,Inventory*out,
   ++found.count;
  }
  if(closedir(stream)!=0)good=false;
+ close(fd);
  if(!good)return false;
  found.checked=true;
  *out=found;
