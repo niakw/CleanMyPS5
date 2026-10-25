@@ -59,6 +59,8 @@ bool mock_ampr_changed_source_bytes=false;
 unsigned mock_ampr_queued_work=0;
 bool mock_private_capsule_valid=false;
 unsigned mock_private_verify_calls=0;
+bool mock_private_group_valid=false;
+unsigned mock_private_group_verify_calls=0;
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -107,10 +109,19 @@ int cmp5_backup_group(const char*,const Cmp5MediaCandidate*,uint32_t,
  assert(false&&"Synthetic navigation must never write group capsules");
  return 0;
 }
-int cmp5_verify_group(const char*,const char*,Cmp5GroupReceipt*,
- Cmp5CancelCheck,void*){
- assert(false&&"Synthetic navigation must never mark groups verified");
- return 0;
+int cmp5_verify_group(const char*folder,const char*id,
+ Cmp5GroupReceipt*receipt,Cmp5CancelCheck,void*){
+ /* Only a synthetic read-only group receipt; no Gallery or host writes. */
+ assert(std::strcmp(folder,"/download0/cmp5-private-backups")==0);
+ assert(std::strncmp(id,"GRP_",4u)==0&&std::strlen(id)==20u);
+ ++mock_private_group_verify_calls;
+ if(!mock_private_group_valid)return 0;
+ if(receipt){
+  *receipt=Cmp5GroupReceipt{};
+  receipt->count=3u;
+  receipt->bytes=30ULL*1024*1024;
+ }
+ return 1;
 }
 int sceUserServiceInitialize(const void*){return 0;}
 int sceUserServiceGetInitialUser(int *id){*id=1;return 0;}
@@ -631,7 +642,20 @@ int main(){
  assert(mock_private_verify_calls==archive_checks_before+1u);
  assert(backup_outcome.status==cmp5_private_backup::Result::verified);
  press(circle);assert(screen==Screen::capsules);
+ private_inventory.group_count=1u;
+ std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
+ mock_private_group_valid=true;
+ const unsigned group_reads_before=mock_private_group_verify_calls;
+ press(r1);assert(private_inventory_groups);
+ press(cross);assert(screen==Screen::group_backup&&group_verify_only);
+ finish_scan();
+ assert(mock_private_group_verify_calls==group_reads_before+1u);
+ assert(group_outcome.status==cmp5_private_backup::GroupStatus::verified);
+ assert(group_outcome.receipt.count==3u);
+ press(circle);assert(screen==Screen::capsules);
+ press(l1);assert(!private_inventory_groups);
  press(circle);assert(screen==Screen::menu);
+ mock_private_group_valid=false;
  mock_private_capsule_valid=false;
  assert(media_review.count==0u&&selected==0);
  /* One global Analyse coordinates independent, read-only scanners. */
