@@ -43,6 +43,9 @@ reject(lambda:gate.check_builder(
  builder+'\ncp "$project/src/native/verified_group.c" "$tmp/native-toolchain/src/cmp5_verified_group.c"\n'
 ))
 reject(lambda:gate.check_builder(builder.replace(
+ "CMP5_NATIVE_GROUP_BACKUP_ONLY 1", "CMP5_NATIVE_GROUP_BACKUP_ONLY 0"
+)))
+reject(lambda:gate.check_builder(builder.replace(
  'cp "$project/src/native/inventory.c" "$tmp/native-toolchain/src/cmp5_inventory.c"',
  'cp "$project/src/native/verified_group.c" "$tmp/native-toolchain/src/cmp5_verified_group.c"'
 )))
