@@ -171,7 +171,7 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
   else if(parent_recheck_error)errno=parent_recheck_error;
   else if(title_recheck_error)errno=title_recheck_error;
   else if(state_recheck_error)errno=state_recheck_error;
-  else errno=0; /* changed inode or invalid metadata, not an OS error */
+  else errno=ESTALE; /* altered inode/metadata after anchored open */
   return -1;
  }
  return state_fd;
@@ -222,15 +222,19 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
    else ok=false;
   }
  }
- if(ok)ok=fstat(stage,&after)==0&&
-      fstatat(dir,"stage",&named,AT_SYMLINK_NOFOLLOW)==0&&
-      cmp5_recovery_same(&first,&after)&&cmp5_recovery_same(&first,&named)&&
-      fstat(request,&req_after)==0&&
-      fstatat(dir,"request.bin",&req_named,AT_SYMLINK_NOFOLLOW)==0&&
-      cmp5_recovery_same(&req_first,&req_after)&&
-      cmp5_recovery_same(&req_first,&req_named)&&
-      fstat(dir,&state_after)==0&&
-      cmp5_recovery_same(&state_first,&state_after);
+ int snapshot_error=0;
+ if(ok){
+  ok=fstat(stage,&after)==0&&
+     fstatat(dir,"stage",&named,AT_SYMLINK_NOFOLLOW)==0&&
+     cmp5_recovery_same(&first,&after)&&cmp5_recovery_same(&first,&named)&&
+     fstat(request,&req_after)==0&&
+     fstatat(dir,"request.bin",&req_named,AT_SYMLINK_NOFOLLOW)==0&&
+     cmp5_recovery_same(&req_first,&req_after)&&
+     cmp5_recovery_same(&req_first,&req_named)&&
+     fstat(dir,&state_after)==0&&
+     cmp5_recovery_same(&state_first,&state_after);
+  if(!ok)snapshot_error=ESTALE; /* changed during verification */
+ }
  if(request>=0)close(request);
  if(stage>=0)close(stage);
  if(ok){
@@ -250,6 +254,7 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
   if(request_error)errno=request_error;
   else if(stage_error)errno=stage_error;
   else if(read_error)errno=read_error;
+  else if(snapshot_error)errno=snapshot_error;
   else if(recheck_error)errno=recheck_error;
   else errno=0;
  }
