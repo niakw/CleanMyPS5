@@ -234,6 +234,10 @@ int main(int argc,char**argv){
   origin_parts[i].media_type=i==0u?1u:3u;
   origin_parts[i].snapshot_device=1u;
   origin_parts[i].snapshot_inode=(uint64_t)i+1u;
+  origin_parts[i].modified_at=1700000000;
+  origin_parts[i].snapshot_ctime=1700000001;
+  origin_parts[i].snapshot_mtime_nsec=123456789u;
+  origin_parts[i].snapshot_ctime_nsec=987654321u;
  }
  assert(cmp5_validate_capture_group(origin_parts,2u));
  assert(publish_origin_map(dir,"BACKUP",origin_parts,2u,manifest,NULL,NULL));
