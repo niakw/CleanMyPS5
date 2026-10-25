@@ -28,6 +28,42 @@ static int same_file(const struct stat*a,const struct stat*b){
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime;
 }
+/* A descriptor still describes the original directory after it has been
+ * renamed away. Reopen the selected parent's ORIGINAL pathname from a
+ * trusted root and require its identity to match before publishing
+ * observations. All components use O_NOFOLLOW; no Gallery writes. */
+static int gallery_parent_current(const char*root,const char*full,
+                                  size_t parent_len,const struct stat*before){
+ if(!root||!full||full[0]!='/'||!before||parent_len<=1u||
+    parent_len>=sizeof(((Cmp5MediaCandidate*)0)->preview_path)||
+    full[parent_len]!='/' )return 0;
+ int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(fd<0)return 0;
+ const char*cursor=full+1;
+ const char*end=full+parent_len;
+ while(cursor<end){
+  const char*separator=memchr(cursor,'/',(size_t)(end-cursor));
+  const size_t n=separator?(size_t)(separator-cursor):
+    (size_t)(end-cursor);
+  char component[256];
+  if(n==0u||n>=sizeof(component)||
+     (n==1u&&cursor[0]=='.')||
+     (n==2u&&cursor[0]=='.'&&cursor[1]=='.')){
+   close(fd);return 0;
+  }
+  memcpy(component,cursor,n);component[n]=0;
+  int next=openat(fd,component,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(fd);
+  if(next<0)return 0;
+  fd=next;
+  cursor=separator?separator+1:end;
+ }
+ struct stat current={0};
+ const int stable=fstat(fd,&current)==0&&S_ISDIR(current.st_mode)&&
+   same_file(before,&current);
+ close(fd);
+ return stable;
+}
 /* Read-only cross-directory evidence, never a complete dependency graph.
  * Some gallery implementations reference <stem>.jpg.jpeg thumbnails under
  * /user/av_contents/thumbnails/photo/ with the same relative directory.
@@ -97,7 +133,10 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  if(file<0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
  const int stable=fstat(file,&opened)==0&&same_file(&named,&opened)&&
      opened.st_nlink==1&&fstat(fd,&parent_after)==0&&
-     same_file(&parent_before,&parent_after)&&!cancelled(cancel,context);
+     same_file(&parent_before,&parent_after)&&
+     gallery_parent_current(root,locator,
+                            (size_t)(strrchr(locator,'/')-locator),
+                            &parent_before)&&!cancelled(cancel,context);
  if(stable&&thumb){
   thumb->bytes=(uint64_t)opened.st_size;
   thumb->media_type=4u; /* Cross-tree thumbnail, private backup only. */
@@ -296,6 +335,12 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
  }
  if(closedir(dir)!=0){
   if(failure)*failure=CMP5_COMPANION_FAILURE_UNAVAILABLE;
+  invalid=1;
+ }
+ /* A parent renamed after fdopendir can keep returning a consistent
+  * snapshot from an orphaned inode. It is not the user's selected album. */
+ if(!invalid&&!gallery_parent_current(root,path,parent_len,&parent_before)){
+  if(failure)*failure=CMP5_COMPANION_FAILURE_CHANGED;
   invalid=1;
  }
  const int invalid_group=gathered>1u&&

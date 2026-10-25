@@ -159,6 +159,16 @@ add_test(NAME gallery_thumbnail_contract
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_thumbnail.py
   $<TARGET_FILE:cmp5-gallery-thumbnail-tests>
   $<TARGET_FILE:cmp5-gallery-thumbnail-denied>)
+add_executable(cmp5-gallery-parent-swap-tests
+ tests/test_gallery_parent_swap.c)
+target_include_directories(cmp5-gallery-parent-swap-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-gallery-parent-swap-tests PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME gallery_parent_swap_contract
+ COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_gallery_parent_swap.py
+  $<TARGET_FILE:cmp5-gallery-parent-swap-tests>)
 
 # Host-only four-member path: an externally located Gallery thumbnail
 # must be copied and SHA-256 verified in a separate private workspace.

@@ -31,6 +31,20 @@ de groupe fiable n'est publié. La planification d'une sauvegarde privée
 est également refusée. Des fixtures injectent ces deux erreurs dans
 le `fstatat` des compagnons et vérifient le refus sans écriture.
 
+## Renommage des dossiers Galerie pendant l'inspection (25 octobre 2026)
+
+Un descripteur de dossier ouvert reste lisible même après renommage
+de l'album. La découverte des compagnons et du candidat de miniature
+externe revalide maintenant en lecture seule **le chemin parent
+complet depuis la racine**, via `openat` et `O_NOFOLLOW`, avant de
+publier les compteurs ou un groupe privé.
+Un dossier renommé puis remplacé au même chemin provoque
+`FICHIER OU DOSSIER MODIFIE` (capture) ou
+`MINIATURE SUSPECTE` (thumbnail), et aucun volume nominal ni groupe
+de sauvegarde privé n'est accepté.
+Les deux courses sont reproduites en tests Linux/macOS/sanitizers.
+Cette vérification reste ponctuelle et ne valide aucun index Sony.
+
 ## Comportement conservateur de CleanMyPS5
 
 - `capture_companions.c` recherche uniquement les composants **dans le même
