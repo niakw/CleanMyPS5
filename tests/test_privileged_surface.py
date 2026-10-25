@@ -24,7 +24,21 @@ for src in ("unlinkat(fd,name,0);","rename(a,b);",
             "fwrite(data,1,size,out);","system(command);"):
  reject(lambda source=src:gate.check_reader(source,"attack"))
 builder=(root/"scripts/build_native_app.sh").read_text()
-assert gate.check_builder(builder)==gate.APPROVED
+assert gate.check_builder(builder)==gate.APPROVED | gate.BACKUP_UNITS
+# The sole write-capable native exception is explicitly audited and may not
+# become a generic system cleaner, even if an attacker modifies a header.
+gate.check_backup_writer(
+ (root/"native/private_media_backup.hpp").read_text(),
+ "native/private_media_backup.hpp")
+reject(lambda:gate.check_backup_writer(
+ (root/"native/private_media_backup.hpp").read_text()+
+ "\nint bad(){return seteuid(0);}\n",
+ "native/private_media_backup.hpp"))
+reject(lambda:gate.check_builder(
+ builder.replace("CMP5_NATIVE_BACKUP_ONLY 1",
+                 "CMP5_NATIVE_BACKUP_ONLY 0").replace(
+ "sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 0'",
+ "sed -i '1i#define CMP5_NATIVE_BACKUP_WRITABLE 1'")))
 reject(lambda:gate.check_builder(
  builder+'\ncp "$project/src/native/verified_group.c" "$tmp/native-toolchain/src/cmp5_verified_group.c"\n'
 ))
