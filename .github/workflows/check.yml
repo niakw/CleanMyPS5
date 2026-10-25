@@ -45,6 +45,11 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_recovery_resume.cpp -o /tmp/cmp5-recovery-resume-host
           /tmp/cmp5-recovery-resume-host
+      - name: Validate bounded read-only native capsule inventory
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_private_capsule_inventory.cpp -o /tmp/cmp5-private-capsule-inventory-host
+          /tmp/cmp5-private-capsule-inventory-host
       - name: Native archive integrity fixture
         run: python3 tests/test_native_release_manifest.py
       - name: Verify release gates do not claim untested PS5 compatibility
