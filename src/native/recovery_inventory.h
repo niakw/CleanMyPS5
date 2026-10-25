@@ -22,6 +22,12 @@
 
 #define CMP5_RECOVERY_MAX 8u
 #define CMP5_RECOVERY_DIRECTORY_LIMIT 256u
+/* Unsafe aliases, denied paths, and I/O errors are not evidence that a
+ * checkpoint is absent. Keep the native inventory visibly partial. */
+static inline bool cmp5_recovery_unknown_error(int error){
+ return error==EACCES||error==EPERM||error==ELOOP||
+        error==ENOTDIR||error==EIO||error==ESTALE;
+}
 /* Numeric stage type permits the explicit zero = unverified sentinel
  * in both C11 and C++20 consumers of this header. */
 typedef unsigned Cmp5RecoveryStage;
@@ -141,10 +147,13 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
    S_ISDIR(state.st_mode);
  /* Re-resolve the entire allowlisted path, not only the held inode. */
  int fresh_parent=cmp5_recovery_parent_fd(root,parent);
+ const int parent_recheck_error=fresh_parent<0?errno:0;
  int fresh_title=fresh_parent>=0?
    openat(fresh_parent,title,O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ const int title_recheck_error=fresh_title<0&&fresh_parent>=0?errno:0;
  int fresh_state=fresh_title>=0?
    openat(fresh_title,".e2a-state",O_RDONLY|O_DIRECTORY|O_NOFOLLOW):-1;
+ const int state_recheck_error=fresh_state<0&&fresh_title>=0?errno:0;
  struct stat state_b=CMP5_RECOVERY_ZERO;
  ok=ok&&fresh_state>=0&&fstat(fresh_title,&title_b)==0&&
     cmp5_recovery_same(&title_a,&title_b)&&
@@ -156,10 +165,13 @@ static inline int cmp5_recovery_open_checkpoint_dir(const char*root,
  close(title_fd);
  if(!ok){
   if(state_fd>=0)close(state_fd);
-  /* Preserve access-denied provenance across successful revalidation
-   * attempts and close calls; otherwise native UI may claim full coverage. */
-  if(state_open_error==EACCES||state_open_error==EPERM)
-   errno=state_open_error;
+  /* close() must not erase an unsafe/missing mount classification.
+   * Prefer the first failed path component, then its revalidation failure. */
+  if(state_open_error)errno=state_open_error;
+  else if(parent_recheck_error)errno=parent_recheck_error;
+  else if(title_recheck_error)errno=title_recheck_error;
+  else if(state_recheck_error)errno=state_recheck_error;
+  else errno=0; /* changed inode or invalid metadata, not an OS error */
   return -1;
  }
  return state_fd;
@@ -227,11 +239,11 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  close(dir);
  if(!ok){
   *out=0;
-  /* Successful subsequent syscalls/close can mask the first access
-   * denial. Keep that provenance so inventory cannot claim full coverage. */
-  if(request_error==EACCES||request_error==EPERM||
-     stage_error==EACCES||stage_error==EPERM)
-   errno=EACCES;
+  /* Preserve failure provenance; a malformed *readable* checkpoint
+   * is simply rejected, but an inaccessible/unsafe path is unknown. */
+  if(request_error)errno=request_error;
+  else if(stage_error)errno=stage_error;
+  else errno=0;
  }
  return ok;
 }
@@ -295,9 +307,9 @@ static inline bool cmp5_scan_recovery_inventory_cancel(
    Cmp5RecoveryStage stage=0;
    errno=0;
    if(!cmp5_recovery_inspect(root,dest,entry->d_name,&stage)){
-    /* The native title may not share the privileged packer's UID.
-     * An unreadable checkpoint means incomplete coverage, NOT zero jobs. */
-    if(errno==EACCES||errno==EPERM)out->partial=1;
+    /* A denied path, symlinked checkpoint or I/O failure is an
+     * incomplete inventory. Plain ENOENT is an absent checkpoint. */
+    if(cmp5_recovery_unknown_error(errno))out->partial=1;
     continue;
    }
    if(out->count<CMP5_RECOVERY_MAX){
