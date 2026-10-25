@@ -26,6 +26,27 @@ Références publiques : [exFAT2AMPR](https://github.com/exFAT2AMPR/exfat2ampr),
 [technique AMPR-EMU](https://github.com/exFAT2AMPR/exfat2ampr/blob/main/docs/TECHNIQUE.md),
 [formats d'images ShadowMountPlus](https://github.com/phantomptr/ps5upload/blob/main/FAQ.md).
 
+## Reprise après une pause automatique de stockage (25 octobre 2026)
+
+Le moteur AMPR peut protéger les conversions par une pause automatique
+quand un stockage USB/externe disparaît. L'interface native refusait
+auparavant toute reprise de ce type faute d'un accusé `Pause` envoyé
+auparavant par la manette. Pour un job **préalablement confirmé par
+l'utilisateur dans cette session**, l'option Reprise accepte désormais
+l'état `paused` signalé par le moteur, même lorsque la pause n'a pas
+été demandée manuellement. Elle exige toujours la même identité Title ID,
+la même destination calculée et la vérification de l'image gérée par
+ShadowMountPlus lorsqu'il s'agit d'une image. Le moteur contrôle le
+checkpoint enregistré avant toute conversion.
+
+Une reprise acceptée n'est pas renvoyée deux fois tant qu'aucun état
+`running` confirmé ne l'a réarmée. Une fixture de navigation DualSense
+simule une pause automatique, son redémarrage explicite, un double appui
+et la transition vers `running`. Les données du jeu original restent
+inchangées. Ce correctif ne rétablit **pas** encore la possibilité de
+reprendre depuis l'interface de monitoring seule après fermeture
+complète du titre : aucune adoption de checkpoint inconnu n'est autorisée.
+
 ## Pause LZ4 ciblée sur la bonne conversion (25 octobre 2026)
 
 Le bouton Pause n'envoie plus de `POST /api/pause` **global**.

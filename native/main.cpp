@@ -1220,6 +1220,14 @@ void run_game_progress() noexcept {
  if(check_local_ampr(ver)&&ampr_read_progress(&result)&&
     !cancellation_hook(nullptr)){
   game_progress=result;game_progress_checked=true;
+  /* A confirmed transition back to RUNNING concludes an accepted resume.
+   * A later automatic storage pause can then be resumed separately. */
+  if(result.state==cmp5_compression::JobState::running &&
+     game_job_accepted && game_preflight_checked &&
+     std::strcmp(result.title_id,game_preflight.title_id)==0){
+   game_resume_accepted=false;
+   game_pause_accepted=false;
+  }
  }
 }
 /* Pause is reversible; it checkpoints the packed output, NEVER the
@@ -1296,6 +1304,9 @@ void run_game_pause() noexcept {
  game_pause_accepted=ampr_safe_command("/api/pause",body);
 }
 void run_game_resume() noexcept {
+ /* An accepted resume is a queued mutation, not a reason to send the
+  * same request again while status still reports the old PAUSED state. */
+ if(game_resume_accepted)return;
  game_resume_attempted=true;game_resume_accepted=false;
  game_pause_attempted=false;
  /* Paused jobs and explicitly interrupted jobs may have a private
@@ -1308,12 +1319,14 @@ void run_game_resume() noexcept {
  if(!check_local_ampr(version)||!ampr_read_progress(&fresh)||
     std::strcmp(fresh.title_id,game_preflight.title_id)!=0||
     cancellation_hook(nullptr))return;
- const bool paused=fresh.state==cmp5_compression::JobState::paused&&
-                   game_pause_accepted;
+ /* The engine can checkpoint automatically when USB/external storage
+  * disappears. Require the SAME previously approved title, but do not
+  * require a previous controller-generated pause acknowledgment. */
+ const bool paused=fresh.state==cmp5_compression::JobState::paused;
  const bool interrupted=fresh.state==cmp5_compression::JobState::error||
                         fresh.state==cmp5_compression::JobState::cancelled;
  if(!paused&&!interrupted)return;
- if(interrupted&&game_source_is_image){
+ if(game_source_is_image){
   cmp5_compression::ImageResolution current{};
   if(!resolve_managed_image(game_source_checked,&current)||
      current.bytes!=game_image_expected_bytes||
@@ -1824,8 +1837,7 @@ void poll_pad() noexcept {
        std::strcmp(game_progress.title_id,game_preflight.title_id)==0){
       if(game_progress.state==cmp5_compression::JobState::running)
        (void)begin_task(Task::game_pause);
-      else if((game_progress.state==cmp5_compression::JobState::paused&&
-               game_pause_accepted)||
+      else if(game_progress.state==cmp5_compression::JobState::paused||
               game_progress.state==cmp5_compression::JobState::error||
               game_progress.state==cmp5_compression::JobState::cancelled)
        (void)begin_task(Task::game_resume);

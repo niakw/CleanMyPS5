@@ -972,6 +972,23 @@ int main(){
  assert(game_progress.percent==45u&&game_progress.bytes_done==450u);
  assert(std::strcmp(game_progress.title_id,"PPSA12345")==0);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
+ /* The worker can pause itself when a source or output drive disappears.
+  * A previously approved job remains eligible for an explicit resume
+  * even though this UI never requested a pause. */
+ mock_ampr_paused=true;
+ press(cross);finish_scan();
+ assert(game_progress_checked&&
+        game_progress.state==cmp5_compression::JobState::paused);
+ assert(!game_pause_accepted&&!game_resume_accepted);
+ press(triangle);finish_scan();
+ assert(game_resume_attempted&&game_resume_accepted);
+ assert(mock_ampr_resumes==1u&&!mock_ampr_paused);
+ /* Stale PAUSED read must NOT trigger a second POST after accepted ACK. */
+ press(triangle);finish_scan();
+ assert(mock_ampr_resumes==1u);
+ press(cross);finish_scan();
+ assert(game_progress.state==cmp5_compression::JobState::running);
+ assert(!game_resume_accepted&&!game_pause_accepted);
  press(triangle);
  finish_scan();
  assert(game_pause_attempted&&game_pause_accepted);
@@ -984,7 +1001,7 @@ int main(){
  press(triangle);
  finish_scan();
  assert(game_resume_attempted&&game_resume_accepted);
- assert(mock_ampr_resumes==1u);
+ assert(mock_ampr_resumes==2u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  /* A recoverable error now keeps the partial directory intact.
   * Triangle may request a resume for THIS previously approved title;
@@ -995,7 +1012,7 @@ int main(){
    game_progress.state==cmp5_compression::JobState::error);
  press(triangle);finish_scan();
  assert(game_resume_attempted&&game_resume_accepted);
- assert(mock_ampr_resumes==2u);
+ assert(mock_ampr_resumes==3u);
  assert(mock_ampr_post_headers==1&&mock_ampr_post_bodies==1);
  mock_ampr_failed=false;
  scene(canvas);
@@ -1013,7 +1030,7 @@ int main(){
  press(square); /* no loader can be submitted without packaged ELF in host */
  finish_scan();
  assert(engine_launch==EngineLaunch::missing_file);
- assert(mock_ampr_gets==16u); // Error-state refresh and resume each probe the engine.
+ assert(mock_ampr_gets==19u); // Auto-pause, scoped resume and extra progress probes.
  /* A real image requires a one-to-one SMP title identity at PRE and POST. */
  mock_ampr_online=true;
  mock_ampr_post_bodies=0u;
