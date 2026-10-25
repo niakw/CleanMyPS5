@@ -18,14 +18,14 @@ inline bool same_recovery_candidate(const Cmp5RecoveryCandidate&a,
         std::strcmp(a.title_id,b.title_id)==0&&
         std::strcmp(a.destination,b.destination)==0&&a.stage==b.stage;
 }
-/* Refuse a lost or ambiguous storage scan. A checkpoint observed before
- * the two user confirmations is not by itself proof it still exists. */
+/* Reject a missing/swapped selected checkpoint. Partial coverage of a
+ * DIFFERENT device does not invalidate a candidate retained by the
+ * scanner's anchored, post-traversal revalidation on its own volume. */
 template<typename Scanner>
 bool recovery_candidate_fresh(const Cmp5RecoveryCandidate&selected,
                               Scanner scan) noexcept {
  Cmp5RecoveryInventory inventory{};
- if(!scan("/", &inventory)||inventory.partial||inventory.hidden||
-    inventory.count>CMP5_RECOVERY_MAX)return false;
+ if(!scan("/", &inventory)||inventory.count>CMP5_RECOVERY_MAX)return false;
  for(unsigned i=0;i<inventory.count;i++)
   if(same_recovery_candidate(selected,inventory.entries[i]))return true;
  return false;
