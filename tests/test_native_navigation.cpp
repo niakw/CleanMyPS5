@@ -1112,7 +1112,7 @@ int main(){
  press(cross);assert(compression_view==4u);
  finish_scan();
  assert(game_job_accepted&&mock_ampr_post_bodies==1u);
- assert(mock_ampr_gets==25u); // Account for error-state refresh and resume probes.
+ assert(mock_ampr_gets==29u); // Includes automatic pause, scoped resume and confirmed restart.
  press(circle);
  assert(compression_view==6u); /* return to selected image, not folders */
  /* Full UI->engine flow: a changed source length between confirmation
