@@ -82,7 +82,7 @@ Le moteur dispose de deux contrôles complémentaires, **uniquement pour les dos
 - `VERIFIED` : marqueur de transaction présent et **vérification SHA-256 intégrale** de toutes les capsules réussie.
 - `INVALID` : marqueur non fiable, composant non régulier, lien symbolique ou autre anomalie détectée.
 
-Les compteurs de composants publiés, de fragments temporaires et d'entrées inattendues sont rapportés séparément. Les tests hôte simulent une interruption de restauration, un membre `__5` excédentaire, un `.part` résiduel et la corruption d'un fichier restauré. Ces contrôles **ne retirent jamais les fichiers `.part`**, ne réutilisent pas une sauvegarde interrompue et n'autorisent aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
+Les compteurs de composants publiés, de fragments temporaires et d'entrées inattendues sont rapportés séparément. La table d'origine privée `__ORIGINS` est également recensée : publiée sans `__COMMIT`, elle classe la reprise comme `INCOMPLETE` et non `EMPTY` ; un fichier `.part` seul est traité comme fragment temporaire, et une table malformée est `INVALID`. Deux indicateurs de présence, **sans chemins personnels**, permettent au diagnostic de préciser ce constat. Les tests hôte simulent une interruption de restauration, un membre `__5` excédentaire, un `.part` résiduel et la corruption d'un fichier restauré. Ces contrôles **ne retirent jamais les fichiers `.part`**, ne réutilisent pas une sauvegarde interrompue et n'autorisent aucune action sur les originaux. Le rapport est ponctuel et ne constitue pas un verrou sur les fichiers : une seconde validation sera nécessaire au moment d'une éventuelle opération sûre. Le moteur reste non compilé dans le titre PS5 ; cette étape développe la détection avant de traiter les politiques de récupération.
 
 ## Correspondance sauvegarde / restauration privée
 
@@ -206,7 +206,11 @@ restauré dans un **dossier privé**, les transactions individuelles et
 groupées exigent une mesure `fstatvfs` utilisable. La comparaison se fait
 sur `f_bavail` (blocs disponibles au processus), jamais `f_bfree`,
 et vérifie la capacité prévue de **tous les membres du groupe**, le
-manifeste, les métadonnées et une marge d'un Mio. Un dossier readonly,
+manifeste, les métadonnées et une marge d'un Mio. Pour une sauvegarde
+de quatre composants, le précontrôle réserve désormais six sorties
+(quatre capsules + une table `__ORIGINS` + `__COMMIT`). La restauration
+vers l'autre espace privé, qui ne réécrit pas la table, réserve ses
+quatre membres et son marqueur final séparément. Un dossier readonly,
 une capacité inconnue ou trop faible, ou un calcul impossible annule
 l'opération sans créer de fichier. Les tests C injectent `EIO`, un
 montage readonly, les blocs réservés et des seuils exacts.
