@@ -19,6 +19,7 @@
 #include "cleanup_readiness.hpp"
 #include "capture_companions.h"
 #include "private_media_backup.hpp"
+#include "private_group_backup.hpp"
 #include "private_capsule_inventory.hpp"
 #include "diagnostics.h"
 #include "media_preview.h"
@@ -83,7 +84,7 @@ constexpr std::uint32_t l3=0x2,r3=0x4,options=0x8,up=0x10,down=0x40,left=0x80,ri
   cross=0x4000,circle=0x2000,square=0x8000,triangle=0x1000,
   l1=0x100,r1=0x200,l2=0x400,r2=0x800;
 constexpr int row_count=5;
-enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression, backup, capsules };
+enum class Screen { menu, analyze, access, apps, cleanup, review, search, games, detail, photo, video_info, official, autoload, companions, compression, backup, capsules, group_backup };
 enum class Link { unchecked, ok, offline };
 constexpr std::size_t core_access_count=6u;
 constexpr std::size_t local_path_count=22u;
@@ -387,6 +388,9 @@ unsigned cleanup_page=0;
 Cmp5MediaCandidate backup_selected{};
 cmp5_private_backup::Outcome backup_outcome{};
 unsigned backup_step=0u;
+cmp5_private_backup::GroupOutcome group_outcome{};
+Cmp5MediaCandidate group_primary{};
+unsigned group_step=0u;
 bool backup_verify_only=false;
 bool backup_from_inventory=false;
 /* Private backup archive can open from the home screen even if the
@@ -749,6 +753,13 @@ void run_private_backup() noexcept {
       cmp5_privilege::Operation::backup_private_media))return;
  backup_outcome=cmp5_private_backup::backup_one(
    backup_selected,cancellation_hook,nullptr);
+}
+void run_private_group_backup() noexcept {
+ group_outcome={};
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+     cmp5_privilege::Operation::backup_private_media))return;
+ group_outcome=cmp5_private_backup::backup_visible_group(
+     group_primary,cancellation_hook,nullptr);
 }
 void run_private_backup_verify() noexcept {
  backup_outcome={};
@@ -1550,7 +1561,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1566,6 +1577,7 @@ void* background_task(void*) noexcept {
   case Task::video_info: run_video_info(); break;
   case Task::companions: run_companion_check(); break;
   case Task::private_backup: run_private_backup(); break;
+  case Task::private_group_backup: run_private_group_backup(); break;
   case Task::private_backup_verify: run_private_backup_verify(); break;
   case Task::private_inventory: run_capsule_inventory(); break;
   case Task::images: run_game_image_scan(); break;
@@ -1729,6 +1741,7 @@ void poll_pad() noexcept {
    screen=(screen==Screen::photo||screen==Screen::video_info||
             screen==Screen::companions||
             (screen==Screen::backup&&!backup_from_inventory))?Screen::detail:
+     screen==Screen::group_backup?Screen::companions:
      screen==Screen::capsules?capsule_return_screen:
      (screen==Screen::backup&&backup_from_inventory)?Screen::capsules:
      (screen==Screen::detail||screen==Screen::search||
@@ -1785,7 +1798,17 @@ void poll_pad() noexcept {
    }
    continue;
   }
-  if(screen==Screen::video_info||screen==Screen::companions)continue;
+  if(screen==Screen::video_info)continue;
+  if(screen==Screen::companions){
+   if((pressed&triangle)&&companion_checked&&
+      companion_summary.state==CMP5_COMPANIONS_MULTIPLE&&
+      detail_index<media_review.count){
+    group_primary=media_review.entries[detail_index];
+    group_outcome={};group_step=0u;
+    screen=Screen::group_backup;
+   }
+   continue;
+  }
   if(screen==Screen::photo){
    if(pressed&l2)photo_zoom=photo_zoom==170?135:100;
    if(pressed&r2)photo_zoom=photo_zoom==100?135:170;
@@ -1821,6 +1844,14 @@ void poll_pad() noexcept {
     }
    }
    if(pressed&triangle)(void)begin_task(Task::private_inventory);
+   continue;
+  }
+  if(screen==Screen::group_backup){
+   if(group_step==0u&&(pressed&cross))group_step=1u;
+   else if(group_step==1u&&(pressed&cross)){
+    group_step=2u;
+    (void)begin_task(Task::private_group_backup);
+   }
    continue;
   }
   if(screen==Screen::backup){
@@ -2847,6 +2878,43 @@ void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
       "UNE COPIE PARTIELLE PEUT RESTER A INSPECTER");
  footer(canvas,"CERCLE RETOUR  RESTAURATION GALERIE NON AUTORISEE");
 }
+void show_group_backup(ps5::demo::Canvas&canvas) noexcept {
+ panel(canvas,315,"COPIE PRIVEE DES FICHIERS ASSOCIES",
+   "PAS UNE RESTAURATION DE LA GALERIE",Color::cyan);
+ panel(canvas,456,"GROUPE OBSERVE",
+   "2 A 4 FICHIERS DE MEME CAPTURE  512 MIO MAX",Color::cyan);
+ if(group_step<2u){
+  panel(canvas,596,group_step?"CONFIRMATION 2/2":"CONFIRMATION 1/2",
+    "COPIE REEVALUANT CHAQUE FICHIER SOURCE",Color::yellow);
+  panel(canvas,742,"FICHIERS ORIGINAUX",
+    "AUCUN EFFACEMENT  AUCUN INDEX SONY MODIFIE",Color::yellow);
+  footer(canvas,"X CONFIRMER  CERCLE ANNULER  AUCUNE ECRITURE GALERIE");
+  return;
+ }
+ if(task_busy()){
+  panel(canvas,596,"VERIFICATION ET COPIE DU GROUPE",
+    "SHA-256  MANIFESTE PUBLIE APRES TOUS LES FICHIERS",Color::cyan);
+  footer(canvas,"CERCLE ANNULER  RESIDUS PRIVES POSSIBLES");
+  return;
+ }
+ const bool success=group_outcome.status==
+   cmp5_private_backup::GroupStatus::verified &&
+   !task_failed()&&!task_cancelled();
+ panel(canvas,596,success?"GROUPE VISIBLE SAUVEGARDE":
+    "GROUPE NON VALIDE",
+   success?"SHA-256 DE TOUS LES MEMBRES ET DU MANIFESTE VERIFIE":
+    "CONTROLE PARTIEL OU INDISPONIBLE  AUCUNE SUPPRESSION",
+   success?Color::cyan:Color::yellow);
+ if(success){
+  char receipt[128]{};
+  (void)std::snprintf(receipt,sizeof(receipt),"%u MEMBRES  %llu MIO",
+   group_outcome.receipt.count,
+   static_cast<unsigned long long>(group_outcome.receipt.bytes/1048576u));
+  panel(canvas,750,"COPIE PRIVEE VERIFIEE",receipt,Color::cyan);
+ }else panel(canvas,750,"ECHEC SECURISE",
+   "RESIDUS PRIVES NON EFFACES  INSPECTION NECESSAIRE",Color::yellow);
+ footer(canvas,"CERCLE FICHIERS ASSOCIES  INDEX SONY NON VALIDES");
+}
 void show_companions(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
   panel(canvas,360,"FICHIERS ASSOCIES","VERIFICATION EN LECTURE SEULE",Color::cyan);
@@ -2905,7 +2973,9 @@ void show_companions(ps5::demo::Canvas&canvas) noexcept {
     "MINIATURE NON VERIFIEE";
  panel(canvas,804,"MINIATURE HORS DOSSIER",thumbnail_detail,Color::yellow);
  canvas.rectangle(95,950,1730,96,Color::panel);
- canvas.text(125,968,"CERCLE DETAIL  AUCUNE SUPPRESSION NI SAUVEGARDE",3,Color::white);
+ canvas.text(125,968,companion_summary.state==CMP5_COMPANIONS_MULTIPLE?
+   "TRIANGLE COPIER GROUPE VISIBLE  CERCLE DETAIL":
+   "CERCLE DETAIL  GROUPE NON SAUVEGARDABLE",3,Color::white);
  canvas.text(125,1006,"FICHIERS VISIBLES SEULEMENT - LECTURE SEULE",3,Color::cyan);
 }
 void show_photo(ps5::demo::Canvas&canvas) noexcept {
@@ -3434,6 +3504,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
    screen==Screen::detail?"DETAIL DE LA CAPTURE":
     screen==Screen::backup?"SAUVEGARDE PRIVEE":
     screen==Screen::capsules?"CAPSULES SAUVEGARDEES":
+    screen==Screen::group_backup?"COPIE GROUPE PRIVE":
    screen==Screen::photo?"APERCU PHOTO":
    screen==Screen::video_info?"INFORMATIONS VIDEO":
    screen==Screen::autoload?"AUTOLOAD ET DEMARRAGE":
@@ -3452,6 +3523,7 @@ void scene(ps5::demo::Canvas&canvas) noexcept {
   case Screen::detail:show_detail(canvas);break;
    case Screen::backup:show_private_backup(canvas);break;
    case Screen::capsules:show_capsules(canvas);break;
+   case Screen::group_backup:show_group_backup(canvas);break;
   case Screen::photo:show_photo(canvas);break;
   case Screen::video_info:show_video_info(canvas);break;
   case Screen::official:show_official(canvas);break;
