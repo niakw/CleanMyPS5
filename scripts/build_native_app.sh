@@ -49,6 +49,7 @@ cp "$project/src/native/media_snapshot.h" "$tmp/native-toolchain/src/media_snaps
 # SHA-256-verified additive backup in the app-owned /download0 workspace.
 # The implementation NEVER writes to /user and cannot delete source media.
 cp "$project/native/private_media_backup.hpp" "$tmp/native-toolchain/src/private_media_backup.hpp"
+cp "$project/native/private_capsule_inventory.hpp" "$tmp/native-toolchain/src/private_capsule_inventory.hpp"
 cp "$project/src/native/verified_backup.h" "$tmp/native-toolchain/src/verified_backup.h"
 cp "$project/src/native/verified_backup.c" "$tmp/native-toolchain/src/cmp5_verified_backup.c"
 # Compile out restore/write-to-other-workspace routines from the PS5 title.
