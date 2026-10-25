@@ -595,6 +595,27 @@ int main(){
  controller=1;
  ps5::demo::Canvas canvas;
  assert(screen==Screen::menu);
+ /* Archive is reachable on FIRST launch without scanning Gallery.
+  * A simulated archived capsule may be checked by ID even with zero
+  * visible media. The UI fixture never touches PS5 paths or writes. */
+ assert(media_review.count==0u);
+ press(square);assert(screen==Screen::capsules);
+ finish_scan();
+ assert(!private_inventory.checked);
+ private_inventory=cmp5_private_backup::Inventory{};
+ private_inventory.checked=true;private_inventory.count=1u;
+ std::strcpy(private_inventory.ids[0],"CAP_0123456789ABCDEF");
+ private_inventory_selection=0u;
+ const unsigned archive_checks_before=mock_private_verify_calls;
+ mock_private_capsule_valid=true;
+ press(cross);assert(screen==Screen::backup&&backup_from_inventory);
+ finish_scan();
+ assert(mock_private_verify_calls==archive_checks_before+1u);
+ assert(backup_outcome.status==cmp5_private_backup::Result::verified);
+ press(circle);assert(screen==Screen::capsules);
+ press(circle);assert(screen==Screen::menu);
+ mock_private_capsule_valid=false;
+ assert(media_review.count==0u&&selected==0);
  /* One global Analyse coordinates independent, read-only scanners. */
  assert(selected==0);
  const unsigned engine_calls=mock_ampr_gets;
