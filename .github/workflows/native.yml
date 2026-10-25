@@ -158,6 +158,11 @@ jobs:
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
             tests/test_recovery_inventory.c -o /tmp/cmp5-recovery-inventory
           /tmp/cmp5-recovery-inventory
+      - name: Validate explicit post-restart checkpoint resume policy
+        run: |
+          clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
+            tests/test_recovery_resume.cpp -o /tmp/cmp5-recovery-resume
+          /tmp/cmp5-recovery-resume
       - name: Fail closed on insufficient space for private backup and restore
         run: |
           clang-18 -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc/native \
