@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/statvfs.h>
+#include <sys/mman.h>
 static struct statvfs simulated;
 static int fail_mount=0,calls=0;
 static int synthetic_fstatvfs(int fd,struct statvfs*out){
@@ -23,6 +24,24 @@ static int synthetic_fstatvfs(int fd,struct statvfs*out){
 #include "../src/native/private_workspace_guard.h"
 #undef fstatvfs
 int main(void){
+ /* Pathname parsing is independent of any privileged filesystem access.
+  * Exactly PATH_MAX bytes without NUL must not probe the protected page. */
+ assert(cmp5_workspace_name_ok("/tmp/cmp5-private"));
+ assert(!cmp5_workspace_name_ok("/tmp/../system"));
+ assert(!cmp5_workspace_name_ok("/tmp//"));
+ const long raw_page=sysconf(_SC_PAGESIZE);
+ assert(raw_page>0);
+ const size_t page=(size_t)raw_page;
+ const size_t usable=((size_t)PATH_MAX+page-1u)/page*page;
+ void*buffer=mmap(NULL,usable+page,PROT_READ|PROT_WRITE,
+                  MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+ assert(buffer!=MAP_FAILED);
+ assert(mprotect((char*)buffer+usable,page,PROT_NONE)==0);
+ char*unterminated=(char*)buffer+usable-(size_t)PATH_MAX;
+ memset(unterminated,'A',(size_t)PATH_MAX);
+ unterminated[0]='/';
+ assert(!cmp5_workspace_name_ok(unterminated));
+ assert(munmap(buffer,usable+page)==0);
  memset(&simulated,0,sizeof(simulated));
  simulated.f_frsize=4096u;
  simulated.f_bavail=1024u;
