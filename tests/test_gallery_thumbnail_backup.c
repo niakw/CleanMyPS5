@@ -7,12 +7,14 @@
 #undef NDEBUG
 #endif
 #include "verified_group.h"
+#include "verified_backup.h"
 #include "media_snapshot.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 static void snapshot(Cmp5MediaCandidate*out,const char*file,
@@ -39,10 +41,36 @@ static void compare(const char*a,const char*b){
  }
  close(lhs);close(rhs);
 }
+/* A non-terminated ID immediately before an inaccessible page used to
+ * provoke an out-of-bounds read in the backup/group validators. This fixture
+ * runs only on the Linux host, and never touches PS5 data or a real backup. */
+static void test_unterminated_id(const char*workspace,size_t limit,int group){
+ const long raw_page=sysconf(_SC_PAGESIZE);
+ assert(raw_page>0&&(size_t)raw_page>limit);
+ const size_t page=(size_t)raw_page;
+ void*memory=mmap(NULL,page*2u,PROT_READ|PROT_WRITE,
+                  MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+ assert(memory!=MAP_FAILED);
+ assert(mprotect((char*)memory+page,page,PROT_NONE)==0);
+ char*id=(char*)memory+page-limit;
+ memset(id,'A',limit); /* no NUL before the guard page */
+ if(group){
+  Cmp5GroupReceipt result={0};
+  assert(!cmp5_verify_group(workspace,id,&result,NULL,NULL));
+  assert(result.count==0u);
+ }else{
+  Cmp5BackupReceipt result={0};
+  assert(!cmp5_verify_backup(workspace,id,&result,NULL,NULL));
+  assert(!result.published);
+ }
+ assert(munmap(memory,page*2u)==0);
+}
 int main(int argc,char**argv){
  if(argc!=7)return 2;
  const char*root=argv[1],*photo=argv[2],*dat=argv[3],
            *thumb=argv[4],*backup=argv[5],*restore=argv[6];
+ test_unterminated_id(backup,31u,1);
+ test_unterminated_id(backup,48u,0);
  Cmp5MediaCandidate original={0};
  snapshot(&original,photo,
   "/user/av_contents/photo/NPXS00000/GAME123/REC_001.jpg",1u);
