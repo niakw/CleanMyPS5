@@ -224,6 +224,27 @@ int main(void) {
    sandbox,"/mnt/usb0/homebrew/PPSA55555/.e2a-state");
  assert(state_handle>=0);
  assert(close(state_handle)==0);
+ /* A restrictive process umask can silently turn 0755 into 0700.
+  * Refuse to report a launchable title; leave its partial output intact
+  * for a manual audit rather than silently chmod/unlink another inode. */
+ mode_t restrictive_saved=umask(0077);
+ struct stat restricted_output={0};
+ const bool restrictive_created=cmp5_game_output_create_unique(
+   sandbox,"/mnt/usb0/homebrew","PPSA66666",&restricted_output);
+ (void)umask(restrictive_saved);
+ assert(!restrictive_created&&restricted_output.st_ino==0);
+ char restricted_title[512],restricted_state[512];
+ assert(snprintf(restricted_title,sizeof(restricted_title),
+   "%s/mnt/usb0/homebrew/PPSA66666",sandbox)>0);
+ assert(snprintf(restricted_state,sizeof(restricted_state),
+   "%s/.e2a-state",restricted_title)>0);
+ struct stat mode_observed={0};
+ assert(stat(restricted_title,&mode_observed)==0&&
+        (mode_observed.st_mode&0777)==0700);
+ assert(stat(restricted_state,&mode_observed)==0&&
+        (mode_observed.st_mode&0777)==0700);
+ assert(rmdir(restricted_state)==0);
+ assert(rmdir(restricted_title)==0);
  assert(cmp5_game_open_checkpoint_dir(
    sandbox,"/mnt/usb0/homebrew/PPSA55555/../.e2a-state")<0);
  assert(cmp5_game_open_checkpoint_dir(
