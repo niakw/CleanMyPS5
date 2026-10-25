@@ -1851,7 +1851,6 @@ void poll_pad() noexcept {
     }
     if(pressed&cross)(void)begin_task(Task::recovery_scan);
     if((pressed&triangle)&&!recovery_resume_attempted&&recovery_checked&&
-       !recovery_inventory.partial&&!recovery_inventory.hidden&&
        recovery_selection<recovery_inventory.count){
      recovery_chosen=recovery_inventory.entries[recovery_selection];
      compression_view=8u;
