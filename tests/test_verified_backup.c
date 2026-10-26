@@ -135,18 +135,19 @@ int main(int argc,char**argv){
   * Its original verified capsule must remain intact and re-openable.
   * Never claim nominal length as verified filesystem blocks freed. */
  uint64_t discarded=0u;
+ int mutation_started=0;
  assert(!cmp5_discard_rehearsed_backup(backup,"ONE",restore,"SAVED",
-                                      &discarded,always_cancel,NULL));
- assert(!discarded&&access(path,F_OK)==0);
+                                      &discarded,&mutation_started,always_cancel,NULL));
+ assert(!mutation_started&&!discarded&&access(path,F_OK)==0);
  assert(!cmp5_discard_rehearsed_backup(backup,"ONE",backup,"ONE",
-                                      &discarded,NULL,NULL));
+                                      &discarded,&mutation_started,NULL,NULL));
  assert(!discarded);
  assert(cmp5_discard_rehearsed_backup(backup,"ONE",restore,"SAVED",
-                                     &discarded,NULL,NULL));
- assert(discarded==media.bytes&&access(path,F_OK)!=0);
+                                     &discarded,&mutation_started,NULL,NULL));
+ assert(mutation_started==1&&discarded==media.bytes&&access(path,F_OK)!=0);
  assert(cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
  assert(!cmp5_discard_rehearsed_backup(backup,"ONE",restore,"SAVED",
-                                      &discarded,NULL,NULL));
+                                      &discarded,&mutation_started,NULL,NULL));
  assert(!discarded);
  assert(cmp5_restore_backup(backup,"ONE",restore,"SAVED2",&b,NULL,NULL));
  char scratch[512]={0};
@@ -157,8 +158,8 @@ int main(int argc,char**argv){
  assert(fseek(alter,15,SEEK_SET)==0);
  assert(fputc(byte^1,alter)>=0&&fclose(alter)==0);
  assert(!cmp5_discard_rehearsed_backup(backup,"ONE",restore,"SAVED2",
-                                      &discarded,NULL,NULL));
- assert(!discarded&&access(scratch,F_OK)==0);
+                                      &discarded,&mutation_started,NULL,NULL));
+ assert(!mutation_started&&!discarded&&access(scratch,F_OK)==0);
  if(argc>=6){
    snprintf(path,sizeof(path),"%s/%s",backup,"ONE");
    f=fopen(path,"r+b");assert(f);assert(fseek(f,67,SEEK_SET)==0);
