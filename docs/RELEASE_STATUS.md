@@ -1,5 +1,28 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Restaurations privées : dossiers parents liés au chemin d'origine (26 octobre 2026)
+
+Le contrôle read-only des fichiers source sauvegardés n'utilise plus
+l'identité du seul fichier ouvert pour conclure à un état
+`UNCHANGED`, `CHANGED` ou `MISSING`. Il rouvre désormais, depuis
+la racine de test épinglée, **chaque composant du chemin du dossier
+parent** avec `O_NOFOLLOW`, et confirme qu'il s'agit toujours de
+l'inode du dossier inspecté. En cas de renommage ou de substitution,
+le résultat est `UNKNOWN`.
+
+La fixture `test_group_identity_races.c` vérifie la distinction entre
+un fichier réellement absent d'un dossier stable (`MISSING`) et une
+absence constatée dans un ancien dossier renommé (`UNKNOWN`). Elle
+teste également une source initialement intacte dont le dossier parent
+a été remplacé au moment du contrôle : aucune attestation `UNCHANGED`
+ne doit alors sortir.
+
+Ce renforcement n'est pas une photographie atomique des bases Sony
+et ne confère **aucun droit de suppression ni de restauration Galerie**.
+Il demeure une vérification du prototype de restauration en espace
+privé hôte, non un résultat de test matériel PS5 13.60.
+
+
 ## Fichiers compagnons : limite exacte des chemins (26 octobre 2026)
 
 Le lecteur de fichiers associés à une capture protégeait l'allocation
