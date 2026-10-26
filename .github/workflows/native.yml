@@ -41,6 +41,7 @@ on:
       - scripts/verify_embedded_engine_policy.py
       - src/native/compression_allowed_paths.h
       - tests/test_compression_allowed_paths.c
+      - tests/test_ampr_plan_hash.c
       - tests/test_compression_stream.cpp
       - tests/test_compression_bridge.cpp
       - tests/test_compression_preflight.cpp
