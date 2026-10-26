@@ -33,7 +33,9 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
   /* /data/homebrew/ExampleTool is sampled before AND after its
    * homebrew traversal (lookups 1 and 2). The third stat precedes
    * opening the independent /data/ExampleTool app-data tree. */
-  if(app_name_lookups==3)st->st_ino+=1;
+  if((fake_app_identity_mode==1&&app_name_lookups==3)||
+     (fake_app_identity_mode==2&&app_name_lookups==2))
+   st->st_ino+=1;
  }
  return rc;
 }
@@ -88,6 +90,8 @@ int main(int argc,char**argv){
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
   assert(cache_name_lookups>=2);
   assert(stats.cache_like_folders==3u);
+  assert(stats.cache_like_name_matched+
+         stats.cache_like_name_unmatched==stats.cache_like_folders);
   assert(stats.cache_like_nominal_bytes==13u||
          stats.cache_like_nominal_bytes==17u);
   assert(strstr(json,"\"cacheCandidates\":{\"folders\":3,"));
@@ -111,7 +115,22 @@ int main(int argc,char**argv){
  assert(app_name_lookups==3); /* mismatched open stops before post-scan */
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
  assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
+ assert(stats.cache_like_name_matched==0u&&
+        stats.cache_like_name_unmatched==1u);
  assert(strstr(json,"\"partial\":true"));
+ free(json);
+ /* The source /data/homebrew/ExampleTool directory is now replaced
+  * during final lookup. Its name MUST be removed from weak owner hints,
+  * even though the matching /data/ExampleTool cache still exists. */
+ fake_app_identity_mode=2;app_name_lookups=0;
+ memset(&stats,0,sizeof(stats));size=0;
+ json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+ assert(json&&size>100&&stats.partial);
+ assert(app_name_lookups>=4);
+ assert(stats.cache_like_folders==4u);
+ assert(stats.cache_like_name_matched==0u&&
+        stats.cache_like_name_unmatched==4u);
+ assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
  free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
