@@ -78,7 +78,8 @@ static inline bool cmp5_ampr_request_valid(
 static inline bool cmp5_ampr_read_request(int fd,const char*base,
                                           const char*title){
  if(fd<0||!base||!title)return false;
- Cmp5AmprSavedRequest request={0};
+ Cmp5AmprSavedRequest request;
+ memset(&request,0,sizeof(request));
  size_t read_total=0;
  while(read_total<sizeof(request)){
   ssize_t n=pread(fd,(char*)&request+read_total,
