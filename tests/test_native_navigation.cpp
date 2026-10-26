@@ -554,6 +554,18 @@ int main(){
    !absent_mount.volume_known&&absent_mount.total_bytes==0u&&
    absent_mount.available_bytes==0u);
  assert(rmdir(bare_mount)==0);
+ /* Visible USB screen must not imply an attached disk or show free GB. */
+ local_probe[6]=absent_mount;
+ access_page=1u;
+ ps5::demo::Canvas usb_screen{};
+ show_access(usb_screen);
+ bool usb_unconfirmed=false;
+ for(const auto&draw:usb_screen.commands)
+  if(draw.text.find("MONTAGE NON CONFIRME")!=std::string::npos)
+   usb_unconfirmed=true;
+ assert(usb_unconfirmed);
+ access_page=0u;
+ local_probe[6]=LocalProbe{};
  struct stat child_stat{},parent_stat{};
  child_stat.st_mode=parent_stat.st_mode=S_IFDIR|0700;
  child_stat.st_dev=15;parent_stat.st_dev=15;
