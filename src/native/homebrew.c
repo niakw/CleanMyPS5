@@ -18,11 +18,15 @@
 #define JSON_CAP (512u*1024u)
 #define TOTAL_CAP 5000u
 #define ITEMS_CAP 256u
+#define HOMEBREW_NAMES_CAP 128u
+#define HOMEBREW_NAME_LEN 64u
 #define DEPTH_CAP 5
 #define TIME_CAP_NS 3000000000ULL
 typedef struct {char*data;size_t len;int bad;} Writer;
 typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
  unsigned data_root_state,installed_root_state;
+ size_t homebrew_name_count;
+ char homebrew_names[HOMEBREW_NAMES_CAP][HOMEBREW_NAME_LEN];
  Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;} Audit;
 /* A missing optional plugin/USB folder is normal. Missing /data or
  * /user/app is different: a zero inventory must not imply complete access. */
@@ -175,12 +179,53 @@ static int same_cache_dir(const struct stat*a,const struct stat*b){
  return S_ISDIR(a->st_mode)&&S_ISDIR(b->st_mode)&&
         a->st_dev==b->st_dev&&a->st_ino==b->st_ino;
 }
+/* Basename correlation is only a hint, never proven provider control.
+ * A non-symlink executable is required to distinguish a homebrew folder
+ * from random data, but says nothing about the safety of its caches. */
+static void remember_homebrew_name(Audit*a,const char*name,int fd){
+ if(!a||!a->stats||!name||fd<0)return;
+ const size_t length=strlen(name);
+ if(!length||length>=HOMEBREW_NAME_LEN){
+  a->stats->homebrew_name_index_partial=1u;return;
+ }
+ for(size_t i=0;i<length;i++){
+  const unsigned char c=(unsigned char)name[i];
+  if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+       (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'))
+   return;
+ }
+ struct stat app={0},exe={0};
+ if(fstat(fd,&app)!=0||!S_ISDIR(app.st_mode))return;
+ const char*const executables[]={"eboot.elf","eboot.bin"};
+ int found=0;
+ for(size_t i=0;i<sizeof(executables)/sizeof(*executables);i++){
+  if(fstatat(fd,executables[i],&exe,AT_SYMLINK_NOFOLLOW)==0&&
+     S_ISREG(exe.st_mode)&&exe.st_size>0&&exe.st_dev==app.st_dev){
+   found=1;break;
+  }
+ }
+ if(!found)return;
+ for(size_t i=0;i<a->homebrew_name_count;i++)
+  if(strcmp(a->homebrew_names[i],name)==0)return;
+ if(a->homebrew_name_count==HOMEBREW_NAMES_CAP){
+  a->stats->homebrew_name_index_partial=1u;
+  a->partial=1;return;
+ }
+ memcpy(a->homebrew_names[a->homebrew_name_count++],name,length+1u);
+}
+static int homebrew_name_observed(const Audit*a,const char*name){
+ if(!a||!name)return 0;
+ for(size_t i=0;i<a->homebrew_name_count;i++)
+  if(strcmp(a->homebrew_names[i],name)==0)return 1;
+ return 0;
+}
 static int cache_like_name(const char*name){
  return name&&(!strcasecmp(name,"cache")||!strcasecmp(name,".cache")||
                !strcasecmp(name,"tmp")||!strcasecmp(name,"temp"));
 }
-static void scan_cache_subdirs(Audit*a,int app_dir){
+static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
  if(!a||!a->stats||app_dir<0)return;
+ const int weak_match=homebrew_name_observed(a,app_name);
  /* dup() SHARES a directory offset with app_dir. Enumerating via a
   * duplicate would exhaust the parent's iterator before count_tree(),
   * silently undercounting ALL app bytes. Open a fresh description
@@ -233,6 +278,8 @@ static void scan_cache_subdirs(Audit*a,int app_dir){
    a->stats->cache_like_partial=1u;a->partial=1;
   }else{
    a->stats->cache_like_folders++;
+   if(weak_match)a->stats->cache_like_name_matched++;
+   else a->stats->cache_like_name_unmatched++;
    a->stats->cache_like_files+=(uint32_t)files;
    a->stats->cache_like_nominal_bytes+=bytes;
   }
@@ -297,12 +344,34 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
     if(fstat(child,&opened)!=0||!same_cache_dir(&st,&opened)){
      close(child);partial=1;
     }else{
-     if(!strcmp(kind,"app-data")&&!strcmp(relative,"data"))
-      scan_cache_subdirs(a,child);
+     const int app_data=!strcmp(kind,"app-data")&&
+                        !strcmp(relative,"data");
+     const uint32_t before_folders=a->stats->cache_like_folders;
+     const uint32_t before_matched=a->stats->cache_like_name_matched;
+     const uint32_t before_unmatched=a->stats->cache_like_name_unmatched;
+     const uint32_t before_files=a->stats->cache_like_files;
+     const uint64_t before_bytes=a->stats->cache_like_nominal_bytes;
+     const size_t before_names=a->homebrew_name_count;
+     if(app_data)scan_cache_subdirs(a,child,e->d_name);
+     if(!strcmp(kind,"homebrew")&&!strcmp(relative,"data/homebrew"))
+      remember_homebrew_name(a,e->d_name,child);
      count_tree(a,child,0,&bytes,&files,&partial);
      struct stat after={0};
      if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
-        !same_cache_dir(&st,&after))partial=1;
+        !same_cache_dir(&st,&after)){
+      /* A renamed parent invalidates all its observed cache names,
+       * including the weak homebrew correspondence. */
+      if(app_data){
+       a->stats->cache_like_folders=before_folders;
+       a->stats->cache_like_name_matched=before_matched;
+       a->stats->cache_like_name_unmatched=before_unmatched;
+       a->stats->cache_like_files=before_files;
+       a->stats->cache_like_nominal_bytes=before_bytes;
+       a->stats->cache_like_partial=1u;
+      }
+      a->homebrew_name_count=before_names;
+      partial=1;
+     }
     }
    }
   }
@@ -366,17 +435,21 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
   stats->data_root_state=a->data_root_state;
   stats->installed_root_state=a->installed_root_state;
  }
- char finish[570];
+ char finish[760];
  const uint32_t caches=a->stats->cache_like_folders;
  const uint32_t cache_files=a->stats->cache_like_files;
  const uint64_t cache_bytes=a->stats->cache_like_nominal_bytes;
  const unsigned cache_partial=a->stats->cache_like_partial;
+ const uint32_t matched=a->stats->cache_like_name_matched;
+ const uint32_t unmatched=a->stats->cache_like_name_unmatched;
+ const int index_partial=a->stats->homebrew_name_index_partial!=0u;
  snprintf(finish,sizeof(finish),
-  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
+  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"nameMatched\":%u,\"noNameMatch\":%u,\"nameIndexPartial\":%s,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
   a->visited,a->partial?"true":"false",
   root_state_name(a->data_root_state),root_state_name(a->installed_root_state),
   caches,cache_files,(unsigned long long)cache_bytes,
-  cache_partial?"true":"false");
+  cache_partial?"true":"false",
+  matched,unmatched,index_partial?"true":"false");
  add(&a->out,finish);
  char*result=a->out.data;
  if(a->out.bad){free(result);result=NULL;}else *length=a->out.len;
