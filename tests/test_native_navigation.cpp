@@ -92,6 +92,11 @@ int cmp5_backup_media(const char*,const Cmp5MediaCandidate*,const char*,
  assert(false&&"Synthetic UI must not write a PS5 media capsule");
  return 0;
 }
+int cmp5_restore_backup(const char*,const char*,const char*,const char*,
+ Cmp5BackupReceipt*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic UI must not restore any private or Sony files");
+ return 0;
+}
 int cmp5_verify_backup(const char*folder,const char*id,Cmp5BackupReceipt*r,
  Cmp5CancelCheck,void*){
  /* Simulated read-only capsule check; no host filesystem is accessed.
@@ -697,6 +702,28 @@ int main(){
  finish_scan();
  assert(mock_private_verify_calls==archive_checks_before+1u);
  assert(backup_outcome.status==cmp5_private_backup::Result::verified);
+ press(circle);assert(screen==Screen::capsules);
+ /* New private reconstruction workflow: R2 on a capsule, two presses,
+  * no media or filesystem write before confirmation. Invalidated
+  * selection must fail closed before any attempted destination creation. */
+ assert(cmp5_private_backup::rehearsal_capsule_id(
+   "CAP_0123456789ABCDEF"));
+ assert(!cmp5_private_backup::rehearsal_capsule_id(
+   "CAP_0123456789ABCDEG"));
+ const unsigned prior_rehearsal_checks=mock_private_verify_calls;
+ press(r2);
+ assert(screen==Screen::rehearsal&&private_rehearsal_step==0u);
+ assert(std::strcmp(private_rehearsal_id,"CAP_0123456789ABCDEF")==0);
+ press(cross);assert(private_rehearsal_step==1u&&!task_busy());
+ assert(mock_private_verify_calls==prior_rehearsal_checks);
+ show_private_rehearsal(canvas);
+ /* Simulate an invalid selection changed before final confirmation. */
+ private_rehearsal_id[0]=0;
+ press(cross);assert(private_rehearsal_step==2u);
+ finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::denied);
+ assert(mock_private_verify_calls==prior_rehearsal_checks);
  press(circle);assert(screen==Screen::capsules);
  private_inventory.group_count=1u;
  std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
@@ -1759,6 +1786,16 @@ int main(){
   std::strcpy(private_inventory.ids[1],"CAP_9999999999999999");
   private_inventory_selection=0u;
   save(Screen::capsules,"01a-home-private-archives");
+  private_rehearsal_step=1u;
+  private_rehearsal_outcome={};
+  save(Screen::rehearsal,"01ab-private-rehearsal-confirm");
+  private_rehearsal_step=2u;
+  private_rehearsal_outcome.status=
+    cmp5_private_backup::RehearsalStatus::verified;
+  private_rehearsal_outcome.bytes=30ULL*1024*1024;
+  save(Screen::rehearsal,"01ac-private-rehearsal-complete");
+  private_rehearsal_step=0u;
+  private_rehearsal_outcome={};
   bool staging_banner=false;
   for(const auto&command:canvas.commands)
    if(command.text.find("2 TEMPORAIRES")!=std::string::npos&&
