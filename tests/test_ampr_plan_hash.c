@@ -146,6 +146,23 @@ int main(void) {
  assert(close(fd)==0);
  assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)==0);
  assert(strcmp(pinned_bytes,changed_bytes)==0);
+ /* A no-follow check on mod.sprx is NOT sufficient if fakelib itself
+  * gets replaced by a directory symlink while a job is interrupted. */
+ char held_folder[512],alias_dir[512];
+ assert(snprintf(held_folder,sizeof(held_folder),"%s/fakelib-held",root)>0);
+ assert(rename(folder,held_folder)==0);
+ assert(symlink(held_folder,folder)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
+ assert(unlink(folder)==0);
+ assert(rename(held_folder,folder)==0);
+ /* The destination component and every ancestor must also be opened
+  * without following symlinks, not just fakelib/ and the final asset. */
+ assert(snprintf(alias_dir,sizeof(alias_dir),"%s/destination-alias",root)>0);
+ assert(symlink(root,alias_dir)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,alias_dir,changed_bytes)!=0);
+ assert(unlink(alias_dir)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)==0);
+ assert(strcmp(pinned_bytes,changed_bytes)==0);
  synthetic.size=5u;
  assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
  synthetic.size=4u;
