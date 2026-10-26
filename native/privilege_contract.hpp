@@ -5,7 +5,8 @@ namespace cmp5_privilege {
 enum class Actor { native_title, diagnostic_helper, compression_engine };
 enum class Operation {
  inspect_metadata, request_compression, execute_compression,
- backup_private_media, verify_private_media, rehearse_private_media, delete_gallery_media, clean_system_cache, uninstall_title,
+ backup_private_media, verify_private_media, rehearse_private_media,
+ discard_private_rehearsal, delete_gallery_media, clean_system_cache, uninstall_title,
  change_autoload, restore_gallery, elevate_credentials
 };
 constexpr bool allows(Actor actor,Operation op) noexcept {
@@ -16,6 +17,7 @@ constexpr bool allows(Actor actor,Operation op) noexcept {
  case Operation::backup_private_media: return actor==Actor::native_title;
  case Operation::verify_private_media: return actor==Actor::native_title;
  case Operation::rehearse_private_media: return actor==Actor::native_title;
+ case Operation::discard_private_rehearsal: return actor==Actor::native_title;
  case Operation::execute_compression: return actor==Actor::compression_engine;
  default: return false;
  }
@@ -28,6 +30,9 @@ constexpr bool can_delete(Actor actor) noexcept {
 static_assert(allows(Actor::native_title,Operation::backup_private_media));
 static_assert(allows(Actor::native_title,Operation::verify_private_media));
 static_assert(allows(Actor::native_title,Operation::rehearse_private_media));
+static_assert(allows(Actor::native_title,Operation::discard_private_rehearsal));
+static_assert(!allows(Actor::diagnostic_helper,Operation::discard_private_rehearsal));
+static_assert(!allows(Actor::compression_engine,Operation::discard_private_rehearsal));
 static_assert(!allows(Actor::diagnostic_helper,Operation::rehearse_private_media));
 static_assert(!allows(Actor::compression_engine,Operation::rehearse_private_media));
 static_assert(!allows(Actor::diagnostic_helper,Operation::verify_private_media));
