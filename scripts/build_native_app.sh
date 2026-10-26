@@ -73,6 +73,7 @@ cp "$project/src/native/game_images.h" "$tmp/native-toolchain/src/game_images.h"
 # Read-only checkpoint discovery reuses the same nofollow path guard as AMPR.
 cp "$project/src/native/recovery_inventory.h" "$tmp/native-toolchain/src/recovery_inventory.h"
 cp "$project/src/native/ampr_checkpoint_request.h" "$tmp/native-toolchain/src/ampr_checkpoint_request.h"
+cp "$project/src/native/ampr_checkpoint_profile.h" "$tmp/native-toolchain/src/ampr_checkpoint_profile.h"
 cp "$project/native/recovery_resume.hpp" "$tmp/native-toolchain/src/recovery_resume.hpp"
 # The game's bounded directory scan needs its shared nanosecond identity check.
 cp "$project/src/native/game_scan_identity.h" "$tmp/native-toolchain/src/game_scan_identity.h"
