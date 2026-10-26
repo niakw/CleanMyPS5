@@ -130,7 +130,8 @@ inline Outcome backup_one(const Cmp5MediaCandidate&item,
  * A raw rehearsal is neither a Gallery-index restore nor recoverable space. */
 constexpr const char*rehearsal_workspace="/download0/cmp5-private-rehearsals";
 enum class RehearsalStatus : unsigned {
- unattempted, denied, capsule_invalid, storage_unavailable, failed, verified
+ unattempted, denied, capsule_invalid, storage_unavailable, failed,
+ indeterminate, verified
 };
 struct RehearsalOutcome {
  RehearsalStatus status=RehearsalStatus::unattempted;
@@ -200,9 +201,14 @@ inline RehearsalOutcome discard_rehearsal_by_id(const char*id,
   result.status=RehearsalStatus::denied;return result;
  }
  std::uint64_t nominal=0u;
+ int mutation_started=0;
  if(!cmp5_discard_rehearsed_backup(workspace,id,rehearsal_workspace,
-       raw_name,&nominal,cancel,context)||!nominal){
-  result.status=RehearsalStatus::failed;return result;
+       raw_name,&nominal,&mutation_started,cancel,context)||!nominal){
+  /* A failed post-unlink fsync, re-audit or concurrent mutation does not
+   * mean the file is still present. Never promise that no write occurred. */
+  result.status=mutation_started?RehearsalStatus::indeterminate:
+                                 RehearsalStatus::failed;
+  return result;
  }
  result.status=RehearsalStatus::verified;
  result.bytes=nominal; /* NOT an observed increase of available storage. */
