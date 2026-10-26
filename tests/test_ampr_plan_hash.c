@@ -155,6 +155,22 @@ int main(void) {
  assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
  assert(unlink(folder)==0);
  assert(rename(held_folder,folder)==0);
+ /* A descriptor remains readable when its directory is renamed away.
+  * Resume must NOT accept the old inode if the named fakelib path now
+  * refers to a different regular directory (not even a symlink). */
+ int held_assets=cmp5_open_synthetic_assets(root);
+ assert(held_assets>=0);
+ struct stat held_before={0};
+ assert(fstat(held_assets,&held_before)==0);
+ assert(cmp5_asset_directory_current(root,held_assets,&held_before));
+ assert(rename(folder,held_folder)==0);
+ assert(mkdir(folder,0700)==0);
+ assert(!cmp5_asset_directory_current(root,held_assets,&held_before));
+ assert(close(held_assets)==0);
+ assert(rmdir(folder)==0);
+ assert(rename(held_folder,folder)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)==0);
+ assert(strcmp(pinned_bytes,changed_bytes)==0);
  /* The destination component and every ancestor must also be opened
   * without following symlinks, not just fakelib/ and the final asset. */
  assert(snprintf(alias_dir,sizeof(alias_dir),"%s/destination-alias",root)>0);
