@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory() as directory:
         # OtherApp has a cache-shaped directory, but the same-named
         # homebrew has no valid executable. Matching names alone are weak.
         "data/OtherApp/cache/stale.bin":b"??",
+        "data/exampletool/cache/case.bin":b"X",
         "data/etaHEN/notice.txt":b"ETA",
         "user/app/TEST0001/eboot.bin":b"BINARY",
         "data/ExampleTool/saves/SECRET_SAVE.bin":b"PRIVATE",
@@ -55,4 +56,5 @@ with tempfile.TemporaryDirectory() as directory:
     assert b"HIDDEN!" == (root/"data/ExampleTool/.cache/thumbnail.bin").read_bytes()
     assert b"WORK" == (root/"data/ExampleTool/tmp/session.part").read_bytes()
     assert b"??" == (root/"data/OtherApp/cache/stale.bin").read_bytes()
+    assert b"X" == (root/"data/exampletool/cache/case.bin").read_bytes()
 print("Homebrew native fixture: PASS")
