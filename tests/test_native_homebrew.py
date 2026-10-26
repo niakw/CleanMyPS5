@@ -31,7 +31,9 @@ with tempfile.TemporaryDirectory() as directory:
     empty_console = root / "empty-console"
     empty_console.mkdir()
     result=subprocess.run([sys.argv[1],str(root),str(missing_installed),str(empty_console)],
-      check=True,text=True,capture_output=True,timeout=12)
+      check=False,text=True,capture_output=True,timeout=12)
+    if result.returncode:
+        raise AssertionError(f"Native homebrew fixture failed ({result.returncode}):\\n{result.stderr}\\n{result.stdout}")
     assert "Native homebrew summary, mandatory root coverage and cancellation: PASS" in result.stdout
     if len(sys.argv)>2:
         io_result=subprocess.run([sys.argv[2],str(root)],
