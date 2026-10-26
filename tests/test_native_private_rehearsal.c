@@ -5,6 +5,7 @@
 #define _DEFAULT_SOURCE
 #endif
 #include "verified_backup.h"
+#include "verified_group.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -33,7 +34,42 @@ int main(void){
   * directories should be created by invoking the low-level function. */
  assert(!cmp5_restore_backup(NULL,id,
        "/download0/cmp5-private-rehearsals",raw,&receipt,NULL,NULL));
- assert(!receipt.published);
- puts("Native private rehearsal scope: PASS");
+ /* Group reconstruction uses exactly GRP_<16 uppercase hex>,
+  * and the raw member extractor only admits __1..__4 in app storage.
+  * These rejections execute before /download0 is ever opened. */
+ const char*group="GRP_0123456789ABCDEF";
+ Cmp5GroupReceipt grouped={0};
+ assert(!cmp5_restore_group("/tmp/private-backups",group,
+       "/download0/cmp5-private-rehearsals",&grouped,NULL,NULL));
+ assert(!cmp5_restore_group("/download0/cmp5-private-backups",group,
+       "/user/av_contents/photo",&grouped,NULL,NULL));
+ assert(!cmp5_restore_group("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEg",
+       "/download0/cmp5-private-rehearsals",&grouped,NULL,NULL));
+ assert(!cmp5_restore_group("/download0/cmp5-private-backups",
+       "CAP_0123456789ABCDEF",
+       "/download0/cmp5-private-rehearsals",&grouped,NULL,NULL));
+ assert(!cmp5_restore_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEF__0",
+       "/download0/cmp5-private-rehearsals",
+       "GRP_0123456789ABCDEF__0",&receipt,NULL,NULL));
+ assert(!cmp5_restore_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEF__5",
+       "/download0/cmp5-private-rehearsals",
+       "GRP_0123456789ABCDEF__5",&receipt,NULL,NULL));
+ assert(!cmp5_restore_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEg__1",
+       "/download0/cmp5-private-rehearsals",
+       "GRP_0123456789ABCDEg__1",&receipt,NULL,NULL));
+ assert(!cmp5_restore_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEF__1",
+       "/user/av_contents/photo",
+       "GRP_0123456789ABCDEF__1",&receipt,NULL,NULL));
+ assert(!cmp5_restore_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEF__1",
+       "/download0/cmp5-private-rehearsals",
+       "GRP_0123456789ABCDEF__2",&receipt,NULL,NULL));
+ assert(!receipt.published&&!grouped.count);
+ puts("Native private single + grouped rehearsal scope: PASS");
  return 0;
 }
