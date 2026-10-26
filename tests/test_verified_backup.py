@@ -32,7 +32,11 @@ with tempfile.TemporaryDirectory() as temp:
     assert completed.returncode==0,(completed.stdout,completed.stderr)
     assert hashlib.sha256(data).hexdigest() in completed.stdout
     assert source.read_bytes()==data
-    assert (restore/'SAVED').read_bytes()==data
+    # The native-style cleanup fixture explicitly removes ONLY the
+    # independently verified raw copy. The saved capsule is preserved.
+    assert not (restore/'SAVED').exists()
+    assert (restore/'SAVED2').is_file()
+    assert (restore/'SAVED2').read_bytes()!=data
     assert (backup/'ONE').read_bytes()!=data
     # Failed copies are now retained for audit, never automatically
     # unlinked by a stale pathname after another writer can replace it.
