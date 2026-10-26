@@ -101,7 +101,13 @@ int main(){
  altered.reserved[40]^=1u;
  assert(cmp5_profile_pin_valid(altered.reserved));
  assert(!cmp5_profile_pin_matches(altered.reserved,digest));
- altered=profiled;altered.reserved[62]=1u;
+ /* The native inventory checks canonical encoding, but cannot prove
+  * the on-disk source still matches its expected plan until the worker
+  * rescans and recomputes the digest. */
+ altered=profiled;altered.reserved[62]^=1u;
+ assert(cmp5_ampr_request_valid(&altered,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(!cmp5_plan_pin_matches(altered.reserved,plan_digest));
+ altered=profiled;altered.reserved[42]='X';
  assert(!cmp5_ampr_request_valid(&altered,"/mnt/usb0/homebrew","PPSA12345"));
  altered=pinned;
  std::memset(altered.reserved,0,sizeof(altered.reserved));
