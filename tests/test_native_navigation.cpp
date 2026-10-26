@@ -762,6 +762,10 @@ int main(){
  for(unsigned i=0;i<private_inventory.count;i++)
   (void)std::snprintf(private_inventory.ids[i],
     sizeof(private_inventory.ids[i]),"CAP_%016X",i+1u);
+ private_archive_audit.capsules=5u;
+ private_archive_audit.valid_capsules=4u;
+ for(unsigned i=0;i<4u;i++)private_archive_audit.capsule_valid[i]=true;
+ private_archive_audit.capsule_valid[4]=false;
  canvas.clear(Color::background);
  show_capsules(canvas);
  unsigned visible_rows=0u;
@@ -777,6 +781,20 @@ int main(){
    rendered_total=true;
  }
  assert(visible_rows==4u&&rendered_total);
+ bool valid_label=false;
+ for(const auto&command:canvas.commands)
+  if(command.kind=='X'&&command.text.find("CAP_0000000000000001  SHA-256 OK")!=
+    std::string::npos)valid_label=true;
+ assert(valid_label);
+ private_inventory_selection=4u; // Fifth item appears on the next page.
+ canvas.clear(Color::background);
+ show_capsules(canvas);
+ bool invalid_label=false;
+ for(const auto&command:canvas.commands)
+  if(command.kind=='X'&&
+     command.text.find("CAP_0000000000000005  SHA NON VALIDE OU INACCESSIBLE")!=
+       std::string::npos)invalid_label=true;
+ assert(invalid_label);
  private_inventory_groups=true; // Restore selected group tab for pad test.
  private_archive_audit={};
  press(square);assert(screen==Screen::capsules);
