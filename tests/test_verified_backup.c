@@ -84,7 +84,46 @@ int main(int argc,char**argv){
  assert(!cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,always_cancel,NULL));
  assert(cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,NULL,NULL));
  assert(!cmp5_restore_backup(backup,"ONE",restore,"SAVED",&b,NULL,NULL));
+ /* Restart-style audit reopens both private names and independently
+  * checks SHA-256 without allocating another copy or overwriting files. */
+ Cmp5BackupReceipt pair={0};
+ assert(cmp5_verify_rehearsed_backup(backup,"ONE",restore,"SAVED",
+                                    &pair,NULL,NULL));
+ assert(pair.published&&pair.bytes==a.bytes&&
+        memcmp(pair.sha256,a.sha256,32u)==0);
+ assert(!cmp5_verify_rehearsed_backup(backup,"ONE",restore,"SAVED",
+                                     &pair,always_cancel,NULL));
+ assert(!pair.published);
+ assert(!cmp5_verify_rehearsed_backup(backup,"ONE",backup,"ONE",
+                                     &pair,NULL,NULL));
+ assert(!pair.published);
  char path[512];snprintf(path,sizeof(path),"%s/%s",restore,"SAVED");
+ /* A raw file can be changed without changing its source capsule:
+  * post-restart inspection must reject the mismatch, not recopy it. */
+ FILE*probe=fopen(path,"r+b");assert(probe);
+ assert(fseek(probe,3,SEEK_SET)==0);
+ int original_byte=fgetc(probe);assert(original_byte>=0);
+ assert(fseek(probe,3,SEEK_SET)==0);
+ assert(fputc(original_byte^1,probe)>=0);
+ assert(fclose(probe)==0);
+ assert(!cmp5_verify_rehearsed_backup(backup,"ONE",restore,"SAVED",
+                                     &pair,NULL,NULL));
+ assert(!pair.published);
+ probe=fopen(path,"r+b");assert(probe);
+ assert(fseek(probe,3,SEEK_SET)==0);
+ assert(fputc(original_byte,probe)>=0);
+ assert(fclose(probe)==0);
+ assert(cmp5_verify_rehearsed_backup(backup,"ONE",restore,"SAVED",
+                                    &pair,NULL,NULL));
+ /* An alternative filename that resolves to the same raw object via
+  * symlink is still untrusted. */
+ char raw_alias[512];
+ assert(snprintf(raw_alias,sizeof(raw_alias),"%s/ALIAS",restore)>0);
+ assert(symlink("SAVED",raw_alias)==0);
+ assert(!cmp5_verify_rehearsed_backup(backup,"ONE",restore,"ALIAS",
+                                     &pair,NULL,NULL));
+ assert(!pair.published);
+ assert(unlink(raw_alias)==0);
  FILE*f=fopen(path,"rb");assert(f);unsigned char buf[65536];size_t n;
  Cmp5Sha256 sha;cmp5_sha256_init(&sha);
  while((n=fread(buf,1,sizeof(buf),f))>0)cmp5_sha256_update(&sha,buf,n);
@@ -98,6 +137,8 @@ int main(int argc,char**argv){
    int c=fgetc(f);assert(c>=0);assert(fseek(f,67,SEEK_SET)==0);
    assert(fputc(c^1,f)>=0);fclose(f);
    assert(!cmp5_verify_backup(backup,"ONE",&b,NULL,NULL));
+   assert(!cmp5_verify_rehearsed_backup(backup,"ONE",restore,"SAVED",
+                                       &pair,NULL,NULL));
    assert(!cmp5_restore_backup(backup,"ONE",restore,"ANOTHER",&b,NULL,NULL));
  }
  puts("Verified backup, no-clobber restore, cancellation and tamper: PASS");
