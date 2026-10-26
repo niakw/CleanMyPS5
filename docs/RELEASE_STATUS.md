@@ -1,5 +1,37 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Audit SHA-256 global des archives natives (26 octobre 2026)
+
+Dans **Archives privées**, le bouton **Carré** lance maintenant un audit
+volontaire, annulable, de **toutes les capsules individuelles et tous les
+groupes visibles dans le catalogue privé borné** (au maximum 32 de chaque).
+Chaque élément est relu intégralement et vérifié avec sa propre empreinte
+SHA-256 et, pour les groupes, son manifeste et sa carte d'origine.
+
+La synthèse distingue archives examinées / archives cryptographiquement
+valides ; un fichier corrompu **reste compté comme examiné et invalide**.
+Les transactions interrompues, les objets non reconnus et les limites de
+scan conduisent à un **périmètre partiel**, jamais à un bilan exhaustif
+affirmé. L'absence d'un dossier privé ou une annulation n'émet aucun
+résultat positif. L'espace total vérifié peut compter plusieurs copies
+de la même source et n'est donc pas un gain de nettoyage.
+
+L'audit compare les inventaires avant et après hachage **sans dépendre
+de l'ordre de `readdir`** et maintient le descripteur original du dossier
+privé pendant l'opération. Un remplacement du dossier par un autre,
+même avec les mêmes noms de capsules, invalide le résultat. Lorsque
+le contrôle réussit, l'interface renouvelle aussi son catalogue avec
+la liste finale effectivement revérifiée ; si l'audit échoue,
+l'ancien catalogue est invalidé.
+
+Tests : navigation DualSense simulée, archives privées réelles
+synthétiques (une capsule et un groupe), corruption d'un seul membre,
+staging interrompu et annulation ; CI Linux/macOS et sanitizers.
+Le titre natif ne contient **aucune fonction de restauration Galerie
+ni de suppression**. Cet audit ne prouve pas la restaurabilité des
+index Sony, ni le lancement sur une PS5 13.60 réelle.
+
+
 ## Archives de groupe : état des originaux visible sur la PS5 (26 octobre 2026)
 
 Le parcours natif **Archives privées → Groupes → X** sépare désormais
