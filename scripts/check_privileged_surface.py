@@ -40,6 +40,9 @@ def check_backup_writer(content: str, name: str) -> None:
    'workspace="/download0/cmp5-private-backups"',
    'open("/download0",O_RDONLY|O_DIRECTORY|O_NOFOLLOW)',
    'mkdirat(root,"cmp5-private-backups",0700)',
+   'mkdirat(root,"cmp5-private-rehearsals",0700)',
+   'rehearsal_workspace="/download0/cmp5-private-rehearsals"',
+   "cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,",
    'cmp5_backup_media("/",&item,workspace,out.capsule_id,',
    "cmp5_verify_backup(workspace,out.capsule_id,",
   )
@@ -58,7 +61,10 @@ def check_backup_writer(content: str, name: str) -> None:
   )
  else:
   required = (
-   "#ifndef CMP5_NATIVE_BACKUP_ONLY",
+   "#if !defined(CMP5_NATIVE_BACKUP_ONLY) || defined(CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY)",
+   'strcmp(backup,"/download0/cmp5-private-backups")!=0',
+   'strcmp(destination,"/download0/cmp5-private-rehearsals")!=0',
+   'strcmp(newname+4u,id)!=0',
    "cmp5_backup_media(",
    "cmp5_verify_backup(",
    "CMP5_BACKUP_LIMIT",
@@ -189,6 +195,7 @@ def check_builder(content: str) -> set[str]:
  if len(overlays)!=len(expected) or set(overlays)!=expected:
   raise ValueError("Unreviewed or renamed C/C++ native title overlay")
  if ("sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' " not in content or
+     "sed -i '1i#define CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY 1' " not in content or
      "sed -i '1i#define CMP5_NATIVE_GROUP_BACKUP_ONLY 1' " not in content):
   raise ValueError("Native backup must compile both host-only restore engines out")
  return set(sources)
