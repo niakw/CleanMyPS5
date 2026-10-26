@@ -48,7 +48,9 @@ def check_backup_writer(content: str, name: str) -> None:
   )
  elif name == "src/native/verified_group.c":
   required = (
-   "#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY",
+   "#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)",
+   'strcmp(backup,"/download0/cmp5-private-backups")!=0',
+   'strcmp(target,"/download0/cmp5-private-rehearsals")!=0',
    "cmp5_backup_group(",
    "cmp5_verify_group(",
    "cmp5_validate_capture_group(",
@@ -64,7 +66,9 @@ def check_backup_writer(content: str, name: str) -> None:
    "#if !defined(CMP5_NATIVE_BACKUP_ONLY) || defined(CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY)",
    'strcmp(backup,"/download0/cmp5-private-backups")!=0',
    'strcmp(destination,"/download0/cmp5-private-rehearsals")!=0',
-   'strcmp(newname+4u,id)!=0',
+   "if(!capsule&&!group_member)return 0;",
+   "strcmp(newname+4u,id)==0",
+   "strcmp(newname,id)==0",
    "cmp5_backup_media(",
    "cmp5_verify_backup(",
    "CMP5_BACKUP_LIMIT",
@@ -196,7 +200,8 @@ def check_builder(content: str) -> set[str]:
   raise ValueError("Unreviewed or renamed C/C++ native title overlay")
  if ("sed -i '1i#define CMP5_NATIVE_BACKUP_ONLY 1' " not in content or
      "sed -i '1i#define CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY 1' " not in content or
-     "sed -i '1i#define CMP5_NATIVE_GROUP_BACKUP_ONLY 1' " not in content):
+     "sed -i '1i#define CMP5_NATIVE_GROUP_BACKUP_ONLY 1' " not in content or
+     "sed -i '1i#define CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY 1' " not in content):
   raise ValueError("Native backup must compile both host-only restore engines out")
  return set(sources)
 
