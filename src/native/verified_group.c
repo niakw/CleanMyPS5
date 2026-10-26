@@ -350,9 +350,9 @@ static int publish_manifest(int dir,const char*id,int restored,
  close(fd);
  return ok&&fsync(dir)==0;
 }
-/* The installed PS5 title compiles ONLY private backup and verification.
- * All RESTORED file writers stay confined to the host integration suite. */
-#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
+/* Native group RESTORED writers are compiled only for a fixed-path,
+ * private-only rehearsal; generic Gallery restoration remains excluded. */
+#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)
 static int raw_restored(int dir,const char*name,uint64_t size,
  const uint8_t expected[32],Cmp5CancelCheck cancel,void*ctx){
  int fd=openat(dir,name,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
@@ -705,7 +705,7 @@ int cmp5_inspect_group_originals(const char*root,const char*workspace,
  if(ok)memcpy(states,inspected,sizeof(inspected));
  return ok;
 }
-#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
+#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)
 int cmp5_verify_restored_group(const char*workspace,const char*id,
  Cmp5GroupReceipt*r,Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
@@ -742,6 +742,17 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  if(r)memset(r,0,sizeof(*r));
  if(!r||!valid_id(id)||!backup||!target||
     strcmp(backup,target)==0||cancelled(cancel,ctx))return 0;
+#ifdef CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY
+ /* Native group reconstruction may write ONLY to the dedicated app-owned
+  * private workspace. The group must be a locally minted opaque ID.
+  * Generic host-only restorer remains inaccessible on the PS5 title. */
+ if(strcmp(backup,"/download0/cmp5-private-backups")!=0||
+    strcmp(target,"/download0/cmp5-private-rehearsals")!=0||
+    strlen(id)!=20u||strncmp(id,"GRP_",4u)!=0)return 0;
+ for(unsigned i=4u;i<20u;i++)
+  if(!((id[i]>='0'&&id[i]<='9')||
+       (id[i]>='A'&&id[i]<='F')))return 0;
+#endif
  int from=safe_dir(backup);
  if(from<0)return 0;
  int dest=safe_dir(target);
@@ -816,7 +827,7 @@ restore_done:
 #endif /* !CMP5_NATIVE_GROUP_BACKUP_ONLY */
  /* Recovery audits inspect only a private, pre-existing 0700 workspace.
  * No PS5 gallery file is opened for write or modified by these routines. */
-#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
+#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)
 static int recovery_entry(int dir,const char*name,int*present,int*unsafe){
  struct stat st;*present=0;
  if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
@@ -915,7 +926,7 @@ static int verification_namespace_clean(int dir,const char*id,
  }
  return 1;
 }
-#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY
+#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)
 static int inspect_recovery(const char*workspace,const char*id,int restored,
  Cmp5RecoveryReport*report){
  if(!report)return 0;
