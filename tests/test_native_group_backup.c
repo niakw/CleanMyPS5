@@ -41,6 +41,32 @@ int main(int argc,char**argv){
  assert(origins.count==3u);
  for(unsigned i=0;i<3u;i++)
   assert(strcmp(origins.entries[i].path,parts[i].preview_path)==0);
+ /* Real read-only original-state inspection linked in the native-mode
+  * writer. It must distinguish a missing source from an intact capsule,
+  * without any restore or Sony Gallery mutation functions in the title. */
+ Cmp5OriginLiveState states[CMP5_GROUP_MAX]={0};
+ assert(cmp5_inspect_group_originals(root,workspace,"NATIVE_GROUP",
+                                     states,NULL,NULL));
+ unsigned photo_position=CMP5_GROUP_MAX;
+ for(unsigned i=0;i<3u;i++){
+  assert(states[i]==CMP5_ORIGIN_UNCHANGED);
+  if(strcmp(origins.entries[i].path,primary.preview_path)==0)
+   photo_position=i;
+ }
+ assert(photo_position<3u);
+ char displaced[1024]={0};
+ assert(snprintf(displaced,sizeof(displaced),"%s.moved",photo)>0);
+ assert(rename(photo,displaced)==0);
+ assert(cmp5_inspect_group_originals(root,workspace,"NATIVE_GROUP",
+                                     states,NULL,NULL));
+ for(unsigned i=0;i<3u;i++)
+  assert(states[i]==(i==photo_position?
+                      CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNCHANGED));
+ /* Missing originals must NEVER invalidate a genuine independent
+  * backup SHA-256 receipt or silently re-create a Gallery path. */
+ assert(cmp5_verify_group(workspace,"NATIVE_GROUP",&verified,NULL,NULL));
+ assert(rename(displaced,photo)==0);
+ assert(cmp5_verify_group(workspace,"NATIVE_GROUP",&verified,NULL,NULL));
  /* O_EXCL: an existing fully verified group must never be overwritten. */
  assert(!cmp5_backup_group(root,parts,count,workspace,"NATIVE_GROUP",
                            &published,NULL,NULL));
