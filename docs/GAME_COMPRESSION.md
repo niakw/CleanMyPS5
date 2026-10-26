@@ -27,6 +27,19 @@ réels, les identités de fichiers et l'état du jeu au moment du POST.
 L'analyse n'apporte **ni preuve d'origine cryptographique ni garantie
 de lancement sur PS5 13.60**.
 
+Le filtrage lexical des sources de la liste native suit désormais
+**les mêmes racines et les mêmes composants** que le moteur AMPR :
+un fichier de sauvegarde ou de système placé sous un dossier non admis
+de `/mnt` n'est plus présenté comme un jeu à reprendre. Une fixture
+compare une série de chemins acceptés ou refusés par les deux règles.
+
+Avant de lire les champs `bool` du fichier binaire depuis le code C++,
+le lecteur contrôle **leurs sept octets bruts**, et rejette les
+représentations malformées telles que `0x02` ou `0xFF`.
+Cela évite un comportement indéfini lors de la lecture d'un checkpoint
+altéré. Les tests couvrent ces octets en C et C++, ainsi que le scan
+réel de `request.bin` corrompu.
+
 Les fixtures créent des `request.bin` conformes puis injectent des
 options dangereuses, un titre déplacé, une magie historique, des
 champs non terminés et des valeurs hors bornes. Le parcours reste
