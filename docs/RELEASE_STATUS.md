@@ -1,5 +1,28 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Fichiers compagnons : limite exacte des chemins (26 octobre 2026)
+
+Le lecteur de fichiers associés à une capture protégeait l'allocation
+`Cmp5MediaCandidate.preview_path[256]` avec un calcul qui ne réservait
+pas explicitement l'octet NUL de fin. Un fichier primaire `.jpg` peut
+tenir dans 255 caractères, alors qu'un fichier compagnon de même nom
+en `.jpeg` réclame 256 caractères plus le terminateur. Dans ce cas
+limite, la copie pouvait écrire un octet hors du champ de chemin
+et altérer le champ suivant de la structure.
+
+Le calcul vérifie maintenant séparément la place du répertoire, du
+séparateur, du nom complet et du NUL, avec soustractions bornées pour
+éviter un dépassement d'entier. Deux tests complémentaires couvrent
+la frontière arithmétique exacte et une arborescence synthétique contenant
+réellement les fichiers `.jpg` et `.jpeg` aux longueurs limites.
+Le groupe est refusé comme ambigu, les champs de sortie restent vides
+et aucun original n'est modifié.
+
+La protection est utilisée par les sondes en lecture seule et par le
+planificateur de sauvegardes privées. Elle ne valide ni les références
+des bases Sony ni la restauration de la Galerie.
+
+
 ## Sources de restauration : identité du nom et du fichier (26 octobre 2026)
 
 La revue hôte, en lecture seule, des sources de captures sauvegardées
