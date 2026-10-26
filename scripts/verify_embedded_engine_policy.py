@@ -176,6 +176,8 @@ def check_engine(root: Path) -> None:
     for label,fragment in {
         "resume skips runtime installation": "!req.resume && install_runtime(dest)",
         "resume inspects runtime without aliases": "lstat(sprx, &sst)",
+        "existing runtime requires full SHA-256": "e2a_sha256_file(sprx,cmp5_published_runtime_sha)",
+        "existing runtime must match selected trusted engine": "strcmp(cmp5_published_runtime_sha,g_runtime_sha)!=0",
         "resume skips plugin installation": "!req.resume && plugins_apply_to(src, dest, &written",
         "resume inventories existing known plugins": "!req.resume && !(written & (1u << k))",
         "resume inspects plugin without symlinks": "lstat(full, &pst)",
