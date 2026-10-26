@@ -64,7 +64,11 @@ int main(){
  assert(cmp5_backup_group(root.c_str(),members,count,store.c_str(),group_id,
                           &backup_group,nullptr,nullptr));
  ArchiveAudit audit_result{};
- assert(audit_at(store.c_str(),&audit_result,nullptr,nullptr));
+ Inventory catalog{};
+ assert(audit_at(store.c_str(),&audit_result,&catalog,nullptr,nullptr));
+ assert(catalog.checked&&catalog.count==1u&&catalog.group_count==1u);
+ assert(std::strcmp(catalog.ids[0],cap_id)==0);
+ assert(std::strcmp(catalog.group_ids[0],group_id)==0);
  assert(audit_result.checked&&!audit_result.partial&&
         audit_result.capsules==1u&&audit_result.valid_capsules==1u&&
         audit_result.groups==1u&&audit_result.valid_groups==1u);
@@ -95,8 +99,10 @@ int main(){
 
  const auto stop=[](void*)->int{return 1;};
  audit_result.checked=true;
- assert(!audit_at(store.c_str(),&audit_result,stop,nullptr));
+ catalog.checked=true;catalog.count=999u;
+ assert(!audit_at(store.c_str(),&audit_result,&catalog,stop,nullptr));
  assert(!audit_result.checked&&!audit_result.verified_bytes);
+ assert(!catalog.checked&&!catalog.count&&!catalog.group_count);
  assert(fs::exists(photo));
  fs::remove_all(root);
  std::puts("Native bulk SHA-256 archive audit: corruption/partial/cancel PASS");
