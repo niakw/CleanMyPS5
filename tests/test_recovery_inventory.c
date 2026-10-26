@@ -126,8 +126,16 @@ static void make_checkpoint(const char*root,const char*dest,
  assert(mkdir(path,0700)==0);
  char req[550];snprintf(req,sizeof(req),"%s/request.bin",path);
  FILE*f=fopen(req,"wb");assert(f);
- char data[1024]={0};
- assert(fwrite(data,1,sizeof(data),f)==sizeof(data));
+ Cmp5AmprSavedRequest saved={0};
+ memcpy(saved.magic,"E2AREQ05",8);
+ strcpy(saved.source,"/mnt/usb0/homebrew/PPSA77777");
+ strcpy(saved.dest_base,dest);
+ strcpy(saved.name,title);
+ saved.level=9;
+ saved.workers=4;
+ saved.verify=true;
+ saved.dedup=true;
+ assert(fwrite(&saved,1,sizeof(saved),f)==sizeof(saved));
  assert(fclose(f)==0);
  char stage[550];snprintf(stage,sizeof(stage),"%s/stage",path);
  set_text(stage,step);
@@ -148,6 +156,39 @@ int main(void){
  Cmp5RecoveryInventory results={0};
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3&&!results.hidden);
+ /* A request of the expected byte size but without the pinned magic or
+  * safe options is not a legitimate resume candidate, even if its stage
+  * happens to say pack/copy/verify. A different source cannot acquire a
+  * saved title/destination by merely renaming its directory. */
+ char proof[550];
+ assert(snprintf(proof,sizeof(proof),
+     "%s/data/homebrew/PPSA12345/.e2a-state/request.bin",root)>0);
+ FILE*request_file=fopen(proof,"rb+");assert(request_file);
+ Cmp5AmprSavedRequest request={0};
+ assert(fread(&request,1,sizeof(request),request_file)==sizeof(request));
+ Cmp5AmprSavedRequest original_request=request;
+ request.remove_source=true;
+ assert(fseek(request_file,0,SEEK_SET)==0);
+ assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
+ assert(fclose(request_file)==0);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==2&&results.partial);
+ request_file=fopen(proof,"wb");assert(request_file);
+ request=original_request;
+ assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
+ assert(fclose(request_file)==0);
+ request_file=fopen(proof,"rb+");assert(request_file);
+ request=original_request;
+ strcpy(request.name,"PPSA99999");
+ assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
+ assert(fclose(request_file)==0);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==2&&results.partial);
+ request_file=fopen(proof,"wb");assert(request_file);
+ assert(fwrite(&original_request,1,sizeof(original_request),request_file)==sizeof(original_request));
+ assert(fclose(request_file)==0);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==3&&!results.partial);
  int pack=0,copy=0,verify=0;
  for(unsigned i=0;i<results.count;i++){
   if(results.entries[i].stage==CMP5_RECOVERY_PACK)pack++;
