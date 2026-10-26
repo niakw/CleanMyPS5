@@ -1,5 +1,26 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Reprise LZ4 : fichiers runtime et plugins préservés (26 octobre 2026)
+
+Un correctif du moteur AMPR évite désormais la **réinstallation
+du runtime et des plugins en cours de reprise**, qui survenait
+avant même que l'empreinte du plan source ait été vérifiée.
+Une reprise doit examiner les fichiers partiellement publiés,
+pas les remplacer. Le moteur exige des fichiers runtime et plugins
+réguliers sans lien symbolique ou lien dur ; un plugin inaccessible
+est traité comme une anomalie, non comme une absence. Le runtime
+publié est relu avec SHA-256 et comparé au runtime actuellement
+sélectionné ; si celui-ci a changé, la reprise échoue de façon
+conservatrice **sans remplacement automatique**. Les nouvelles
+conversions installent toujours les composants nécessaires.
+
+Les contrôles structurels CI sont appliqués au code C transformé
+du moteur. La validation Linux/macOS, les sanitizers, CodeQL et la
+compilation de l'ELF PS5 ne remplacent **pas un test matériel de
+reprise réelle sur PS5 13.60**. Les opérations de suppression
+Sony restent hors périmètre.
+
+
 ## Conversion LZ4 : verrou de profil sur les checkpoints (26 octobre 2026)
 
 La reprise du worker AMPR ne réutilise plus silencieusement un
