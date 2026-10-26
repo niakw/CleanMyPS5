@@ -37,10 +37,13 @@ int main(int argc,char**argv){
  }
  assert(stats.top[0].nominal_bytes==16u);
  /* Cache-like names are just directory observations, not deletion claims. */
- assert(stats.cache_like_folders==2u&&stats.cache_like_files==2u);
- assert(stats.cache_like_nominal_bytes==10u&&!stats.cache_like_partial);
- assert(strstr(report,"\"cacheCandidates\":{\"folders\":2,\"files\":2,"));
- assert(strstr(report,"\"nominalBytes\":10,\"partial\":false,"));
+ assert(stats.cache_like_folders==3u&&stats.cache_like_files==3u);
+ assert(stats.cache_like_nominal_bytes==17u&&!stats.cache_like_partial);
+ /* .cache is intentionally excluded from the general app subtotal,
+  * and the independent cache-candidate subtotal is NON-ADDITIVE. */
+ assert(stats.nominal_bytes==34u);
+ assert(strstr(report,"\"cacheCandidates\":{\"folders\":3,\"files\":3,"));
+ assert(strstr(report,"\"nominalBytes\":17,\"partial\":false,"));
  assert(strstr(report,"\"providerVerified\":false,\"deletable\":false"));
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
