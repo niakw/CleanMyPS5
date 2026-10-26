@@ -65,9 +65,13 @@ inline bool recovery_resume_body(const Cmp5RecoveryCandidate&selected,
  if(n<=0||static_cast<std::size_t>(n)>=sizeof(base))return false;
  char encoded[576]{};
  if(!form_encode_path(base,encoded,sizeof(encoded)))return false;
+ /* The pinned AMPR /api/resume endpoint reads an omitted 'level'
+  * as 0, and job_resume_level(dest,0) preserves the checkpoint's LZ4
+  * level. Supplying 9 silently changed a level 1..12 choice after a
+  * title restart, violating the user's confirmed conversion plan. */
  char complete[600]{};
  const int count=std::snprintf(complete,sizeof(complete),
-                               "dest=%s&level=9",encoded);
+                               "dest=%s",encoded);
  if(count<=0||static_cast<std::size_t>(count)>=sizeof(complete)||
     static_cast<std::size_t>(count)>=cap)return false;
  std::memcpy(out,complete,static_cast<std::size_t>(count)+1u);
