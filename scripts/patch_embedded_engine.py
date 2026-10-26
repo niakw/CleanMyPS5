@@ -89,6 +89,85 @@ def main(root: Path):
 #endif
     {''')
 
+    # Hash the actual final file-action plan (not just the selected
+    # TOML): adding/removing/modifying a source file between boots cannot
+    # reuse LZ4 checkpoint volumes from a different plan. A canonical
+    # field-wise digest avoids C padding/endian/struct-layout ambiguity.
+    change(jobc,
+           '#define FAIL(c, m) do { err_code = (c); err = (m); goto done; } while (0)',
+           '''#define FAIL(c, m) do { err_code = (c); err = (m); goto done; } while (0)
+#ifndef E2A_HOST
+static void cmp5_plan_hash_u64(e2a_sha256 *hash,uint64_t value){
+  unsigned char little[8];
+  for(unsigned i=0;i<8u;i++)little[i]=(unsigned char)(value>>(i*8u));
+  e2a_sha256_update(hash,little,sizeof little);
+}
+static int cmp5_entries_plan_hash(const e2a_list *entries,char hex[65]){
+  if(!entries||!hex||(entries->n && !entries->v))return -1;
+  e2a_sha256 hash;
+  e2a_sha256_init(&hash);
+  static const char tag[]="CMP5-FILE-PLAN-v1";
+  e2a_sha256_update(&hash,tag,sizeof tag);
+  cmp5_plan_hash_u64(&hash,(uint64_t)entries->n);
+  for(size_t i=0;i<entries->n;i++){
+    const e2a_entry *item=&entries->v[i];
+    if(!item->rel)return -1;
+    const size_t len=strlen(item->rel);
+    if(len>65535u)return -1;
+    cmp5_plan_hash_u64(&hash,(uint64_t)len);
+    e2a_sha256_update(&hash,item->rel,len);
+    cmp5_plan_hash_u64(&hash,item->size);
+    /* Synthetic runtime files are reinstalled and may obtain a fresh
+     * mtime. Their filenames, sizes and actions still belong to the plan. */
+    cmp5_plan_hash_u64(&hash,item->synthetic?0u:(uint64_t)item->mtime);
+    unsigned char flags[5]={item->action,item->block_shift,
+      item->layout,(unsigned char)item->hot,
+      (unsigned char)item->synthetic};
+    e2a_sha256_update(&hash,flags,sizeof flags);
+  }
+  unsigned char digest[32];
+  e2a_sha256_final(&hash,digest);
+  static const char chars[]="0123456789abcdef";
+  for(size_t i=0;i<32u;i++){
+    hex[2u*i]=chars[digest[i]>>4];
+    hex[2u*i+1u]=chars[digest[i]&15u];
+  }
+  hex[64]=0;
+  return 0;
+}
+#endif''')
+    # The original request write precedes generation of the runtime and
+    # finalized plan. Do not publish a resumable request until the plan
+    # is verified: a crash before this fence intentionally leaves an
+    # unresumable partial output for inspection.
+    change(jobc,
+           '  if (request_save(state_dir, &req) != 0) FAIL("state_write", "cannot persist conversion request");',
+           '''#ifdef E2A_HOST
+  if (request_save(state_dir, &req) != 0)
+    FAIL("state_write", "cannot persist conversion request");
+#endif''')
+    change(jobc,
+           '''    if (blocks > E2A_BLOCK_LIMIT)
+      FAIL("too_many_blocks", "too many blocks for the emulator (over 16 million): leave the biggest files loose or give them bigger blocks in the profile");''',
+           '''    if (blocks > E2A_BLOCK_LIMIT)
+      FAIL("too_many_blocks", "too many blocks for the emulator (over 16 million): leave the biggest files loose or give them bigger blocks in the profile");''')
+    # Unique boundary after block budgeting and before any LZ4 block write.
+    change(jobc,
+           '''  uint64_t verify_bytes = req.verify ? entries.total_bytes : 0;''',
+           '''#ifndef E2A_HOST
+  char cmp5_action_plan_sha[65]={0};
+  if(cmp5_entries_plan_hash(&entries,cmp5_action_plan_sha)!=0)
+    FAIL("plan_invalid","cannot fingerprint game files before packing");
+  if(req.resume){
+    if(!cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha))
+      FAIL("source_changed","game file sizes, timestamps or pack actions changed since checkpoint");
+  }else if(!cmp5_plan_pin_set(req.reserved,cmp5_action_plan_sha))
+    FAIL("plan_invalid","cannot persist file-action fingerprint");
+  if(request_save(state_dir,&req)!=0)
+    FAIL("state_write","cannot persist verified file-action checkpoint");
+#endif
+  uint64_t verify_bytes = req.verify ? entries.total_bytes : 0;''')
+
     change(jobc,
            '    if (e2a_mkdir_p(state_dir) != 0) FAIL("dest_create", "cannot create destination (storage not mounted or read-only?)");',
            '''    /* CleanMyPS5: exclusive creation of a new title output. No
@@ -319,7 +398,8 @@ int cmp5_job_pause_dest(const char *dest);
   if (!cmp5_game_safe_checkpoint_options(
         r.clean_leftovers,r.overwrite,r.remove_source,r.force,
         r.verify,r.dedup,r.cache_mode,r.test_pause_after) ||
-       !cmp5_profile_pin_valid(r.reserved)) return -1;
+       !cmp5_profile_pin_valid(r.reserved) ||
+       !cmp5_plan_pin_valid(r.reserved)) return -1;
   if (!cmp5_game_resume_path_still_same(
         "/", dest, &cmp5_resume_snapshot)) return -1;
 #endif''')
