@@ -35,6 +35,26 @@ Sony ni le lancement des médias depuis la Galerie**. La restauration
 Galerie et les suppressions sont toujours désactivées ; le résultat
 matériel PS5 13.60 reste inconnu.
 
+## Recontrôle individuel après redémarrage (26 octobre 2026)
+
+La restitution d'une capsule `CAP_…` peut désormais être vérifiée **sans
+recréer de fichier** : dans **Archives privées → Capsules**, `L2`
+réouvre le conteneur `CAP_…` et son fichier brut
+`RAW_CAP_…` dans deux espaces privés 0700 appartenant à l'application.
+Le moteur calcule indépendamment les SHA-256, compare octets et longueur,
+refuse les symlinks/hardlinks et vérifie que les deux chemins de dossiers
+restent sur les mêmes identités de fichiers pendant la lecture. La source
+de la Galerie n'est pas nécessaire pour contrôler l'archive déjà enregistrée.
+
+Sur PS5, `cmp5_verify_rehearsed_backup` exige exclusivement les chemins
+`/download0/cmp5-private-backups` et
+`/download0/cmp5-private-rehearsals` et le couplage exact
+`CAP_<16 hex>` ↔ `RAW_CAP_<16 hex>`. Sur hôte, les tests
+d'intégration simulent une copie intègre, une altération des octets de
+sortie, une source corrompue, une annulation et un alias symbolique.
+La vérification ne crée aucun dossier, n'efface aucune donnée et
+ne valide toujours **aucune métadonnée/index Sony**.
+
 ## Répétition de restitution native (26 octobre 2026)
 
 Le titre installé peut désormais reconstruire le contenu **brut** d'une
