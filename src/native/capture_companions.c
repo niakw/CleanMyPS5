@@ -354,8 +354,12 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
      CMP5_COMPANION_FAILURE_AMBIGUOUS;
    invalid=1;break;
   }
-  size_t filename_length=strlen(name);
-  if(parent_len+filename_length>=sizeof(out[0].preview_path)){
+  const size_t filename_length=strlen(name);
+  /* Need the parent, '/', the full filename AND the trailing NUL.
+   * A shorter primary (e.g. .jpg) can coexist with a longer same-stem
+   * companion (e.g. .jpeg): the latter must not write its terminator
+   * one byte beyond preview_path[256]. parent_len was bounded above. */
+  if(parent_len+1u+filename_length>=sizeof(out[0].preview_path)){
    if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
    invalid=1;break;
   }
