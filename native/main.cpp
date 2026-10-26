@@ -374,6 +374,8 @@ struct GeneralGameAudit {
  bool partial=true;
  unsigned image_files=0,folder_games=0;
  unsigned missing_roots=0,unavailable_roots=0,scanned_roots=0;
+ std::uint64_t image_nominal_bytes=0,folder_nominal_bytes=0;
+ unsigned folder_partials=0,hardlinks_skipped=0;
 };
 GeneralGameAudit general_games{};
 bool general_audit_completed=false;
@@ -858,6 +860,10 @@ void run_general_games_check() noexcept {
    general_games.scanned_roots=found.scanned_roots;
    general_games.missing_roots=found.missing_roots;
    general_games.unavailable_roots=found.unavailable_roots;
+   general_games.image_nominal_bytes=found.nominal_bytes;
+   general_games.folder_nominal_bytes=found.folder_nominal_bytes;
+   general_games.folder_partials=found.folder_partials;
+   general_games.hardlinks_skipped=found.hardlinks_skipped;
    general_games.partial=found.partial!=0u||
      found.unavailable_roots!=0u||found.folder_partials!=0u;
    general_games.checked=true;
@@ -2169,8 +2175,8 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::cleanup&&(pressed&l1||pressed&r1)){
-   cleanup_page=(pressed&r1)?(cleanup_page+1u)%3u:
-     (cleanup_page+2u)%3u;
+   cleanup_page=(pressed&r1)?(cleanup_page+1u)%4u:
+     (cleanup_page+3u)%4u;
    continue;
   }
   if(screen==Screen::access&&(pressed&l1||pressed&r1)){
@@ -2596,6 +2602,49 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,355,task_cancelled()?"ANALYSE ANNULEE":"ANALYSE NON LANCEE",
    "AUCUN RESULTAT UTILISABLE",Color::yellow);
   footer(canvas,"X RETENTER    CERCLE RETOUR");
+  return;
+ }
+ if(cleanup_page==3u){
+  /* This is a comparison of independent METADATA scopes, NOT a sum of
+   * occupied disk blocks or a plan for deleting files. Homebrew roots and
+   * game-image/folder roots may overlap on /data/homebrew and USB mounts. */
+  char observed[144]{};
+  if(general_audit_completed&&summary_status==Summary::ok){
+   (void)std::snprintf(observed,sizeof(observed),
+     "%llu MIO NOMINAUX  %s",
+     static_cast<unsigned long long>(summary_bytes/1048576ULL),
+     summary_partial?"PERIMETRE PARTIEL":"OBSERVES");
+  }else (void)std::snprintf(observed,sizeof(observed),
+    "NON MESURE  AUCUNE TAILLE SUPPOSEE");
+  panel(canvas,355,"CAPTURES ET METADONNEES",observed,Color::cyan);
+  if(general_audit_completed&&homebrew_checked){
+   (void)std::snprintf(observed,sizeof(observed),
+     "%llu MIO NOMINAUX  %s",
+     static_cast<unsigned long long>(homebrew_stats.nominal_bytes/1048576ULL),
+     homebrew_stats.partial||
+       homebrew_stats.data_root_state!=1u||
+       homebrew_stats.installed_root_state!=1u?"PARTIEL":"OBSERVES");
+  }else (void)std::snprintf(observed,sizeof(observed),"NON MESURE");
+  panel(canvas,503,"APPLICATIONS ET PLUGINS",observed,Color::cyan);
+  if(general_audit_completed&&general_games.checked){
+   (void)std::snprintf(observed,sizeof(observed),
+     "%llu MIO IMAGES  %u RACINES INACCESSIBLES%s",
+     static_cast<unsigned long long>(
+       general_games.image_nominal_bytes/1048576ULL),
+     general_games.unavailable_roots,
+     general_games.partial?"  PARTIEL":"");
+  }else (void)std::snprintf(observed,sizeof(observed),"NON MESURE");
+  panel(canvas,651,"IMAGES JEUX (EXFAT / FFPKG / PFS)",observed,Color::cyan);
+  if(general_audit_completed&&general_games.checked){
+   (void)std::snprintf(observed,sizeof(observed),
+     "%llu MIO DOSSIERS  %u DOSSIERS PARTIELS%s",
+     static_cast<unsigned long long>(
+       general_games.folder_nominal_bytes/1048576ULL),
+     general_games.folder_partials,
+     general_games.hardlinks_skipped?"  LIENS IGNORES":"");
+  }else (void)std::snprintf(observed,sizeof(observed),"NON MESURE");
+  panel(canvas,799,"DOSSIERS DE JEUX",observed,Color::cyan);
+  footer(canvas,"VOLUMES NON ADDITIFS  CHEVAUCHEMENTS POSSIBLES  0 SUPPRESSION");
   return;
  }
  if(cleanup_page==2u){
