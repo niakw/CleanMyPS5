@@ -50,6 +50,14 @@ int main(int argc,char**argv){
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
  assert(strstr(report,"\"risk\":\"protected\""));
  free(report);
+ /* JSON-only helper mode must produce exactly the same cache shortlist,
+  * not silently show 0 just because a separate Stats struct is absent. */
+ report=cmp5_homebrew(argv[1],&length);
+ assert(report&&length>100u);
+ assert(strstr(report,"\"cacheCandidates\":{\"folders\":3,\"files\":3,"));
+ assert(strstr(report,"\"nominalBytes\":17,\"partial\":false,"));
+ assert(strstr(report,"\"deletable\":false"));
+ free(report);
  Cmp5HomebrewStats interrupted={0};
  report=cmp5_homebrew_with_stats(argv[1],&length,&interrupted,cancelled,NULL);
  assert(report);
