@@ -432,6 +432,7 @@ cmp5_private_backup::RehearsalOutcome private_rehearsal_outcome{};
 char private_rehearsal_id[32]{};
 bool private_rehearsal_groups=false;
 bool private_rehearsal_verify_only=false;
+bool private_rehearsal_discard=false;
 unsigned private_rehearsal_step=0u;
 cmp5_private_backup::ArchiveAuditProgress private_audit_progress{};
 unsigned private_inventory_selection=0;
@@ -820,6 +821,14 @@ void run_private_backup_verify() noexcept {
  else
   backup_outcome=cmp5_private_backup::verify_existing(
    backup_selected,cancellation_hook,nullptr);
+}
+void run_private_rehearsal_discard() noexcept {
+ private_rehearsal_outcome={};
+ if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
+      cmp5_privilege::Operation::discard_private_rehearsal))return;
+ if(private_rehearsal_groups)return;
+ private_rehearsal_outcome=cmp5_private_backup::discard_rehearsal_by_id(
+    private_rehearsal_id,cancellation_hook,nullptr);
 }
 void run_private_rehearsal_verify() noexcept {
  private_rehearsal_outcome={};
@@ -1659,7 +1668,8 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify,
+ private_rehearsal_discard };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1682,6 +1692,7 @@ void* background_task(void*) noexcept {
   case Task::private_archive_audit: run_private_archive_audit(); break;
   case Task::private_rehearsal: run_private_rehearsal(); break;
   case Task::private_rehearsal_verify: run_private_rehearsal_verify(); break;
+  case Task::private_rehearsal_discard: run_private_rehearsal_discard(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
   case Task::helper_start: run_embedded_readonly_helper(); break;
@@ -1733,7 +1744,8 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::private_archive_audit)
    private_archive_audit=cmp5_private_backup::ArchiveAudit{};
   if(task_kind==Task::private_rehearsal||
-     task_kind==Task::private_rehearsal_verify)
+     task_kind==Task::private_rehearsal_verify||
+     task_kind==Task::private_rehearsal_discard)
    private_rehearsal_outcome=cmp5_private_backup::RehearsalOutcome{};
   if(task_kind==Task::images){
    game_images=Cmp5GameImageStats{};game_images_checked=false;
@@ -1947,6 +1959,20 @@ void poll_pad() noexcept {
    const unsigned options=private_inventory_groups?
      private_inventory.group_count:private_inventory.count;
    if(private_inventory.checked&&options){
+    if((pressed&r3)&&!private_inventory_groups){
+     const char*id=private_inventory.ids[private_inventory_selection];
+     if(cmp5_private_backup::rehearsal_capsule_id(id)){
+      (void)std::snprintf(private_rehearsal_id,sizeof(private_rehearsal_id),
+                          "%s",id);
+      private_rehearsal_groups=false;
+      private_rehearsal_verify_only=false;
+      private_rehearsal_discard=true;
+      private_rehearsal_step=0u;
+      private_rehearsal_outcome={};
+      screen=Screen::rehearsal;
+     }
+     continue;
+    }
     if(pressed&l2){
      const char*id=private_inventory_groups?
         private_inventory.group_ids[private_inventory_selection]:
@@ -1959,6 +1985,7 @@ void poll_pad() noexcept {
                           "%s",id);
       private_rehearsal_groups=private_inventory_groups;
       private_rehearsal_verify_only=true;
+      private_rehearsal_discard=false;
       private_rehearsal_step=2u;
       private_rehearsal_outcome={};
       screen=Screen::rehearsal;
@@ -1978,6 +2005,7 @@ void poll_pad() noexcept {
                           "%s",id);
       private_rehearsal_groups=private_inventory_groups;
       private_rehearsal_verify_only=false;
+      private_rehearsal_discard=false;
       private_rehearsal_step=0u;
       private_rehearsal_outcome={};
       screen=Screen::rehearsal;
@@ -2013,7 +2041,8 @@ void poll_pad() noexcept {
     private_rehearsal_step=1u;
    else if((pressed&cross)&&private_rehearsal_step==1u){
     private_rehearsal_step=2u;
-    (void)begin_task(Task::private_rehearsal);
+    (void)begin_task(private_rehearsal_discard?
+       Task::private_rehearsal_discard:Task::private_rehearsal);
    }
    continue;
   }
@@ -3122,10 +3151,11 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  }
  footer(canvas,private_inventory_groups?
     "L1/R1 TYPE  X VERIFIER  R2 RESTITUER  L2 CONTROLER  CERCLE":
-    "L1/R1 TYPE  X VERIFIER  R2 RESTITUER  L2 CONTROLER  CERCLE");
+    "X VERIFIER  R2 COPIER  L2 CONTROLER  R3 EFFACER COPIE  CERCLE");
 }
 void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
- panel(canvas,305,private_rehearsal_verify_only?
+ panel(canvas,305,private_rehearsal_discard?
+       "RETIRER UNE COPIE PRIVEE":private_rehearsal_verify_only?
        "AUDIT DE RESTITUTION PRIVEE":private_rehearsal_groups?
        "RESTITUTION PRIVEE DU GROUPE":"RESTITUTION PRIVEE DE CAPSULE",
        "AUCUNE RESTAURATION VERS LA GALERIE SONY",Color::cyan);
@@ -3134,16 +3164,22 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  if(private_rehearsal_step<2u&&!private_rehearsal_verify_only){
   panel(canvas,585,private_rehearsal_step?
     "CONFIRMATION 2/2":"CONFIRMATION 1/2",
+    private_rehearsal_discard?
+      "EFFACER UNIQUEMENT RAW_CAP  CAPSULE CONSERVEE":
     private_rehearsal_groups?
       "TOUS LES MEMBRES  512 MIO MAX  SHA-256":
       "NOUVELLE COPIE BRUTE  512 MIO MAX  SHA-256",Color::yellow);
-  panel(canvas,735,"NON DESTRUCTIF",
-    "UNE COPIE EXISTANTE N EST JAMAIS ECRASEE",Color::yellow);
+  panel(canvas,735,private_rehearsal_discard?
+      "RETRAIT DU TEST UNIQUEMENT":"NON DESTRUCTIF",
+    private_rehearsal_discard?
+      "REQUIERT SHA-256 VALIDE  AUCUN ORIGINAL SONY":
+      "UNE COPIE EXISTANTE N EST JAMAIS ECRASEE",Color::yellow);
   footer(canvas,"X CONFIRMER  CERCLE ANNULER  AUCUNE ECRITURE GALERIE");
   return;
  }
  if(task_busy()){
-  panel(canvas,585,private_rehearsal_verify_only?
+  panel(canvas,585,private_rehearsal_discard?
+      "CONTROLE SHA-256 PUIS RETRAIT":private_rehearsal_verify_only?
       (private_rehearsal_groups?"VERIFICATION DES DEUX GROUPES":
                                 "CONTROLE CAPSULE ET COPIE"):
       "RECONSTRUCTION EN COURS",
@@ -3163,6 +3199,8 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  char detail[132]{};
  if(success)
   (void)std::snprintf(detail,sizeof(detail),
+    private_rehearsal_discard?
+      "%llu MIO NOMINAUX RETIRES  GAIN REEL INCONNU":
     private_rehearsal_verify_only?
       "%llu MIO REVERIFIES  SHA-256 IDENTIQUE":
       "%llu MIO RECONSTRUITS  SHA-256 IDENTIQUE",
@@ -3170,14 +3208,17 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  else
   (void)std::snprintf(detail,sizeof(detail),
     "AUCUNE RESTITUTION CERTIFIEE  VERIFIER ESPACE / COLLISION");
- panel(canvas,585,success?(private_rehearsal_verify_only?
+ panel(canvas,585,success?(private_rehearsal_discard?
+      "COPIE PRIVEE RETIREE":private_rehearsal_verify_only?
       "RESTITUTION TOUJOURS INTEGRE":private_rehearsal_groups?
       "GROUPE PRIVE RESTITUE":"COPIE BRUTE RESTITUEE"):
       "RESTITUTION PRIVEE REFUSEE",
        detail,success?Color::cyan:Color::yellow);
  panel(canvas,735,"INDEX SONY",
        "NON VERIFIES  AUCUN MEDIA REINTEGRE",Color::yellow);
- footer(canvas,"CERCLE ARCHIVES  AUCUNE SUPPRESSION  AUCUN ECRASEMENT");
+ footer(canvas,private_rehearsal_discard?
+   "CERCLE ARCHIVES  SAUVEGARDE ET SONY PRESERVES":
+   "CERCLE ARCHIVES  AUCUNE SUPPRESSION  AUCUN ECRASEMENT");
 }
 void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,310,backup_verify_only?
