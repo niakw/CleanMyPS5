@@ -4,6 +4,7 @@
 #include "private_media_backup.hpp"
 #include "verified_group.h"
 #include "private_workspace_guard.h"
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
@@ -32,6 +33,17 @@ struct ArchiveAudit {
  unsigned capsules=0u,valid_capsules=0u,groups=0u,valid_groups=0u;
  std::uint64_t verified_bytes=0u; // per-archive sum, may include duplicates
 };
+/* Progress is informational and independent of publication. The worker
+ * stores completed only AFTER verifying each archive. Until total is
+ * published, the catalogue is still being inspected. */
+struct ArchiveAuditProgress {
+ std::atomic<unsigned> total{0u};
+ std::atomic<unsigned> completed{0u};
+ void reset() noexcept {
+  total.store(0u,std::memory_order_relaxed);
+  completed.store(0u,std::memory_order_relaxed);
+ }
+};
 inline bool same_archive_listing(const Inventory&a,const Inventory&b) noexcept {
  if(!a.checked||!b.checked||a.partial!=b.partial||
     a.staged!=b.staged||a.count!=b.count||
@@ -55,13 +67,17 @@ inline bool same_archive_listing(const Inventory&a,const Inventory&b) noexcept {
  * on cancellation. Invalid checks are counted, never hidden or deleted. */
 inline bool audit_inventory_at(const Inventory&listed,const char*folder,
                                ArchiveAudit*out,Cmp5CancelCheck cancel,
-                               void*context) noexcept {
+                               void*context,
+                               ArchiveAuditProgress*progress=nullptr) noexcept {
  if(out)*out=ArchiveAudit{};
+ if(progress)progress->reset();
  if(!out||!folder||!listed.checked||
     listed.count>inventory_limit||listed.group_count>inventory_limit||
     (cancel&&cancel(context)))return false;
  ArchiveAudit fresh{};
  fresh.partial=listed.partial;
+ if(progress)progress->total.store(listed.count+listed.group_count,
+                                  std::memory_order_release);
  for(unsigned i=0;i<listed.count;i++){
   if(cancel&&cancel(context))return false;
   if(!valid_capsule_id(listed.ids[i]))return false;
@@ -74,6 +90,7 @@ inline bool audit_inventory_at(const Inventory&listed,const char*folder,
    fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
      UINT64_MAX:fresh.verified_bytes+receipt.bytes;
   }
+  if(progress)progress->completed.fetch_add(1u,std::memory_order_release);
  }
  for(unsigned i=0;i<listed.group_count;i++){
   if(cancel&&cancel(context))return false;
@@ -87,6 +104,7 @@ inline bool audit_inventory_at(const Inventory&listed,const char*folder,
    fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
      UINT64_MAX:fresh.verified_bytes+receipt.bytes;
   }
+  if(progress)progress->completed.fetch_add(1u,std::memory_order_release);
  }
  if(cancel&&cancel(context))return false;
  fresh.checked=true;
@@ -280,8 +298,10 @@ inline bool scan(Inventory*out,Cmp5CancelCheck cancel,void*context) noexcept {
  * even two matching snapshots do not make Sony's index state atomic. */
 inline bool audit_at(const char*folder,ArchiveAudit*out,
                      Inventory*current_list,Cmp5CancelCheck cancel,
-                     void*context) noexcept {
+                     void*context,
+                     ArchiveAuditProgress*progress=nullptr) noexcept {
  if(out)*out=ArchiveAudit{};
+ if(progress)progress->reset();
  if(current_list)*current_list=Inventory{};
  if(!folder||!out||(cancel&&cancel(context)))return false;
  /* The directory could be swapped for a new 0700 workspace with the
@@ -294,7 +314,7 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
  ArchiveAudit result{};
  bool ok=fstat(pinned,&original)==0&&
    scan_at(folder,&before,cancel,context)&&
-   audit_inventory_at(before,folder,&result,cancel,context)&&
+   audit_inventory_at(before,folder,&result,cancel,context,progress)&&
    scan_at(folder,&after,cancel,context)&&
    same_archive_listing(before,after);
  const int current=ok?cmp5_open_private_workspace(folder):-1;
@@ -315,8 +335,9 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
  return audit_at(folder,out,nullptr,cancel,context);
 }
 inline bool audit(ArchiveAudit*out,Inventory*current_list,
-                  Cmp5CancelCheck cancel,void*context) noexcept {
- return audit_at(workspace,out,current_list,cancel,context);
+                  Cmp5CancelCheck cancel,void*context,
+                  ArchiveAuditProgress*progress=nullptr) noexcept {
+ return audit_at(workspace,out,current_list,cancel,context,progress);
 }
 inline bool audit(ArchiveAudit*out,Cmp5CancelCheck cancel,
                   void*context) noexcept {
