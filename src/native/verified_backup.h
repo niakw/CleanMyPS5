@@ -15,6 +15,13 @@ int cmp5_backup_media(const char *source_root,const Cmp5MediaCandidate *candidat
  Cmp5CancelCheck cancelled,void *context);
 int cmp5_verify_backup(const char *private_workspace,const char *backup_id,
  Cmp5BackupReceipt *receipt,Cmp5CancelCheck cancelled,void *context);
+/* Read-only rehash of an independent raw restore against its capsule;
+ * the PS5 build fixes BOTH workspaces and its RAW_CAP_ name. It never
+ * creates, removes or modifies any file, and does not validate Sony indexes. */
+int cmp5_verify_rehearsed_backup(const char *private_workspace,
+ const char *backup_id,const char *restore_workspace,
+ const char *restore_name,Cmp5BackupReceipt *receipt,
+ Cmp5CancelCheck cancelled,void *context);
 /* Restore to a separate app-owned workspace, NEVER the PS5 gallery. */
 int cmp5_restore_backup(const char *private_workspace,const char *backup_id,
  const char *restore_workspace,const char *restore_name,
