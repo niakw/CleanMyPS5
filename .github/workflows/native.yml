@@ -17,6 +17,7 @@ on:
       - tests/test_recovery_inventory.c
       - tests/test_recovery_resume.cpp
       - tests/test_private_capsule_inventory.cpp
+      - tests/test_native_private_rehearsal.c
       - tests/test_private_workspace_capacity.c
       - tests/test_group_transaction_lock.c
       - tests/test_group_transaction_lock.py
