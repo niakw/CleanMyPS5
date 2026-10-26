@@ -115,7 +115,7 @@ def main(root: Path):
            '''  uint64_t verify_bytes = req.verify ? entries.total_bytes : 0;''',
            '''#ifndef E2A_HOST
   char cmp5_action_plan_sha[65]={0};
-  if(cmp5_entries_plan_hash(&entries,cmp5_action_plan_sha)!=0)
+  if(cmp5_entries_plan_hash_with_assets(&entries,dest,cmp5_action_plan_sha)!=0)
     FAIL("plan_invalid","cannot fingerprint game files before packing");
   if(req.resume){
     if(!cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha))
