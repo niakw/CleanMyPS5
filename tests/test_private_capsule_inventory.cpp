@@ -36,6 +36,28 @@ int main(){
  std::memcpy(grp_unterminated,"GRP_",4u);
  std::memset(grp_unterminated+4,'A',17u);
  assert(!valid_group_id(grp_unterminated));
+ /* An audit cannot reuse its summary after an unrelated archive
+  * appears, a stage is added, or the bounded namespace goes partial. */
+ Inventory first{},second{};
+ first.checked=second.checked=true;
+ first.count=second.count=2u;
+ first.group_count=second.group_count=1u;
+ std::strcpy(first.ids[0],"CAP_0123456789ABCDEF");
+ std::strcpy(first.ids[1],"CAP_FFFFFFFFFFFFFFFF");
+ std::strcpy(first.group_ids[0],"GRP_0123456789ABCDEF");
+ std::strcpy(second.ids[0],first.ids[1]);
+ std::strcpy(second.ids[1],first.ids[0]);
+ std::strcpy(second.group_ids[0],first.group_ids[0]);
+ assert(same_archive_listing(first,second));
+ second.staged=1u;
+ assert(!same_archive_listing(first,second));
+ second.staged=0u;second.partial=true;
+ assert(!same_archive_listing(first,second));
+ second.partial=false;
+ std::strcpy(second.ids[0],"CAP_0000000000000000");
+ assert(!same_archive_listing(first,second));
+ second=first;second.checked=false;
+ assert(!same_archive_listing(first,second));
  char area[]="/tmp/cmp5-capsules-XXXXXX";
  char*root=mkdtemp(area);
  assert(root!=nullptr);
