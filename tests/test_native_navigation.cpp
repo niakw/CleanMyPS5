@@ -48,6 +48,7 @@ unsigned mock_ampr_receive=0;
 unsigned mock_ampr_post_headers=0,mock_ampr_post_bodies=0;
 unsigned mock_ampr_pauses=0,mock_ampr_resumes=0;
 bool mock_ampr_paused=false;
+bool mock_control_resume_body=false;
 bool mock_ampr_control_drop_reply=false;
 bool mock_ampr_failed=false;
 bool mock_ampr_foreign_running=false;
@@ -171,19 +172,23 @@ int sceNetSend(int id,const void*data,std::size_t size,int){
  }
  if(id==21){
   if(request.find("POST /api/pause HTTP/1.0")==0){
-   /* A stale poll must never issue an unscoped /api/pause POST. */
    assert(request.find("Host: 127.0.0.1:6973")!=std::string_view::npos);
    assert(request.find("Content-Length: 0")==std::string_view::npos);
    assert(request.find("Content-Length: ")!=std::string_view::npos);
+   mock_control_resume_body=false;
   }else if(request.find("POST /api/resume HTTP/1.0")==0){
    assert(request.find("Content-Length: ")!=std::string_view::npos);
+   mock_control_resume_body=true;
   }else if(request.find("dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345")==0){
-   if(request.find("&level=9")!=std::string_view::npos){
-    mock_ampr_resumes++;mock_ampr_paused=false;
+   /* Distinguish pause from resume using the preceding HTTP route,
+    * never an injected compression level. Both are scoped to one game. */
+   assert(request=="dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345");
+   if(mock_control_resume_body){
+    ++mock_ampr_resumes;mock_ampr_paused=false;
    }else{
-    assert(request=="dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345");
     ++mock_ampr_pauses;mock_ampr_paused=true;
    }
+   mock_control_resume_body=false;
   }else assert(false && "unexpected pause/resume request or wrong title");
   return static_cast<int>(size);
  }
