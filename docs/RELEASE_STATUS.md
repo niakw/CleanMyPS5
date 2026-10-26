@@ -1,5 +1,27 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Sources de restauration : identité du nom et du fichier (26 octobre 2026)
+
+La revue hôte, en lecture seule, des sources de captures sauvegardées
+(`cmp5_inspect_group_originals`) garde maintenant ouvert le descripteur
+du **dossier parent** jusqu'à la vérification du dernier composant du chemin.
+Après deux lectures `fstat` du contenu sélectionné, elle recontrôle le nom
+avec `fstatat(..., AT_SYMLINK_NOFOLLOW)` et compare l'identité, les permissions
+et les horodatages du fichier désigné à ceux du descripteur ouvert.
+
+Cela élimine un faux diagnostic possible lorsqu'un fichier source est
+renommé ou remplacé pendant le contrôle : l'archive reste inchangée,
+mais la source est signalée **UNKNOWN**, jamais **UNCHANGED**. Une fixture
+hôte injecte les deux courses exactement entre la lecture de l'inode
+et la vérification du nom, puis vérifie que la divergence est refusée.
+Le chemin d'origine n'est ni recréé ni modifié.
+
+Cette vérification n'est **pas** une preuve transactionnelle atomique de
+l'état Sony : d'autres changements peuvent survenir après le dernier
+contrôle. Le résultat reste purement informatif. Aucune restauration vers
+`/user/av_contents` ni suppression Galerie n'est activée.
+
+
 ## Confidentialité des capsules et restauration privée (26 octobre 2026)
 
 La validation d'une archive SHA-256 ne vérifiait pas partout si le fichier
