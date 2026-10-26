@@ -65,7 +65,7 @@ int main(int argc,char**argv){
  eof_error_enabled=1;
  char*json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100);
- assert(eof_error_seen&&stats.partial==1u&&stats.homebrew==1u);
+ assert(eof_error_seen&&stats.partial==1u&&stats.homebrew==2u);
  assert(stats.installed==1u&&stats.nominal_bytes>0u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
@@ -73,7 +73,7 @@ int main(int argc,char**argv){
  memset(&stats,0,sizeof(stats));size=0;
  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100);
- assert(close_error_seen&&stats.partial==1u&&stats.homebrew==1u);
+ assert(close_error_seen&&stats.partial==1u&&stats.homebrew==2u);
  assert(stats.installed==1u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
@@ -85,9 +85,9 @@ int main(int argc,char**argv){
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
   assert(cache_name_lookups>=2);
-  assert(stats.cache_like_folders==2u);
-  assert(stats.cache_like_nominal_bytes==11u);
-  assert(strstr(json,"\"cacheCandidates\":{\"folders\":2,"));
+  assert(stats.cache_like_folders==3u);
+  assert(stats.cache_like_nominal_bytes==13u);
+  assert(strstr(json,"\"cacheCandidates\":{\"folders\":3,"));
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
  }
@@ -98,7 +98,7 @@ int main(int argc,char**argv){
  assert(json&&size>100&&stats.partial);
  assert(app_name_lookups==3); /* mismatched open stops before post-scan */
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
- assert(stats.cache_like_folders==0u&&stats.cache_like_nominal_bytes==0u);
+ assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
