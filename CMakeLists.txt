@@ -122,6 +122,18 @@ add_test(NAME verified_backup_fixture
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_verified_backup.py
  $<TARGET_FILE:cmp5-verified-backup-tests>)
 
+# Real production C function with injected post-unlink EIO, proving that
+# an unconfirmed filesystem mutation is never reported as a safe refusal.
+# No console filesystem is used by this synthetic /tmp fixture.
+add_executable(cmp5-discard-uncertain-tests
+ tests/test_verified_discard_uncertain.c src/native/sha256.c)
+target_include_directories(cmp5-discard-uncertain-tests PRIVATE src/native)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-discard-uncertain-tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME private_discard_uncertain_fixture
+ COMMAND $<TARGET_FILE:cmp5-discard-uncertain-tests>)
+
 # The prototype MUST remain host-only until PS5 media-index restore is proven.
 add_test(NAME verified_backup_activation_gate
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_backup_safety_gate.py)
