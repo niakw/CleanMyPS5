@@ -7,7 +7,12 @@ opération de répétition** dans le dossier privé
 `/download0/cmp5-private-rehearsals`, jamais dans la Galerie Sony.
 Dans **Archives privées → Groupes**, R2 sélectionne un identifiant
 `GRP_` suivi de 16 chiffres hexadécimaux ; deux confirmations Croix
-sont nécessaires. La restitution conserve chaque membre nommé
+sont nécessaires. **L2** lance un contrôle séparé **en lecture seule**,
+même après redémarrage de l'application : le moteur réouvre les
+dossiers privés de sauvegarde et de restitution, recalcule les SHA-256
+de tous les membres et compare les marqueurs `COMMIT` et `RESTORED`
+sans recopier les données. Un résultat absent, modifié ou incomplet
+est refusé. La restitution conserve chaque membre nommé
 `GRP_…__1` à `GRP_…__4` et publie le marqueur privé
 `GRP_…__RESTORED` après validation intégrale des membres. Le moteur
 réanalyse le groupe d'origine et les empreintes SHA-256 avant et après
