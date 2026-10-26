@@ -2608,12 +2608,14 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   const auto gallery=assess(Evidence{Category::gallery,
     general_audit_completed&&summary_status==Summary::ok,
     summary_partial||media_review.partial!=0u,summary_files,0u});
-  const auto apps=assess(Evidence{Category::homebrew_cache,
+  /* Apps/plugins are inventory entries, NOT detected removable caches.
+   * The scanner has not proven cache ownership or provider semantics. */
+  const auto apps=assess(cmp5_cleanup::unclassified_app_inventory(
     general_audit_completed&&homebrew_checked,
     homebrew_stats.partial!=0u||
       homebrew_stats.data_root_state!=1u||
       homebrew_stats.installed_root_state!=1u,
-    homebrew_stats.entries,0u});
+    homebrew_stats.entries));
   const auto startup=assess(Evidence{Category::autoload,
     general_audit_completed&&autoload_checked,
     autoload_stats.unreadable!=0u||autoload_stats.oversized!=0u,
@@ -2626,8 +2628,10 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
     "%u OBSERVATIONS  %s",summary_files,reason_fr(gallery.first_blocker));
   panel(canvas,355,"CAPTURES ET REFERENCES GALERIE",message,Color::yellow);
   (void)std::snprintf(message,sizeof(message),
-    "%u ELEMENTS  %s",homebrew_stats.entries,reason_fr(apps.first_blocker));
-  panel(canvas,503,"APPLICATIONS ET CACHES POTENTIELS",message,Color::yellow);
+    "%u APPLICATIONS/PLUGINS  %s",homebrew_stats.entries,
+    reason_fr(apps.first_blocker));
+  panel(canvas,503,"CACHES NON IDENTIFIES (INVENTAIRE APPS)",message,
+    Color::yellow);
   (void)std::snprintf(message,sizeof(message),
     "%u CHEMINS  %s",autoload_stats.present,reason_fr(startup.first_blocker));
   panel(canvas,651,"DEMARRAGE ET ELEMENTS ACTIFS",message,Color::yellow);
