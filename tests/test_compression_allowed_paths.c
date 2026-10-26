@@ -42,7 +42,41 @@ static int injected_mkdirat(int dir,const char*name,mode_t mode){
 #include "../src/native/compression_allowed_paths.h"
 #undef fstatat
 #undef mkdirat
+#include "../src/native/ampr_checkpoint_request.h"
 int main(void) {
+ /* The title's READ-ONLY checkpoint path prefilter must agree with
+  * the bundled packer allowlist, without linking packer write helpers. */
+ static const char*const candidates[]={
+  "/data/homebrew/PPSA12345",
+  "/data/homebrew/Game..USA",
+  "/data/etaHEN/games/Game [US]",
+  "/data/homebrew/GAME.exfat",
+  "/mnt/usb0/homebrew/PPSA12345",
+  "/mnt/ext7/etaHEN/games/A Game [US]",
+  "/mnt/usb0/GAME.exfat",
+  "/mnt/usb0/GAME.FFPKG",
+  "/mnt/ext7/DUMP.ffpfs",
+  "/mnt/usb0/DUMP.ffpfsc",
+  "/mnt/usb0/homebrew/GAME.exfat",
+  "/mnt/usb0/games/PPSA12345",
+  "/mnt/usb0/savedata/foo",
+  "/mnt/usb0/.hidden.exfat",
+  "/mnt/usb0/GAME.iso",
+  "/data/homebrew/.hidden",
+  "/data/homebrew/../PPSA12345",
+  "/data/homebrew/GAME/foo",
+  "/mnt/ext8/GAME.exfat",
+  "/mnt/usbx/GAME.exfat",
+  "/mnt/usb0/homebrew/APP;rm",
+  "/mnt/usb0/homebrew/PPSA12345/../",
+  "/data/homebrew/",
+  "/mnt/usb0/",
+  "/mnt/usb0"
+ };
+ for(size_t i=0;i<sizeof(candidates)/sizeof(candidates[0]);i++)
+  assert(cmp5_ampr_source_candidate(candidates[i])==
+         cmp5_game_source_allowed(candidates[i]));
+
  /* A saved checkpoint with old destructive settings is NOT a native
   * CleanMyPS5 job. Do not silently normalize/adopt its request.bin.
   * A legitimate saved request requires verify+dedup and no mutation
