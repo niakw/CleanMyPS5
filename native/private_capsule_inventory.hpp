@@ -279,8 +279,10 @@ inline bool scan(Inventory*out,Cmp5CancelCheck cancel,void*context) noexcept {
  * cannot be presented as a complete audit; checks are read-only, and
  * even two matching snapshots do not make Sony's index state atomic. */
 inline bool audit_at(const char*folder,ArchiveAudit*out,
-                     Cmp5CancelCheck cancel,void*context) noexcept {
+                     Inventory*current_list,Cmp5CancelCheck cancel,
+                     void*context) noexcept {
  if(out)*out=ArchiveAudit{};
+ if(current_list)*current_list=Inventory{};
  if(!folder||!out||(cancel&&cancel(context)))return false;
  /* The directory could be swapped for a new 0700 workspace with the
   * SAME archive filenames while a long SHA-256 pass is in progress.
@@ -304,12 +306,21 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
  if(current>=0)close(current);
  close(pinned);
  if(!ok)return false;
+ if(current_list)*current_list=after;
  *out=result;
  return true;
 }
+inline bool audit_at(const char*folder,ArchiveAudit*out,
+                     Cmp5CancelCheck cancel,void*context) noexcept {
+ return audit_at(folder,out,nullptr,cancel,context);
+}
+inline bool audit(ArchiveAudit*out,Inventory*current_list,
+                  Cmp5CancelCheck cancel,void*context) noexcept {
+ return audit_at(workspace,out,current_list,cancel,context);
+}
 inline bool audit(ArchiveAudit*out,Cmp5CancelCheck cancel,
                   void*context) noexcept {
- return audit_at(workspace,out,cancel,context);
+ return audit_at(workspace,out,nullptr,cancel,context);
 }
 inline Outcome verify_by_id(const char*id,Cmp5CancelCheck cancel,
                             void*context) noexcept {
