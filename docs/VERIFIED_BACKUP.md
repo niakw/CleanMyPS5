@@ -1,4 +1,37 @@
-# Sauvegarde privée vérifiée : titre PS5 et restauration sur hôte seulement
+# Sauvegarde privée vérifiée : titre PS5, essai privé et restauration Galerie désactivée
+
+## Répétition de restitution native (26 octobre 2026)
+
+Le titre installé peut désormais reconstruire le contenu **brut** d'une
+capsule individuelle `CAP_...` dans un dossier **distinct appartenant
+uniquement à CleanMyPS5** : `/download0/cmp5-private-rehearsals`.
+Depuis **Archives privées → Capsules**, sélectionner une capsule et appuyer
+sur **R2**, puis confirmer **deux fois avec Croix**. L'original et la
+capsule restent inchangés, et aucun fichier existant n'est écrasé.
+La destination contient un fichier `RAW_CAP_...` sans métadonnées de
+la Galerie Sony ; le titre ne prétend pas l'avoir réintégré.
+
+La fonction est incluse avec `CMP5_NATIVE_BACKUP_ONLY` **et**
+`CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY`. Le C du moteur exige
+**exactement** les chemins source et destination ci-dessus et un
+identifiant `CAP_` suivi de 16 chiffres hexadécimaux majuscules ;
+son nom de sortie doit correspondre à `RAW_` + le même identifiant.
+Tout chemin arbitraire, fichier de sauvegarde de jeu ou dossier Sony
+est refusé. Le titre vérifie d'abord le SHA-256 intégral de la capsule,
+teste l'espace libre nécessaire, restitue les octets avec un nouveau
+fichier privé créé sans écrasement, puis vérifie SHA-256 sur ce fichier
+republié. En cas de refus ou d'interruption, les résidus privés sont
+conservés pour inspection : aucune purge automatique.
+
+Il s'agit d'un **essai de reconstruction de données**, pas d'une
+restauration de Galerie ou de sa base de données. La restauration
+des groupes et les outils de récupération vers des emplacements
+arbitraires restent absents de l'ELF installé. Le test
+`tests/test_native_private_rehearsal.c` compile le moteur avec
+les **mêmes options restrictives** et refuse les chemins/noms
+malformés ; la suite hôte teste séparément la restitution réelle
+des octets dans un environnement synthétique. La compatibilité sur
+une console PS5 13.60 **n'est pas encore vérifiée**.
 
 ## Inventaire des sauvegardes interrompues : volume observable (26 octobre 2026)
 
@@ -20,7 +53,7 @@ utilisent des fichiers temporaires et des symlinks synthétiques sur hôte.
 
 ## Portée exacte
 
-`src/native/verified_backup.c` implémente un **prototype indépendant** de copie de sauvegarde de captures connues, de vérification et de restauration **dans un second dossier privé appartenant à l'application**. Les fonctions de **copie et vérification** sont compilées dans le titre `PPSA99784`, y compris pour les groupes de compagnons visibles. En revanche, les fonctions de **restauration sont exclues du binaire PS5 par les gardes `CMP5_NATIVE_BACKUP_ONLY` et `CMP5_NATIVE_GROUP_BACKUP_ONLY`** et ne sont pas disponibles depuis le helper. **Aucune suppression ni modification de la Galerie PS5 n'est autorisée.**
+`src/native/verified_backup.c` implémente un **prototype indépendant** de copie de sauvegarde de captures connues, de vérification et de restauration **dans un second dossier privé appartenant à l'application**. Les fonctions de **copie et vérification** sont compilées dans le titre `PPSA99784`, y compris pour les groupes de compagnons visibles. Une **reconstitution individuelle strictement privée** est désormais disponible dans le seul dossier fixe `/download0/cmp5-private-rehearsals` sous les gardes `CMP5_NATIVE_BACKUP_ONLY` et `CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY`. Les restaurations de groupes et de la Galerie Sony restent exclues par la politique native, et aucune restauration n'est disponible depuis le helper. **Aucune suppression ni modification de la Galerie PS5 n'est autorisée.**
 
 L'objectif est d'éprouver le contrat de sauvegarde avant une éventuelle opération de maintenance, et non de prétendre que les bases de données/index multimédias PS5 sont restaurables aujourd'hui. Le moteur ne modifie jamais le fichier source.
 
