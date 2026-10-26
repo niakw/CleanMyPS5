@@ -97,7 +97,7 @@ int cmp5_backup_media(const char*,const Cmp5MediaCandidate*,const char*,
  return 0;
 }
 int cmp5_discard_rehearsed_backup(const char*,const char*,
- const char*,const char*,uint64_t*,Cmp5CancelCheck,void*){
+ const char*,const char*,uint64_t*,int*,Cmp5CancelCheck,void*){
  assert(false&&"Synthetic navigation must never unlink private raw files");
  return 0;
 }
