@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory() as directory:
         "data/ExampleTool/config.json":b"{}",
         "data/ExampleTool/public.bin":b"USER",
         "data/ExampleTool/cache/index.bin":b"CACHED",
+        "data/ExampleTool/.cache/thumbnail.bin":b"HIDDEN!",
         "data/ExampleTool/tmp/session.part":b"WORK",
         "data/etaHEN/notice.txt":b"ETA",
         "user/app/TEST0001/eboot.bin":b"BINARY",
@@ -41,5 +42,6 @@ with tempfile.TemporaryDirectory() as directory:
         assert "Homebrew readdir and closedir failures" in io_result.stdout
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
     assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
+    assert b"HIDDEN!" == (root/"data/ExampleTool/.cache/thumbnail.bin").read_bytes()
     assert b"WORK" == (root/"data/ExampleTool/tmp/session.part").read_bytes()
 print("Homebrew native fixture: PASS")
