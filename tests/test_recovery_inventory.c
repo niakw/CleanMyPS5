@@ -202,7 +202,7 @@ int main(void){
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
  bogus=original_request;
  assert(cmp5_profile_pin_set(bogus.reserved,test_digest));
- assert(cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  assert(cmp5_profile_pin_matches(bogus.reserved,test_digest));
  assert(!cmp5_profile_pin_matches(bogus.reserved,NULL));
  /* A fresh profile pin begins without a finalized file plan. The
