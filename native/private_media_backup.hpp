@@ -163,6 +163,29 @@ inline bool rehearsal_workspace_ready() noexcept {
  close(root);
  return ok;
 }
+/* Independent, read-only post-restart audit: re-hash the saved
+ * capsule AND the raw reconstructed bytes, with neither directory created
+ * nor any part of Sony's Gallery accessed. */
+inline RehearsalOutcome verify_rehearsed_capsule_by_id(
+ const char*id,Cmp5CancelCheck cancel,void*context) noexcept {
+ RehearsalOutcome result{};
+ if(!rehearsal_capsule_id(id)||(cancel&&cancel(context))){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ char raw_name[32]{};
+ if(std::snprintf(raw_name,sizeof(raw_name),"RAW_%s",id)!=24){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ Cmp5BackupReceipt checked{};
+ if(!cmp5_verify_rehearsed_backup(workspace,id,rehearsal_workspace,
+      raw_name,&checked,cancel,context)||!checked.published||
+    !checked.bytes||checked.bytes>CMP5_BACKUP_LIMIT||
+    (cancel&&cancel(context))){
+  result.status=RehearsalStatus::failed;return result;
+ }
+ result.bytes=checked.bytes;result.status=RehearsalStatus::verified;
+ return result;
+}
 inline RehearsalOutcome rehearse_by_id(const char*id,
                            Cmp5CancelCheck cancel,void*context) noexcept {
  RehearsalOutcome result{};
