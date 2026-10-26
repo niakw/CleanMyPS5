@@ -25,7 +25,7 @@ int main(int argc,char**argv){
  assert(strstr(report,"\"rootCoverage\":{\"appData\":\"readable\",\"installedTitles\":\"readable\"}"));
  /* No plugin/homebrew directory is counted twice via /data. The
   * protected config and saves directories remain excluded. */
- assert(stats.nominal_bytes==24u); /* includes ordinary config.json (2 B) */
+ assert(stats.nominal_bytes==34u); /* two cache/temp files counted as app data */
  assert(stats.top_count==4u);
  for(unsigned i=0;i<stats.top_count;i++){
   const Cmp5HomebrewTop*item=&stats.top[i];
@@ -35,7 +35,13 @@ int main(int argc,char**argv){
   assert(item->nominal_bytes>0);
   if(i)assert(stats.top[i-1u].nominal_bytes>=item->nominal_bytes);
  }
- assert(stats.top[0].nominal_bytes==6u);
+ assert(stats.top[0].nominal_bytes==16u);
+ /* Cache-like names are just directory observations, not deletion claims. */
+ assert(stats.cache_like_folders==2u&&stats.cache_like_files==2u);
+ assert(stats.cache_like_nominal_bytes==10u&&!stats.cache_like_partial);
+ assert(strstr(report,"\"cacheCandidates\":{\"folders\":2,\"files\":2,"));
+ assert(strstr(report,"\"nominalBytes\":10,\"partial\":false,"));
+ assert(strstr(report,"\"providerVerified\":false,\"deletable\":false"));
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
@@ -48,6 +54,8 @@ int main(int argc,char**argv){
  assert(strstr(report,"\"partial\":true"));
  assert(interrupted.entries==0);
  assert(interrupted.top_count==0);
+ assert(interrupted.cache_like_folders==0u&&
+        interrupted.cache_like_nominal_bytes==0u);
  free(report);
  Cmp5HomebrewStats missing_installed={0};
  report=cmp5_homebrew_with_stats(argv[2],&length,&missing_installed,NULL,NULL);
