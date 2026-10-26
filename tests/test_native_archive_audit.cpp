@@ -24,6 +24,17 @@ static void write_bytes(const fs::path&path,const std::string&body){
  file.close();
  assert(file.good());
 }
+/* In-place writes do not change the archive name or the directory
+ * metadata: a namespace-only freshness fence would miss these. */
+static void flip_archive_byte(const fs::path&path){
+ const int fd=open(path.c_str(),O_RDWR|O_NOFOLLOW);
+ assert(fd>=0);
+ unsigned char value=0u;
+ assert(pread(fd,&value,1,90)==1);
+ value^=1u;
+ assert(pwrite(fd,&value,1,90)==1);
+ assert(close(fd)==0);
+}
 int main(){
  using namespace cmp5_private_backup;
  char tmp[]="/tmp/cmp5-bulk-audit-XXXXXX";
@@ -78,15 +89,53 @@ int main(){
  assert(audit_result.verified_bytes==single.bytes+backup_group.bytes);
  assert(audit_result.capsule_valid[0]&&audit_result.group_valid[0]);
 
+ /* A capsule can change in place AFTER its SHA succeeds while the group
+  * verifier is still active. The overall audit must not publish its
+  * positive earlier result even though the catalogue names are stable. */
+ struct Interleave{
+  ArchiveAuditProgress*progress;
+  const fs::path*target;
+  unsigned after;
+  bool changed=false;
+ };
+ const auto flip_when_progress=[](void*ctx)->int{
+  auto*state=static_cast<Interleave*>(ctx);
+  if(!state->changed&&
+     state->progress->completed.load(std::memory_order_acquire)>=state->after){
+   flip_archive_byte(*state->target);
+   state->changed=true;
+  }
+  return 0;
+ };
+ const fs::path single_path=store/cap_id;
+ Interleave during_group{&progress,&single_path,1u};
+ audit_result.checked=true;catalog.checked=true;
+ assert(!audit_at(store.c_str(),&audit_result,&catalog,
+                  flip_when_progress,&during_group,&progress));
+ assert(during_group.changed);
+ assert(!audit_result.checked&&!catalog.checked);
+ flip_archive_byte(single_path); // Undo only the synthetic host mutation.
+ assert(audit_at(store.c_str(),&audit_result,&catalog,nullptr,nullptr,
+                 &progress));
+ assert(audit_result.checked&&audit_result.capsule_valid[0]&&
+        audit_result.group_valid[0]);
+ /* Likewise, the last group member can be changed after its SHA check,
+  * during the final catalogue scan. No positive group receipt may escape. */
+ const fs::path group_member=store/(std::string(group_id)+"__1");
+ Interleave after_group{&progress,&group_member,2u};
+ assert(!audit_at(store.c_str(),&audit_result,&catalog,
+                  flip_when_progress,&after_group,&progress));
+ assert(after_group.changed);
+ assert(!audit_result.checked&&!catalog.checked);
+ flip_archive_byte(group_member);
+ assert(audit_at(store.c_str(),&audit_result,&catalog,nullptr,nullptr,
+                 &progress));
+ assert(audit_result.checked&&audit_result.valid_capsules==1u&&
+        audit_result.valid_groups==1u);
+
  // Tamper with the private single-copy payload, but leave its group
  // counterpart intact: the audit must count one INVALID and one VALID.
- int fd=open((store/cap_id).c_str(),O_RDWR|O_NOFOLLOW);
- assert(fd>=0);
- unsigned char value=0;
- assert(pread(fd,&value,1,90)==1);
- value^=1u;
- assert(pwrite(fd,&value,1,90)==1);
- assert(close(fd)==0);
+ flip_archive_byte(single_path);
  assert(audit_at(store.c_str(),&audit_result,nullptr,nullptr));
  assert(audit_result.checked&&!audit_result.partial&&
         audit_result.capsules==1u&&!audit_result.valid_capsules&&
