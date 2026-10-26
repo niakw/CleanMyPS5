@@ -1945,6 +1945,18 @@ int main(){
     ambiguous_detail=true;
   }
   assert(uncertain_banner&&ambiguous_detail);
+  /* A late Circle event can set the task to cancelled after unlink
+   * confirmation. A recorded success is still a success, not an error. */
+  private_rehearsal_outcome.status=
+    cmp5_private_backup::RehearsalStatus::verified;
+  task_state.store(4u,std::memory_order_release);
+  scene(canvas);
+  bool successful_late_cancel=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("COPIE PRIVEE RETIREE")!=std::string::npos)
+    successful_late_cancel=true;
+  assert(successful_late_cancel);
+  task_state.store(2u,std::memory_order_release);
   private_rehearsal_discard=false;
   private_rehearsal_step=0u;
   private_rehearsal_outcome={};
