@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
@@ -35,25 +36,76 @@ CMP5_REQ_STATIC_ASSERT(sizeof(Cmp5AmprSavedRequest)==952,
                         "AMPR request ABI no longer matches pinned engine");
 CMP5_REQ_STATIC_ASSERT(offsetof(Cmp5AmprSavedRequest,force)==888,
                         "AMPR request flag offsets changed");
+CMP5_REQ_STATIC_ASSERT(sizeof(bool)==1,
+                        "AMPR request boolean layout changed");
 static inline bool cmp5_ampr_terminated(const char*name,size_t length){
  return name&&memchr(name,0,length)!=NULL;
 }
-/* This is a conservative read-only prefilter, not a filesystem
- * authorization. The packing worker independently checks EVERY path
- * component and the actual source identity before resuming. */
+/* Mirror the pinned AMPR engine's lexical source allowlist, without
+ * importing its filesystem mutation/create helpers into the native title.
+ * THIS IS NOT path authorization: the worker independently re-opens the
+ * selected source with no-follow descriptors at submission time. */
+static inline bool cmp5_ampr_safe_component(const char*name){
+ if(!name||name[0]=='.')return false;
+ const size_t n=strlen(name);
+ if(!n||n>=64u)return false;
+ for(size_t i=0;i<n;i++){
+  const unsigned char c=(unsigned char)name[i];
+  if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+       (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'||
+       c==' '||c=='['||c==']'||c=='('||c==')'))return false;
+ }
+ return true;
+}
+static inline bool cmp5_ampr_direct_child(const char*path,
+                                          const char*parent){
+ const size_t len=strlen(parent);
+ return strncmp(path,parent,len)==0&&
+        cmp5_ampr_safe_component(path+len);
+}
+static inline bool cmp5_ampr_image_suffix(const char*name){
+ const char*dot=strrchr(name,'.');
+ return dot&&(!strcasecmp(dot,".exfat")||!strcasecmp(dot,".ffpkg")||
+              !strcasecmp(dot,".ffpfs")||!strcasecmp(dot,".ffpfsc"));
+}
 static inline bool cmp5_ampr_source_candidate(const char*path){
- if(!path||path[0]!='/'||strlen(path)>=192u||
-    strstr(path,"..")||strstr(path,"//")||strchr(path,'\\'))return false;
- if(strncmp(path,"/data/homebrew/",15u)==0&&path[15])return true;
- if(strncmp(path,"/data/etaHEN/games/",19u)==0&&path[19])return true;
+ if(!path||path[0]!='/'||strlen(path)>=192u)return false;
+ if(cmp5_ampr_direct_child(path,"/data/homebrew/")||
+    cmp5_ampr_direct_child(path,"/data/etaHEN/games/"))return true;
  if(strncmp(path,"/mnt/",5u)!=0)return false;
  const char*p=path+5;
  if(strncmp(p,"usb",3u)!=0&&strncmp(p,"ext",3u)!=0)return false;
- return p[3]>='0'&&p[3]<='7'&&p[4]=='/'&&p[5]!=0;
+ p+=3;
+ if(p[0]<'0'||p[0]>'7'||p[1]!='/')return false;
+ p+=2;
+ return cmp5_ampr_direct_child(p,"homebrew/")||
+        cmp5_ampr_direct_child(p,"etaHEN/games/")||
+        (cmp5_ampr_safe_component(p)&&cmp5_ampr_image_suffix(p));
+}
+/* AMPR's serialized C bool has exactly one byte. Raw request.bin input
+ * may contain 0x02 or 0xff: reading such an invalid bool through a C++
+ * field can trigger undefined behaviour. Validate raw object bytes first,
+ * before ANY typed boolean access (including short-circuit expressions). */
+static inline bool cmp5_ampr_boolean_encoding_valid(
+ const Cmp5AmprSavedRequest*r){
+ if(!r)return false;
+ const unsigned char*bytes=(const unsigned char*)r;
+ static const size_t offsets[]={
+  offsetof(Cmp5AmprSavedRequest,clean_leftovers),
+  offsetof(Cmp5AmprSavedRequest,overwrite),
+  offsetof(Cmp5AmprSavedRequest,remove_source),
+  offsetof(Cmp5AmprSavedRequest,resume),
+  offsetof(Cmp5AmprSavedRequest,verify),
+  offsetof(Cmp5AmprSavedRequest,dedup),
+  offsetof(Cmp5AmprSavedRequest,force)
+ };
+ for(size_t i=0;i<sizeof(offsets)/sizeof(offsets[0]);i++)
+  if(bytes[offsets[i]]>1u)return false;
+ return true;
 }
 static inline bool cmp5_ampr_request_valid(
  const Cmp5AmprSavedRequest*r,const char*base,const char*title){
- if(!r||!base||!title)return false;
+ if(!r||!base||!title||!cmp5_ampr_boolean_encoding_valid(r))return false;
  if(memcmp(r->magic,"E2AREQ05",8)!=0 ||
     !cmp5_ampr_terminated(r->source,sizeof(r->source)) ||
     !cmp5_ampr_terminated(r->smp_title,sizeof(r->smp_title)) ||
