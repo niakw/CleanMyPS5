@@ -9,9 +9,14 @@ le même nom et la même taille. Le moteur utilise désormais une
 **empreinte de plan v2** qui combine le plan précédent et le SHA-256
 du **contenu réel** de chaque fichier synthétique publié.
 
-Chaque fichier synthétique est ouvert avec `O_NOFOLLOW` et ses
-attributs sont vérifiés : fichier régulier, lien unique, taille
-identique au manifeste et identité stable au cours de la lecture.
+Chaque fichier synthétique est ouvert via une traversée ancrée
+depuis `/`, en ouvrant **chaque répertoire parent**, y compris `fakelib`,
+avec `O_DIRECTORY | O_NOFOLLOW`. Le fichier final est ouvert par
+`openat` sans suivre de lien symbolique ; son entrée nommée est revérifiée
+après lecture. Les attributs contrôlés comprennent le type régulier,
+le lien unique, la taille attendue et l'identité stable pendant le hachage.
+Une fixture remplace successivement `fakelib` puis le chemin de destination
+par des liens symboliques et exige un refus.
 Les fichiers absents, illisibles, remplacés par un lien symbolique
 ou dont le contenu ne correspond plus empêchent la reprise. La
 vérification n'écrit rien dans le dossier du jeu. Elle s'ajoute
