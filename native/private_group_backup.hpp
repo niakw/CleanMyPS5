@@ -10,10 +10,34 @@ namespace cmp5_private_backup {
 enum class GroupStatus : unsigned {
  unattempted, refused, storage_unavailable, unsupported, failed, verified
 };
+/* Read-only, privacy-safe summary of PERSISTED original locators.
+ * A matching original still does not validate Sony's separate indexes. */
+struct SourceReview {
+ bool checked=false;
+ unsigned unchanged=0u,missing=0u,changed=0u,unknown=0u;
+};
+inline SourceReview summarize_sources(
+ const Cmp5OriginLiveState states[CMP5_GROUP_MAX],
+ unsigned count) noexcept {
+ SourceReview summary{};
+ if(!states||count<2u||count>CMP5_GROUP_MAX)return summary;
+ for(unsigned i=0;i<count;i++){
+  switch(states[i]){
+   case CMP5_ORIGIN_UNCHANGED:++summary.unchanged;break;
+   case CMP5_ORIGIN_MISSING:++summary.missing;break;
+   case CMP5_ORIGIN_CHANGED:++summary.changed;break;
+   case CMP5_ORIGIN_UNKNOWN:++summary.unknown;break;
+   default:return SourceReview{}; // malformed state: do not claim a review
+  }
+ }
+ summary.checked=true;
+ return summary;
+}
 struct GroupOutcome {
  GroupStatus status=GroupStatus::unattempted;
  char id[32]{};
  Cmp5GroupReceipt receipt{};
+ SourceReview sources{};
 };
 inline bool group_name(const Cmp5MediaCandidate&primary,char out[32]) noexcept {
  char capsule[32]{};
@@ -46,6 +70,14 @@ inline GroupOutcome verify_saved_group(const char*id,
  }
  out.receipt=checked;
  out.status=GroupStatus::verified;
+ /* An intact archive does not imply that the Gallery still contains the
+  * originals. Scan the persistently saved locators after SHA verification;
+  * unknown/unavailable inspection NEVER invalidates the archived bytes or
+  * authorizes any write. The native worker handles cancellation. */
+ Cmp5OriginLiveState states[CMP5_GROUP_MAX]{};
+ if(cmp5_inspect_group_originals("/",workspace,id,states,cancel,ctx)&&
+    !(cancel&&cancel(ctx)))
+  out.sources=summarize_sources(states,checked.count);
  return out;
 }
 /* Two affirmative controller actions precede this call. This code cannot
