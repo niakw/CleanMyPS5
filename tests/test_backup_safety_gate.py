@@ -62,6 +62,14 @@ assert 'if(!capsule&&!group_member)return 0;' in sources
 assert 'cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,' in (
     root/"native/private_media_backup.hpp").read_text()
 assert 'Operation::rehearse_private_media: return actor==Actor::native_title;' in privilege
+assert 'Operation::discard_private_rehearsal: return actor==Actor::native_title;' in privilege
+assert 'case Operation::delete_gallery_media:' not in privilege
+assert 'case Operation::clean_system_cache:' not in privilege
+assert 'if(capsule&&(flock(source_dir,LOCK_SH|LOCK_NB)!=0||' in sources
+assert 'flock(target,LOCK_EX|LOCK_NB)!=0)' in sources
+assert '*mutation_started=1;' in sources
+assert 'ok=unlinkat(target,newname,0)==0;' in sources
+assert 'int*mutation_started,Cmp5CancelCheck cancel' in sources
 assert 'restore_gallery,' in privilege
 assert 'case Operation::restore_gallery:' not in privilege
 assert '#include "elevation.hpp"' not in native
