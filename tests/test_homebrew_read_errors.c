@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 static int eof_error_enabled,eof_error_seen;
 static int close_error_enabled,close_error_seen;
 static int fake_cache_identity_mode,cache_name_lookups;
@@ -80,6 +81,6 @@ int main(int argc,char**argv){
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
  }
- puts("Homebrew readdir, closedir and cache identity races: PARTIAL; healthy apps retained");
+ puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
 }
