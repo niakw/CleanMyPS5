@@ -2916,6 +2916,17 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
     private_inventory.partial?"DOSSIER PARTIEL OU RESIDUS A AUDITER":
       "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIE");
   show_archive_audit_result(canvas,700);
+  if(private_inventory.staged){
+   char stages[160]{};
+   (void)std::snprintf(stages,sizeof(stages),
+     "%u TEMPORAIRES  %llu MIO NOMINAUX  %u TAILLES NON VERIFIEES",
+     private_inventory.staged,
+     static_cast<unsigned long long>(
+       private_inventory.staged_nominal_bytes/1048576ULL),
+     private_inventory.staged_unverified);
+   canvas.text(130,849,stages,2,Color::yellow);
+   canvas.text(130,891,"RESIDUS PRIVES  AUCUNE SUPPRESSION AUTO",2,Color::yellow);
+  }
   footer(canvas,"L1/R1 TYPE  CARRE AUDITER TOUT  TRIANGLE SCANNER  CERCLE");
   return;
  }
@@ -2944,6 +2955,16 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
   show_archive_audit_result(canvas,885);
  else if(private_inventory.partial)
   canvas.text(130,885,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
+ if(private_inventory.staged){
+  char stages[148]{};
+  (void)std::snprintf(stages,sizeof(stages),
+    "%u TEMPORAIRES : %llu MIO NOMINAUX  %u INCONNUS  PAS DE PURGE",
+    private_inventory.staged,
+    static_cast<unsigned long long>(
+      private_inventory.staged_nominal_bytes/1048576ULL),
+    private_inventory.staged_unverified);
+  canvas.text(130,925,stages,2,Color::yellow);
+ }
  footer(canvas,capsule_return_screen==Screen::menu?
     "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE":
     "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE");
