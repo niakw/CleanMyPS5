@@ -44,6 +44,7 @@ def check_backup_writer(content: str, name: str) -> None:
    'rehearsal_workspace="/download0/cmp5-private-rehearsals"',
    "cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,",
    "cmp5_verify_rehearsed_backup(workspace,id,rehearsal_workspace,",
+   "cmp5_discard_rehearsed_backup(workspace,id,rehearsal_workspace,",
    'cmp5_backup_media("/",&item,workspace,out.capsule_id,',
    "cmp5_verify_backup(workspace,out.capsule_id,",
   )
@@ -73,6 +74,9 @@ def check_backup_writer(content: str, name: str) -> None:
    "cmp5_backup_media(",
    "cmp5_verify_backup(",
    "cmp5_verify_rehearsed_backup(",
+   "cmp5_discard_rehearsed_backup(",
+   "flock(target,LOCK_EX|LOCK_NB)",
+   "unlinkat(target,newname,0)==0",
    'strcmp(newname+4u,id)!=0',
    "CMP5_BACKUP_LIMIT",
    "O_CREAT|O_EXCL|O_NOFOLLOW",
