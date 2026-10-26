@@ -168,6 +168,13 @@ static void record_top(Audit*a,const char*basename,const char*kind,
 /* Observe cache-like app-owned names WITHOUT declaring them disposable.
  * Only direct children under /data/<app> are considered; paths and cache
  * filenames are not retained in native Cmp5HomebrewStats. */
+/* Metadata-only scanners must not quietly accept a directory swapped
+ * between its name lookup, open and final lookup. This proves only the
+ * directory identity at sampled points, NOT cache ownership or quiescence. */
+static int same_cache_dir(const struct stat*a,const struct stat*b){
+ return S_ISDIR(a->st_mode)&&S_ISDIR(b->st_mode)&&
+        a->st_dev==b->st_dev&&a->st_ino==b->st_ino;
+}
 static int cache_like_name(const char*name){
  return name&&(!strcasecmp(name,"cache")||!strcasecmp(name,".cache")||
                !strcasecmp(name,"tmp")||!strcasecmp(name,"temp"));
@@ -198,13 +205,27 @@ static void scan_cache_subdirs(Audit*a,int app_dir){
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   /* A symlink or regular file called cache/temp is not a cache folder.
-   * Refuse to follow it or infer any bytes from its target. */
+   * A mounted subvolume is also deliberately outside this one-app scope. */
   if(!S_ISDIR(st.st_mode))continue;
+  struct stat parent={0};
+  if(fstat(app_dir,&parent)!=0||!S_ISDIR(parent.st_mode)||
+     st.st_dev!=parent.st_dev){
+   a->stats->cache_like_partial=1u;a->partial=1;continue;
+  }
   const int child=openat(app_dir,e->d_name,
                          O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   if(child<0){a->stats->cache_like_partial=1u;a->partial=1;continue;}
+  struct stat opened={0};
+  if(fstat(child,&opened)!=0||!same_cache_dir(&st,&opened)){
+   close(child);a->stats->cache_like_partial=1u;a->partial=1;continue;
+  }
   uint64_t bytes=0;size_t files=0;int partial=0;
   count_tree(a,child,0,&bytes,&files,&partial); /* owns child fd */
+  struct stat after={0};
+  if(fstatat(app_dir,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
+     !same_cache_dir(&st,&after)){
+   a->stats->cache_like_partial=1u;a->partial=1;continue;
+  }
   if(a->stats->cache_like_folders==UINT32_MAX||
      files>UINT32_MAX||
      a->stats->cache_like_files>UINT32_MAX-(uint32_t)files||
@@ -272,9 +293,17 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0)partial=1;
    else{
-    if(!strcmp(kind,"app-data")&&!strcmp(relative,"data"))
-     scan_cache_subdirs(a,child);
-    count_tree(a,child,0,&bytes,&files,&partial);
+    struct stat opened={0};
+    if(fstat(child,&opened)!=0||!same_cache_dir(&st,&opened)){
+     close(child);partial=1;
+    }else{
+     if(!strcmp(kind,"app-data")&&!strcmp(relative,"data"))
+      scan_cache_subdirs(a,child);
+     count_tree(a,child,0,&bytes,&files,&partial);
+     struct stat after={0};
+     if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
+        !same_cache_dir(&st,&after))partial=1;
+    }
    }
   }
   record_top(a,e->d_name,kind,bytes,files,partial);
