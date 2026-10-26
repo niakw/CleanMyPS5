@@ -84,8 +84,12 @@ int main(void) {
  assert(cmp5_entries_plan_hash(&files,current)==0);
  assert(strcmp(saved,current)!=0);
  entries[1].size--;
+ /* The origin/synthetic classification is itself part of the plan. */
  entries[1].synthetic=false;
  entries[1].mtime-=600;
+ assert(cmp5_entries_plan_hash(&files,current)==0);
+ assert(strcmp(saved,current)!=0);
+ entries[1].synthetic=true;
  assert(cmp5_entries_plan_hash(&files,current)==0);
  assert(strcmp(saved,current)==0);
 
