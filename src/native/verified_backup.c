@@ -449,7 +449,7 @@ int cmp5_discard_rehearsed_backup(const char*backup,const char*id,
       saved.bytes<=CMP5_BACKUP_LIMIT;
  /* Never sweep staging and never remove if another writer has published
   * an unfinished sibling. A failure leaves the raw copy untouched. */
- char staged[64]{};
+ char staged[64]={0};
  const int name_length=snprintf(staged,sizeof(staged),".%s.part",newname);
  struct stat stage={0};
  if(ok)ok=name_length>0&&(size_t)name_length<sizeof(staged);
