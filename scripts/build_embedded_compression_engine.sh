@@ -23,6 +23,8 @@ cp "$project/src/native/compression_allowed_paths.h" \
   "$work/engine/src/cmp5_compression_allowed_paths.h"
 cp "$project/src/native/ampr_checkpoint_profile.h" \
   "$work/engine/src/cmp5_ampr_checkpoint_profile.h"
+cp "$project/src/native/ampr_checkpoint_plan.h" \
+  "$work/engine/src/cmp5_ampr_checkpoint_plan.h"
 python3 "$project/scripts/verify_embedded_engine_policy.py" "$work/engine"
 make -C "$work/engine" deps
 # Source commit + release-asset SHA-256 pins: a tagged URL is not by
