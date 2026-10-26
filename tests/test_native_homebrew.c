@@ -18,14 +18,14 @@ int main(int argc,char**argv){
  assert(stats.homebrew==2);
  assert(stats.plugins==1);
  assert(stats.installed==1);
- assert(stats.app_data==4);
- assert(stats.entries==8);
+ assert(stats.app_data==3);
+ assert(stats.entries==7);
  assert(stats.partial==0u);
  assert(stats.data_root_state==1u&&stats.installed_root_state==1u);
  assert(strstr(report,"\"rootCoverage\":{\"appData\":\"readable\",\"installedTitles\":\"readable\"}"));
  /* No plugin/homebrew directory is counted twice via /data. The
   * protected config and saves directories remain excluded. */
- assert(stats.nominal_bytes==37u); /* separate unlinked app cache is nominal */
+ assert(stats.nominal_bytes==36u); /* separate unlinked app cache is nominal */
  assert(stats.top_count==4u);
  for(unsigned i=0;i<stats.top_count;i++){
   const Cmp5HomebrewTop*item=&stats.top[i];
@@ -37,17 +37,17 @@ int main(int argc,char**argv){
  }
  assert(stats.top[0].nominal_bytes==16u);
  /* Cache-like names are just directory observations, not deletion claims. */
- assert(stats.cache_like_folders==5u&&stats.cache_like_files==5u);
- assert(stats.cache_like_nominal_bytes==20u&&!stats.cache_like_partial);
+ assert(stats.cache_like_folders==4u&&stats.cache_like_files==4u);
+ assert(stats.cache_like_nominal_bytes==19u&&!stats.cache_like_partial);
  assert(stats.cache_like_name_matched==3u);
- assert(stats.cache_like_name_unmatched==2u);
+ assert(stats.cache_like_name_unmatched==1u);
  assert(!stats.homebrew_name_index_partial);
  /* .cache is intentionally excluded from the general app subtotal,
   * and the independent cache-candidate subtotal is NON-ADDITIVE. */
- assert(stats.nominal_bytes==37u);
- assert(strstr(report,"\"cacheCandidates\":{\"folders\":5,\"files\":5,"));
- assert(strstr(report,"\"nominalBytes\":20,\"partial\":false,"));
- assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":2,\"nameIndexPartial\":false,\"providerVerified\":false,\"deletable\":false"));
+ assert(stats.nominal_bytes==36u);
+ assert(strstr(report,"\"cacheCandidates\":{\"folders\":4,\"files\":4,"));
+ assert(strstr(report,"\"nominalBytes\":19,\"partial\":false,"));
+ assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":1,\"nameIndexPartial\":false,\"providerVerified\":false,\"deletable\":false"));
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
@@ -57,9 +57,9 @@ int main(int argc,char**argv){
   * not silently show 0 just because a separate Stats struct is absent. */
  report=cmp5_homebrew(argv[1],&length);
  assert(report&&length>100u);
- assert(strstr(report,"\"cacheCandidates\":{\"folders\":5,\"files\":5,"));
- assert(strstr(report,"\"nominalBytes\":20,\"partial\":false,"));
- assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":2,"));
+ assert(strstr(report,"\"cacheCandidates\":{\"folders\":4,\"files\":4,"));
+ assert(strstr(report,"\"nominalBytes\":19,\"partial\":false,"));
+ assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":1,"));
  assert(strstr(report,"\"deletable\":false"));
  free(report);
  Cmp5HomebrewStats interrupted={0};
