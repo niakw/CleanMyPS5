@@ -134,6 +134,15 @@ endif()
 add_test(NAME private_discard_uncertain_fixture
  COMMAND $<TARGET_FILE:cmp5-discard-uncertain-tests>)
 
+# PS5 C++ facade must preserve all three C cleanup outcomes.
+add_executable(cmp5-discard-policy-tests tests/test_private_discard_policy.cpp)
+target_include_directories(cmp5-discard-policy-tests PRIVATE native src/native)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-discard-policy-tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME private_discard_result_policy
+ COMMAND $<TARGET_FILE:cmp5-discard-policy-tests>)
+
 # The prototype MUST remain host-only until PS5 media-index restore is proven.
 add_test(NAME verified_backup_activation_gate
  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_backup_safety_gate.py)
