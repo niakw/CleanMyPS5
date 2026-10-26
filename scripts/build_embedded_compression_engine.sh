@@ -26,6 +26,13 @@ cp "$project/src/native/ampr_checkpoint_profile.h" \
 cp "$project/src/native/ampr_checkpoint_plan.h" \
   "$work/engine/src/cmp5_ampr_checkpoint_plan.h"
 python3 "$project/scripts/verify_embedded_engine_policy.py" "$work/engine"
+# Compile the EXACT final-plan hash used by the transformed PS5 worker,
+# linked against the pinned engine's actual SHA-256 implementation.
+cc -std=c11 -Wall -Wextra -Wpedantic -Werror \
+  -I"$work/engine/src" \
+  "$project/tests/test_ampr_plan_hash.c" "$work/engine/src/sha256.c" \
+  -o "$work/cmp5-ampr-plan-check"
+"$work/cmp5-ampr-plan-check"
 make -C "$work/engine" deps
 # Source commit + release-asset SHA-256 pins: a tagged URL is not by
 # itself sufficient to authenticate executable SPRX dependencies.
