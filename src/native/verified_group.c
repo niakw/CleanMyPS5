@@ -573,6 +573,43 @@ int cmp5_read_group_origin_map(const char*workspace,const char*id,
  if(ok)*r=restored;
  return ok;
 }
+/* Re-open the entire parent path from the pinned test root. Holding
+ * a directory descriptor protects it against symlinks, but that inode
+ * survives a rename of the parent. MISSING is meaningful only if the
+ * parent we probed still lives under the ORIGINAL complete path.
+ * A valid existing file is subject to the same check before CHANGED or
+ * UNCHANGED can be reported. No Gallery writes are made here. */
+static int origin_parent_current(int root,const char*path,
+                                 size_t prefix_len,int held_parent){
+ if(root<0||held_parent<0||!path||path[0]!='/'||
+    prefix_len>=256u)return 0;
+ int current=openat(root,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(current<0)return 0;
+ size_t start=1u;
+ while(start<prefix_len){
+  size_t end=start;
+  while(end<prefix_len&&path[end]!='/')end++;
+  const size_t len=end-start;
+  if(len==0u||len>=256u||path[start]=='.'){
+   close(current);return 0;
+  }
+  char part[256];
+  memcpy(part,path+start,len);
+  part[len]=0;
+  int child=openat(current,part,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  close(current);
+  if(child<0)return 0;
+  current=child;
+  start=end+1u;
+ }
+ struct stat held={0},named={0};
+ const int valid=fstat(held_parent,&held)==0&&fstat(current,&named)==0&&
+   S_ISDIR(held.st_mode)&&S_ISDIR(named.st_mode)&&
+   held.st_dev==named.st_dev&&held.st_ino==named.st_ino&&
+   held.st_uid==named.st_uid&&held.st_mode==named.st_mode;
+ close(current);
+ return valid;
+}
 /* Read-only source review based on *persisted* CMP5MAP2 metadata.
  * A file that now occupies an old pathname is not automatically the
  * original. This code never creates a source path or repairs Sony indexes.
@@ -595,9 +632,12 @@ static Cmp5OriginLiveState inspect_source_once(int root,
   const int fd=openat(current,part,O_RDONLY|O_NOFOLLOW|
                       (next?O_DIRECTORY:O_NONBLOCK));
   const int problem=errno;
+  const size_t parent_prefix=(size_t)(part-components);
   if(fd<0){
+   const int stable_missing=problem==ENOENT&&
+     origin_parent_current(root,entry->path,parent_prefix,current);
    close(current);
-   return problem==ENOENT?CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNKNOWN;
+   return stable_missing?CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNKNOWN;
   }
   if(!next){
    Cmp5MediaCandidate original={0};
@@ -617,7 +657,8 @@ static Cmp5OriginLiveState inspect_source_once(int root,
    if(fstat(fd,&observed)==0&&fstat(fd,&repeat)==0&&
       fstatat(current,part,&named,AT_SYMLINK_NOFOLLOW)==0&&
       S_ISREG(named.st_mode)&&
-      same_file(&observed,&repeat)&&same_file(&repeat,&named)){
+      same_file(&observed,&repeat)&&same_file(&repeat,&named)&&
+      origin_parent_current(root,entry->path,parent_prefix,current)){
     const int valid=cmp5_snapshot_matches(&original,&observed)&&
                     cmp5_snapshot_matches(&original,&repeat);
     state=valid?CMP5_ORIGIN_UNCHANGED:CMP5_ORIGIN_CHANGED;
