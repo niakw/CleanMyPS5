@@ -1,5 +1,37 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise : même profil de jeu, même plan de conversion (26 octobre 2026)
+
+Une conversion interrompue possède déjà des volumes, un manifeste et
+une liste d'actions compressées ou laissées en fichiers ordinaires.
+Le moteur AMPR réappliquait jusqu'ici **le profil courant** du jeu à la
+reprise : même si nous avions figé le niveau LZ4, un profil modifié
+après la pause pouvait reclasser des fichiers et rendre le checkpoint
+incohérent.
+
+Chaque **nouvelle** conversion CleanMyPS5 enregistre désormais dans
+les octets réservés de `E2AREQ05/request.bin` un marqueur versionné
+`CMP5PF01` et l'empreinte SHA-256 **complète** du profil effectivement
+chargé, ou un marqueur explicite « sans profil ». À la reprise, le
+moteur revérifie la présence et l'empreinte du profil **avant**
+d'appliquer les règles et avant de réécrire le checkpoint. Le profil
+doit également rester identique pendant son chargement.
+
+Le lecteur natif de l'inventaire reconnaît la même convention. Un
+ancien checkpoint sans marqueur, un profil ajouté, supprimé ou modifié
+et une empreinte non conforme **ne peuvent pas être repris
+automatiquement**. Ces données et les sorties partielles restent
+présentes, sans nettoyage ni conversion repartant de zéro. Les profils
+doivent rester inchangés pour pouvoir reprendre une conversion récente.
+
+Ce verrouillage est une **vérification de cohérence**, pas une signature
+contre un adversaire modifiant aussi le checkpoint. Les tests C/C++
+valident le marqueur, l'empreinte complète, les profils absents, les
+altérations et le refus des anciens formats. La CI examine également
+l'ordre exact dans le code C transformé du moteur. Le comportement
+du jeu compressé sur PS5 13.60 reste à vérifier sur matériel réel.
+
+
 ## Inventaire des reprises : vérifier le contenu du checkpoint (26 octobre 2026)
 
 L'écran **Conversions interrompues sur disque** ne se contente plus
