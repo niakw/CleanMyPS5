@@ -96,7 +96,7 @@ int main(int argc,char**argv){
  memset(&stats,0,sizeof(stats));size=0;
  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100&&stats.partial);
- assert(app_name_lookups>=4);
+ assert(app_name_lookups==3); /* mismatched open stops before post-scan */
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
  assert(stats.cache_like_folders==0u&&stats.cache_like_nominal_bytes==0u);
  assert(strstr(json,"\"partial\":true"));
