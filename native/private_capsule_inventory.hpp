@@ -282,13 +282,28 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
                      Cmp5CancelCheck cancel,void*context) noexcept {
  if(out)*out=ArchiveAudit{};
  if(!folder||!out||(cancel&&cancel(context)))return false;
+ /* The directory could be swapped for a new 0700 workspace with the
+  * SAME archive filenames while a long SHA-256 pass is in progress.
+  * Pin its original inode and re-open the actual path before publication. */
+ const int pinned=cmp5_open_private_workspace(folder);
+ if(pinned<0)return false;
+ struct stat original{},held{},visible{};
  Inventory before{},after{};
  ArchiveAudit result{};
- if(!scan_at(folder,&before,cancel,context)||
-    !audit_inventory_at(before,folder,&result,cancel,context)||
-    !scan_at(folder,&after,cancel,context)||
-    !same_archive_listing(before,after)||
-    (cancel&&cancel(context)))return false;
+ bool ok=fstat(pinned,&original)==0&&
+   scan_at(folder,&before,cancel,context)&&
+   audit_inventory_at(before,folder,&result,cancel,context)&&
+   scan_at(folder,&after,cancel,context)&&
+   same_archive_listing(before,after);
+ const int current=ok?cmp5_open_private_workspace(folder):-1;
+ if(ok)ok=current>=0&&fstat(pinned,&held)==0&&
+   fstat(current,&visible)==0&&
+   same_inventory_directory(original,held)&&
+   same_inventory_directory(original,visible)&&
+   !(cancel&&cancel(context));
+ if(current>=0)close(current);
+ close(pinned);
+ if(!ok)return false;
  *out=result;
  return true;
 }
