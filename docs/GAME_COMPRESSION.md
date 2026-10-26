@@ -1,5 +1,30 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise : refuser les checkpoints incompatibles avec la politique CleanMyPS5 (26 octobre 2026)
+
+Avant d'ajouter un job de reprise dans la file du moteur AMPR intégré,
+le code PS5 vérifie désormais **les options réellement persistées**
+dans `.e2a-state/request.bin`. Un checkpoint historique ou altéré
+qui demande le remplacement d'une sortie, la suppression de la source,
+le nettoyage implicite, le forçage d'un jeu incompatible, la désactivation
+de la vérification d'intégrité ou de la déduplication, l'activation du cache
+alternatif ou d'un scénario de pause artificiel est **refusé**, même si
+le système pouvait auparavant neutraliser ces champs silencieusement
+au moment de l'enqueue.
+
+Cette vérification concerne les reprises autorisées après redémarrage
+comme celles de la même session. Elle ne modifie ni ne supprime le
+checkpoint refusé : l'utilisateur conserve ses fichiers pour inspection
+sans transformer un ancien job provenant d'un autre outil en conversion
+CleanMyPS5 « sûre ». Le niveau LZ4 proprement enregistré reste préservé.
+
+Les tests C couvrent les huit champs persistés et leurs valeurs dangereuses.
+La CI du titre PS5 examine aussi la fonction appelée **après la lecture du
+checkpoint et avant sa mise en file**, dans les sources du moteur
+effectivement transformées. Cela demeure un contrôle de politique et
+de provenance, non une validation de jouabilité sur FW 13.60.
+
+
 ## Reprise d'un checkpoint : conserver le niveau LZ4 choisi (26 octobre 2026)
 
 Le formulaire natif de reprise après fermeture du titre envoyait à tort
