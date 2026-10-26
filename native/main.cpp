@@ -2634,7 +2634,7 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
      general_games.unavailable_roots,
      general_games.partial?"  PARTIEL":"");
   }else (void)std::snprintf(observed,sizeof(observed),"NON MESURE");
-  panel(canvas,651,"IMAGES JEUX (EXFAT / FFPKG / PFS)",observed,Color::cyan);
+  panel(canvas,651,"IMAGES DE JEUX",observed,Color::cyan);
   if(general_audit_completed&&general_games.checked){
    (void)std::snprintf(observed,sizeof(observed),
      "%llu MIO DOSSIERS  %u DOSSIERS PARTIELS%s",
