@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
