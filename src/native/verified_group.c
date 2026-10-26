@@ -595,10 +595,10 @@ static Cmp5OriginLiveState inspect_source_once(int root,
   const int fd=openat(current,part,O_RDONLY|O_NOFOLLOW|
                       (next?O_DIRECTORY:O_NONBLOCK));
   const int problem=errno;
-  close(current);
-  if(fd<0)return problem==ENOENT?
-    CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNKNOWN;
-  current=fd;
+  if(fd<0){
+   close(current);
+   return problem==ENOENT?CMP5_ORIGIN_MISSING:CMP5_ORIGIN_UNKNOWN;
+  }
   if(!next){
    Cmp5MediaCandidate original={0};
    original.bytes=entry->bytes;
@@ -609,15 +609,22 @@ static Cmp5OriginLiveState inspect_source_once(int root,
    original.snapshot_ctime=entry->snapshot_ctime;
    original.snapshot_mtime_nsec=entry->snapshot_mtime_nsec;
    original.snapshot_ctime_nsec=entry->snapshot_ctime_nsec;
-   struct stat observed={0},repeat={0};
-   /* An I/O failure is UNKNOWN rather than proof of replacement.
-    * Only two successful metadata reads may establish CHANGED/UNCHANGED. */
-   if(fstat(current,&observed)==0&&fstat(current,&repeat)==0){
+   struct stat observed={0},repeat={0},named={0};
+   /* Keep the parent descriptor open to check the final NAME. An open
+    * descriptor outlives rename/unlink, so a pair of fstats cannot prove
+    * that the saved Gallery path still points to the captured inode.
+    * A path changed during the read is UNKNOWN, never restore evidence. */
+   if(fstat(fd,&observed)==0&&fstat(fd,&repeat)==0&&
+      fstatat(current,part,&named,AT_SYMLINK_NOFOLLOW)==0&&
+      S_ISREG(named.st_mode)&&
+      same_file(&observed,&repeat)&&same_file(&repeat,&named)){
     const int valid=cmp5_snapshot_matches(&original,&observed)&&
                     cmp5_snapshot_matches(&original,&repeat);
     state=valid?CMP5_ORIGIN_UNCHANGED:CMP5_ORIGIN_CHANGED;
    }
   }
+  close(current);
+  current=fd;
   part=next;
  }
  close(current);
