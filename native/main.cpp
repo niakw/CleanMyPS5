@@ -797,9 +797,20 @@ void run_capsule_inventory() noexcept {
 void run_private_archive_audit() noexcept {
  private_archive_audit=cmp5_private_backup::ArchiveAudit{};
  cmp5_private_backup::ArchiveAudit verified{};
- if(cmp5_private_backup::audit(&verified,cancellation_hook,nullptr)&&
-    !cancellation_hook(nullptr))
+ cmp5_private_backup::Inventory current{};
+ if(cmp5_private_backup::audit(&verified,&current,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr)){
+  /* Show exactly the bounded set independently re-scanned after hashing;
+   * an old selection index must not target a different archive. */
+  private_inventory=current;
+  private_inventory_selection=0u;
   private_archive_audit=verified;
+ }else{
+  /* A workspace switch or unreadable scan invalidates the old catalogue;
+   * a failed audit must not leave a seemingly current archive list. */
+  private_inventory=cmp5_private_backup::Inventory{};
+  private_inventory_selection=0u;
+ }
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
