@@ -50,6 +50,13 @@ static int intercepted_fstat(int fd,struct stat*info){
 #undef fstatat
 #undef closedir
 int main(int argc,char**argv){
+ /* A primary *.jpg can fit the final byte of preview_path while its
+  * same-stem *.jpeg companion would overflow by exactly one byte. */
+ assert(companion_locator_fits(249u,5u,256u));
+ assert(!companion_locator_fits(249u,6u,256u));
+ assert(!companion_locator_fits(250u,5u,256u));
+ assert(!companion_locator_fits(SIZE_MAX,1u,256u));
+ assert(!companion_locator_fits(0u,0u,0u));
  if(argc!=7)return 2;
  const char*root=argv[1],*media=argv[2],*relative=argv[3];
  if(snprintf(old_parent,sizeof(old_parent),"%s",argv[4])<=0||
