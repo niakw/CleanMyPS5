@@ -1,5 +1,46 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise LZ4 : même source et même plan de fichiers (26 octobre 2026)
+
+La continuité du profil TOML ne suffit pas si les **fichiers du jeu
+ont changé après la création du checkpoint**. Le moteur AMPR intégré
+calcule donc, après le scan, les règles du profil, la génération des
+fichiers runtime et le budget des blocs, une empreinte SHA-256 canonique
+du **plan final de conversion**, indépendante du remplissage des structs
+C et de leur représentation mémoire.
+
+Le plan inclut le nombre de fichiers, leur nom relatif, taille, date
+de modification (pour les fichiers source), action (copie directe,
+compression LZ4 ou stockage brut), taille de bloc, disposition et
+indicateurs `hot` et `synthetic`. La date volatile des fichiers
+runtime synthétiques est ignorée, mais leur taille et leur action
+restent couvertes. L'empreinte de 160 bits est conservée dans
+les derniers octets de `E2AREQ05/request.bin`, **en complément**
+de l'empreinte complète du profil TOML.
+
+La demande d'une nouvelle conversion n'est enregistrée qu'une fois
+ce plan final connu. À la reprise, le moteur recalcule le même plan
+et refuse toute divergence **avant de réécrire le checkpoint et
+avant de poursuivre les blocs**. Une conversion trop précoce pour
+avoir écrit ce nouveau plan, ou un ancien checkpoint sans empreinte,
+n'est pas autorisée à reprendre automatiquement : la sortie
+partielle est conservée pour inspection.
+
+**Limite importante :** il s'agit d'une empreinte des métadonnées et
+des décisions de conversion, **pas du SHA-256 de chaque octet source**.
+Une altération de contenu conservant précisément taille et date peut
+échapper à cette vérification ; des fichiers peuvent aussi changer
+après le scan. Le moteur doit toujours revérifier l'intégrité des
+sorties, et seul un essai réel sur PS5 13.60 peut confirmer la
+jouabilité. Ce garde-fou n'autorise aucune suppression.
+
+La fixture `tests/test_ampr_plan_hash.c` compile **le même en-tête C**
+que le worker, avec la bibliothèque SHA-256 de la révision épinglée
+AMPR, et injecte des changements de nom, taille, date, action, taille
+de bloc, disposition, statut synthétique et nombre/ordre des entrées.
+La construction PS5 exige la réussite de ce test.
+
+
 ## Reprise : même profil de jeu, même plan de conversion (26 octobre 2026)
 
 Une conversion interrompue possède déjà des volumes, un manifeste et
