@@ -22,7 +22,7 @@
 /* Private-only mapping of original Gallery locators AND snapshot identities
  * to ordered capsules. v2: path[256], bytes[8], type[4],
  * dev[8], inode[8], ctime[8], mtime[8], mtime_ns[4], ctime_ns[4].
- * Host-only, no Gallery write paths. */
+ * Native and host read-only mapping; no Gallery write paths. */
 #define ORIGIN_RECORD_SIZE 308u
 #define ORIGIN_HEADER_SIZE 44u
 #define ORIGIN_DIGEST_OFFSET (ORIGIN_HEADER_SIZE+CMP5_GROUP_MAX*ORIGIN_RECORD_SIZE)
@@ -545,7 +545,8 @@ backup_done:
  return ok;
 }
 /* Read-only post-restart recovery of the ordered source locators.
- * This remains a HOST-ONLY private-space audit: callers cannot use it to
+ * This read-only private-space audit is also used by the native title;
+ * callers cannot use it to
  * write into a PS5 Gallery or alter Sony's separate media indexes. */
 int cmp5_read_group_origin_map(const char*workspace,const char*id,
  Cmp5OriginMap*r,Cmp5CancelCheck cancel,void*ctx){
