@@ -57,6 +57,28 @@ int main(){
  progress.title_id[0]=0;
  assert(recovery_engine_ready(selected,progress));
 
+ /* C++/UBSan must reject malformed serialized bool bytes BEFORE
+  * converting them to C++ bool; 0xff is an invalid object representation. */
+ Cmp5AmprSavedRequest pinned{};
+ std::memcpy(pinned.magic,"E2AREQ05",8);
+ std::strcpy(pinned.source,"/mnt/usb0/homebrew/PPSA77777");
+ std::strcpy(pinned.dest_base,"/mnt/usb0/homebrew");
+ std::strcpy(pinned.name,"PPSA12345");
+ pinned.level=9;pinned.workers=4;
+ pinned.verify=true;pinned.dedup=true;
+ assert(cmp5_ampr_request_valid(&pinned,"/mnt/usb0/homebrew","PPSA12345"));
+ for(std::size_t field:{
+   offsetof(Cmp5AmprSavedRequest,clean_leftovers),
+   offsetof(Cmp5AmprSavedRequest,overwrite),
+   offsetof(Cmp5AmprSavedRequest,remove_source),
+   offsetof(Cmp5AmprSavedRequest,resume),
+   offsetof(Cmp5AmprSavedRequest,verify),
+   offsetof(Cmp5AmprSavedRequest,dedup),
+   offsetof(Cmp5AmprSavedRequest,force)}){
+  Cmp5AmprSavedRequest corrupt=pinned;
+  reinterpret_cast<unsigned char*>(&corrupt)[field]=0xff;
+  assert(!cmp5_ampr_request_valid(&corrupt,"/mnt/usb0/homebrew","PPSA12345"));
+ }
  char body[256]{};
  assert(recovery_resume_body(selected,body,sizeof(body)));
  assert(!std::strcmp(body,"dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345"));
