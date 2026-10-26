@@ -3065,9 +3065,25 @@ void show_archive_audit_result(ps5::demo::Canvas&canvas,unsigned y) noexcept {
  canvas.text(130,y,message,2,uncertain?Color::yellow:Color::cyan);
 }
 void show_capsules(ps5::demo::Canvas&canvas) noexcept {
+ /* Circle may leave an in-flight R3 deletion screen. Once its worker has
+  * published, surface any irreversible/ambiguous outcome in Archives,
+  * instead of silently replacing it with an ordinary inventory view. */
+ const bool idle=!task_busy();
+ const bool previous_discard=idle&&private_rehearsal_discard;
+ const bool discard_unknown=previous_discard&&
+   private_rehearsal_outcome.status==
+      cmp5_private_backup::RehearsalStatus::indeterminate;
+ const bool discard_confirmed=previous_discard&&
+   private_rehearsal_outcome.status==
+      cmp5_private_backup::RehearsalStatus::verified;
  panel(canvas,286,private_inventory_groups?"GROUPES PRIVES":"CAPSULES PRIVEES",
-   "L1/R1 BASCULER  AUCUN CHEMIN GALERIE AFFICHE",Color::cyan);
- if(task_busy()){
+   discard_unknown?
+     "RETRAIT R3 INCERTAIN  CONTROLER COPIE ET CAPSULE":
+   discard_confirmed?
+     "RETRAIT R3 CONFIRME  CAPSULE SAUVEGARDEE":
+     "L1/R1 BASCULER  AUCUN CHEMIN GALERIE AFFICHE",
+   discard_unknown?Color::yellow:Color::cyan);
+ if(!idle){
   if(task_kind==Task::private_archive_audit){
    const unsigned total=private_audit_progress.total.load(
        std::memory_order_acquire);
