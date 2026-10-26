@@ -135,6 +135,16 @@ int cmp5_verify_group(const char*folder,const char*id,
  }
  return 1;
 }
+int cmp5_restore_group(const char*,const char*,const char*,
+ Cmp5GroupReceipt*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic UI must not restore group members");
+ return 0;
+}
+int cmp5_verify_restored_group(const char*,const char*,
+ Cmp5GroupReceipt*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic UI must not read a fabricated restored group");
+ return 0;
+}
 int cmp5_inspect_group_originals(const char*root,const char*folder,
  const char*id,Cmp5OriginLiveState states[CMP5_GROUP_MAX],
  Cmp5CancelCheck cancel,void*context){
@@ -732,6 +742,20 @@ int main(){
  const unsigned group_reads_before=mock_private_group_verify_calls;
  const unsigned source_reads_before=mock_private_group_source_calls;
  press(r1);assert(private_inventory_groups);
+ /* Group uses the same two confirmations but a distinct group ID, and
+  * cannot be retargeted into a different source by another UI event. */
+ press(r2);
+ assert(screen==Screen::rehearsal&&private_rehearsal_groups);
+ assert(private_rehearsal_step==0u);
+ assert(std::strcmp(private_rehearsal_id,"GRP_0123456789ABCDEF")==0);
+ show_private_rehearsal(canvas);
+ press(cross);assert(private_rehearsal_step==1u);
+ private_rehearsal_id[0]=0;
+ press(cross);finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::denied);
+ press(circle);assert(screen==Screen::capsules);
+ assert(private_inventory_groups);
  press(cross);assert(screen==Screen::group_backup&&group_verify_only);
  finish_scan();
  assert(mock_private_group_verify_calls==group_reads_before+1u);
