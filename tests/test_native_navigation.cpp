@@ -1916,6 +1916,23 @@ int main(){
     cmp5_private_backup::RehearsalStatus::verified;
   private_rehearsal_outcome.bytes=30ULL*1024*1024;
   save(Screen::rehearsal,"01ac-private-rehearsal-complete");
+  private_rehearsal_discard=true;
+  private_rehearsal_verify_only=false;
+  private_rehearsal_groups=false;
+  private_rehearsal_step=1u;
+  private_rehearsal_outcome={};
+  save(Screen::rehearsal,"01ad-private-raw-cleanup-confirm");
+  private_rehearsal_step=2u;
+  private_rehearsal_outcome.status=
+    cmp5_private_backup::RehearsalStatus::verified;
+  private_rehearsal_outcome.bytes=30ULL*1024*1024;
+  save(Screen::rehearsal,"01ae-private-raw-cleanup-complete");
+  bool raw_cleanup_banner=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("COPIE PRIVEE RETIREE")!=std::string::npos)
+    raw_cleanup_banner=true;
+  assert(raw_cleanup_banner);
+  private_rehearsal_discard=false;
   private_rehearsal_step=0u;
   private_rehearsal_outcome={};
   private_inventory.group_count=1u;
