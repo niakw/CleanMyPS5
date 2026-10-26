@@ -397,6 +397,7 @@ bool backup_from_inventory=false;
  * Gallery is empty/unreadable. Never route its back action via Review. */
 Screen capsule_return_screen=Screen::detail;
 cmp5_private_backup::Inventory private_inventory{};
+cmp5_private_backup::ArchiveAudit private_archive_audit{};
 unsigned private_inventory_selection=0;
 bool private_inventory_groups=false;
 bool group_verify_only=false,group_from_inventory=false;
@@ -786,11 +787,19 @@ void run_private_backup_verify() noexcept {
 }
 void run_capsule_inventory() noexcept {
  private_inventory=cmp5_private_backup::Inventory{};
+ private_archive_audit=cmp5_private_backup::ArchiveAudit{};
  private_inventory_selection=0u;
  cmp5_private_backup::Inventory checked{};
  if(cmp5_private_backup::scan(&checked,cancellation_hook,nullptr)&&
     !cancellation_hook(nullptr))
   private_inventory=checked;
+}
+void run_private_archive_audit() noexcept {
+ private_archive_audit=cmp5_private_backup::ArchiveAudit{};
+ cmp5_private_backup::ArchiveAudit verified{};
+ if(cmp5_private_backup::audit(&verified,cancellation_hook,nullptr)&&
+    !cancellation_hook(nullptr))
+  private_archive_audit=verified;
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
@@ -1572,7 +1581,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify };
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
 
@@ -1592,6 +1601,7 @@ void* background_task(void*) noexcept {
   case Task::private_group_verify: run_private_group_verify(); break;
   case Task::private_backup_verify: run_private_backup_verify(); break;
   case Task::private_inventory: run_capsule_inventory(); break;
+  case Task::private_archive_audit: run_private_archive_audit(); break;
   case Task::images: run_game_image_scan(); break;
   case Task::engine_start: run_embedded_engine(); break;
   case Task::helper_start: run_embedded_readonly_helper(); break;
@@ -1640,6 +1650,8 @@ void* background_task(void*) noexcept {
    companion_summary=Cmp5CompanionReport{};
    companion_checked=false;
   }
+  if(task_kind==Task::private_archive_audit)
+   private_archive_audit=cmp5_private_backup::ArchiveAudit{};
   if(task_kind==Task::images){
    game_images=Cmp5GameImageStats{};game_images_checked=false;
    compression_engine_seen=false;compression_engine_version[0]=0;
@@ -1871,6 +1883,8 @@ void poll_pad() noexcept {
     }
    }
    if(pressed&triangle)(void)begin_task(Task::private_inventory);
+   if((pressed&square)&&private_inventory.checked)
+    (void)begin_task(Task::private_archive_audit);
    continue;
   }
   if(screen==Screen::group_backup){
@@ -2823,8 +2837,11 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,286,private_inventory_groups?"GROUPES PRIVES":"CAPSULES PRIVEES",
    "L1/R1 BASCULER  AUCUN CHEMIN GALERIE AFFICHE",Color::cyan);
  if(task_busy()){
-  panel(canvas,470,"INVENTAIRE EN COURS",
-    "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
+  panel(canvas,470,task_kind==Task::private_archive_audit?
+      "AUDIT SHA-256 EN COURS":"INVENTAIRE EN COURS",
+    task_kind==Task::private_archive_audit?
+      "CAPSULES ET GROUPES  LECTURE INTEGRALE  ANNULABLE":
+      "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
   footer(canvas,"CERCLE ANNULER  AUCUNE ECRITURE");
   return;
  }
@@ -2857,11 +2874,23 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
     i==private_inventory_selection?"ARCHIVE SELECTIONNEE":"ARCHIVE",
     name,i==private_inventory_selection?Color::cyan:Color::white);
  }
- if(private_inventory.partial)
-  canvas.text(130,940,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
+ if(private_archive_audit.checked){
+  char status[160]{};
+  (void)std::snprintf(status,sizeof(status),
+    "SHA-256  %u/%u CAPSULES  %u/%u GROUPES  %s",
+    private_archive_audit.valid_capsules,private_archive_audit.capsules,
+    private_archive_audit.valid_groups,private_archive_audit.groups,
+    private_archive_audit.partial?"PARTIEL":"INVENTAIRE BORNE");
+  canvas.text(130,930,status,2,
+    (private_archive_audit.partial||
+     private_archive_audit.valid_capsules!=private_archive_audit.capsules||
+     private_archive_audit.valid_groups!=private_archive_audit.groups)?
+       Color::yellow:Color::cyan);
+ }else if(private_inventory.partial)
+  canvas.text(130,930,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
  footer(canvas,capsule_return_screen==Screen::menu?
-    "L1/R1 TYPE  X SHA-256  TRIANGLE SCANNER  CERCLE ACCUEIL":
-    "L1/R1 TYPE  X SHA-256  TRIANGLE SCANNER  CERCLE DETAIL");
+    "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE":
+    "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE");
 }
 void show_private_backup(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,310,backup_verify_only?
