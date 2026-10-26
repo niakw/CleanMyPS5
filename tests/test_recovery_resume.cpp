@@ -66,7 +66,31 @@ int main(){
  std::strcpy(pinned.name,"PPSA12345");
  pinned.level=9;pinned.workers=4;
  pinned.verify=true;pinned.dedup=true;
+ assert(cmp5_profile_pin_set(pinned.reserved,nullptr));
  assert(cmp5_ampr_request_valid(&pinned,"/mnt/usb0/homebrew","PPSA12345"));
+ static constexpr char digest[]=
+  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+ auto profiled=pinned;
+ assert(cmp5_profile_pin_set(profiled.reserved,digest));
+ assert(cmp5_profile_pin_valid(profiled.reserved));
+ assert(cmp5_ampr_request_valid(&profiled,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(cmp5_profile_pin_matches(profiled.reserved,digest));
+ assert(!cmp5_profile_pin_matches(profiled.reserved,nullptr));
+ assert(!cmp5_profile_pin_matches(pinned.reserved,digest));
+ assert(cmp5_profile_pin_matches(pinned.reserved,nullptr));
+ auto altered=profiled;
+ altered.reserved[40]^=1u;
+ assert(cmp5_profile_pin_valid(altered.reserved));
+ assert(!cmp5_profile_pin_matches(altered.reserved,digest));
+ altered=profiled;altered.reserved[62]=1u;
+ assert(!cmp5_ampr_request_valid(&altered,"/mnt/usb0/homebrew","PPSA12345"));
+ altered=pinned;
+ std::memset(altered.reserved,0,sizeof(altered.reserved));
+ assert(!cmp5_ampr_request_valid(&altered,"/mnt/usb0/homebrew","PPSA12345"));
+ auto invalid_digest=profiled;
+ assert(!cmp5_profile_pin_set(invalid_digest.reserved,"not-a-sha256"));
+ assert(std::memcmp(invalid_digest.reserved,profiled.reserved,
+                    sizeof(profiled.reserved))==0);
  for(std::size_t field:{
    offsetof(Cmp5AmprSavedRequest,clean_leftovers),
    offsetof(Cmp5AmprSavedRequest,overwrite),
