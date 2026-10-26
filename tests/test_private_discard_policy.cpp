@@ -1,5 +1,9 @@
 // Compile the actual UI-facing C++ wrapper against deterministic C outcomes.
 // Never opens host/PS5 files, and never calls the real unlinking engine.
+// CMake Release sets NDEBUG, but fixtures must ALWAYS execute assertions.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include "../native/private_media_backup.hpp"
 #include <cassert>
 #include <cstdint>
