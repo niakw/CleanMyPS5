@@ -121,6 +121,11 @@ def check_engine(root: Path) -> None:
         'cmp5_game_resume_path_still_same("/", dest, &cmp5_created_output)'
             not in worker):
         missing.append("worker missing anchored exclusive title output")
+    # Resuming from request.bin must preserve the saved LZ4 level even
+    # when the user modified a per-game profile after the checkpoint.
+    # This is checked against the patched C, not the Python patch text.
+    if 'if (prof.level > 0 && !req.resume) req.level = prof.level;' not in worker:
+        missing.append("resumed checkpoint level may be overwritten by a game profile")
     checkpoint_reader=job[job.find("static int stage_get("):
                           job.find("/* ------------------------------------------------------------------ run -- */")]
     for fragment in ('cmp5_game_open_checkpoint_dir("/",state_dir)',
