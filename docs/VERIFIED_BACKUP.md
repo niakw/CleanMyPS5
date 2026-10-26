@@ -35,6 +35,34 @@ Sony ni le lancement des médias depuis la Galerie**. La restauration
 Galerie et les suppressions sont toujours désactivées ; le résultat
 matériel PS5 13.60 reste inconnu.
 
+## Retrait manuel des seules copies brutes privées (26 octobre 2026)
+
+CleanMyPS5 dispose d'un premier nettoyage **effectif mais volontairement
+très limité** : dans **Archives privées → Capsules**, sélectionner une
+capsule `CAP_…`, appuyer sur **R3**, puis confirmer **deux fois avec X**.
+La seule cible autorisée est son fichier `RAW_CAP_…` dans
+`/download0/cmp5-private-rehearsals`. La capsule dans
+`/download0/cmp5-private-backups` est préservée, de même que toutes
+les données Sony, les groupes et leurs manifestes. L'opération ne
+supprime ni les fichiers temporaires inconnus ni les archives altérées.
+
+Avant chaque `unlinkat`, le moteur doit vérifier les deux espaces
+privés, les droits, le propriétaire, les liens, le SHA-256 du contenu brut
+et de la capsule d'origine, l'absence d'un staging concurrent et la
+stabilité du nom et des descripteurs. Les producteurs coopératifs sont
+coordonnés par verrou non bloquant ; une concurrence hostile de
+l'utilisateur du même système de fichiers reste hors de portée d'une
+garantie POSIX totalement atomique. Un refus ne supprime rien.
+Après suppression, `fsync` et une nouvelle vérification de l'archive
+sont requis avant d'annoncer une réussite. **La taille rapportée est
+nominale, pas une mesure des blocs réellement libérés.**
+
+Les tests hôte réalisent le retrait d'une copie synthétique vérifiée
+en préservant sa capsule ; ils refusent l'annulation, les sorties
+altérées et une seconde tentative. Les tests compilés comme le titre
+PS5 refusent les chemins `/user`, IDs de groupes et noms non appariés.
+**La compatibilité matérielle PS5 13.60 n'est toujours pas démontrée.**
+
 ## Recontrôle individuel après redémarrage (26 octobre 2026)
 
 La restitution d'une capsule `CAP_…` peut désormais être vérifiée **sans
