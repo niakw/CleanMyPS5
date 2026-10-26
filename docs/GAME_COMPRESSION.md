@@ -1,5 +1,31 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise : ne pas modifier la sortie partielle avant vérification (26 octobre 2026)
+
+Un problème subsistait dans le moteur AMPR : lors d'une **reprise**,
+il exécutait `install_runtime()` et `plugins_apply_to()` sur le
+dossier du jeu avant de comparer l'empreinte du plan. Ces fonctions
+pouvaient réécrire les fichiers runtime et plugins de la conversion
+partielle, même lorsque la reprise était ensuite rejetée.
+
+Le moteur modifié n'installe donc runtime et plugins **que pour les
+nouvelles conversions**. Pour une reprise, il examine uniquement
+les fichiers préexistants, exige des fichiers réguliers sans lien
+dur ou symlink et calcule le SHA-256 du runtime publié. Ce SHA doit
+correspondre au runtime AMPR sélectionné par le moteur actuel ; une
+mise à jour incompatible entraîne un refus conservateur, sans
+réinstaller silencieusement une autre version. Les plugins connus
+déjà présents sont recensés sans écriture ; une anomalie d'accès
+ou d'identité ne devient pas une fausse absence.
+
+La signature du plan final doit ensuite correspondre au checkpoint
+avant toute continuation du packer. Les fichiers partiels restent
+en place si la vérification échoue. Les validations CI inspectent
+ces garde-fous dans le moteur C transformé et compilent le titre PS5.
+Il ne s'agit pas d'une garantie d'intégrité matérielle ou d'une
+validation des jeux sur firmware 13.60.
+
+
 ## Reprise LZ4 : même source et même plan de fichiers (26 octobre 2026)
 
 La continuité du profil TOML ne suffit pas si les **fichiers du jeu
