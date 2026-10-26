@@ -277,6 +277,13 @@ int cmp5_job_pause_dest(const char *dest);
   job_request r;
   if (request_load(state_dir, &r) != 0) return -1;
 #ifndef E2A_HOST
+  /* Do not adopt a historical or foreign checkpoint by quietly clearing
+   * its dangerous flags at the later enqueue boundary. An intact saved
+   * CleanMyPS5 request requires full verification, source preservation,
+   * no cleanup and zero test hooks. This validation PRECEDES r.resume. */
+  if (!cmp5_game_safe_checkpoint_options(
+        r.clean_leftovers,r.overwrite,r.remove_source,r.force,
+        r.verify,r.dedup,r.cache_mode,r.test_pause_after)) return -1;
   if (!cmp5_game_resume_path_still_same(
         "/", dest, &cmp5_resume_snapshot)) return -1;
 #endif''')
