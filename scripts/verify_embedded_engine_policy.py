@@ -147,6 +147,30 @@ def check_engine(root: Path) -> None:
     if profile_check<0 or profile_apply<0 or profile_save<0 or not (
         profile_check<profile_apply<profile_save):
         missing.append("resumed profile pin must be checked before applying and saving new plan")
+    # A profile-consistent resume can still point to a NEW source tree.
+    # Never mix a saved LZ4 volume with changed file sizes, timestamps,
+    # pack/loose actions or block geometry. The final source scan plan is
+    # independently pinned and compared BEFORE request_save and packing.
+    for label,fragment in {
+        "file-action plan canonical SHA helper": "cmp5_entries_plan_hash(",
+        "plan scan covers source path": "e2a_sha256_update(&hash,item->rel,len)",
+        "plan scan covers source size": "cmp5_plan_hash_u64(&hash,item->size)",
+        "plan scan covers source mtime": "item->synthetic?0u:(uint64_t)item->mtime",
+        "plan scan covers actions and block layout": "item->action,item->block_shift",
+        "resume refuses altered plan": "cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha)",
+        "new checkpoint commits plan hash": "cmp5_plan_pin_set(req.reserved,cmp5_action_plan_sha)",
+        "resume reader requires finalized plan pin": "!cmp5_plan_pin_valid(r.reserved)",
+        "final checkpoint saved only after plan check": "request_save(state_dir,&req)"
+    }.items():
+        if fragment not in job:
+            missing.append("missing saved file-action plan guard: "+label)
+    plan_check=worker.find("cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha)")
+    late_save=worker.find("request_save(state_dir,&req)")
+    pack_start=worker.find("/* the forecast:")
+    if plan_check<0 or late_save<0 or pack_start<0 or not (
+        plan_check<late_save<pack_start):
+        missing.append("file-action plan must be checked before checkpoint rewrite and block packing")
+
     checkpoint_reader=job[job.find("static int stage_get("):
                           job.find("/* ------------------------------------------------------------------ run -- */")]
     for fragment in ('cmp5_game_open_checkpoint_dir("/",state_dir)',
