@@ -34,7 +34,7 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Outils rapides : hub personnel | 🟡 | Cinq raccourcis sûrs sur l’accueil (captures lourdes/anciennes, tailles égales, homebrew, stockage). Pas de favoris configurables ni de nettoyage automatique |
 | Résultats après nettoyage / journal | ❌ | Aucun effacement actuellement, donc aucun rapport post-opération ni vérification d'espace libéré |
 | Fichiers à examiner : recherche / groupes | 🟡 | Par jeu, taille, mtime, nom, type, recherche textuelle par chemin/jeu, pagination 36 ; pas de recherche SSD globale ni de galerie miniature |
-| Carte du stockage : carte arborescente stockage | 🟡 | Statvfs 2 montages + carte des captures par jeu en barres photo/vidéo, sélection manette ; pas de navigation arbitraire du SSD |
+| Carte du stockage : carte arborescente stockage | 🟡 | Statvfs 2 montages et carte des captures par jeu en barres photo/vidéo ; **nouvelle page native « Volumes observés »** dans Nettoyage (L1/R1) comparant séparément les octets nominaux des captures, apps/plugins, images de jeux et dossiers de jeux, avec couverture partielle signalée. Les périmètres peuvent se chevaucher (notamment /data/homebrew et les montages USB) : **aucune somme globale et aucun octet déclarés récupérables** ; pas de navigation SSD arbitraire |
 | Applications : désinstallation | ❌ | Pas d'API de désinstallation contrôlée / maintenance base système |
 | Applications : résidus d'installations | 🟡 | Diagnostic autoload etaHEN, preflight et catalogue protégé des homebrews/plugins (taille nominale). Aucune corrélation avec registre d'installation, donc aucun orphelin avéré |
 | Applications : PKG/DLC incomplets | ❌ | Aucune corrélation registre/metadata FPKG, protections inconnues |
