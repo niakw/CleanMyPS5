@@ -76,6 +76,8 @@ def check_backup_writer(content: str, name: str) -> None:
    "cmp5_verify_rehearsed_backup(",
    "cmp5_discard_rehearsed_backup(",
    "flock(target,LOCK_EX|LOCK_NB)",
+   "if(capsule&&(flock(source_dir,LOCK_SH|LOCK_NB)!=0||",
+   "*mutation_started=1;",
    "unlinkat(target,newname,0)==0",
    'strcmp(newname+4u,id)!=0',
    "CMP5_BACKUP_LIMIT",
