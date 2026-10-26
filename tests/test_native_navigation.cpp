@@ -96,6 +96,11 @@ int cmp5_backup_media(const char*,const Cmp5MediaCandidate*,const char*,
  assert(false&&"Synthetic UI must not write a PS5 media capsule");
  return 0;
 }
+int cmp5_discard_rehearsed_backup(const char*,const char*,
+ const char*,const char*,uint64_t*,Cmp5CancelCheck,void*){
+ assert(false&&"Synthetic navigation must never unlink private raw files");
+ return 0;
+}
 int cmp5_restore_backup(const char*,const char*,const char*,const char*,
  Cmp5BackupReceipt*,Cmp5CancelCheck,void*){
  assert(false&&"Synthetic UI must not restore any private or Sony files");
@@ -768,6 +773,21 @@ int main(){
    cmp5_private_backup::RehearsalStatus::failed);
  press(circle);assert(screen==Screen::capsules);
  mock_private_raw_pair_valid=true;
+ /* R3 is the only path to app-private raw removal; it requires two
+  * explicit presses and refuses an invalidated snapshot before any C
+  * deletion entrypoint can be reached. The real writer is never called. */
+ press(r3);
+ assert(screen==Screen::rehearsal&&private_rehearsal_discard&&
+        !private_rehearsal_groups&&private_rehearsal_step==0u);
+ press(cross);
+ assert(private_rehearsal_step==1u&&!task_busy());
+ show_private_rehearsal(canvas);
+ private_rehearsal_id[0]=0;
+ press(cross);finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::denied);
+ press(circle);
+ assert(screen==Screen::capsules);
  /* New private reconstruction workflow: R2 on a capsule, two presses,
   * no media or filesystem write before confirmation. Invalidated
   * selection must fail closed before any attempted destination creation. */
