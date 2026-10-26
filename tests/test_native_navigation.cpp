@@ -693,6 +693,40 @@ int main(){
  assert(!corrupt.sources.checked);
  mock_private_group_valid=true;
  press(circle);assert(screen==Screen::capsules);
+ /* Verify whole listed sets without falsely inferring Gallery restoration
+  * or requiring the present existence of the source media. */
+ cmp5_private_backup::ArchiveAudit audit_result{};
+ const unsigned capsule_reads=mock_private_verify_calls;
+ const unsigned group_reads=mock_private_group_verify_calls;
+ const unsigned source_reads=mock_private_group_source_calls;
+ assert(cmp5_private_backup::audit_inventory_at(private_inventory,
+   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr));
+ assert(audit_result.checked&&!audit_result.partial&&audit_result.capsules==1u&&
+   audit_result.groups==1u&&audit_result.valid_capsules==1u&&
+   audit_result.valid_groups==1u&&audit_result.verified_bytes==60ULL*1024*1024);
+ assert(mock_private_verify_calls==capsule_reads+1u);
+ assert(mock_private_group_verify_calls==group_reads+1u);
+ assert(mock_private_group_source_calls==source_reads);
+ private_archive_audit=audit_result;
+ show_capsules(canvas);
+ mock_private_capsule_valid=false;
+ mock_private_group_valid=false;
+ assert(cmp5_private_backup::audit_inventory_at(private_inventory,
+   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr));
+ assert(audit_result.checked&&audit_result.capsules==1u&&
+   audit_result.groups==1u&&!audit_result.valid_capsules&&
+   !audit_result.valid_groups&&!audit_result.verified_bytes);
+ const auto immediately_cancelled=[](void*)->int{return 1;};
+ audit_result.checked=true;audit_result.valid_capsules=999u;
+ assert(!cmp5_private_backup::audit_inventory_at(private_inventory,
+   cmp5_private_backup::workspace,&audit_result,immediately_cancelled,nullptr));
+ assert(!audit_result.checked&&!audit_result.valid_capsules);
+ mock_private_capsule_valid=true;
+ mock_private_group_valid=true;
+ private_archive_audit={};
+ press(square);assert(screen==Screen::capsules);
+ finish_scan();
+ assert(!private_archive_audit.checked); // No real host /download0 workspace.
  press(l1);assert(!private_inventory_groups);
  press(circle);assert(screen==Screen::menu);
  mock_private_group_valid=false;
