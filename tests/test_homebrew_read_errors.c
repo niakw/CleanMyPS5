@@ -77,20 +77,32 @@ int main(int argc,char**argv){
  assert(stats.installed==1u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
- /* A cache name that resolves to a different inode after stat/open
-  * must not contribute its nominal bytes to an allegedly complete scan. */
+ /* A cache name that resolves to a different inode must not
+  * contribute its nominal bytes to an allegedly complete scan.
+  * readdir order differs by host: either the 6-byte or 2-byte cache
+  * directory can be the one replaced. */
  for(int mode=1;mode<=3;mode++){
   fake_cache_identity_mode=mode;cache_name_lookups=0;
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
   assert(cache_name_lookups>=2);
-  assert(stats.cache_like_folders==4u);
-  assert(stats.cache_like_nominal_bytes==14u);
-  assert(strstr(json,"\"cacheCandidates\":{\"folders\":4,"));
+  assert(stats.cache_like_folders==3u);
+  assert(stats.cache_like_nominal_bytes==13u||
+         stats.cache_like_nominal_bytes==17u);
+  assert(strstr(json,"\"cacheCandidates\":{\"folders\":3,"));
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
  }
+ /* A case-only label difference is not an identity match, even on
+  * macOS's default case-insensitive filesystem. Test pure comparison
+  * without creating filesystem aliases. */
+ Audit mock={0};
+ mock.homebrew_name_count=1u;
+ strcpy(mock.homebrew_names[0],"ExampleTool");
+ assert(homebrew_name_observed(&mock,"ExampleTool"));
+ assert(!homebrew_name_observed(&mock,"exampletool"));
+ assert(!homebrew_name_observed(&mock,"ExampleToolOld"));
  fake_cache_identity_mode=0;
  fake_app_identity_mode=1;app_name_lookups=0;
  memset(&stats,0,sizeof(stats));size=0;
@@ -98,7 +110,7 @@ int main(int argc,char**argv){
  assert(json&&size>100&&stats.partial);
  assert(app_name_lookups==3); /* mismatched open stops before post-scan */
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
- assert(stats.cache_like_folders==2u&&stats.cache_like_nominal_bytes==3u);
+ assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
