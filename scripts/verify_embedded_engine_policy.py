@@ -169,6 +169,21 @@ def check_engine(root: Path) -> None:
             missing.append("missing saved file-action plan guard: "+label)
     if '#include "cmp5_ampr_checkpoint_plan.h"' not in job:
         missing.append("transformed PS5 worker not linked to tested plan hash")
+    # An invalid resume must never overwrite the existing runtime or
+    # plugins while *trying* to calculate the plan hash. Synthetic files
+    # already published are read-only observations until their plan is
+    # validated. No plugin installation or runtime replacement on RESUME.
+    for label,fragment in {
+        "resume skips runtime installation": "!req.resume && install_runtime(dest)",
+        "resume inspects runtime without aliases": "lstat(sprx, &sst)",
+        "resume skips plugin installation": "!req.resume && plugins_apply_to(src, dest, &written",
+        "resume inventories existing known plugins": "!req.resume && !(written & (1u << k))",
+        "resume inspects plugin without symlinks": "lstat(full, &pst)",
+        "uninspectable existing plugins fail closed": 'FAIL("plugin_unreadable"',
+        "aliased plugins fail closed": 'FAIL("plugin_invalid"'
+    }.items():
+        if fragment not in worker:
+            missing.append("unsafe runtime or plugin writes before resume plan guard: "+label)
     plan_check=worker.find("cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha)")
     late_save=worker.find("request_save(state_dir,&req)")
     pack_start=worker.find("/* the forecast:")
