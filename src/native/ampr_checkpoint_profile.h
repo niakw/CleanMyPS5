@@ -57,8 +57,10 @@ static inline bool cmp5_profile_pin_matches(
  const uint8_t saved[CMP5_PROFILE_PIN_BYTES],const char*sha256_hex){
  if(!cmp5_profile_pin_valid(saved))return false;
  uint8_t proposed[CMP5_PROFILE_PIN_BYTES]={0};
+ /* The separate file-plan digest lives in bytes 41..62 and must not
+  * invalidate a matching profile fingerprint during the early preflight. */
  return cmp5_profile_pin_set(proposed,sha256_hex)&&
-        memcmp(saved,proposed,CMP5_PROFILE_PIN_BYTES)==0;
+        memcmp(saved,proposed,41u)==0;
 }
 /* Save/compare an ordered, already finalized AMPR file-action plan.
  * A legacy checkpoint without this pin cannot be resumed safely because
