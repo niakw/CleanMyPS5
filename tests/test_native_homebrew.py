@@ -14,6 +14,9 @@ with tempfile.TemporaryDirectory() as directory:
         "data/ExampleTool/cache/index.bin":b"CACHED",
         "data/ExampleTool/.cache/thumbnail.bin":b"HIDDEN!",
         "data/ExampleTool/tmp/session.part":b"WORK",
+        # OtherApp has a cache-shaped directory, but the same-named
+        # homebrew has no valid executable. Matching names alone are weak.
+        "data/OtherApp/cache/stale.bin":b"??",
         "data/etaHEN/notice.txt":b"ETA",
         "user/app/TEST0001/eboot.bin":b"BINARY",
         "data/ExampleTool/saves/SECRET_SAVE.bin":b"PRIVATE",
@@ -22,6 +25,9 @@ with tempfile.TemporaryDirectory() as directory:
         file=root/name
         file.parent.mkdir(parents=True,exist_ok=True)
         file.write_bytes(data)
+    (root/"data/homebrew/OtherApp").mkdir(parents=True)
+    (root/"data/homebrew/OtherApp/eboot.elf").symlink_to(
+        "../ExampleTool/eboot.elf")
     # A cache-named symlink must never be traversed as an app cache.
     (root/"data/ExampleTool/temp").symlink_to(root/"data/ExampleTool/saves",
                                               target_is_directory=True)
@@ -48,4 +54,5 @@ with tempfile.TemporaryDirectory() as directory:
     assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
     assert b"HIDDEN!" == (root/"data/ExampleTool/.cache/thumbnail.bin").read_bytes()
     assert b"WORK" == (root/"data/ExampleTool/tmp/session.part").read_bytes()
+    assert b"??" == (root/"data/OtherApp/cache/stale.bin").read_bytes()
 print("Homebrew native fixture: PASS")
