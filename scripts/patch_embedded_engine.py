@@ -48,6 +48,13 @@ def main(root: Path):
     # replaced/dangling symlink or a renamed directory after the HTTP check.
     # Keep the resume branch unchanged: it deliberately reuses checkpoints.
     jobc = root / "src/job.c"
+    # The saved request owns the chosen LZ4 level on resume. A profile may
+    # legitimately pick another level for a NEW conversion, but a profile
+    # edited after the checkpoint must not silently switch the remaining
+    # blocks to that new value during restart.
+    change(jobc,
+           '      if (prof.level > 0) req.level = prof.level;',
+           '      if (prof.level > 0 && !req.resume) req.level = prof.level;')
     change(jobc,
            '    if (e2a_mkdir_p(state_dir) != 0) FAIL("dest_create", "cannot create destination (storage not mounted or read-only?)");',
            '''    /* CleanMyPS5: exclusive creation of a new title output. No
