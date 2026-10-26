@@ -1,5 +1,24 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise d'un checkpoint : conserver le niveau LZ4 choisi (26 octobre 2026)
+
+Le formulaire natif de reprise après fermeture du titre envoyait à tort
+`&level=9` à `POST /api/resume`, quelle que soit la compression initiale.
+Sur la révision **épinglée** du moteur AMPR, `job_resume_level(dest, level)`
+interprète la valeur **0** comme « conserver le niveau enregistré dans
+`request.bin` », alors qu'une valeur de 1 à 12 peut **modifier le niveau
+utilisé par les blocs restants**. Le service interprète le paramètre
+`level` absent comme 0.
+
+Le contrôleur envoie désormais uniquement `dest=<chemin encodé>` :
+aucun choix implicite de niveau, aucune conversion redémarrée de zéro.
+La sélection exige toujours le rescannage du checkpoint, les deux
+confirmations DualSense et la vérification indépendante du moteur.
+Les tests du constructeur de formulaire et du protocole HTTP simulé
+exigent l'absence de `level`. Ce correctif ne valide pas la jouabilité
+des jeux compressés ni les données de checkpoint sur FW 13.60.
+
+
 ## Permissions des nouveaux dossiers AMPR (25 octobre 2026)
 
 Pour une nouvelle conversion, le moteur crée le dossier du Title ID
