@@ -55,6 +55,40 @@ def main(root: Path):
     change(jobc,
            '      if (prof.level > 0) req.level = prof.level;',
            '      if (prof.level > 0 && !req.resume) req.level = prof.level;')
+    # A paused packer's state.bin/manifest assumes exactly the same
+    # per-file profile plan on resume. Reapplying a newly edited profile
+    # changes which files are loose/packed and can corrupt the result.
+    # Bind the content digest of the applied profile (or "none") to the
+    # persisted E2AREQ05 request, and fail closed before applying any
+    # changed plan or rewriting request.bin.
+    change(jobc,
+           '    if (e2a_profile_find(game.title_id, src, ppath, sizeof ppath) == 0 && e2a_profile_load(ppath, &prof) == 0) {',
+           '''#ifdef E2A_HOST
+    if (e2a_profile_find(game.title_id, src, ppath, sizeof ppath) == 0 &&
+        e2a_profile_load(ppath, &prof) == 0)
+#else
+    const bool cmp5_found=e2a_profile_find(game.title_id, src, ppath,
+                                           sizeof ppath)==0;
+    char cmp5_hash_before[65]={0},cmp5_hash_after[65]={0};
+    if(cmp5_found &&
+       (e2a_sha256_file(ppath,cmp5_hash_before)!=0 ||
+        e2a_profile_load(ppath,&prof)!=0 ||
+        e2a_sha256_file(ppath,cmp5_hash_after)!=0 ||
+        strcmp(cmp5_hash_before,cmp5_hash_after)!=0))
+      FAIL("profile_changed","profile unreadable or changed while loading; source kept");
+    /* This is a checkpoint plan consistency test, NOT proof of file
+     * provenance. A missing/new/modified profile invalidates a resume. */
+    if(req.resume){
+      if(!cmp5_profile_pin_matches(req.reserved,
+                                     cmp5_found?cmp5_hash_after:NULL))
+        FAIL("profile_changed","profile changed after checkpoint; source kept");
+    }else if(!cmp5_profile_pin_set(req.reserved,
+                                    cmp5_found?cmp5_hash_after:NULL))
+      FAIL("profile_unreadable","cannot record profile fingerprint");
+    if(cmp5_found)
+#endif
+    {''')
+
     change(jobc,
            '    if (e2a_mkdir_p(state_dir) != 0) FAIL("dest_create", "cannot create destination (storage not mounted or read-only?)");',
            '''    /* CleanMyPS5: exclusive creation of a new title output. No
@@ -186,6 +220,7 @@ def main(root: Path):
            '''#include "job.h"
 #ifndef E2A_HOST
 #include "cmp5_compression_allowed_paths.h"
+#include "cmp5_ampr_checkpoint_profile.h"
 #endif''')
     # The controller's initial progress read is NOT an authorization to
     # pause whichever job happens to be active later. Validate the exact
@@ -283,7 +318,8 @@ int cmp5_job_pause_dest(const char *dest);
    * no cleanup and zero test hooks. This validation PRECEDES r.resume. */
   if (!cmp5_game_safe_checkpoint_options(
         r.clean_leftovers,r.overwrite,r.remove_source,r.force,
-        r.verify,r.dedup,r.cache_mode,r.test_pause_after)) return -1;
+        r.verify,r.dedup,r.cache_mode,r.test_pause_after) ||
+       !cmp5_profile_pin_valid(r.reserved)) return -1;
   if (!cmp5_game_resume_path_still_same(
         "/", dest, &cmp5_resume_snapshot)) return -1;
 #endif''')
