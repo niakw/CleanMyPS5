@@ -14,6 +14,7 @@
 static int eof_error_enabled,eof_error_seen;
 static int close_error_enabled,close_error_seen;
 static int fake_cache_identity_mode,cache_name_lookups;
+static int fake_app_identity_mode,app_name_lookups;
 /* Inject an identity swap at either lookup edge of /data/<app>/cache.
  * Actual files remain untouched; this simulates concurrent renames
  * reproducibly on macOS, Linux and under sanitizers. */
@@ -24,6 +25,14 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
   if((fake_cache_identity_mode==1&&cache_name_lookups==1)||
      (fake_cache_identity_mode==2&&cache_name_lookups==2))
    st->st_ino+=1;
+  if(fake_cache_identity_mode==3&&cache_name_lookups==1)
+   st->st_dev+=1; /* simulated bind mount outside app device */
+ }
+ if(rc==0&&fake_app_identity_mode&&strcmp(name,"ExampleTool")==0){
+  ++app_name_lookups;
+  /* First occurrence is /data/homebrew/ExampleTool. Second is the
+   * independent /data/ExampleTool tree scanned for app data. */
+  if(app_name_lookups==2)st->st_ino+=1;
  }
  return rc;
 }
@@ -69,7 +78,7 @@ int main(int argc,char**argv){
  free(json);
  /* A cache name that resolves to a different inode after stat/open
   * must not contribute its nominal bytes to an allegedly complete scan. */
- for(int mode=1;mode<=2;mode++){
+ for(int mode=1;mode<=3;mode++){
   fake_cache_identity_mode=mode;cache_name_lookups=0;
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
@@ -81,6 +90,16 @@ int main(int argc,char**argv){
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
  }
+ fake_cache_identity_mode=0;
+ fake_app_identity_mode=1;app_name_lookups=0;
+ memset(&stats,0,sizeof(stats));size=0;
+ json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+ assert(json&&size>100&&stats.partial);
+ assert(app_name_lookups>=2);
+ /* A swapped top-level /data/<app> must never contribute cache bytes. */
+ assert(stats.cache_like_folders==0u&&stats.cache_like_nominal_bytes==0u);
+ assert(strstr(json,"\"partial\":true"));
+ free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
 }
