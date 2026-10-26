@@ -47,8 +47,16 @@ group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
 assert "#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY" in group
 assert "cmp5_backup_group(" in group
 assert "cmp5_verify_group(" in group
-# The preprocessor disables all restore definitions in the PS5 binary.
-assert "#ifndef CMP5_NATIVE_BACKUP_ONLY" in sources
+# Generic arbitrary-path restore is excluded; only fixed /download0 rehearsal is enabled.
+assert "#if !defined(CMP5_NATIVE_BACKUP_ONLY) || defined(CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY)" in sources
+assert 'CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY 1' in builder
+assert 'strcmp(backup,"/download0/cmp5-private-backups")!=0' in sources
+assert 'strcmp(destination,"/download0/cmp5-private-rehearsals")!=0' in sources
+assert 'strcmp(newname+4u,id)!=0' in sources
+assert 'cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,' in (
+    root/"native/private_media_backup.hpp").read_text()
+assert 'Operation::rehearse_private_media: return actor==Actor::native_title;' in privilege
+assert 'Operation::restore_gallery' in privilege
 assert '#include "elevation.hpp"' not in native
 
 # No gallery file deletion or renaming exists even in the isolated prototype.
@@ -89,4 +97,4 @@ assert "cmp5_backup_media(" in group and "cmp5_restore_backup(" in group
 assert "cmp5_inspect_backup_restore_pair(" in group
 assert "unlinkat" in group and "linkat" in group
 assert "renameat(" not in group and "rmdir(" not in group
-print("Backup engine safety gate: additive private native backup; Gallery restore excluded, PASS")
+print("Backup engine safety gate: private-only rehearsal; Sony Gallery restore excluded, PASS")
