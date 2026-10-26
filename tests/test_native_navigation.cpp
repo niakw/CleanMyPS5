@@ -542,6 +542,26 @@ int main(){
  assert(sample.status==LocalAccess::listable);
  assert(sample.entries==1&&!sample.truncated&&!sample.io_error);
  assert(sample.volume_known&&sample.total_bytes>=sample.available_bytes);
+ /* A present directory is not evidence of a USB device. Without an
+  * actual mount, fstatvfs would return its parent's free-space numbers. */
+ char bare_mount[256]{};
+ assert(std::snprintf(bare_mount,sizeof(bare_mount),
+   "%s/usb-unmounted",dir)>0);
+ assert(mkdir(bare_mount,0700)==0);
+ const LocalProbe absent_mount=probe_path(bare_mount,false,true);
+ assert(absent_mount.status==LocalAccess::listable&&
+   absent_mount.capacity_only&&!absent_mount.mount_confirmed&&
+   !absent_mount.volume_known&&absent_mount.total_bytes==0u&&
+   absent_mount.available_bytes==0u);
+ assert(rmdir(bare_mount)==0);
+ struct stat child_stat{},parent_stat{};
+ child_stat.st_mode=parent_stat.st_mode=S_IFDIR|0700;
+ child_stat.st_dev=15;parent_stat.st_dev=15;
+ assert(!mount_device_differs(child_stat,parent_stat));
+ child_stat.st_dev=16;
+ assert(mount_device_differs(child_stat,parent_stat));
+ child_stat.st_mode=S_IFREG|0600;
+ assert(!mount_device_differs(child_stat,parent_stat));
  probe_fail_readdir_eof=true;
  LocalProbe bad_read=probe_path(dir,false);
  assert(probe_faults==1u&&bad_read.status==LocalAccess::listable);
