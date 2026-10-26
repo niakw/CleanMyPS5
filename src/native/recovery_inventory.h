@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "ampr_checkpoint_request.h"
 
 #if defined(__cplusplus)
 #define CMP5_RECOVERY_ZERO {}
@@ -26,7 +27,7 @@
  * checkpoint is absent. Keep the native inventory visibly partial. */
 static inline bool cmp5_recovery_unknown_error(int error){
  return error==EACCES||error==EPERM||error==ELOOP||
-        error==ENOTDIR||error==EIO||error==ESTALE;
+        error==ENOTDIR||error==EIO||error==ESTALE||error==EINVAL;
 }
 /* Numeric stage type permits the explicit zero = unverified sentinel
  * in both C11 and C++20 consumers of this header. */
@@ -195,11 +196,18 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
  bool ok=request>=0&&stage>=0&&
     fstat(dir,&state_first)==0&&S_ISDIR(state_first.st_mode)&&
     fstat(request,&req_first)==0&&S_ISREG(req_first.st_mode)&&
-    req_first.st_nlink==1&&req_first.st_size>=512&&req_first.st_size<=4096&&
+    req_first.st_nlink==1&&
+    req_first.st_size==(off_t)sizeof(Cmp5AmprSavedRequest)&&
     fstat(stage,&first)==0&&S_ISREG(first.st_mode)&&first.st_nlink==1&&
     (first.st_size==4||first.st_size==6);
  char value[7]=CMP5_RECOVERY_ZERO;
- int read_error=0,recheck_error=0;
+ int read_error=0,recheck_error=0,request_validation_error=0;
+ if(ok&&!cmp5_ampr_read_request(request,dest,title)){
+  /* A readable but foreign, historical, truncated or unsafe checkpoint
+   * must not be suggested as a resumable CleanMyPS5 conversion. */
+  request_validation_error=EINVAL;
+  ok=false;
+ }
  if(ok){
   size_t done=0;
   while(done<(size_t)first.st_size){
@@ -254,6 +262,7 @@ static inline bool cmp5_recovery_inspect(const char*root,const char*dest,
   if(request_error)errno=request_error;
   else if(stage_error)errno=stage_error;
   else if(read_error)errno=read_error;
+  else if(request_validation_error)errno=request_validation_error;
   else if(snapshot_error)errno=snapshot_error;
   else if(recheck_error)errno=recheck_error;
   else errno=0;
