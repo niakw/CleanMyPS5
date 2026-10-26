@@ -126,6 +126,27 @@ def check_engine(root: Path) -> None:
     # This is checked against the patched C, not the Python patch text.
     if 'if (prof.level > 0 && !req.resume) req.level = prof.level;' not in worker:
         missing.append("resumed checkpoint level may be overwritten by a game profile")
+    # The worker must pin the original file-action profile, not only the
+    # compression level. Otherwise a profile edited after a pause could
+    # change packed/loose actions before pack checkpoint is resumed.
+    for label,fragment in {
+        "profile bytes fingerprinted before loading": "e2a_sha256_file(ppath,cmp5_hash_before)",
+        "profile bytes fingerprinted after loading": "e2a_sha256_file(ppath,cmp5_hash_after)",
+        "profile loader tied to fingerprint": "e2a_profile_load(ppath,&prof)",
+        "profile stable throughout loading": "strcmp(cmp5_hash_before,cmp5_hash_after)!=0",
+        "resumed profile must match saved plan": "cmp5_profile_pin_matches(req.reserved,",
+        "new checkpoint stores chosen profile": "cmp5_profile_pin_set(req.reserved,",
+        "profile mismatch fails without writes": 'FAIL("profile_changed"',
+        "resume gate validates profile pin": "cmp5_profile_pin_valid(r.reserved)"
+    }.items():
+        if fragment not in job:
+            missing.append("missing saved profile identity guard: "+label)
+    profile_check=job.find("cmp5_profile_pin_matches(req.reserved,")
+    profile_apply=job.find("e2a_profile_apply(&prof, &entries, &changed)")
+    profile_save=job.find("request_save(state_dir, &req)")
+    if profile_check<0 or profile_apply<0 or profile_save<0 or not (
+        profile_check<profile_apply<profile_save):
+        missing.append("resumed profile pin must be checked before applying and saving new plan")
     checkpoint_reader=job[job.find("static int stage_get("):
                           job.find("/* ------------------------------------------------------------------ run -- */")]
     for fragment in ('cmp5_game_open_checkpoint_dir("/",state_dir)',
