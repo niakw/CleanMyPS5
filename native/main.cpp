@@ -2918,9 +2918,19 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  for(unsigned i=start;i<items&&i<start+4u;i++){
   const char*name=private_inventory_groups?
     private_inventory.group_ids[i]:private_inventory.ids[i];
+  const bool has_verdict=private_archive_audit.checked&&
+    i<(private_inventory_groups?private_archive_audit.groups:
+                                private_archive_audit.capsules);
+  const bool verified=has_verdict&&(private_inventory_groups?
+     private_archive_audit.group_valid[i]:private_archive_audit.capsule_valid[i]);
+  char detail[128]{};
+  (void)std::snprintf(detail,sizeof(detail),"%s%s",name,
+    !has_verdict?"":verified?"  SHA-256 OK":
+                        "  SHA NON VALIDE OU INACCESSIBLE");
   panel(canvas,405+(i-start)*112u,
     i==private_inventory_selection?"ARCHIVE SELECTIONNEE":"ARCHIVE",
-    name,i==private_inventory_selection?Color::cyan:Color::white);
+    detail,has_verdict&&!verified?Color::yellow:
+      i==private_inventory_selection?Color::cyan:Color::white);
  }
  if(private_archive_audit.checked)
   show_archive_audit_result(canvas,885);
