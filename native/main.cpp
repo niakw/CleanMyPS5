@@ -1744,8 +1744,17 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::private_archive_audit)
    private_archive_audit=cmp5_private_backup::ArchiveAudit{};
   if(task_kind==Task::private_rehearsal||
-     task_kind==Task::private_rehearsal_verify||
-     task_kind==Task::private_rehearsal_discard)
+     task_kind==Task::private_rehearsal_verify)
+   private_rehearsal_outcome=cmp5_private_backup::RehearsalOutcome{};
+  /* Circle can arrive AFTER the private raw file was actually unlinked.
+   * Never erase VERIFIED/INDETERMINATE evidence on that late cancel.
+   * The task state may still be "cancelled"; the UI uses this retained
+   * result as the authoritative mutation outcome. */
+  if(task_kind==Task::private_rehearsal_discard&&
+     private_rehearsal_outcome.status!=
+       cmp5_private_backup::RehearsalStatus::verified&&
+     private_rehearsal_outcome.status!=
+       cmp5_private_backup::RehearsalStatus::indeterminate)
    private_rehearsal_outcome=cmp5_private_backup::RehearsalOutcome{};
   if(task_kind==Task::images){
    game_images=Cmp5GameImageStats{};game_images_checked=false;
@@ -3193,7 +3202,8 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
     "CERCLE ANNULER  COPIE PRIVEE PARTIELLE POSSIBLE");
   return;
  }
- const bool success=!task_failed()&&!task_cancelled()&&
+ const bool success=(!task_failed()&&!task_cancelled()||
+    private_rehearsal_discard)&&
    private_rehearsal_outcome.status==
      cmp5_private_backup::RehearsalStatus::verified;
  const bool uncertain=private_rehearsal_discard&&
