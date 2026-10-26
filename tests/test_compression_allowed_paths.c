@@ -13,6 +13,29 @@ static int move_output_after_create=0;
 static char moved_title_from[512],moved_title_to[512];
 static int move_title_after_stat=0;
 static int expose_checkpoint_mode_once=0;
+/* Simulate an independent removable mount without root privileges.
+ * A second mode swaps its inode between the first and second opens;
+ * the helper must then reject the now-stale pathname. */
+static int fake_external_mount_mode=0;
+static int synthetic_mount_fd=-1;
+static unsigned synthetic_mount_opens=0u;
+static int injected_openat(int parent,const char*name,int flags){
+ const int fd=openat(parent,name,flags);
+ if(fd>=0&&fake_external_mount_mode&&strcmp(name,"usb0")==0){
+  synthetic_mount_fd=fd;
+  ++synthetic_mount_opens;
+ }
+ return fd;
+}
+static int injected_fstat(int fd,struct stat*out){
+ const int result=fstat(fd,out);
+ if(result==0&&fake_external_mount_mode&&fd==synthetic_mount_fd){
+  out->st_dev+=100;
+  if(fake_external_mount_mode==2&&synthetic_mount_opens>1u)
+   out->st_ino+=1;
+ }
+ return result;
+}
 static int injected_fstatat(int fd,const char*name,struct stat*out,int flags){
  const int result=fstatat(fd,name,out,flags);
  if(result==0&&expose_checkpoint_mode_once&&
@@ -39,7 +62,11 @@ static int injected_mkdirat(int dir,const char*name,mode_t mode){
 }
 #define mkdirat injected_mkdirat
 #define fstatat injected_fstatat
+#define openat injected_openat
+#define fstat injected_fstat
 #include "../src/native/compression_allowed_paths.h"
+#undef fstat
+#undef openat
 #undef fstatat
 #undef mkdirat
 #include "../src/native/ampr_checkpoint_request.h"
@@ -204,6 +231,17 @@ int main(void) {
         "/mnt/usb0/homebrew/../danger"));
  assert(!cmp5_game_external_mount_ready(sandbox,
         "/mnt/usb1/homebrew"));
+ fake_external_mount_mode=1;
+ synthetic_mount_opens=0u;synthetic_mount_fd=-1;
+ assert(cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb0/homebrew"));
+ assert(synthetic_mount_opens==2u);
+ fake_external_mount_mode=2;
+ synthetic_mount_opens=0u;synthetic_mount_fd=-1;
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb0/homebrew"));
+ assert(synthetic_mount_opens==2u);
+ fake_external_mount_mode=0;synthetic_mount_fd=-1;
  assert(!cmp5_game_external_mount_ready(sandbox,NULL));
  assert(!cmp5_game_external_mount_ready(NULL,
         "/mnt/usb0/homebrew"));
