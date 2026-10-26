@@ -247,6 +247,17 @@ def check_engine(root: Path) -> None:
         after = resume.find('cmp5_game_resume_path_still_same(')
         if before < 0 or read < 0 or after < 0 or not before < read < after:
             missing.append("checkpoint read not guarded by anchored resume identity")
+        # A legacy request with destructive flags must not be silently
+        # converted into a new CleanMyPS5 request at enqueue time.
+        gate = resume.find("cmp5_game_safe_checkpoint_options(")
+        if gate < 0 or not read < gate < after:
+            missing.append("unsafe historical checkpoint options not rejected before resume")
+        else:
+            for flag in ("r.clean_leftovers", "r.overwrite", "r.remove_source",
+                         "r.force", "r.verify", "r.dedup", "r.cache_mode",
+                         "r.test_pause_after"):
+                if flag not in resume[gate:gate + 250]:
+                    missing.append(f"checkpoint provenance gate missing {flag}")
     # Saved request must be a single regular file under a real state
     # directory, not a symlink or a switched leaf after its initial read.
     load_start = job.find("static int request_load(")
