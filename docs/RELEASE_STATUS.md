@@ -33,8 +33,15 @@ d'une archive. La synthèse est visible même si l'onglet sélectionné
 ne contient aucune entrée ; la bibliothèque affiche quatre lignes
 par page pour éviter que le résultat ne chevauche le dernier item.
 En cas d'audit annulé ou impossible, aucun bilan positif n'est
-publié. Ces comportements ont des tests de navigation et de mise
-en page en plus du test hôte utilisant de vraies archives privées.
+publié. Le verdict **de chaque capsule et de chaque groupe** est
+également associé à son identifiant dans la liste : « SHA-256 OK » ou
+« SHA non valide ou inaccessible ». Les catalogues sont triés
+par identifiant à chaque scan pour éviter d'afficher le résultat
+d'une autre archive si `readdir` change d'ordre entre les deux scans.
+Ce résultat ne vaut que pour l'audit achevé : ouvrir une archive
+reste soumis à une vérification indépendante. Ces comportements ont
+des tests de navigation, de tri et de mise en page en plus du test
+hôte utilisant de vraies archives privées.
 
 Le titre natif ne contient **aucune fonction de restauration Galerie
 ni de suppression**. Cet audit ne prouve pas la restaurabilité des
