@@ -1,5 +1,38 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Inventaire des reprises : vérifier le contenu du checkpoint (26 octobre 2026)
+
+L'écran **Conversions interrompues sur disque** ne se contente plus
+de constater la présence de `.e2a-state/request.bin` et d'un marqueur
+`pack`, `copy` ou `verify`. Il décode **en lecture seule** la
+structure binaire du format **E2AREQ05** de la version AMPR épinglée
+(952 octets, disposition des champs vérifiée par assertions de
+compilation) et contrôle :
+
+- la version/magie et la terminaison des chaînes ;
+- l'identité du Title ID et de la destination enregistrés ;
+- un chemin source plausible dans les racines prévues, le niveau LZ4
+  (1–12) et les travailleurs (1–16) ;
+- les options de protection : pas de suppression de source, d'écrasement,
+  de force, de nettoyage automatique, de cache alternatif ou de pause
+  artificielle ; vérification et déduplication activées ;
+- les extensions réservées non reconnues.
+
+Une requête historique **E2AREQ04**, malformée, non conforme ou altérée
+n'est plus présentée comme une reprise valide. Elle n'est **jamais**
+modifiée ni supprimée : l'écran signale que le périmètre d'inventaire
+est incomplet. Un checkpoint affiché reste seulement un **candidat** :
+le worker AMPR relit et valide indépendamment l'intégrité des chemins
+réels, les identités de fichiers et l'état du jeu au moment du POST.
+L'analyse n'apporte **ni preuve d'origine cryptographique ni garantie
+de lancement sur PS5 13.60**.
+
+Les fixtures créent des `request.bin` conformes puis injectent des
+options dangereuses, un titre déplacé, une magie historique, des
+champs non terminés et des valeurs hors bornes. Le parcours reste
+strictement read-only, sans restauration ni suppression automatiques.
+
+
 ## Reprise : refuser les checkpoints incompatibles avec la politique CleanMyPS5 (26 octobre 2026)
 
 Avant d'ajouter un job de reprise dans la file du moteur AMPR intégré,
