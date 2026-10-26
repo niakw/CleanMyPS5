@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#include "ampr_checkpoint_profile.h"
 /* This viewer is compiled into a strictly read-only native title;
  * do not depend on the engine's output-creation/path-mutation header. */
 #if defined(__cplusplus)
@@ -121,11 +122,11 @@ static inline bool cmp5_ampr_request_valid(
  /* Managed images are explicitly tied to a title; extracted game roots
   * have no SMP title and are checked again by the real PS5 worker. */
  if(r->smp_title[0]&&strcmp(r->smp_title,title)!=0)return false;
- /* PS5 normally writes zeroed reserved fields. Reject nonzero extensions
-  * until a deliberate, reviewed version bump supports those semantics. */
- for(size_t i=0;i<sizeof(r->reserved);i++)
-  if(r->reserved[i]!=0u)return false;
- return true;
+ /* A checkpoint is resumable only if the worker persisted the exact
+  * profile plan (or an explicit "no profile" marker). Legacy zeroed
+  * extension fields cannot prove this and are not offered for automatic
+  * resume; the old partial output is left untouched for inspection. */
+ return cmp5_profile_pin_valid(r->reserved);
 }
 static inline bool cmp5_ampr_read_request(int fd,const char*base,
                                           const char*title){
