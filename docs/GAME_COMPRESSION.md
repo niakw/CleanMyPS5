@@ -1,5 +1,33 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Montages USB/EXT : refus avant toute nouvelle conversion (26 octobre 2026)
+
+L'existence de `/mnt/usb0` ou `/mnt/ext0` ne garantit pas qu'un
+périphérique externe soit effectivement monté. Si le répertoire existe
+sans périphérique, ses écritures pourraient aboutir sur le stockage
+parent, et l'espace libre affiché serait trompeur.
+
+La politique native **du moteur AMPR intégré**, pas uniquement le
+diagnostic visuel, compare donc le `st_dev` du répertoire `/mnt`
+et celui de `/mnt/usbN` ou `/mnt/extN` (indices 0 à 7). Les
+répertoires sont ouverts avec `O_DIRECTORY | O_NOFOLLOW`, depuis
+le répertoire racine, sans traverser de lien symbolique. La même
+entrée nommée est rouverte pour vérifier l'identité du montage
+observé. Si les périphériques ne sont pas distincts, les accès
+échouent **en mode fermé** lors des contrôles d'origine et de
+destination, avant l'ajout d'un job, puis avant `mkdirat` dans
+le moteur. Le stockage interne admis sous `/data` reste distinct.
+
+Ce contrôle est **conservateur** : certains montages valides partageant
+l'identifiant de système de fichiers de leur parent seront refusés.
+Il s'agit d'une barrière contre les chemins externes non montés, pas
+d'une attestation de santé, de permanence du montage ni de compatibilité
+des jeux. Un périphérique peut toujours être débranché plus tard.
+Les fixtures hôte testent le cas d'un dossier externe sans montage et
+les statuts POSIX correspondants ; la CI audite l'en-tête réellement
+intégré au moteur et compile le titre PS5. **Aucun essai matériel 13.60
+n'a encore été effectué**, et aucune suppression des sources n'est activée.
+
 ## Reprise : empreinte réelle des fichiers runtime et plugins (26 octobre 2026)
 
 L'empreinte des fichiers source et des actions LZ4 ne suffisait pas
