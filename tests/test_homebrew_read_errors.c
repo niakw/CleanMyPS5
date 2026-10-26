@@ -30,9 +30,10 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
  }
  if(rc==0&&fake_app_identity_mode&&strcmp(name,"ExampleTool")==0){
   ++app_name_lookups;
-  /* First occurrence is /data/homebrew/ExampleTool. Second is the
-   * independent /data/ExampleTool tree scanned for app data. */
-  if(app_name_lookups==2)st->st_ino+=1;
+  /* /data/homebrew/ExampleTool is sampled before AND after its
+   * homebrew traversal (lookups 1 and 2). The third stat precedes
+   * opening the independent /data/ExampleTool app-data tree. */
+  if(app_name_lookups==3)st->st_ino+=1;
  }
  return rc;
 }
@@ -95,12 +96,8 @@ int main(int argc,char**argv){
  memset(&stats,0,sizeof(stats));size=0;
  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100&&stats.partial);
- assert(app_name_lookups>=2);
+ assert(app_name_lookups>=4);
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
- if(stats.cache_like_folders||stats.cache_like_nominal_bytes)
-  fprintf(stderr,"App inode swap: lookups=%d cacheFolders=%u cacheBytes=%llu partial=%u\n",
-    app_name_lookups,stats.cache_like_folders,
-    (unsigned long long)stats.cache_like_nominal_bytes,stats.partial);
  assert(stats.cache_like_folders==0u&&stats.cache_like_nominal_bytes==0u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
