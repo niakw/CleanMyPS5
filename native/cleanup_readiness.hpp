@@ -38,6 +38,15 @@ struct Assessment {
  bool can_review=false;
  bool can_delete=false; // PS5 deletion is deliberately not implemented
 };
+/* A homebrew inventory counts applications, plugins and app directories.
+ * It does NOT establish that any entry is a disposable cache. Keep the
+ * count for diagnosis, but do not promote it to cleanup observations until
+ * a separate scanner identifies provider-owned temporary artefacts. */
+constexpr Evidence unclassified_app_inventory(bool scanned,bool partial,
+                                             std::uint32_t app_entries) noexcept {
+ (void)app_entries;
+ return Evidence{Category::homebrew_cache,scanned,partial,0u,0u};
+}
 constexpr bool protected_category(Category category) noexcept {
  return category==Category::game_images||
         category==Category::system_cache||
