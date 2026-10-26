@@ -1697,10 +1697,19 @@ int main(){
   capsule_return_screen=Screen::menu;
   private_inventory=cmp5_private_backup::Inventory{};
   private_inventory.checked=true;private_inventory.count=2u;
+  private_inventory.partial=true;private_inventory.staged=2u;
+  private_inventory.staged_unverified=1u;
+  private_inventory.staged_nominal_bytes=15ULL*1024ULL*1024ULL;
   std::strcpy(private_inventory.ids[0],"CAP_0123456789ABCDEF");
   std::strcpy(private_inventory.ids[1],"CAP_9999999999999999");
   private_inventory_selection=0u;
   save(Screen::capsules,"01a-home-private-archives");
+  bool staging_banner=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("2 TEMPORAIRES")!=std::string::npos&&
+      command.text.find("15 MIO")!=std::string::npos)
+    staging_banner=true;
+  assert(staging_banner);
   private_inventory.group_count=1u;
   std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
   private_inventory_groups=true;
