@@ -5,7 +5,7 @@ namespace cmp5_privilege {
 enum class Actor { native_title, diagnostic_helper, compression_engine };
 enum class Operation {
  inspect_metadata, request_compression, execute_compression,
- backup_private_media, verify_private_media, rehearse_private_media, delete_gallery_media, clean_system_cache, uninstall_title;
+ backup_private_media, verify_private_media, rehearse_private_media, delete_gallery_media, clean_system_cache, uninstall_title,
  change_autoload, restore_gallery, elevate_credentials
 };
 constexpr bool allows(Actor actor,Operation op) noexcept {
