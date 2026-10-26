@@ -105,6 +105,52 @@ static inline bool cmp5_game_destination_allowed(const char *path) {
         strcmp(p + 1, "/homebrew") == 0;
 }
 
+/* A present /mnt/usbN or /mnt/extN directory does not prove a
+ * device is mounted there. Reject a directory on /mnt's filesystem as
+ * an external compression source/destination. A different st_dev is
+ * conservative evidence, NOT a guarantee of launchable PS5 game media.
+ * We keep this separate from lexical checks so host sandbox fixtures
+ * can exercise path validation without needing privileged mounts. */
+static inline bool cmp5_game_distinct_mount(const struct stat*parent,
+                                             const struct stat*volume){
+ return parent&&volume&&S_ISDIR(parent->st_mode)&&
+        S_ISDIR(volume->st_mode)&&parent->st_dev!=volume->st_dev;
+}
+static inline bool cmp5_game_external_mount_ready(const char*root,
+                                                    const char*path){
+ if(!root||!*root||!path||path[0]!='/')return false;
+ if(strncmp(path,"/mnt/",5)!=0)return true; /* internal /data path */
+ const char*p=path+5;
+ if(strlen(p)<6u||!(strncmp(p,"usb",3)==0||
+                      strncmp(p,"ext",3)==0)||
+    p[3]<'0'||p[3]>'7'||p[4]!='/')return false;
+ char volume_name[5]={p[0],p[1],p[2],p[3],0};
+ const int base=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(base<0)return false;
+ const int parent=openat(base,"mnt",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ close(base);
+ if(parent<0)return false;
+ struct stat parent_st={0},volume_st={0},named_st={0};
+ const int volume=openat(parent,volume_name,
+                         O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ bool ok=volume>=0&&
+   fstat(parent,&parent_st)==0&&fstat(volume,&volume_st)==0&&
+   cmp5_game_distinct_mount(&parent_st,&volume_st);
+ /* The mount path could have changed while the first handle stayed
+  * open. Reopen the same name and compare its live filesystem identity. */
+ if(ok){
+  const int live=openat(parent,volume_name,
+                        O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  ok=live>=0&&fstat(live,&named_st)==0&&
+     named_st.st_dev==volume_st.st_dev&&
+     named_st.st_ino==volume_st.st_ino&&
+     S_ISDIR(named_st.st_mode);
+  if(live>=0)close(live);
+ }
+ if(volume>=0)close(volume);
+ close(parent);
+ return ok;
+}
 /* Resolve every path component without following symlinks. Lexical path
  * allowlists are insufficient when an allowed parent (e.g. a homebrew
  * folder or /mnt/usbN) is replaced by a symlink to protected user data.
@@ -119,6 +165,10 @@ static inline bool cmp5_game_path_stat(const char*root,const char*path,
  if(!root||!path||!out||!*root||path[0]!='/'||
     !(destination?cmp5_game_destination_allowed(path):
                    cmp5_game_source_allowed(path)))return false;
+ /* Actual PS5 worker always resolves from "/". Host fixtures use an
+  * isolated fake root and test mount evidence as a separate predicate. */
+ if(root[0]=='/'&&root[1]==0&&
+    !cmp5_game_external_mount_ready(root,path))return false;
  int dir=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(dir<0)return false;
  const char*cur=path+1;
@@ -188,6 +238,8 @@ static inline bool cmp5_game_output_vacant(const char*root,const char*dest,
                                            const char*title_id) {
  if(!root||!*root||!dest||!title_id||
     !cmp5_game_destination_allowed(dest)||strlen(title_id)!=9)return false;
+ if(root[0]=='/'&&root[1]==0&&
+    !cmp5_game_external_mount_ready(root,dest))return false;
  for(size_t i=0;i<9;i++){
   const char c=title_id[i];
   if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
@@ -225,6 +277,9 @@ static inline bool cmp5_game_output_create_unique(
  if(out)memset(out,0,sizeof(*out));
  if(!root||!*root||!dest||!title_id||!out||
     !cmp5_game_destination_allowed(dest)||strlen(title_id)!=9)return false;
+ /* Last independent mount check in the worker BEFORE any mkdirat write. */
+ if(root[0]=='/'&&root[1]==0&&
+    !cmp5_game_external_mount_ready(root,dest))return false;
  for(unsigned i=0;i<9;i++){
   const char c=title_id[i];
   if(i<4?(c<'A'||c>'Z'):(c<'0'||c>'9'))return false;
