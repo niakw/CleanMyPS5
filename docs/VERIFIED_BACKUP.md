@@ -1,5 +1,35 @@
 # Sauvegarde privée vérifiée : titre PS5, essai privé et restauration Galerie désactivée
 
+## Restitution privée des groupes associés (26 octobre 2026)
+
+Une sauvegarde groupée peut maintenant être reconstruite **en une seule
+opération de répétition** dans le dossier privé
+`/download0/cmp5-private-rehearsals`, jamais dans la Galerie Sony.
+Dans **Archives privées → Groupes**, R2 sélectionne un identifiant
+`GRP_` suivi de 16 chiffres hexadécimaux ; deux confirmations Croix
+sont nécessaires. La restitution conserve chaque membre nommé
+`GRP_…__1` à `GRP_…__4` et publie le marqueur privé
+`GRP_…__RESTORED` après validation intégrale des membres. Le moteur
+réanalyse le groupe d'origine et les empreintes SHA-256 avant et après
+l'opération. Le dossier de destination doit être nouveau pour ce groupe :
+**aucun membre existant n'est écrasé** et les sorties interrompues sont
+conservées pour audit.
+
+Le fichier C du moteur n'accepte ces noms de membres que si le
+code est compilé avec le garde
+`CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY`. La restauration groupée
+impose en plus `CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY`, fixe
+les deux dossiers `/download0/cmp5-private-backups` et
+`/download0/cmp5-private-rehearsals`, et refuse tout ID malformé
+et tout chemin Sony. Le test dédié est lié avec les **quatre drapeaux
+de compilation PS5** et vérifie les refus, tandis que les tests
+hôte existants exercent les reconstructions sur des fichiers synthétiques.
+
+Cela **ne démontre ni la restauration des miniatures et index
+Sony ni le lancement des médias depuis la Galerie**. La restauration
+Galerie et les suppressions sont toujours désactivées ; le résultat
+matériel PS5 13.60 reste inconnu.
+
 ## Répétition de restitution native (26 octobre 2026)
 
 Le titre installé peut désormais reconstruire le contenu **brut** d'une
@@ -11,7 +41,7 @@ capsule restent inchangés, et aucun fichier existant n'est écrasé.
 La destination contient un fichier `RAW_CAP_...` sans métadonnées de
 la Galerie Sony ; le titre ne prétend pas l'avoir réintégré.
 
-La fonction est incluse avec `CMP5_NATIVE_BACKUP_ONLY` **et**
+La fonction individuelle est incluse avec `CMP5_NATIVE_BACKUP_ONLY` **et**
 `CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY`. Le C du moteur exige
 **exactement** les chemins source et destination ci-dessus et un
 identifiant `CAP_` suivi de 16 chiffres hexadécimaux majuscules ;
