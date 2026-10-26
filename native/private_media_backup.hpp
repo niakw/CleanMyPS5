@@ -124,4 +124,74 @@ inline Outcome backup_one(const Cmp5MediaCandidate&item,
  out.status=Result::verified;
  return out;
 }
+
+/* Explicit, non-destructive rehearsal: reconstruct ONE verified capsule
+ * into a distinct app-owned directory, never Sony Gallery or system data.
+ * A raw rehearsal is neither a Gallery-index restore nor recoverable space. */
+constexpr const char*rehearsal_workspace="/download0/cmp5-private-rehearsals";
+enum class RehearsalStatus : unsigned {
+ unattempted, denied, capsule_invalid, storage_unavailable, failed, verified
+};
+struct RehearsalOutcome {
+ RehearsalStatus status=RehearsalStatus::unattempted;
+ std::uint64_t bytes=0;
+};
+inline bool rehearsal_capsule_id(const char*id) noexcept {
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
+ for(unsigned i=4u;i<20u;i++)
+  if(!((id[i]>='0'&&id[i]<='9')||(id[i]>='A'&&id[i]<='F')))
+   return false;
+ return true;
+}
+inline bool rehearsal_workspace_ready() noexcept {
+ const int root=open("/download0",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ if(root<0)return false;
+ struct stat base{};
+ bool ok=fstat(root,&base)==0&&S_ISDIR(base.st_mode);
+ if(ok&&mkdirat(root,"cmp5-private-rehearsals",0700)!=0&&errno!=EEXIST)
+  ok=false;
+ int folder=-1;
+ if(ok)folder=openat(root,"cmp5-private-rehearsals",
+                      O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ struct stat actual{},named{};
+ if(ok)ok=folder>=0&&fstat(folder,&actual)==0&&
+   fstatat(root,"cmp5-private-rehearsals",&named,AT_SYMLINK_NOFOLLOW)==0&&
+   S_ISDIR(actual.st_mode)&&S_ISDIR(named.st_mode)&&
+   actual.st_dev==named.st_dev&&actual.st_ino==named.st_ino&&
+   actual.st_uid==geteuid()&&(actual.st_mode&0777)==0700;
+ if(folder>=0)close(folder);
+ close(root);
+ return ok;
+}
+inline RehearsalOutcome rehearse_by_id(const char*id,
+                           Cmp5CancelCheck cancel,void*context) noexcept {
+ RehearsalOutcome result{};
+ if(!rehearsal_capsule_id(id)||(cancel&&cancel(context))){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ Cmp5BackupReceipt original{};
+ if(!cmp5_verify_backup(workspace,id,&original,cancel,context)||
+    !original.published||original.bytes==0||
+    original.bytes>CMP5_BACKUP_LIMIT||(cancel&&cancel(context))){
+  result.status=RehearsalStatus::capsule_invalid;return result;
+ }
+ if(!rehearsal_workspace_ready()){
+  result.status=RehearsalStatus::storage_unavailable;return result;
+ }
+ char raw_name[32]{};
+ if(std::snprintf(raw_name,sizeof(raw_name),"RAW_%s",id)!=24){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ Cmp5BackupReceipt restored{};
+ if(!cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,
+                         &restored,cancel,context)||
+    !restored.published||restored.bytes!=original.bytes||
+    std::memcmp(restored.sha256,original.sha256,32u)!=0||
+    (cancel&&cancel(context))){
+  result.status=RehearsalStatus::failed;return result;
+ }
+ result.status=RehearsalStatus::verified;
+ result.bytes=restored.bytes;
+ return result;
+}
 } // namespace cmp5_private_backup
