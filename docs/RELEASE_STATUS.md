@@ -38,8 +38,23 @@ publié. Le verdict **de chaque capsule et de chaque groupe** est
 « SHA non valide ou inaccessible ». Les catalogues sont triés
 par identifiant à chaque scan pour éviter d'afficher le résultat
 d'une autre archive si `readdir` change d'ordre entre les deux scans.
-Ce résultat ne vaut que pour l'audit achevé : ouvrir une archive
-reste soumis à une vérification indépendante. Ces comportements ont
+Le moteur conserve désormais une empreinte de métadonnées **de chaque
+capsule, manifeste de groupe, carte d'origine et membre de groupe**
+avant le passage SHA-256 ; il la compare à l'état des mêmes noms
+après le passage. Une écriture *sur place*, une substitution, un
+changement de permissions ou de lien pendant l'audit rend le bilan
+**indisponible** et invalide le catalogue affiché, même si le nombre
+et les noms des archives n'ont pas bougé. Deux tests host injectent
+volontairement la mutation d'une capsule après sa propre vérification
+et d'un membre de groupe après le contrôle du groupe. Ils exigent
+qu'aucune validation globale ne soit publiée. Le second passage
+échantillonne un fichier à la fois afin de contenir l'usage de pile
+du worker natif.
+
+Ce contrôle de fraîcheur reste un constat **à l'instant final de
+l'audit**, pas un verrouillage transactionnel : tout fichier peut
+changer ensuite. Ouvrir une archive reste donc soumis à une
+vérification indépendante, et cet audit ne valide aucun index Sony. Ces comportements ont
 des tests de navigation, de tri et de mise en page en plus du test
 hôte utilisant de vraies archives privées.
 
