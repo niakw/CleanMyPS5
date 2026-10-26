@@ -119,6 +119,7 @@ struct LocalProbe {
  bool io_error=false;
  bool volume_known=false;
  bool capacity_only=false;
+ bool mount_confirmed=false; // Different device from enclosing /mnt only
  std::uint64_t available_bytes=0;
  std::uint64_t total_bytes=0;
 };
@@ -175,12 +176,39 @@ int open_probe_target(const char*path,bool file) noexcept {
  }
  return fd;
 }
+/* A plain /mnt/usbN directory can exist WITHOUT a mounted volume.
+ * fstatvfs then reports /mnt's (or /'s) space, not an external disk.
+ * Device difference is a conservative signal; equal devices are never
+ * advertised as a confirmed separate capacity. */
+bool mount_device_differs(const struct stat&child,
+                          const struct stat&parent) noexcept {
+ return S_ISDIR(child.st_mode)&&S_ISDIR(parent.st_mode)&&
+        child.st_dev!=parent.st_dev;
+}
+bool mounted_volume_evidence(const char*path,int dir) noexcept {
+ if(!path||path[0]!='/'||dir<0)return false;
+ const char*last=std::strrchr(path,'/');
+ if(!last||last==path||!last[1])return false;
+ char parent_path[256]{};
+ const std::size_t length=static_cast<std::size_t>(last-path);
+ if(length>=sizeof(parent_path))return false;
+ std::memcpy(parent_path,path,length);
+ const int parent=open_probe_target(parent_path,false);
+ if(parent<0)return false;
+ struct stat child_st{},parent_st{};
+ const bool known=fstat(dir,&child_st)==0&&fstat(parent,&parent_st)==0&&
+                  mount_device_differs(child_st,parent_st);
+ (void)close(parent);
+ return known;
+}
 LocalProbe probe_path(const char*path,bool file,bool capacity_only=false) noexcept {
  LocalProbe result{};
  if(!path||cancellation_hook(nullptr))return result;
  // One final anchored descriptor for BOTH fstatvfs and the enumeration.
  const int fd=open_probe_target(path,file);
  if(fd<0){result.status=open_error(errno);return result;}
+ if(capacity_only&&!file)
+  result.mount_confirmed=mounted_volume_evidence(path,fd);
  if(file){
   struct stat st{};
   if(fstat(fd,&st)!=0||!S_ISREG(st.st_mode)){
@@ -196,7 +224,7 @@ LocalProbe probe_path(const char*path,bool file,bool capacity_only=false) noexce
      static_cast<std::uint64_t>(volume.f_blocks)<=UINT64_MAX/block){
    const auto free=static_cast<std::uint64_t>(volume.f_bavail)*block;
    const auto total=static_cast<std::uint64_t>(volume.f_blocks)*block;
-   if(total>0&&free<=total){
+   if(total>0&&free<=total&&(!capacity_only||result.mount_confirmed)){
     result.volume_known=true;
     result.available_bytes=free;
     result.total_bytes=total;
@@ -2439,7 +2467,7 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    if(probe.volume_known){
     if(probe.capacity_only)
      (void)std::snprintf(detail,sizeof(detail),
-       "CAPACITE SEULE  %llu/%llu GIO LIBRES/TOTAL",
+       "MONTAGE DETECTE  %llu/%llu GIO LIBRES/TOTAL",
        static_cast<unsigned long long>(probe.available_bytes/1073741824ULL),
        static_cast<unsigned long long>(probe.total_bytes/1073741824ULL));
     else
@@ -2451,7 +2479,8 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    }
    else if(probe.capacity_only)
     (void)std::snprintf(detail,sizeof(detail),
-      "MONTAGE LISIBLE  CAPACITE INCONNUE");
+      probe.mount_confirmed?"MONTAGE DETECTE  CAPACITE INCONNUE":
+                            "CHEMIN EXISTANT  MONTAGE NON CONFIRME");
    else
     (void)std::snprintf(detail,sizeof(detail),"%u ENTREES VUES%s%s",
       probe.entries,probe.truncated?" (LIMITE)":"",probe.io_error?" (ERREUR)":"");
