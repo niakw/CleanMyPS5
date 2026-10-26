@@ -43,6 +43,22 @@ static int injected_mkdirat(int dir,const char*name,mode_t mode){
 #undef fstatat
 #undef mkdirat
 int main(void) {
+ /* A saved checkpoint with old destructive settings is NOT a native
+  * CleanMyPS5 job. Do not silently normalize/adopt its request.bin.
+  * A legitimate saved request requires verify+dedup and no mutation
+  * of source, other outputs, caches or test hooks. */
+ assert(cmp5_game_safe_checkpoint_options(0,0,0,0,1,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(1,0,0,0,1,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,1,0,0,1,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,1,0,1,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,1,1,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,0,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,1,0,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,1,1,1,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,1,1,0,1));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,1,1,0,UINT64_MAX));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,2,1,0,0));
+ assert(!cmp5_game_safe_checkpoint_options(0,0,0,0,1,2,0,0));
  /* Truncated/unterminated SMP fields must fail closed. */
  char unterminated[16];memset(unterminated,'Z',sizeof(unterminated));
  assert(!cmp5_game_smp_field_eq(unterminated,sizeof(unterminated),"ZZZ"));
