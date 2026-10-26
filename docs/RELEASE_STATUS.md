@@ -1,5 +1,31 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Archives de groupe : état des originaux visible sur la PS5 (26 octobre 2026)
+
+Le parcours natif **Archives privées → Groupes → X** sépare désormais
+deux éléments qui étaient confondus dans l'interface : l'intégrité
+cryptographique de l'archive sauvegardée et l'état actuel des fichiers
+qui avaient été copiés. Après une vérification SHA-256 réussie du groupe,
+un worker lance le contrôle en lecture seule des locateurs d'origine
+persistés dans la carte `CMP5MAP2`. L'écran résume seulement les
+**nombres** de fichiers inchangés, absents, modifiés ou impossibles
+à inspecter. Aucun chemin privé n'est affiché.
+
+Si cette seconde inspection échoue, le groupe conserve son résultat
+« archive intègre » mais l'état des sources reste **indisponible**.
+La disparition d'une capture n'efface pas non plus une archive valide.
+Le test de navigation simule un groupe SHA valide avec sources absentes
+ou inconnues, ainsi qu'une inspection indisponible. Une fixture C
+du mode natif sauvegarde un groupe synthétique, retire temporairement
+un fichier source, vérifie que celui-ci est signalé `MISSING`, puis
+revérifie l'intégrité indépendante de la copie.
+
+Le nombre de fichiers inchangés ne prouve PAS la cohérence des
+miniatures, métadonnées secondaires et index Sony ; aucune
+restauration Galerie ou suppression PS5 n'est activée. La liaison
+matérielle à une PS5 13.60 reste une validation séparée.
+
+
 ## Restaurations privées : dossiers parents liés au chemin d'origine (26 octobre 2026)
 
 Le contrôle read-only des fichiers source sauvegardés n'utilise plus
