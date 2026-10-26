@@ -366,16 +366,22 @@ int cmp5_restore_backup(const char*backup,const char*id,
  if(r)memset(r,0,sizeof(*r));
  if(!valid_id(id)||!valid_id(newname)||canceled(cancel,ctx))return 0;
 #ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
- /* The installed PS5 title cannot choose arbitrary restoration roots
-  * or filenames, even if its UI accidentally passes a different path.
-  * It may reconstruct bytes only in CleanMyPS5's dedicated workspace.
-  * CAP_ + 16 uppercase hexadecimal chars is the native capsule format. */
+ /* No arbitrary restore destinations in the installed title.
+  * Individual capsules publish RAW_CAP_<16 hex> and a verified
+  * group worker publishes GRP_<16 hex>__1 through __4. Both scopes
+  * reconstruct bytes only in our separate /download0 workspace. */
  if(!backup||!destination||
     strcmp(backup,"/download0/cmp5-private-backups")!=0||
-    strcmp(destination,"/download0/cmp5-private-rehearsals")!=0||
-    strlen(id)!=20u||strncmp(id,"CAP_",4u)!=0||
-    strlen(newname)!=24u||strncmp(newname,"RAW_",4u)!=0||
-    strcmp(newname+4u,id)!=0)return 0;
+    strcmp(destination,"/download0/cmp5-private-rehearsals")!=0)return 0;
+ const size_t id_length=strlen(id);
+ const size_t target_length=strlen(newname);
+ const int capsule=id_length==20u&&target_length==24u&&
+    strncmp(id,"CAP_",4u)==0&&
+    strncmp(newname,"RAW_",4u)==0&&strcmp(newname+4u,id)==0;
+ const int group_member=id_length==23u&&target_length==23u&&
+    strncmp(id,"GRP_",4u)==0&&strcmp(newname,id)==0&&
+    id[20]=='_'&&id[21]=='_'&&id[22]>='1'&&id[22]<='4';
+ if(!capsule&&!group_member)return 0;
  for(unsigned i=4u;i<20u;i++)
   if(!((id[i]>='0'&&id[i]<='9')||
        (id[i]>='A'&&id[i]<='F')))return 0;
