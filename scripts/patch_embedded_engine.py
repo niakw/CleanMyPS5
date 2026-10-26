@@ -179,6 +179,13 @@ def main(root: Path):
     if (lstat(sprx, &sst) != 0 || !S_ISREG(sst.st_mode) ||
         sst.st_nlink != 1 || sst.st_size <= 0)
       FAIL("fakelib_failed", "runtime missing, aliased or unsafe");
+    if (req.resume) {
+      char cmp5_published_runtime_sha[65]={0};
+      if (!g_runtime_ok ||
+          e2a_sha256_file(sprx,cmp5_published_runtime_sha)!=0 ||
+          strcmp(cmp5_published_runtime_sha,g_runtime_sha)!=0)
+        FAIL("runtime_changed","existing AMPR runtime differs from selected engine; source kept");
+    }
 #endif''')
     change(jobc,
            '    if (plugins_apply_to(src, dest, &written, rep, sizeof rep) < 0) e2a_log("plugins of %s: %s", dest, rep);',
