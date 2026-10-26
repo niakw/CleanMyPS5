@@ -21,6 +21,9 @@ struct Inventory {
  char ids[inventory_limit][32]{};
  char group_ids[inventory_limit][32]{};
 };
+/* The ID predicates are defined below; the bulk audit also uses them. */
+inline bool valid_capsule_id(const char*id) noexcept;
+inline bool valid_group_id(const char*id) noexcept;
 /* User-triggered SHA-256 audit of all bounded private capsules/groups.
  * Counts are NOT proof that the underlying Gallery can be restored.
  * 'partial' includes undiscovered or interrupted private entries. */
