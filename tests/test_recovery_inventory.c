@@ -197,6 +197,34 @@ int main(void){
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  bogus=original_request;strcpy(bogus.dest_base,"/mnt/usb1/homebrew");
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ /* Malformed binary bool representations are not legitimate C++ bools.
+  * Decode raw bytes BEFORE reading any typed flags, avoiding UBSan
+  * failures and undefined behaviour on hostile request.bin contents. */
+ static const size_t flag_offsets[]={
+  offsetof(Cmp5AmprSavedRequest,clean_leftovers),
+  offsetof(Cmp5AmprSavedRequest,overwrite),
+  offsetof(Cmp5AmprSavedRequest,remove_source),
+  offsetof(Cmp5AmprSavedRequest,resume),
+  offsetof(Cmp5AmprSavedRequest,verify),
+  offsetof(Cmp5AmprSavedRequest,dedup),
+  offsetof(Cmp5AmprSavedRequest,force)
+ };
+ for(size_t i=0;i<sizeof(flag_offsets)/sizeof(flag_offsets[0]);i++){
+  bogus=original_request;
+  ((unsigned char*)&bogus)[flag_offsets[i]]=0xFFu;
+  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ }
+ bogus=original_request;
+ ((unsigned char*)&bogus)[offsetof(Cmp5AmprSavedRequest,verify)]=2u;
+ request_file=fopen(proof,"wb");assert(request_file);
+ assert(fwrite(&bogus,1,sizeof(bogus),request_file)==sizeof(bogus));
+ assert(fclose(request_file)==0);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==2u&&results.partial);
+ request_file=fopen(proof,"wb");assert(request_file);
+ assert(fwrite(&original_request,1,sizeof(original_request),request_file)==sizeof(original_request));
+ assert(fclose(request_file)==0);
+ request=original_request;
  request.remove_source=true;
  assert(fseek(request_file,0,SEEK_SET)==0);
  assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
