@@ -44,7 +44,11 @@ for token in ("verified_group.h","verified_group.c","cmp5_backup_group(",
 assert 'CMP5_NATIVE_GROUP_BACKUP_ONLY 1' in builder
 assert 'cp "$project/src/native/verified_group.c"' in builder
 group=(root/"src/native/verified_group.c").read_text(encoding="utf-8")
-assert "#ifndef CMP5_NATIVE_GROUP_BACKUP_ONLY" in group
+assert "#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)" in group
+assert 'CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY 1' in builder
+assert 'strcmp(backup,"/download0/cmp5-private-backups")!=0' in group
+assert 'strcmp(target,"/download0/cmp5-private-rehearsals")!=0' in group
+assert 'if(!capsule&&!group_member)return 0;' in sources
 assert "cmp5_backup_group(" in group
 assert "cmp5_verify_group(" in group
 # Generic arbitrary-path restore is excluded; only fixed /download0 rehearsal is enabled.
