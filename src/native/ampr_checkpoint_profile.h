@@ -23,7 +23,8 @@ static inline bool cmp5_profile_pin_set(uint8_t reserved[CMP5_PROFILE_PIN_BYTES]
  if(sha256_hex){
   /* Digest always comes from e2a_sha256_file(char hex[65]). Never read
    * unbounded peer input or store a truncated digest. */
-  if(strnlen(sha256_hex,65u)!=64u)return false;
+  for(size_t i=0;i<64u;i++)if(!sha256_hex[i])return false;
+  if(sha256_hex[64]!=0)return false;
   proposed[8]=1u;
   for(size_t i=0;i<32u;i++){
    int hi=cmp5_profile_hex_digit(sha256_hex[i*2u]);
