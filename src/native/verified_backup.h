@@ -24,11 +24,14 @@ int cmp5_verify_rehearsed_backup(const char *private_workspace,
  Cmp5CancelCheck cancelled,void *context);
 /* Manual cleanup of ONE verified, separate RAW_CAP private rehearsal.
  * No Sony data, capsule or group member can be removed in native mode.
- * Reports nominal bytes of removed raw file, NOT verified freed blocks. */
+ * Reports nominal bytes of removed raw file, NOT verified freed blocks.
+ * mutation_started is set BEFORE unlinkat, including when filesystem
+ * confirmation fails. Caller must report an INDETERMINATE outcome instead
+ * of telling the user nothing was changed in that case. */
 int cmp5_discard_rehearsed_backup(const char *private_workspace,
  const char *backup_id,const char *restore_workspace,
  const char *restore_name,uint64_t *nominal_bytes,
- Cmp5CancelCheck cancelled,void *context);
+ int *mutation_started,Cmp5CancelCheck cancelled,void *context);
 /* Restore to a separate app-owned workspace, NEVER the PS5 gallery. */
 int cmp5_restore_backup(const char *private_workspace,const char *backup_id,
  const char *restore_workspace,const char *restore_name,
