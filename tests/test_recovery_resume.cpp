@@ -67,17 +67,36 @@ int main(){
  pinned.level=9;pinned.workers=4;
  pinned.verify=true;pinned.dedup=true;
  assert(cmp5_profile_pin_set(pinned.reserved,nullptr));
+ static constexpr char plan_digest[]=
+  "ab0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+ assert(!cmp5_ampr_request_valid(&pinned,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(cmp5_plan_pin_set(pinned.reserved,plan_digest));
  assert(cmp5_ampr_request_valid(&pinned,"/mnt/usb0/homebrew","PPSA12345"));
+ assert(cmp5_plan_pin_matches(pinned.reserved,plan_digest));
  static constexpr char digest[]=
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
  auto profiled=pinned;
  assert(cmp5_profile_pin_set(profiled.reserved,digest));
+ assert(!cmp5_plan_pin_valid(profiled.reserved));
+ assert(cmp5_plan_pin_set(profiled.reserved,plan_digest));
  assert(cmp5_profile_pin_valid(profiled.reserved));
  assert(cmp5_ampr_request_valid(&profiled,"/mnt/usb0/homebrew","PPSA12345"));
  assert(cmp5_profile_pin_matches(profiled.reserved,digest));
  assert(!cmp5_profile_pin_matches(profiled.reserved,nullptr));
  assert(!cmp5_profile_pin_matches(pinned.reserved,digest));
  assert(cmp5_profile_pin_matches(pinned.reserved,nullptr));
+ assert(cmp5_plan_pin_matches(profiled.reserved,plan_digest));
+ auto changed_plan=profiled;
+ changed_plan.reserved[43]^=1u;
+ assert(cmp5_profile_pin_matches(changed_plan.reserved,digest));
+ assert(!cmp5_plan_pin_matches(changed_plan.reserved,plan_digest));
+ assert(cmp5_plan_pin_valid(changed_plan.reserved));
+ auto legacy_profile=profiled;
+ legacy_profile.reserved[41]=0;
+ for(unsigned i=42u;i<63u;i++)legacy_profile.reserved[i]=0;
+ assert(cmp5_profile_pin_valid(legacy_profile.reserved));
+ assert(!cmp5_plan_pin_valid(legacy_profile.reserved));
+ assert(!cmp5_ampr_request_valid(&legacy_profile,"/mnt/usb0/homebrew","PPSA12345"));
  auto altered=profiled;
  altered.reserved[40]^=1u;
  assert(cmp5_profile_pin_valid(altered.reserved));
