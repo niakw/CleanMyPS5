@@ -155,6 +155,64 @@ def main(root: Path):
       FAIL("dest_changed", "created output was renamed or replaced");
 #endif''')
 
+    # On RESUME, the existing title output and its partial volumes are
+    # evidence, not a writable installation target. The upstream worker
+    # overwrote its runtime and plugins BEFORE the saved source-plan pin
+    # was compared. A rejected resume could therefore mutate a partial
+    # conversion even when the source/profile no longer matched.
+    change(jobc,
+           '  if (install_runtime(dest) != 0) FAIL("fakelib_failed", "cannot install fakelib/libSceAmpr.sprx");',
+           '''#ifdef E2A_HOST
+  if (install_runtime(dest) != 0)
+    FAIL("fakelib_failed", "cannot install fakelib/libSceAmpr.sprx");
+#else
+  /* Resume must inventory what was actually published, not replace it. */
+  if (!req.resume && install_runtime(dest) != 0)
+    FAIL("fakelib_failed", "cannot install fakelib/libSceAmpr.sprx");
+#endif''')
+    change(jobc,
+           '    if (stat(sprx, &sst) != 0) FAIL("fakelib_failed", "fakelib missing");',
+           '''#ifdef E2A_HOST
+    if (stat(sprx, &sst) != 0)
+      FAIL("fakelib_failed", "fakelib missing");
+#else
+    if (lstat(sprx, &sst) != 0 || !S_ISREG(sst.st_mode) ||
+        sst.st_nlink != 1 || sst.st_size <= 0)
+      FAIL("fakelib_failed", "runtime missing, aliased or unsafe");
+#endif''')
+    change(jobc,
+           '    if (plugins_apply_to(src, dest, &written, rep, sizeof rep) < 0) e2a_log("plugins of %s: %s", dest, rep);',
+           '''#ifdef E2A_HOST
+    if (plugins_apply_to(src, dest, &written, rep, sizeof rep) < 0)
+      e2a_log("plugins of %s: %s", dest, rep);
+#else
+    /* Only a NEW conversion may install plugins. Existing plugin files
+     * are inventoried by their pinned known filenames for a RESUME. */
+    if (!req.resume && plugins_apply_to(src, dest, &written, rep, sizeof rep) < 0)
+      e2a_log("plugins of %s: %s", dest, rep);
+#endif''')
+    change(jobc,
+           '      if (!(written & (1u << k))) continue;',
+           '''#ifndef E2A_HOST
+      if (!req.resume && !(written & (1u << k))) continue;
+#else
+      if (!(written & (1u << k))) continue;
+#endif''')
+    change(jobc,
+           '      if (stat(full, &pst) != 0) continue;',
+           '''#ifdef E2A_HOST
+      if (stat(full, &pst) != 0) continue;
+#else
+      /* Missing plugins remain missing; permission/read/alias errors
+       * cannot be interpreted as an absent plugin on an old output. */
+      if (lstat(full, &pst) != 0) {
+        if (errno == ENOENT) continue;
+        FAIL("plugin_unreadable","published plugin cannot be inspected");
+      }
+      if (!S_ISREG(pst.st_mode) || pst.st_nlink != 1 || pst.st_size <= 0)
+        FAIL("plugin_invalid","published plugin is aliased or unsafe");
+#endif''')
+
     # A local process could swap the title output directory AFTER a failed
     # worker stopped. The upstream cancellation/error handlers recursively
     # remove "dest" by its path (not an anchored inode), so they can delete
