@@ -167,6 +167,36 @@ int main(void){
  Cmp5AmprSavedRequest request={0};
  assert(fread(&request,1,sizeof(request),request_file)==sizeof(request));
  Cmp5AmprSavedRequest original_request=request;
+ /* Reject all options incompatible with the PS5 safety contract
+  * BEFORE displaying a resumable candidate in the UI. */
+ assert(cmp5_ampr_request_valid(&original_request,"/data/homebrew","PPSA12345"));
+ Cmp5AmprSavedRequest bogus=original_request;
+ bogus.overwrite=true;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.verify=false;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.dedup=false;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.clean_leftovers=true;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.cache_mode=1;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.test_pause_after=1;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.level=0;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.workers=17;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;memcpy(bogus.magic,"E2AREQ04",8);
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.reserved[0]=1;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;memset(bogus.source,'Z',sizeof(bogus.source));
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;strcpy(bogus.source,"/user/savedata");
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;strcpy(bogus.dest_base,"/mnt/usb1/homebrew");
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  request.remove_source=true;
  assert(fseek(request_file,0,SEEK_SET)==0);
  assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
