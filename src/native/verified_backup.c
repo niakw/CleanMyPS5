@@ -13,6 +13,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/file.h>
 #include <unistd.h>
 #define HEADER_SIZE 64u
 #define BUFFER_SIZE 65536u
@@ -408,6 +409,91 @@ int cmp5_verify_rehearsed_backup(const char*backup,const char*id,
    private_directory_current(to,destination,&before_target);
  close(to);close(from);
  if(ok)*r=again;
+ return ok;
+}
+/* Explicit, app-private housekeeping. Discard ONLY a fully re-hashed
+ * single raw rehearsal, never a capsule, a group, a Sony file or a stage.
+ * The backup capsule remains an independently verified source of truth.
+ * Each directory is locked against cooperating native workers. */
+int cmp5_discard_rehearsed_backup(const char*backup,const char*id,
+ const char*destination,const char*newname,uint64_t*nominal_bytes,
+ Cmp5CancelCheck cancel,void*ctx){
+ if(nominal_bytes)*nominal_bytes=0u;
+ if(!nominal_bytes||!valid_id(id)||!valid_id(newname)||
+    !backup||!destination||canceled(cancel,ctx))return 0;
+#ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
+ if(strcmp(backup,"/download0/cmp5-private-backups")!=0||
+    strcmp(destination,"/download0/cmp5-private-rehearsals")!=0||
+    strlen(id)!=20u||strncmp(id,"CAP_",4u)!=0||
+    strlen(newname)!=24u||strncmp(newname,"RAW_",4u)!=0||
+    strcmp(newname+4u,id)!=0)return 0;
+ for(unsigned i=4u;i<20u;i++)
+  if(!((id[i]>='0'&&id[i]<='9')||
+       (id[i]>='A'&&id[i]<='F')))return 0;
+#endif
+ int source=private_dir(backup);
+ if(source<0)return 0;
+ int target=private_dir(destination);
+ if(target<0){close(source);return 0;}
+ struct stat original_dir={0},rehearsal_dir={0},raw_first={0},raw_named={0},
+             raw_last={0};
+ int ok=fstat(source,&original_dir)==0&&
+   fstat(target,&rehearsal_dir)==0&&
+   (original_dir.st_dev!=rehearsal_dir.st_dev||
+    original_dir.st_ino!=rehearsal_dir.st_ino)&&
+   flock(source,LOCK_SH|LOCK_NB)==0&&
+   flock(target,LOCK_EX|LOCK_NB)==0;
+ Cmp5BackupReceipt saved={0},check={0};
+ if(ok)ok=cmp5_verify_rehearsed_backup(backup,id,destination,newname,
+      &saved,cancel,ctx)&&saved.published&&saved.bytes>0u&&
+      saved.bytes<=CMP5_BACKUP_LIMIT;
+ /* Never sweep staging and never remove if another writer has published
+  * an unfinished sibling. A failure leaves the raw copy untouched. */
+ char staged[64]{};
+ const int name_length=snprintf(staged,sizeof(staged),".%s.part",newname);
+ struct stat stage={0};
+ if(ok)ok=name_length>0&&(size_t)name_length<sizeof(staged);
+ if(ok){
+  errno=0;
+  ok=fstatat(target,staged,&stage,AT_SYMLINK_NOFOLLOW)<0&&errno==ENOENT;
+ }
+ int raw=-1;
+ if(ok)raw=openat(target,newname,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
+ if(ok)ok=raw>=0&&fstat(raw,&raw_first)==0&&
+    S_ISREG(raw_first.st_mode)&&raw_first.st_uid==geteuid()&&
+    (raw_first.st_mode&0077)==0&&raw_first.st_nlink==1&&
+    raw_first.st_size>0&&(uint64_t)raw_first.st_size==saved.bytes;
+ /* Hash AFTER taking the lock and pinning the target; validate again
+  * immediately before unlinkat, not merely before user confirmation. */
+ if(ok)ok=verify_restored_file(target,newname,&saved,cancel,ctx)&&
+    fstat(raw,&raw_last)==0&&same(&raw_first,&raw_last)&&
+    fstatat(target,newname,&raw_named,AT_SYMLINK_NOFOLLOW)==0&&
+    same(&raw_first,&raw_named)&&raw_named.st_nlink==1&&
+    cmp5_verify_backup(backup,id,&check,cancel,ctx)&&check.published&&
+    check.bytes==saved.bytes&&
+    memcmp(check.sha256,saved.sha256,32u)==0&&
+    private_directory_identity_current(source,backup,&original_dir)&&
+    private_directory_identity_current(target,destination,&rehearsal_dir)&&
+    !canceled(cancel,ctx);
+ /* POSIX unlinkat has no inode-conditional variant: the directory lock
+  * serializes cooperating clients; an adversarial same-user writer could
+  * ignore it. The scope stays strictly within app-owned private data. */
+ if(ok)ok=unlinkat(target,newname,0)==0;
+ if(raw>=0)close(raw);
+ if(ok){
+  struct stat gone={0};
+  errno=0;
+  ok=fsync(target)==0&&
+     fstatat(target,newname,&gone,AT_SYMLINK_NOFOLLOW)<0&&
+     errno==ENOENT&&
+     cmp5_verify_backup(backup,id,&check,cancel,ctx)&&check.published&&
+     check.bytes==saved.bytes&&
+     memcmp(check.sha256,saved.sha256,32u)==0&&
+     private_directory_identity_current(source,backup,&original_dir)&&
+     private_directory_identity_current(target,destination,&rehearsal_dir);
+ }
+ close(target);close(source);
+ if(ok)*nominal_bytes=saved.bytes; /* Not proof of free blocks. */
  return ok;
 }
 int cmp5_restore_backup(const char*backup,const char*id,
