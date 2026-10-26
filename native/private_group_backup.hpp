@@ -118,4 +118,47 @@ inline GroupOutcome backup_visible_group(const Cmp5MediaCandidate&primary,
  out.status=GroupStatus::verified;
  return out;
 }
+/* Group rehearsal reconstructs all committed members into a separate
+ * private workspace; every member and the RESTORED marker are rehashed.
+ * No source path is requested from the UI and nothing is restored to Sony. */
+inline RehearsalOutcome rehearse_group_by_id(
+ const char*id,Cmp5CancelCheck cancel,void*ctx) noexcept {
+ RehearsalOutcome out{};
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"GRP_",4u)!=0||
+    (cancel&&cancel(ctx))){
+  out.status=RehearsalStatus::denied;return out;
+ }
+ for(unsigned i=4u;i<20u;i++){
+  const char c=id[i];
+  if(!((c>='0'&&c<='9')||(c>='A'&&c<='F'))){
+   out.status=RehearsalStatus::denied;return out;
+  }
+ }
+ Cmp5GroupReceipt original{};
+ if(!cmp5_verify_group(workspace,id,&original,cancel,ctx)||
+    original.count<2u||original.count>CMP5_GROUP_MAX||
+    original.bytes==0||original.bytes>CMP5_BACKUP_LIMIT||
+    (cancel&&cancel(ctx))){
+  out.status=RehearsalStatus::capsule_invalid;return out;
+ }
+ if(!rehearsal_workspace_ready()){
+  out.status=RehearsalStatus::storage_unavailable;return out;
+ }
+ Cmp5GroupReceipt restored{},checked{};
+ if(!cmp5_restore_group(workspace,id,rehearsal_workspace,&restored,
+                        cancel,ctx)||
+    !cmp5_verify_restored_group(rehearsal_workspace,id,&checked,
+                               cancel,ctx)||
+    restored.count!=original.count||checked.count!=original.count||
+    restored.bytes!=original.bytes||checked.bytes!=original.bytes||
+    std::memcmp(restored.manifest_sha256,
+                original.manifest_sha256,32u)!=0||
+    std::memcmp(checked.manifest_sha256,
+                original.manifest_sha256,32u)!=0||
+    (cancel&&cancel(ctx))){
+  out.status=RehearsalStatus::failed;return out;
+ }
+ out.status=RehearsalStatus::verified;out.bytes=checked.bytes;
+ return out;
+}
 } // namespace cmp5_private_backup
