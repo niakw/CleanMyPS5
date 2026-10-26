@@ -47,6 +47,14 @@ constexpr Evidence unclassified_app_inventory(bool scanned,bool partial,
  (void)app_entries;
  return Evidence{Category::homebrew_cache,scanned,partial,0u,0u};
 }
+/* Directory names "cache"/"tmp" under an app's data directory are
+ * only a shortlist for review, NEVER proof of cache semantics, ownership
+ * or provider permission. Unlike generic app counts this can be observed,
+ * but every deletion proof remains zero and can_delete stays false. */
+constexpr Evidence unverified_cache_names(bool scanned,bool partial,
+                                           std::uint32_t folders) noexcept {
+ return Evidence{Category::homebrew_cache,scanned,partial,folders,0u};
+}
 constexpr bool protected_category(Category category) noexcept {
  return category==Category::game_images||
         category==Category::system_cache||
