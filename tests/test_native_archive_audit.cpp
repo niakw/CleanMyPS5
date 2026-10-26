@@ -76,6 +76,7 @@ int main(){
         audit_result.capsules==1u&&audit_result.valid_capsules==1u&&
         audit_result.groups==1u&&audit_result.valid_groups==1u);
  assert(audit_result.verified_bytes==single.bytes+backup_group.bytes);
+ assert(audit_result.capsule_valid[0]&&audit_result.group_valid[0]);
 
  // Tamper with the private single-copy payload, but leave its group
  // counterpart intact: the audit must count one INVALID and one VALID.
@@ -91,6 +92,7 @@ int main(){
         audit_result.capsules==1u&&!audit_result.valid_capsules&&
         audit_result.groups==1u&&audit_result.valid_groups==1u);
  assert(audit_result.verified_bytes==backup_group.bytes);
+ assert(!audit_result.capsule_valid[0]&&audit_result.group_valid[0]);
 
  // An interrupted file limits coverage, without inventing extra validity.
  const fs::path part=store/".CAP_1111111111111111.part";
@@ -99,6 +101,7 @@ int main(){
  assert(audit_at(store.c_str(),&audit_result,nullptr,nullptr));
  assert(audit_result.checked&&audit_result.partial);
  assert(audit_result.valid_groups==1u&&!audit_result.valid_capsules);
+ assert(audit_result.group_valid[0]&&!audit_result.capsule_valid[0]);
 
  const auto stop=[](void*)->int{return 1;};
  audit_result.checked=true;
