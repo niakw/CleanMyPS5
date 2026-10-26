@@ -184,17 +184,24 @@ inline bool same_archive_stamp(const ArchiveFileStamp&a,
    a.mtime==b.mtime&&a.ctime==b.ctime&&
    a.mtime_ns==b.mtime_ns&&a.ctime_ns==b.ctime_ns);
 }
+/* A single bounded snapshot is sufficient: during the final pass,
+ * sample one file at a time and compare it with its initial stamp.
+ * Avoid allocating two ~18 KiB arrays on the PS5 worker's stack. */
 inline bool stamp_archive_namespace(int dir,const Inventory&listed,
-                                    ArchiveFileStamp*out,
-                                    unsigned capacity) noexcept {
+                                    ArchiveFileStamp*out,unsigned capacity,
+                                    bool compare_only=false) noexcept {
  if(dir<0||!out||!listed.checked||
     listed.count>inventory_limit||listed.group_count>inventory_limit||
     capacity<listed.count+listed.group_count*6u)return false;
  unsigned index=0;
  for(unsigned i=0;i<listed.count;i++){
-  if(!valid_capsule_id(listed.ids[i])||
-     !stamp_named_archive(dir,listed.ids[i],&out[index++]))
-   return false;
+  if(!valid_capsule_id(listed.ids[i]))return false;
+  ArchiveFileStamp current{};
+  if(!stamp_named_archive(dir,listed.ids[i],&current))return false;
+  if(compare_only){
+   if(!same_archive_stamp(out[index],current))return false;
+  }else out[index]=current;
+  ++index;
  }
  static constexpr const char*suffixes[]={
   "__COMMIT","__ORIGINS","__1","__2","__3","__4"
@@ -205,22 +212,15 @@ inline bool stamp_archive_namespace(int dir,const Inventory&listed,
    char name[48]{};
    const int length=std::snprintf(name,sizeof(name),"%s%s",
                                     listed.group_ids[i],suffix);
-   if(length<=0||(std::size_t)length>=sizeof(name)||
-      !stamp_named_archive(dir,name,&out[index++]))
-    return false;
+   if(length<=0||(std::size_t)length>=sizeof(name))return false;
+   ArchiveFileStamp current{};
+   if(!stamp_named_archive(dir,name,&current))return false;
+   if(compare_only){
+    if(!same_archive_stamp(out[index],current))return false;
+   }else out[index]=current;
+   ++index;
   }
  }
- return true;
-}
-inline bool same_archive_namespace(const ArchiveFileStamp*before,
-                                   const ArchiveFileStamp*after,
-                                   const Inventory&listed) noexcept {
- if(!before||!after||!listed.checked||
-    listed.count>inventory_limit||listed.group_count>inventory_limit)
-  return false;
- const unsigned used=listed.count+6u*listed.group_count;
- for(unsigned i=0;i<used;i++)
-  if(!same_archive_stamp(before[i],after[i]))return false;
  return true;
 }
 inline bool valid_capsule_id(const char*id) noexcept {
@@ -429,15 +429,13 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
  Inventory before{},after{};
  ArchiveAudit result{};
  ArchiveFileStamp initial[archive_stamp_capacity]{};
- ArchiveFileStamp final[archive_stamp_capacity]{};
  bool ok=fstat(pinned,&original)==0&&
    scan_at(folder,&before,cancel,context)&&
    stamp_archive_namespace(pinned,before,initial,archive_stamp_capacity)&&
    audit_inventory_at(before,folder,&result,cancel,context,progress)&&
    scan_at(folder,&after,cancel,context)&&
    same_archive_listing(before,after)&&
-   stamp_archive_namespace(pinned,after,final,archive_stamp_capacity)&&
-   same_archive_namespace(initial,final,before);
+   stamp_archive_namespace(pinned,after,initial,archive_stamp_capacity,true);
  const int current=ok?cmp5_open_private_workspace(folder):-1;
  if(ok)ok=current>=0&&fstat(pinned,&held)==0&&
    fstat(current,&visible)==0&&
