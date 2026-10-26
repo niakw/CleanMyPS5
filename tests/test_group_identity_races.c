@@ -63,6 +63,25 @@ static ssize_t race_read(int fd,void*out,size_t n){
  }
  return got;
 }
+/* Simulate rename/replacement after opening the original capture inode,
+ * immediately before the final pathname identity check. */
+static int origin_name_swap=0;
+static int racing_fstatat(int dir,const char*name,struct stat*st,int flags){
+ if(origin_name_swap&&strcmp(name,"ORIGINAL.jpg")==0){
+  const int replace=origin_name_swap==2;
+  assert(rename(watched,moved)==0);
+  if(replace){
+   int replacement=open(watched,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+   assert(replacement>=0);
+   static const char new_data[]="FOREIGN_CAPTURE";
+   assert(write(replacement,new_data,sizeof(new_data)-1u)==
+          (ssize_t)(sizeof(new_data)-1u));
+   assert(close(replacement)==0);
+  }
+  origin_name_swap=0;triggered=1;
+ }
+ return fstatat(dir,name,st,flags);
+}
 static int directory_scan_swap;
 static char scan_old_dir[1024],scan_new_dir[1024];
 static struct dirent*racing_readdir(DIR*dir){
@@ -78,7 +97,9 @@ static struct dirent*racing_readdir(DIR*dir){
 #define readdir racing_readdir
 #define unlinkat racing_unlinkat
 #define fsync racing_fsync
+#define fstatat racing_fstatat
 #include "../src/native/verified_group.c"
+#undef fstatat
 #undef fsync
 #undef unlinkat
 #undef readdir
@@ -363,6 +384,55 @@ int main(int argc,char**argv){
  assert(rename(scan_new_dir,workspace)==0);
  assert(cmp5_inspect_group_recovery(workspace,"UNKNOWN",&scan_report));
  assert(scan_report.state==CMP5_RECOVERY_EMPTY);
+ /* Host-only synthetic original: opening it is not enough unless
+  * the final directory entry still names that opened file. */
+ char origin_tmp[]="/tmp/cmp5-origin-name-XXXXXX";
+ char*origin_root=mkdtemp(origin_tmp);
+ assert(origin_root!=NULL);
+ assert(chmod(origin_root,0700)==0);
+ int origin_fd=open(origin_root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ assert(origin_fd>=0);
+ int origin_file=openat(origin_fd,"ORIGINAL.jpg",
+                        O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ assert(origin_file>=0);
+ static const char image_data[]="UNCHANGED_TEST_CAPTURE";
+ assert(write(origin_file,image_data,sizeof(image_data)-1u)==
+        (ssize_t)(sizeof(image_data)-1u));
+ assert(close(origin_file)==0);
+ struct stat live={0};
+ assert(fstatat(origin_fd,"ORIGINAL.jpg",&live,AT_SYMLINK_NOFOLLOW)==0);
+ Cmp5OriginEntry original_entry={0};
+ strcpy(original_entry.path,"/ORIGINAL.jpg");
+ original_entry.bytes=(uint64_t)live.st_size;
+ original_entry.media_type=1u;
+ original_entry.snapshot_device=(uint64_t)live.st_dev;
+ original_entry.snapshot_inode=(uint64_t)live.st_ino;
+ original_entry.snapshot_ctime=(int64_t)live.st_ctime;
+ original_entry.modified_at=(int64_t)live.st_mtime;
+ original_entry.snapshot_mtime_nsec=cmp5_mtime_ns(&live);
+ original_entry.snapshot_ctime_nsec=cmp5_ctime_ns(&live);
+ assert(inspect_source_once(origin_fd,&original_entry)==
+        CMP5_ORIGIN_UNCHANGED);
+ assert(snprintf(watched,sizeof(watched),"%s/ORIGINAL.jpg",origin_root)>0);
+ assert(snprintf(moved,sizeof(moved),"%s/ORIGINAL.moved",origin_root)>0);
+ origin_name_swap=1;triggered=0;
+ assert(inspect_source_once(origin_fd,&original_entry)==CMP5_ORIGIN_UNKNOWN);
+ assert(triggered&&!origin_name_swap);
+ assert(rename(moved,watched)==0);
+ assert(fstatat(origin_fd,"ORIGINAL.jpg",&live,AT_SYMLINK_NOFOLLOW)==0);
+ original_entry.snapshot_ctime=(int64_t)live.st_ctime;
+ original_entry.modified_at=(int64_t)live.st_mtime;
+ original_entry.snapshot_mtime_nsec=cmp5_mtime_ns(&live);
+ original_entry.snapshot_ctime_nsec=cmp5_ctime_ns(&live);
+ assert(inspect_source_once(origin_fd,&original_entry)==
+        CMP5_ORIGIN_UNCHANGED);
+ origin_name_swap=2;triggered=0;
+ assert(inspect_source_once(origin_fd,&original_entry)==CMP5_ORIGIN_UNKNOWN);
+ assert(triggered&&!origin_name_swap);
+ assert(unlink(watched)==0);
+ assert(unlink(moved)==0);
+ assert(close(origin_fd)==0);
+ assert(rmdir(origin_root)==0);
  assert(close(dir)==0);
  puts("Private group manifest and restored media races refused: PASS");
  return 0;
