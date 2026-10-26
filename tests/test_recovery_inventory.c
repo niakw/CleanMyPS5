@@ -226,7 +226,7 @@ int main(void){
  assert(fclose(request_file)==0);
  request=original_request;
  request.remove_source=true;
- assert(fseek(request_file,0,SEEK_SET)==0);
+ request_file=fopen(proof,"wb");assert(request_file);
  assert(fwrite(&request,1,sizeof(request),request_file)==sizeof(request));
  assert(fclose(request_file)==0);
  assert(cmp5_scan_recovery_inventory(root,&results));
