@@ -17,7 +17,8 @@ int cmp5_backup_group(const char *root,const Cmp5MediaCandidate *parts,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
 int cmp5_verify_group(const char *private_workspace,const char *group_id,
  Cmp5GroupReceipt *result,Cmp5CancelCheck cancel,void *context);
-/* HOST-ONLY recoverable origin mapping. Stored only in the 0700 private
+/* Read-only origin mapping, also linked in the native title's archive review.
+ * Stored only in the 0700 private
  * backup workspace, never in a UI report or transmitted to the console.
  * The map binds each ordered backup capsule to its original *locator*,
  * type and length. It does not prove Gallery index/database completeness
@@ -42,7 +43,7 @@ typedef struct {
 int cmp5_read_group_origin_map(const char *private_workspace,
  const char *group_id,Cmp5OriginMap *result,
  Cmp5CancelCheck cancel,void *context);
-/* Host-only, read-only comparison of each recorded source name with the
+/* Read-only native/host comparison of each recorded source name with the
  * inode and high-resolution timestamps saved at backup time.
  * Not a Sony Gallery index check and NEVER a write authorization. */
 typedef enum {
