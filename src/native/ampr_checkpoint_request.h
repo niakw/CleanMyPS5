@@ -11,7 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-#include "compression_allowed_paths.h"
+/* This viewer is compiled into a strictly read-only native title;
+ * do not depend on the engine's output-creation/path-mutation header. */
 #if defined(__cplusplus)
 #define CMP5_REQ_STATIC_ASSERT static_assert
 #else
@@ -37,6 +38,19 @@ CMP5_REQ_STATIC_ASSERT(offsetof(Cmp5AmprSavedRequest,force)==888,
 static inline bool cmp5_ampr_terminated(const char*name,size_t length){
  return name&&memchr(name,0,length)!=NULL;
 }
+/* This is a conservative read-only prefilter, not a filesystem
+ * authorization. The packing worker independently checks EVERY path
+ * component and the actual source identity before resuming. */
+static inline bool cmp5_ampr_source_candidate(const char*path){
+ if(!path||path[0]!='/'||strlen(path)>=192u||
+    strstr(path,"..")||strstr(path,"//")||strchr(path,'\\'))return false;
+ if(strncmp(path,"/data/homebrew/",15u)==0&&path[15])return true;
+ if(strncmp(path,"/data/etaHEN/games/",19u)==0&&path[19])return true;
+ if(strncmp(path,"/mnt/",5u)!=0)return false;
+ const char*p=path+5;
+ if(strncmp(p,"usb",3u)!=0&&strncmp(p,"ext",3u)!=0)return false;
+ return p[3]>='0'&&p[3]<='7'&&p[4]=='/'&&p[5]!=0;
+}
 static inline bool cmp5_ampr_request_valid(
  const Cmp5AmprSavedRequest*r,const char*base,const char*title){
  if(!r||!base||!title)return false;
@@ -47,11 +61,9 @@ static inline bool cmp5_ampr_request_valid(
     !cmp5_ampr_terminated(r->name,sizeof(r->name)) ||
     r->source[0]==0 || r->level<1 || r->level>12 ||
     r->workers<1 || r->workers>16 ||
-    !cmp5_game_safe_checkpoint_options(r->clean_leftovers,
-      r->overwrite,r->remove_source,r->force,r->verify,r->dedup,
-      r->cache_mode,r->test_pause_after) ||
-    !cmp5_game_source_allowed(r->source) ||
-    !cmp5_game_destination_allowed(r->dest_base) ||
+    r->clean_leftovers||r->overwrite||r->remove_source||r->force||
+    !r->verify||!r->dedup||r->cache_mode!=0||r->test_pause_after!=0||
+    !cmp5_ampr_source_candidate(r->source) ||
     strcmp(r->dest_base,base)!=0 || strcmp(r->name,title)!=0)
   return false;
  /* Managed images are explicitly tied to a title; extracted game roots
