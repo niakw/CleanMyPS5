@@ -43,6 +43,7 @@ def check_backup_writer(content: str, name: str) -> None:
    'mkdirat(root,"cmp5-private-rehearsals",0700)',
    'rehearsal_workspace="/download0/cmp5-private-rehearsals"',
    "cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,",
+   "cmp5_verify_rehearsed_backup(workspace,id,rehearsal_workspace,",
    'cmp5_backup_media("/",&item,workspace,out.capsule_id,',
    "cmp5_verify_backup(workspace,out.capsule_id,",
   )
@@ -71,6 +72,8 @@ def check_backup_writer(content: str, name: str) -> None:
    "strcmp(newname,id)==0",
    "cmp5_backup_media(",
    "cmp5_verify_backup(",
+   "cmp5_verify_rehearsed_backup(",
+   'strcmp(newname+4u,id)!=0',
    "CMP5_BACKUP_LIMIT",
    "O_CREAT|O_EXCL|O_NOFOLLOW",
    "private_directory_identity_current",
