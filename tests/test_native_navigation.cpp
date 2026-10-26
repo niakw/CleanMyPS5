@@ -869,6 +869,11 @@ int main(){
  scene(canvas);
  press(r1);assert(cleanup_page==2u);
  scene(canvas);
+ bool app_cache_disclaimer=false;
+ for(const auto&command:canvas.commands)
+  if(command.text.find("CACHES NON IDENTIFIES")!=std::string::npos)
+   app_cache_disclaimer=true;
+ assert(app_cache_disclaimer); // Installed apps are NOT cleanup proposals.
  assert(!cmp5_cleanup::assess(cmp5_cleanup::Evidence{
    cmp5_cleanup::Category::gallery,true,false,1u,0u}).can_delete);
  press(l1);assert(cleanup_page==1u);
