@@ -696,11 +696,13 @@ int main(){
  /* Verify whole listed sets without falsely inferring Gallery restoration
   * or requiring the present existence of the source media. */
  cmp5_private_backup::ArchiveAudit audit_result{};
+ cmp5_private_backup::ArchiveAuditProgress audit_progress{};
  const unsigned capsule_reads=mock_private_verify_calls;
  const unsigned group_reads=mock_private_group_verify_calls;
  const unsigned source_reads=mock_private_group_source_calls;
  assert(cmp5_private_backup::audit_inventory_at(private_inventory,
-   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr));
+   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr,&audit_progress));
+ assert(audit_progress.total.load()==2u&&audit_progress.completed.load()==2u);
  assert(audit_result.checked&&!audit_result.partial&&audit_result.capsules==1u&&
    audit_result.groups==1u&&audit_result.valid_capsules==1u&&
    audit_result.valid_groups==1u&&audit_result.verified_bytes==60ULL*1024*1024);
@@ -712,17 +714,47 @@ int main(){
  mock_private_capsule_valid=false;
  mock_private_group_valid=false;
  assert(cmp5_private_backup::audit_inventory_at(private_inventory,
-   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr));
+   cmp5_private_backup::workspace,&audit_result,nullptr,nullptr,&audit_progress));
+ assert(audit_progress.total.load()==2u&&audit_progress.completed.load()==2u);
  assert(audit_result.checked&&audit_result.capsules==1u&&
    audit_result.groups==1u&&!audit_result.valid_capsules&&
    !audit_result.valid_groups&&!audit_result.verified_bytes);
  const auto immediately_cancelled=[](void*)->int{return 1;};
  audit_result.checked=true;audit_result.valid_capsules=999u;
  assert(!cmp5_private_backup::audit_inventory_at(private_inventory,
-   cmp5_private_backup::workspace,&audit_result,immediately_cancelled,nullptr));
+   cmp5_private_backup::workspace,&audit_result,immediately_cancelled,nullptr,
+   &audit_progress));
  assert(!audit_result.checked&&!audit_result.valid_capsules);
+ assert(audit_progress.total.load()==0u&&audit_progress.completed.load()==0u);
+ struct CancelAfterOne {unsigned calls=0u;} stop_after_one{};
+ const auto cancel_at_second=[](void*ctx)->int{
+  auto*state=static_cast<CancelAfterOne*>(ctx);
+  return ++state->calls>=3u?1:0;
+ };
+ audit_result.checked=true;
+ assert(!cmp5_private_backup::audit_inventory_at(private_inventory,
+   cmp5_private_backup::workspace,&audit_result,cancel_at_second,
+   &stop_after_one,&audit_progress));
+ assert(!audit_result.checked);
+ assert(audit_progress.total.load()==2u&&audit_progress.completed.load()==1u);
  mock_private_capsule_valid=true;
  mock_private_group_valid=true;
+ /* An empty tab must STILL render the independently completed bulk
+  * audit report, rather than return early with only "no archive". */
+ private_inventory=cmp5_private_backup::Inventory{};
+ private_inventory.checked=true;
+ private_archive_audit=cmp5_private_backup::ArchiveAudit{};
+ private_archive_audit.checked=true;
+ private_archive_audit.capsules=1u;
+ private_archive_audit.valid_capsules=1u;
+ private_archive_audit.groups=0u;
+ canvas.clear(Color::background);
+ show_capsules(canvas);
+ bool found_empty_summary=false;
+ for(const auto&command:canvas.commands)
+  if(command.kind=='X'&&command.text.find("SHA-256  1/1 CAPSULES  0/0 GROUPES")!=
+      std::string::npos)found_empty_summary=true;
+ assert(found_empty_summary);
  private_archive_audit={};
  press(square);assert(screen==Screen::capsules);
  finish_scan();
