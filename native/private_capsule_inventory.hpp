@@ -19,6 +19,8 @@ constexpr unsigned inventory_limit=32u, inventory_scan_limit=1024u;
 struct Inventory {
  bool checked=false,partial=false;
  unsigned count=0u,staged=0u,group_count=0u;
+ unsigned staged_unverified=0u;
+ std::uint64_t staged_nominal_bytes=0u; // read-only, NEVER recoverable-space proof
  char ids[inventory_limit][32]{};
  char group_ids[inventory_limit][32]{};
 };
@@ -48,7 +50,10 @@ struct ArchiveAuditProgress {
 };
 inline bool same_archive_listing(const Inventory&a,const Inventory&b) noexcept {
  if(!a.checked||!b.checked||a.partial!=b.partial||
-    a.staged!=b.staged||a.count!=b.count||
+    a.staged!=b.staged||
+    a.staged_unverified!=b.staged_unverified||
+    a.staged_nominal_bytes!=b.staged_nominal_bytes||
+    a.count!=b.count||
     a.group_count!=b.group_count)return false;
  /* readdir order is not stable; compare IDs as bounded SETS. */
  for(unsigned i=0;i<a.count;i++){
@@ -283,6 +288,28 @@ inline bool group_entry_name(const char*name,bool*commit,
 /* Use a pinned descriptor of a 0700 private directory. Listing is only
  * advisory; selecting an item must invoke cmp5_verify_backup, which opens
  * and independently hashes the currently named capsule. */
+/* A .part entry is app-owned staging, not automatically disposable data.
+ * Never open its contents or follow a symlink. Count bytes only if the
+ * currently named inode is a unique, private regular file owned by us.
+ * A failed stat is an unknown size, NOT zero bytes of recoverable space. */
+inline void note_staged_file(int dir,const char*name,Inventory*out) noexcept {
+ if(!out)return;
+ ++out->staged;
+ out->partial=true;
+ struct stat st{};
+ if(dir<0||!name||
+    fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0||
+    !S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
+    (st.st_mode&0077)!=0||st.st_nlink!=1||
+    st.st_size<0||(std::uint64_t)st.st_size>CMP5_BACKUP_LIMIT+64u){
+  ++out->staged_unverified;return;
+ }
+ const std::uint64_t bytes=(std::uint64_t)st.st_size;
+ if(bytes>UINT64_MAX-out->staged_nominal_bytes){
+  out->staged_nominal_bytes=UINT64_MAX;
+  ++out->staged_unverified;
+ }else out->staged_nominal_bytes+=bytes;
+}
 inline bool scan_at(const char*folder,Inventory*out,
                     Cmp5CancelCheck cancel,void*context) noexcept {
  if(out)*out=Inventory{};
@@ -326,12 +353,14 @@ inline bool scan_at(const char*folder,Inventory*out,
    valid_capsule_id(staged_id)&&
    std::strcmp(entry->d_name+21,".part")==0;
   if(is_stage){
-   ++found.staged;found.partial=true;continue;
+   note_staged_file(fd,entry->d_name,&found);continue;
   }
   if(!is_capsule){
    bool commit=false,temporary=false;
    if(group_entry_name(entry->d_name,&commit,&temporary)){
-    if(temporary){++found.staged;found.partial=true;continue;}
+    if(temporary){
+     note_staged_file(fd,entry->d_name,&found);continue;
+    }
     struct stat st{};
     if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0||
        !S_ISREG(st.st_mode)||st.st_uid!=geteuid()||
