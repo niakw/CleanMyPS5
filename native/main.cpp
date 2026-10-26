@@ -1451,7 +1451,11 @@ void run_game_resume() noexcept {
  char path[600]{};
  if(!cmp5_compression::form_encode_path(dest,path,sizeof(path)))return;
  char body[650]{};
- n=std::snprintf(body,sizeof(body),"dest=%s&level=9",path);
+ /* Resuming a confirmed, paused job must keep the LZ4 level
+  * persisted by the engine. A per-game profile may override the level
+  * used by our original level=9 start request. Omit 'level' so the
+  * pinned /api/resume endpoint passes 0 to job_resume_level(). */
+ n=std::snprintf(body,sizeof(body),"dest=%s",path);
  if(n<=0||static_cast<std::size_t>(n)>=sizeof(body))return;
  bool could_have_acted=false;
  game_resume_accepted=ampr_safe_command("/api/resume",body,&could_have_acted);
