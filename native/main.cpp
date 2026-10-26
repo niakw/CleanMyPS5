@@ -825,8 +825,11 @@ void run_private_rehearsal_verify() noexcept {
  private_rehearsal_outcome={};
  if(!cmp5_privilege::allows(cmp5_privilege::Actor::native_title,
       cmp5_privilege::Operation::rehearse_private_media))return;
- private_rehearsal_outcome=cmp5_private_backup::verify_rehearsed_group_by_id(
-    private_rehearsal_id,cancellation_hook,nullptr);
+ private_rehearsal_outcome=private_rehearsal_groups?
+   cmp5_private_backup::verify_rehearsed_group_by_id(
+      private_rehearsal_id,cancellation_hook,nullptr):
+   cmp5_private_backup::verify_rehearsed_capsule_by_id(
+      private_rehearsal_id,cancellation_hook,nullptr);
 }
 void run_private_rehearsal() noexcept {
  private_rehearsal_outcome={};
@@ -1944,12 +1947,17 @@ void poll_pad() noexcept {
    const unsigned options=private_inventory_groups?
      private_inventory.group_count:private_inventory.count;
    if(private_inventory.checked&&options){
-    if((pressed&l2)&&private_inventory_groups){
-     const char*id=private_inventory.group_ids[private_inventory_selection];
-     if(cmp5_private_backup::valid_group_id(id)){
+    if(pressed&l2){
+     const char*id=private_inventory_groups?
+        private_inventory.group_ids[private_inventory_selection]:
+        private_inventory.ids[private_inventory_selection];
+     const bool id_ok=private_inventory_groups?
+        cmp5_private_backup::valid_group_id(id):
+        cmp5_private_backup::rehearsal_capsule_id(id);
+     if(id_ok){
       (void)std::snprintf(private_rehearsal_id,sizeof(private_rehearsal_id),
                           "%s",id);
-      private_rehearsal_groups=true;
+      private_rehearsal_groups=private_inventory_groups;
       private_rehearsal_verify_only=true;
       private_rehearsal_step=2u;
       private_rehearsal_outcome={};
@@ -3114,7 +3122,7 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  }
  footer(canvas,private_inventory_groups?
     "L1/R1 TYPE  X VERIFIER  R2 RESTITUER  L2 CONTROLER  CERCLE":
-    "L1/R1 TYPE  X VERIFIER  R2 RESTITUTION PRIVEE  CARRE AUDIT  CERCLE");
+    "L1/R1 TYPE  X VERIFIER  R2 RESTITUER  L2 CONTROLER  CERCLE");
 }
 void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,305,private_rehearsal_verify_only?
@@ -3136,13 +3144,17 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  }
  if(task_busy()){
   panel(canvas,585,private_rehearsal_verify_only?
-      "VERIFICATION DES DEUX GROUPES":"RECONSTRUCTION EN COURS",
+      (private_rehearsal_groups?"VERIFICATION DES DEUX GROUPES":
+                                "CONTROLE CAPSULE ET COPIE"):
+      "RECONSTRUCTION EN COURS",
     private_rehearsal_verify_only?
       "SHA-256 SOURCE ET RESTITUTION  LECTURE SEULE":
       "CONTROLE SHA-256  COPIE PRIVEE SANS ECRASEMENT",Color::cyan);
   panel(canvas,735,"ORIGINAUX",
     "AUCUNE MODIFICATION DE LA GALERIE PS5",Color::yellow);
-  footer(canvas,"CERCLE ANNULER  COPIE PRIVEE PARTIELLE POSSIBLE");
+  footer(canvas,private_rehearsal_verify_only?
+    "CERCLE ANNULER  AUCUNE ECRITURE":
+    "CERCLE ANNULER  COPIE PRIVEE PARTIELLE POSSIBLE");
   return;
  }
  const bool success=!task_failed()&&!task_cancelled()&&
