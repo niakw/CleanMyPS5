@@ -64,6 +64,8 @@ bool mock_private_group_valid=false;
 unsigned mock_private_group_verify_calls=0;
 bool mock_private_group_source_valid=false;
 unsigned mock_private_group_source_calls=0;
+bool mock_rehearsal_pair_matches=true;
+unsigned mock_rehearsal_pair_reads=0;
 Cmp5OriginLiveState mock_private_group_source_states[CMP5_GROUP_MAX]{
  CMP5_ORIGIN_UNCHANGED,CMP5_ORIGIN_MISSING,CMP5_ORIGIN_UNKNOWN,
  CMP5_ORIGIN_UNKNOWN
@@ -140,10 +142,28 @@ int cmp5_restore_group(const char*,const char*,const char*,
  assert(false&&"Synthetic UI must not restore group members");
  return 0;
 }
-int cmp5_verify_restored_group(const char*,const char*,
- Cmp5GroupReceipt*,Cmp5CancelCheck,void*){
- assert(false&&"Synthetic UI must not read a fabricated restored group");
- return 0;
+int cmp5_verify_restored_group(const char*path,const char*id,
+ Cmp5GroupReceipt*receipt,Cmp5CancelCheck,void*){
+ assert(std::strcmp(path,"/download0/cmp5-private-rehearsals")==0);
+ assert(std::strcmp(id,"GRP_0123456789ABCDEF")==0);
+ if(receipt){
+  *receipt=Cmp5GroupReceipt{};
+  receipt->count=3u;
+  receipt->bytes=30ULL*1024*1024;
+ }
+ return 1;
+}
+int cmp5_inspect_backup_restore_pair(const char*backup,const char*id,
+ const char*restore,const char*restore_id,Cmp5RecoveryPairReport*pair){
+ assert(std::strcmp(backup,"/download0/cmp5-private-backups")==0);
+ assert(std::strcmp(restore,"/download0/cmp5-private-rehearsals")==0);
+ assert(std::strcmp(id,"GRP_0123456789ABCDEF")==0);
+ assert(std::strcmp(restore_id,id)==0);
+ ++mock_rehearsal_pair_reads;
+ if(pair){*pair=Cmp5RecoveryPairReport{};
+   pair->state=mock_rehearsal_pair_matches?
+      CMP5_PAIR_MATCH:CMP5_PAIR_MISMATCH;}
+ return 1;
 }
 int cmp5_inspect_group_originals(const char*root,const char*folder,
  const char*id,Cmp5OriginLiveState states[CMP5_GROUP_MAX],
@@ -783,6 +803,23 @@ int main(){
  assert(!corrupt.sources.checked);
  mock_private_group_valid=true;
  press(circle);assert(screen==Screen::capsules);
+ /* Reopen a private group pair after restart using L2. This is strictly
+  * read-only and must identify a changed or incomplete rehearsal. */
+ const unsigned pair_before=mock_rehearsal_pair_reads;
+ press(l2);assert(screen==Screen::rehearsal&&
+                   private_rehearsal_groups&&private_rehearsal_verify_only);
+ finish_scan();
+ assert(mock_rehearsal_pair_reads==pair_before+1u);
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::verified);
+ show_private_rehearsal(canvas);
+ press(circle);assert(screen==Screen::capsules);
+ mock_rehearsal_pair_matches=false;
+ press(l2);finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::failed);
+ press(circle);assert(screen==Screen::capsules);
+ mock_rehearsal_pair_matches=true;
  /* Verify whole listed sets without falsely inferring Gallery restoration
   * or requiring the present existence of the source media. */
  cmp5_private_backup::ArchiveAudit audit_result{};
