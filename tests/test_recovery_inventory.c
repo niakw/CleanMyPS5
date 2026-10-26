@@ -135,6 +135,7 @@ static void make_checkpoint(const char*root,const char*dest,
  saved.workers=4;
  saved.verify=true;
  saved.dedup=true;
+ assert(cmp5_profile_pin_set(saved.reserved,NULL));
  assert(fwrite(&saved,1,sizeof(saved),f)==sizeof(saved));
  assert(fclose(f)==0);
  char stage[550];snprintf(stage,sizeof(stage),"%s/stage",path);
@@ -190,6 +191,21 @@ int main(void){
  bogus=original_request;memcpy(bogus.magic,"E2AREQ04",8);
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  bogus=original_request;bogus.reserved[0]=1;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ /* A legacy zero-extension request cannot prove its original profile.
+  * A pinned profile digest is accepted only in a canonical encoding. */
+ bogus=original_request;memset(bogus.reserved,0,sizeof(bogus.reserved));
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ static const char test_digest[]=
+  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+ bogus=original_request;
+ assert(cmp5_profile_pin_set(bogus.reserved,test_digest));
+ assert(cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ assert(cmp5_profile_pin_matches(bogus.reserved,test_digest));
+ assert(!cmp5_profile_pin_matches(bogus.reserved,NULL));
+ bogus.reserved[41]=1u;
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ bogus=original_request;bogus.reserved[9]=1u;
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  bogus=original_request;memset(bogus.source,'Z',sizeof(bogus.source));
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
