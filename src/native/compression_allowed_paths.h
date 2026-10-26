@@ -342,6 +342,19 @@ static inline bool cmp5_game_resume_path_still_same(const char*root,
  return before&&cmp5_game_resume_path_stat(root,path,&current)&&
         cmp5_game_same_stat(before,&current);
 }
+/* Persisted AMPR requests predate the current safety policy. A resume
+ * must REJECT an old or tampered request which asks for source deletion,
+ * output replacement, unverified packing or implicit cleanup. Merely
+ * normalizing these dangerous flags at enqueue time could misrepresent
+ * an unrelated historical conversion as one created by CleanMyPS5.
+ * Check the exact saved flags BEFORE setting r.resume/queueing the job.
+ * This function changes no files or credentials. */
+static inline bool cmp5_game_safe_checkpoint_options(
+ int clean_leftovers,int overwrite,int remove_source,int force,
+ int verify,int dedup,int cache_mode,uint64_t test_pause_after){
+ return clean_leftovers==0&&overwrite==0&&remove_source==0&&force==0&&
+        verify==1&&dedup==1&&cache_mode==0&&test_pause_after==0;
+}
 /* Checkpoint directories are NOT arbitrary file paths. Traverse the
  * allowlisted title output by O_NOFOLLOW handles, then open the private
  * .e2a-state child without following aliases. A failed read on PS5 must
