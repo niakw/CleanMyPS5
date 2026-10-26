@@ -51,7 +51,11 @@ int main(){
  assert(same_archive_listing(first,second));
  second.staged=1u;
  assert(!same_archive_listing(first,second));
- second.staged=0u;second.partial=true;
+ second.staged=0u;second.staged_nominal_bytes=65u;
+ assert(!same_archive_listing(first,second));
+ second.staged_nominal_bytes=0u;second.staged_unverified=1u;
+ assert(!same_archive_listing(first,second));
+ second.staged_unverified=0u;second.partial=true;
  assert(!same_archive_listing(first,second));
  second.partial=false;
  std::strcpy(second.ids[0],"CAP_0000000000000000");
@@ -83,8 +87,16 @@ int main(){
  make_file(root,".CAP_1111111111111111.part",0600);
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&list.partial&&list.count==1u&&list.staged==1u);
+ assert(list.staged_nominal_bytes==65u&&list.staged_unverified==0u);
  char stage[512]{};
  assert(std::snprintf(stage,sizeof(stage),"%s/.CAP_1111111111111111.part",root)>0);
+ assert(unlink(stage)==0);
+ /* A symbolic-link stage may be counted as an unknown residue, but must
+  * never contribute the bytes of its external target to local storage. */
+ assert(symlink("/etc/passwd",stage)==0);
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.staged==1u&&list.staged_unverified==1u&&
+        list.staged_nominal_bytes==0u);
  assert(unlink(stage)==0);
  char file[512]{};
  assert(std::snprintf(file,sizeof(file),"%s/CAP_0123456789ABCDEF",root)>0);
@@ -124,7 +136,8 @@ int main(){
  make_file(root,".GRP_0123456789ABCDEF__ORIGINS.part",0600);
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&list.partial&&list.group_count==1u);
- assert(list.staged==3u);
+ assert(list.staged==3u&&list.staged_nominal_bytes==195u&&
+        list.staged_unverified==0u);
  for(const char*name:{
   "GRP_0123456789ABCDEF__COMMIT",
   "GRP_0123456789ABCDEF__ORIGINS",
@@ -163,7 +176,7 @@ int main(){
  assert(!scan_at(root,&list,replace_during_scan,&swap));
  assert(swap.changed);
  assert(!list.checked&&!list.partial&&!list.count&&!list.group_count&&
-        !list.staged);
+        !list.staged&&!list.staged_unverified&&!list.staged_nominal_bytes);
  /* The new directory contains no old capsule; the old one is intact.
   * Neither directory nor capsule may be silently removed by the scan. */
  assert(scan_at(root,&list,nullptr,nullptr));
