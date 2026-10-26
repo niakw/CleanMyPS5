@@ -715,6 +715,58 @@ int main(int argc,char**argv){
  assert(race.created&&observed.failure==CMP5_COMPANION_FAILURE_CHANGED);
  assert(observed.state==CMP5_COMPANIONS_UNVERIFIABLE&&observed.files==0u);
  assert(unlink(race.late)==0);
+ /* Exact 256-byte locator boundary: the primary path B.jpg uses
+  * 255 characters plus NUL. Its same-stem B.jpeg needs 256 plus NUL,
+  * and must be refused BEFORE copying into preview_path[256]. */
+ const char*long_base="/user/av_contents/photo/NPXS00000/GAME123";
+ const size_t first_len=90u;
+ assert(strlen(long_base)+first_len+2u<249u);
+ const size_t last_len=249u-strlen(long_base)-first_len-2u;
+ assert(last_len>0u&&last_len<200u);
+ char component1[91],component2[200];
+ memset(component1,'Q',first_len);component1[first_len]=0;
+ memset(component2,'R',last_len);component2[last_len]=0;
+ char relative_parent1[256],relative_parent2[256];
+ assert(snprintf(relative_parent1,sizeof(relative_parent1),"%s/%s",
+                 long_base,component1)>0);
+ assert(snprintf(relative_parent2,sizeof(relative_parent2),"%s/%s",
+                 relative_parent1,component2)==249);
+ char absolute_parent1[1024],absolute_parent2[1024];
+ assert(snprintf(absolute_parent1,sizeof(absolute_parent1),"%s%s",
+                 root,relative_parent1)>0);
+ assert(snprintf(absolute_parent2,sizeof(absolute_parent2),"%s%s",
+                 root,relative_parent2)>0);
+ assert(mkdir(absolute_parent1,0700)==0);
+ assert(mkdir(absolute_parent2,0700)==0);
+ char relative_jpg[256],absolute_jpg[1024],absolute_jpeg[1024];
+ assert(snprintf(relative_jpg,sizeof(relative_jpg),"%s/B.jpg",
+                 relative_parent2)==255);
+ assert(snprintf(absolute_jpg,sizeof(absolute_jpg),"%s/B.jpg",
+                 absolute_parent2)>0);
+ assert(snprintf(absolute_jpeg,sizeof(absolute_jpeg),"%s/B.jpeg",
+                 absolute_parent2)>0);
+ FILE*bound=fopen(absolute_jpg,"wb");assert(bound);
+ assert(fputs("SYNTHETIC_JPG",bound)>=0&&fclose(bound)==0);
+ bound=fopen(absolute_jpeg,"wb");assert(bound);
+ assert(fputs("SYNTHETIC_JPEG",bound)>=0&&fclose(bound)==0);
+ Cmp5MediaCandidate edge_primary={0};
+ snapshot(&edge_primary,absolute_jpg,relative_jpg,1u);
+ Cmp5CompanionReport edge_report={0};
+ assert(!cmp5_inspect_capture_companions(root,&edge_primary,&edge_report,
+                                        NULL,NULL));
+ assert(edge_report.state==CMP5_COMPANIONS_UNVERIFIABLE&&
+        edge_report.failure==CMP5_COMPANION_FAILURE_AMBIGUOUS);
+ Cmp5MediaCandidate edge_group[CMP5_GROUP_MAX]={{0}};
+ uint32_t edge_count=99u;
+ assert(!cmp5_plan_capture_group(root,&edge_primary,edge_group,
+                                &edge_count,NULL,NULL));
+ assert(edge_count==0u);
+ const unsigned char*edge_bytes=(const unsigned char*)edge_group;
+ for(size_t k=0;k<sizeof(edge_group);k++)assert(edge_bytes[k]==0u);
+ assert(unlink(absolute_jpeg)==0);
+ assert(unlink(absolute_jpg)==0);
+ assert(rmdir(absolute_parent2)==0);
+ assert(rmdir(absolute_parent1)==0);
  puts("Atomic multi-file capture group: backup, restore, recovery, scan-race PASS");
  return 0;
 }
