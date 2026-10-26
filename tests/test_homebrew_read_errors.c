@@ -97,6 +97,10 @@ int main(int argc,char**argv){
  assert(json&&size>100&&stats.partial);
  assert(app_name_lookups>=2);
  /* A swapped top-level /data/<app> must never contribute cache bytes. */
+ if(stats.cache_like_folders||stats.cache_like_nominal_bytes)
+  fprintf(stderr,"App inode swap: lookups=%d cacheFolders=%u cacheBytes=%llu partial=%u\n",
+    app_name_lookups,stats.cache_like_folders,
+    (unsigned long long)stats.cache_like_nominal_bytes,stats.partial);
  assert(stats.cache_like_folders==0u&&stats.cache_like_nominal_bytes==0u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
