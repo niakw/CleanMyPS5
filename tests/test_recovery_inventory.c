@@ -136,6 +136,8 @@ static void make_checkpoint(const char*root,const char*dest,
  saved.verify=true;
  saved.dedup=true;
  assert(cmp5_profile_pin_set(saved.reserved,NULL));
+ assert(cmp5_plan_pin_set(saved.reserved,
+   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
  assert(fwrite(&saved,1,sizeof(saved),f)==sizeof(saved));
  assert(fclose(f)==0);
  char stage[550];snprintf(stage,sizeof(stage),"%s/stage",path);
@@ -203,6 +205,16 @@ int main(void){
  assert(cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  assert(cmp5_profile_pin_matches(bogus.reserved,test_digest));
  assert(!cmp5_profile_pin_matches(bogus.reserved,NULL));
+ /* A fresh profile pin begins without a finalized file plan. The
+  * inventory must reject this incomplete checkpoint until the worker
+  * saves the canonical digest AFTER source scanning and block budgeting. */
+ assert(!cmp5_plan_pin_valid(bogus.reserved));
+ assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ assert(cmp5_plan_pin_set(bogus.reserved,test_digest));
+ assert(cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
+ assert(cmp5_plan_pin_matches(bogus.reserved,test_digest));
+ assert(!cmp5_plan_pin_matches(bogus.reserved,
+   "1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
  bogus.reserved[41]=1u;
  assert(!cmp5_ampr_request_valid(&bogus,"/data/homebrew","PPSA12345"));
  bogus=original_request;bogus.reserved[9]=1u;
