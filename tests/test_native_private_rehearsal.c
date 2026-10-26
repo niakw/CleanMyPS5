@@ -34,6 +34,22 @@ int main(void){
   * directories should be created by invoking the low-level function. */
  assert(!cmp5_restore_backup(NULL,id,
        "/download0/cmp5-private-rehearsals",raw,&receipt,NULL,NULL));
+ /* Read-only audit is itself scoped to the same exact two directories
+  * and individual RAW_CAP filename; no path aliases or Sony names. */
+ assert(!cmp5_verify_rehearsed_backup("/tmp/private-backups",id,
+       "/download0/cmp5-private-rehearsals",raw,&receipt,NULL,NULL));
+ assert(!cmp5_verify_rehearsed_backup("/download0/cmp5-private-backups",id,
+       "/user/av_contents/photo",raw,&receipt,NULL,NULL));
+ assert(!cmp5_verify_rehearsed_backup("/download0/cmp5-private-backups",id,
+       "/download0/cmp5-private-rehearsals",
+       "RAW_CAP_0123456789ABCDE0",&receipt,NULL,NULL));
+ assert(!cmp5_verify_rehearsed_backup("/download0/cmp5-private-backups",
+       "GRP_0123456789ABCDEF",
+       "/download0/cmp5-private-rehearsals",raw,&receipt,NULL,NULL));
+ assert(!cmp5_verify_rehearsed_backup("/download0/cmp5-private-backups",
+       "CAP_0123456789ABCDEg",
+       "/download0/cmp5-private-rehearsals",raw,&receipt,NULL,NULL));
+ assert(!receipt.published);
  /* Group reconstruction uses exactly GRP_<16 uppercase hex>,
   * and the raw member extractor only admits __1..__4 in app storage.
   * These rejections execute before /download0 is ever opened. */
