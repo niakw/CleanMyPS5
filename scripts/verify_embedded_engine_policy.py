@@ -97,6 +97,27 @@ def check_engine(root: Path) -> None:
         in game_paths[source_start:source_end]
     ):
         missing.append("regular game files must have convertible image suffix")
+    # A directory named /mnt/usbN may exist even when no external device
+    # is mounted. Require the shared PS5 worker guard at BOTH read-only
+    # path admission and the exclusive mkdirat output boundary. This
+    # checks the actual header copied into the pinned engine checkout.
+    external_start = game_paths.find(
+        "static inline bool cmp5_game_external_mount_ready(")
+    external_end = game_paths.find(
+        "/* Resolve every path component", external_start)
+    external_guard = (game_paths[external_start:external_end]
+                      if external_start >= 0 and external_end >= 0 else "")
+    if not all(x in external_guard for x in (
+        'openat(base,"mnt",O_RDONLY|O_DIRECTORY|O_NOFOLLOW)',
+        'openat(parent,volume_name,',
+        'cmp5_game_distinct_mount(&parent_st,&volume_st)',
+        'named_st.st_dev==volume_st.st_dev',
+        'named_st.st_ino==volume_st.st_ino',
+    )):
+        missing.append("unmounted external roots must fail closed")
+    if ('!cmp5_game_external_mount_ready(root,path)'
+            not in game_paths[source_start:source_end]):
+        missing.append("PS5 path preflight must reject unmounted external roots")
     # Pause and scheduler must share the same identity test. A stale
     # front-end status poll is insufficient authorization for global pause.
     if not all(part in job for part in (
@@ -222,6 +243,10 @@ def check_engine(root: Path) -> None:
         'mkdirat(child,".e2a-state",0700)' not in create or
         "O_DIRECTORY|O_NOFOLLOW" not in create):
         missing.append("new title and private checkpoint directories must be anchored and use restricted modes")
+    mount_check=create.find("!cmp5_game_external_mount_ready(root,dest)")
+    title_mkdir=create.find("mkdirat(fd,title_id,0755)")
+    if mount_check<0 or title_mkdir<0 or mount_check>title_mkdir:
+        missing.append("external device must be mounted before output creation")
     # One admission at request parsing and another after the potentially
     # long ShadowMountPlus preflight, immediately before enqueuing work.
     exact_checks = (
