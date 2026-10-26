@@ -154,6 +154,7 @@ def check_engine(root: Path) -> None:
     # independently pinned and compared BEFORE request_save and packing.
     for label,fragment in {
         "file-action plan canonical SHA helper": "cmp5_entries_plan_hash(",
+        "source-plan includes published runtime bytes": "cmp5_entries_plan_hash_with_assets(&entries,dest,cmp5_action_plan_sha)",
         "plan scan covers source path": "e2a_sha256_update(&hash,item->rel,len)",
         "plan scan covers source size": "cmp5_plan_hash_u64(&hash,item->size)",
         "plan scan covers source mtime": "item->synthetic?0u:(uint64_t)item->mtime",
@@ -169,6 +170,16 @@ def check_engine(root: Path) -> None:
             missing.append("missing saved file-action plan guard: "+label)
     if '#include "cmp5_ampr_checkpoint_plan.h"' not in job:
         missing.append("transformed PS5 worker not linked to tested plan hash")
+    for label,fragment in {
+        "full content read via no-follow file descriptor": "O_RDONLY|O_NOFOLLOW|O_CLOEXEC",
+        "synthetic asset links rejected": "before.st_nlink!=1",
+        "asset size matches scanned plan": "(uint64_t)before.st_size!=entry->size",
+        "SHA includes actual synthetic bytes": "e2a_sha256_update(&hash,data,(size_t)n)",
+        "asset digest mixed into final plan": "e2a_sha256_update(&hash,asset_sha,sizeof(asset_sha))",
+        "asset pass names a new digest version": "CMP5-FILE-PLAN-ASSETS-v2"
+    }.items():
+        if fragment not in plan_hash:
+            missing.append("unsafe synthetic runtime/plugin plan hash: "+label)
     # An invalid resume must never overwrite the existing runtime or
     # plugins while *trying* to calculate the plan hash. Synthetic files
     # already published are read-only observations until their plan is
