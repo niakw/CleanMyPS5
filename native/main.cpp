@@ -3202,7 +3202,7 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
     "CERCLE ANNULER  COPIE PRIVEE PARTIELLE POSSIBLE");
   return;
  }
- const bool success=(!task_failed()&&!task_cancelled()||
+ const bool success=((!task_failed()&&!task_cancelled())||
     private_rehearsal_discard)&&
    private_rehearsal_outcome.status==
      cmp5_private_backup::RehearsalStatus::verified;
