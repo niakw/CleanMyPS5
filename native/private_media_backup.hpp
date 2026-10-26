@@ -186,6 +186,28 @@ inline RehearsalOutcome verify_rehearsed_capsule_by_id(
  result.bytes=checked.bytes;result.status=RehearsalStatus::verified;
  return result;
 }
+/* Two explicit confirmations required by the native UI. This only
+ * discards our own already SHA-verified raw rehearsal. Never removes
+ * CAP_ backups or anything in the console's Sony Gallery. */
+inline RehearsalOutcome discard_rehearsal_by_id(const char*id,
+                             Cmp5CancelCheck cancel,void*context) noexcept {
+ RehearsalOutcome result{};
+ if(!rehearsal_capsule_id(id)||(cancel&&cancel(context))){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ char raw_name[32]{};
+ if(std::snprintf(raw_name,sizeof(raw_name),"RAW_%s",id)!=24){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ std::uint64_t nominal=0u;
+ if(!cmp5_discard_rehearsed_backup(workspace,id,rehearsal_workspace,
+       raw_name,&nominal,cancel,context)||!nominal){
+  result.status=RehearsalStatus::failed;return result;
+ }
+ result.status=RehearsalStatus::verified;
+ result.bytes=nominal; /* NOT an observed increase of available storage. */
+ return result;
+}
 inline RehearsalOutcome rehearse_by_id(const char*id,
                            Cmp5CancelCheck cancel,void*context) noexcept {
  RehearsalOutcome result{};
