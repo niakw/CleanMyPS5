@@ -126,7 +126,8 @@ static inline bool cmp5_ampr_request_valid(
   * profile plan (or an explicit "no profile" marker). Legacy zeroed
   * extension fields cannot prove this and are not offered for automatic
   * resume; the old partial output is left untouched for inspection. */
- return cmp5_profile_pin_valid(r->reserved);
+ return cmp5_profile_pin_valid(r->reserved)&&
+        cmp5_plan_pin_valid(r->reserved);
 }
 static inline bool cmp5_ampr_read_request(int fd,const char*base,
                                           const char*title){
