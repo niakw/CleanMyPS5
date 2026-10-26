@@ -34,6 +34,13 @@ typedef struct {
   * an empty PS5 library unless BOTH principal roots were traversed. */
  uint32_t data_root_state;
  uint32_t installed_root_state;
+ /* Bounded second look at /data/<app>/{cache,.cache,tmp,temp}.
+  * Folder naming does NOT prove provider ownership or safe deletion.
+  * Never add this nominal subtotal to the general storage total. */
+ uint32_t cache_like_folders;
+ uint32_t cache_like_files;
+ uint32_t cache_like_partial;
+ uint64_t cache_like_nominal_bytes;
 } Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);
