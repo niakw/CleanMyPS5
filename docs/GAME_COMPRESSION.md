@@ -10,10 +10,17 @@ interprète la valeur **0** comme « conserver le niveau enregistré dans
 utilisé par les blocs restants**. Le service interprète le paramètre
 `level` absent comme 0.
 
-Le contrôleur envoie désormais uniquement `dest=<chemin encodé>` :
-aucun choix implicite de niveau, aucune conversion redémarrée de zéro.
-La sélection exige toujours le rescannage du checkpoint, les deux
-confirmations DualSense et la vérification indépendante du moteur.
+Le contrôleur envoie désormais uniquement `dest=<chemin encodé>`
+sur **les deux parcours** : reprise d'un checkpoint après redémarrage
+et reprise d'une conversion interrompue pendant la session. Aucun choix
+implicite de niveau n'est envoyé ; aucune conversion ne repart de zéro.
+Dans la version épinglée du worker, l'application d'un profil de jeu
+ne peut plus remplacer `req.level` lors d'une reprise : un profil
+modifié ultérieurement affectera uniquement les **nouvelles** conversions.
+La CI vérifie cette protection dans le C transformé du moteur intégré.
+La sélection exige toujours le rescannage du checkpoint lors d'une
+reprise après redémarrage, les deux confirmations DualSense et la
+vérification indépendante du moteur.
 Les tests du constructeur de formulaire et du protocole HTTP simulé
 exigent l'absence de `level`. Ce correctif ne valide pas la jouabilité
 des jeux compressés ni les données de checkpoint sur FW 13.60.
