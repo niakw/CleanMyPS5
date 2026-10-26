@@ -755,6 +755,27 @@ int main(){
   if(command.kind=='X'&&command.text.find("SHA-256  1/1 CAPSULES  0/0 GROUPES")!=
       std::string::npos)found_empty_summary=true;
  assert(found_empty_summary);
+ /* Four visible rows + a fixed summary area; the fifth item paginates.
+  * There must be no private-archive panel drawn over the audit footer. */
+ private_inventory.count=5u;
+ for(unsigned i=0;i<private_inventory.count;i++)
+  (void)std::snprintf(private_inventory.ids[i],
+    sizeof(private_inventory.ids[i]),"CAP_%016X",i+1u);
+ canvas.clear(Color::background);
+ show_capsules(canvas);
+ unsigned visible_rows=0u;
+ bool rendered_total=false;
+ for(const auto&command:canvas.commands){
+  if(command.kind=='R'&&command.x==95u&&command.w==1730u&&
+     command.h==116u&&command.y>=400u&&command.y<950u){
+   assert(command.y+command.h<=875u);
+   ++visible_rows;
+  }
+  if(command.kind=='X'&&command.y==885u&&
+     command.text.find("SHA-256")!=std::string::npos)
+   rendered_total=true;
+ }
+ assert(visible_rows==4u&&rendered_total);
  private_archive_audit={};
  press(square);assert(screen==Screen::capsules);
  finish_scan();
