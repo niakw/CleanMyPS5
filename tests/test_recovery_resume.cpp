@@ -59,7 +59,13 @@ int main(){
 
  char body[256]{};
  assert(recovery_resume_body(selected,body,sizeof(body)));
- assert(!std::strcmp(body,"dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345&level=9"));
+ assert(!std::strcmp(body,"dest=%2Fmnt%2Fusb0%2Fhomebrew%2FPPSA12345"));
+ /* A resume retains the saved level in request.bin: the pinned server
+  * maps missing form 'level' to atoi("") == 0 and job_resume_level(0)
+  * preserves the checkpoint value (possibly 1..12). This must not
+  * silently force level 9 after closing the title. */
+ assert(std::strstr(body,"level=")==nullptr);
+ assert(std::strstr(body,"&")==nullptr);
  std::memset(body,'X',sizeof(body));
  assert(!recovery_resume_body(selected,body,15)&&body[0]==0);
  assert(!recovery_resume_body(selected,nullptr,sizeof(body)));
