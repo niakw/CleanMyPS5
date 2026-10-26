@@ -1048,7 +1048,7 @@ int main(){
  scene(canvas);
  bool app_cache_disclaimer=false;
  for(const auto&command:canvas.commands)
-  if(command.text.find("CACHES NON IDENTIFIES")!=std::string::npos)
+  if(command.text.find("INDICES TEMPORAIRES NON ATTESTES")!=std::string::npos)
    app_cache_disclaimer=true;
  assert(app_cache_disclaimer); // Installed apps are NOT cleanup proposals.
  assert(!cmp5_cleanup::assess(cmp5_cleanup::Evidence{
