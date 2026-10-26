@@ -60,6 +60,8 @@ bool mock_ampr_changed_source_bytes=false;
 unsigned mock_ampr_queued_work=0;
 bool mock_private_capsule_valid=false;
 unsigned mock_private_verify_calls=0;
+unsigned mock_private_raw_pair_reads=0;
+bool mock_private_raw_pair_valid=true;
 bool mock_private_group_valid=false;
 unsigned mock_private_group_verify_calls=0;
 bool mock_private_group_source_valid=false;
@@ -98,6 +100,22 @@ int cmp5_restore_backup(const char*,const char*,const char*,const char*,
  Cmp5BackupReceipt*,Cmp5CancelCheck,void*){
  assert(false&&"Synthetic UI must not restore any private or Sony files");
  return 0;
+}
+int cmp5_verify_rehearsed_backup(const char*backup,const char*id,
+ const char*rehearsal,const char*raw,Cmp5BackupReceipt*receipt,
+ Cmp5CancelCheck,void*){
+ assert(std::strcmp(backup,"/download0/cmp5-private-backups")==0);
+ assert(std::strcmp(rehearsal,"/download0/cmp5-private-rehearsals")==0);
+ assert(std::strcmp(id,"CAP_0123456789ABCDEF")==0);
+ assert(std::strcmp(raw,"RAW_CAP_0123456789ABCDEF")==0);
+ ++mock_private_raw_pair_reads;
+ if(!mock_private_raw_pair_valid)return 0;
+ if(receipt){
+  *receipt=Cmp5BackupReceipt{};
+  receipt->published=1;
+  receipt->bytes=30ULL*1024*1024;
+ }
+ return 1;
 }
 int cmp5_verify_backup(const char*folder,const char*id,Cmp5BackupReceipt*r,
  Cmp5CancelCheck,void*){
@@ -733,6 +751,23 @@ int main(){
  assert(mock_private_verify_calls==archive_checks_before+1u);
  assert(backup_outcome.status==cmp5_private_backup::Result::verified);
  press(circle);assert(screen==Screen::capsules);
+ /* Read-only single-archive audit after restart, no write-side mock. */
+ const unsigned old_pair_reads=mock_private_raw_pair_reads;
+ press(l2);
+ assert(screen==Screen::rehearsal&&!private_rehearsal_groups&&
+        private_rehearsal_verify_only);
+ finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::verified);
+ assert(mock_private_raw_pair_reads==old_pair_reads+1u);
+ show_private_rehearsal(canvas);
+ press(circle);assert(screen==Screen::capsules);
+ mock_private_raw_pair_valid=false;
+ press(l2);finish_scan();
+ assert(private_rehearsal_outcome.status==
+   cmp5_private_backup::RehearsalStatus::failed);
+ press(circle);assert(screen==Screen::capsules);
+ mock_private_raw_pair_valid=true;
  /* New private reconstruction workflow: R2 on a capsule, two presses,
   * no media or filesystem write before confirmation. Invalidated
   * selection must fail closed before any attempted destination creation. */
