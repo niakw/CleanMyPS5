@@ -56,7 +56,9 @@ assert "#if !defined(CMP5_NATIVE_BACKUP_ONLY) || defined(CMP5_NATIVE_PRIVATE_REH
 assert 'CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY 1' in builder
 assert 'strcmp(backup,"/download0/cmp5-private-backups")!=0' in sources
 assert 'strcmp(destination,"/download0/cmp5-private-rehearsals")!=0' in sources
-assert 'strcmp(newname+4u,id)!=0' in sources
+assert 'strcmp(newname+4u,id)==0' in sources
+assert 'strcmp(newname,id)==0' in sources
+assert 'if(!capsule&&!group_member)return 0;' in sources
 assert 'cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,' in (
     root/"native/private_media_backup.hpp").read_text()
 assert 'Operation::rehearse_private_media: return actor==Actor::native_title;' in privilege
