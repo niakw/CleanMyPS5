@@ -69,6 +69,17 @@ int main(){
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&!list.partial&&list.count==1u);
  assert(std::strcmp(list.ids[0],"CAP_0123456789ABCDEF")==0);
+ /* An ID created later but sorted earlier must be displayed first,
+  * regardless of the filesystem's native readdir order. */
+ make_file(root,"CAP_0000000000000000",0600);
+ assert(scan_at(root,&list,nullptr,nullptr));
+ assert(list.count==2u);
+ assert(std::strcmp(list.ids[0],"CAP_0000000000000000")==0);
+ assert(std::strcmp(list.ids[1],"CAP_0123456789ABCDEF")==0);
+ char earlier[512]{};
+ assert(std::snprintf(earlier,sizeof(earlier),
+                      "%s/CAP_0000000000000000",root)>0);
+ assert(unlink(earlier)==0);
  make_file(root,".CAP_1111111111111111.part",0600);
  assert(scan_at(root,&list,nullptr,nullptr));
  assert(list.checked&&list.partial&&list.count==1u&&list.staged==1u);
