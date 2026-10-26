@@ -2,6 +2,7 @@
 // Never enumerates Gallery paths or starts an implicit restore/delete.
 #pragma once
 #include "private_media_backup.hpp"
+#include "verified_group.h"
 #include "private_workspace_guard.h"
 #include <cerrno>
 #include <cstddef>
@@ -20,6 +21,75 @@ struct Inventory {
  char ids[inventory_limit][32]{};
  char group_ids[inventory_limit][32]{};
 };
+/* User-triggered SHA-256 audit of all bounded private capsules/groups.
+ * Counts are NOT proof that the underlying Gallery can be restored.
+ * 'partial' includes undiscovered or interrupted private entries. */
+struct ArchiveAudit {
+ bool checked=false,partial=false;
+ unsigned capsules=0u,valid_capsules=0u,groups=0u,valid_groups=0u;
+ std::uint64_t verified_bytes=0u; // per-archive sum, may include duplicates
+};
+inline bool same_archive_listing(const Inventory&a,const Inventory&b) noexcept {
+ if(!a.checked||!b.checked||a.partial!=b.partial||
+    a.staged!=b.staged||a.count!=b.count||
+    a.group_count!=b.group_count)return false;
+ /* readdir order is not stable; compare IDs as bounded SETS. */
+ for(unsigned i=0;i<a.count;i++){
+  bool found=false;
+  for(unsigned j=0;j<b.count;j++)
+   if(std::strcmp(a.ids[i],b.ids[j])==0){found=true;break;}
+  if(!found)return false;
+ }
+ for(unsigned i=0;i<a.group_count;i++){
+  bool found=false;
+  for(unsigned j=0;j<b.group_count;j++)
+   if(std::strcmp(a.group_ids[i],b.group_ids[j])==0){found=true;break;}
+  if(!found)return false;
+ }
+ return true;
+}
+/* A testable worker phase: verify every ID independently and fail closed
+ * on cancellation. Invalid checks are counted, never hidden or deleted. */
+inline bool audit_inventory_at(const Inventory&listed,const char*folder,
+                               ArchiveAudit*out,Cmp5CancelCheck cancel,
+                               void*context) noexcept {
+ if(out)*out=ArchiveAudit{};
+ if(!out||!folder||!listed.checked||
+    listed.count>inventory_limit||listed.group_count>inventory_limit||
+    (cancel&&cancel(context)))return false;
+ ArchiveAudit fresh{};
+ fresh.partial=listed.partial;
+ for(unsigned i=0;i<listed.count;i++){
+  if(cancel&&cancel(context))return false;
+  if(!valid_capsule_id(listed.ids[i]))return false;
+  Cmp5BackupReceipt receipt{};
+  ++fresh.capsules;
+  if(cmp5_verify_backup(folder,listed.ids[i],&receipt,cancel,context)&&
+     receipt.published&&receipt.bytes>0u&&
+     receipt.bytes<=CMP5_BACKUP_LIMIT){
+   ++fresh.valid_capsules;
+   fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
+     UINT64_MAX:fresh.verified_bytes+receipt.bytes;
+  }
+ }
+ for(unsigned i=0;i<listed.group_count;i++){
+  if(cancel&&cancel(context))return false;
+  if(!valid_group_id(listed.group_ids[i]))return false;
+  Cmp5GroupReceipt receipt{};
+  ++fresh.groups;
+  if(cmp5_verify_group(folder,listed.group_ids[i],&receipt,cancel,context)&&
+     receipt.count>=2u&&receipt.count<=CMP5_GROUP_MAX&&
+     receipt.bytes>0u&&receipt.bytes<=CMP5_BACKUP_LIMIT){
+   ++fresh.valid_groups;
+   fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
+     UINT64_MAX:fresh.verified_bytes+receipt.bytes;
+  }
+ }
+ if(cancel&&cancel(context))return false;
+ fresh.checked=true;
+ *out=fresh;
+ return true;
+}
 /* The directory inode can remain stable while files are added, removed,
  * renamed or replaced. Do not publish a "complete" stale inventory when
  * its directory metadata changed during traversal. This is an observation
@@ -201,6 +271,27 @@ inline bool scan_at(const char*folder,Inventory*out,
 }
 inline bool scan(Inventory*out,Cmp5CancelCheck cancel,void*context) noexcept {
  return scan_at(workspace,out,cancel,context);
+}
+/* Refresh the list before AND after hashing. A changed set of names
+ * cannot be presented as a complete audit; checks are read-only, and
+ * even two matching snapshots do not make Sony's index state atomic. */
+inline bool audit_at(const char*folder,ArchiveAudit*out,
+                     Cmp5CancelCheck cancel,void*context) noexcept {
+ if(out)*out=ArchiveAudit{};
+ if(!folder||!out||(cancel&&cancel(context)))return false;
+ Inventory before{},after{};
+ ArchiveAudit result{};
+ if(!scan_at(folder,&before,cancel,context)||
+    !audit_inventory_at(before,folder,&result,cancel,context)||
+    !scan_at(folder,&after,cancel,context)||
+    !same_archive_listing(before,after)||
+    (cancel&&cancel(context)))return false;
+ *out=result;
+ return true;
+}
+inline bool audit(ArchiveAudit*out,Cmp5CancelCheck cancel,
+                  void*context) noexcept {
+ return audit_at(workspace,out,cancel,context);
 }
 inline Outcome verify_by_id(const char*id,Cmp5CancelCheck cancel,
                             void*context) noexcept {
