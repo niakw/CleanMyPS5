@@ -27,6 +27,15 @@ l'ancien catalogue est invalidé.
 Tests : navigation DualSense simulée, archives privées réelles
 synthétiques (une capsule et un groupe), corruption d'un seul membre,
 staging interrompu et annulation ; CI Linux/macOS et sanitizers.
+La progression du worker indique désormais **N archives contrôlées
+sur M** sans prétendre représenter les octets déjà lus à l'intérieur
+d'une archive. La synthèse est visible même si l'onglet sélectionné
+ne contient aucune entrée ; la bibliothèque affiche quatre lignes
+par page pour éviter que le résultat ne chevauche le dernier item.
+En cas d'audit annulé ou impossible, aucun bilan positif n'est
+publié. Ces comportements ont des tests de navigation et de mise
+en page en plus du test hôte utilisant de vraies archives privées.
+
 Le titre natif ne contient **aucune fonction de restauration Galerie
 ni de suppression**. Cet audit ne prouve pas la restaurabilité des
 index Sony, ni le lancement sur une PS5 13.60 réelle.
