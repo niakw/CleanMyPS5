@@ -88,24 +88,25 @@ int main(void){
  /* PS5 private cleanup requires an individual CAP_ capsule paired
   * with RAW_CAP_ output. All forged routes must fail before unlinkat. */
  uint64_t removed=999u;
+ int mutation_started=-1;
  assert(!cmp5_discard_rehearsed_backup("/tmp/backup",id,
-     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
- assert(!removed);
+     "/download0/cmp5-private-rehearsals",raw,&removed,&mutation_started,NULL,NULL));
+ assert(!removed&&!mutation_started);
  assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",id,
-     "/user/av_contents/photo",raw,&removed,NULL,NULL));
- assert(!removed);
+     "/user/av_contents/photo",raw,&removed,&mutation_started,NULL,NULL));
+ assert(!removed&&!mutation_started);
  assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",id,
      "/download0/cmp5-private-rehearsals",
-     "RAW_CAP_0123456789ABCDE0",&removed,NULL,NULL));
- assert(!removed);
+     "RAW_CAP_0123456789ABCDE0",&removed,&mutation_started,NULL,NULL));
+ assert(!removed&&!mutation_started);
  assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",
      "GRP_0123456789ABCDEF",
-     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
- assert(!removed);
+     "/download0/cmp5-private-rehearsals",raw,&removed,&mutation_started,NULL,NULL));
+ assert(!removed&&!mutation_started);
  assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",
      "CAP_0123456789ABCDEg",
-     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
- assert(!removed);
+     "/download0/cmp5-private-rehearsals",raw,&removed,&mutation_started,NULL,NULL));
+ assert(!removed&&!mutation_started);
  assert(!receipt.published&&!grouped.count);
  puts("Native private single + grouped rehearsal scope: PASS");
  return 0;
