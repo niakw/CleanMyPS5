@@ -165,6 +165,55 @@ static void record_top(Audit*a,const char*basename,const char*kind,
   stats->top[i]=stats->top[i-1u];
  stats->top[where]=item;
 }
+/* Observe cache-like app-owned names WITHOUT declaring them disposable.
+ * Only direct children under /data/<app> are considered; paths and cache
+ * filenames are not retained in native Cmp5HomebrewStats. */
+static int cache_like_name(const char*name){
+ return name&&(!strcasecmp(name,"cache")||!strcasecmp(name,".cache")||
+               !strcasecmp(name,"tmp")||!strcasecmp(name,"temp"));
+}
+static void scan_cache_subdirs(Audit*a,int app_dir){
+ if(!a||!a->stats||app_dir<0)return;
+ const int iter=dup(app_dir);
+ if(iter<0){a->stats->cache_like_partial=1u;a->partial=1;return;}
+ DIR*d=fdopendir(iter);
+ if(!d){close(iter);a->stats->cache_like_partial=1u;a->partial=1;return;}
+ for(;;){
+  if(over(a)){a->stats->cache_like_partial=1u;break;}
+  errno=0;
+  struct dirent*e=readdir(d);
+  if(!e){
+   if(errno){a->stats->cache_like_partial=1u;a->partial=1;}
+   break;
+  }
+  if(!cache_like_name(e->d_name))continue;
+  a->visited++;
+  if(over(a)){a->stats->cache_like_partial=1u;break;}
+  struct stat st={0};
+  if(fstatat(app_dir,e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+   a->stats->cache_like_partial=1u;a->partial=1;continue;
+  }
+  /* A symlink or regular file called cache/temp is not a cache folder.
+   * Refuse to follow it or infer any bytes from its target. */
+  if(!S_ISDIR(st.st_mode))continue;
+  const int child=openat(app_dir,e->d_name,
+                         O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(child<0){a->stats->cache_like_partial=1u;a->partial=1;continue;}
+  uint64_t bytes=0;size_t files=0;int partial=0;
+  count_tree(a,child,0,&bytes,&files,&partial); /* owns child fd */
+  if(a->stats->cache_like_folders==UINT32_MAX||
+     a->stats->cache_like_files>UINT32_MAX-files||
+     a->stats->cache_like_nominal_bytes>UINT64_MAX-bytes){
+   a->stats->cache_like_partial=1u;a->partial=1;
+  }else{
+   a->stats->cache_like_folders++;
+   a->stats->cache_like_files+=(uint32_t)files;
+   a->stats->cache_like_nominal_bytes+=bytes;
+  }
+  if(partial){a->stats->cache_like_partial=1u;a->partial=1;}
+ }
+ if(closedir(d)!=0){a->stats->cache_like_partial=1u;a->partial=1;}
+}
 static void audit_root(Audit*a,const char*root,const char*relative,const char*kind){
  unsigned*critical=NULL;
  if(!strcmp(relative,"data"))critical=&a->data_root_state;
@@ -217,7 +266,11 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   else{
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0)partial=1;
-   else count_tree(a,child,0,&bytes,&files,&partial);
+   else{
+    if(!strcmp(kind,"app-data")&&!strcmp(relative,"data"))
+     scan_cache_subdirs(a,child);
+    count_tree(a,child,0,&bytes,&files,&partial);
+   }
   }
   record_top(a,e->d_name,kind,bytes,files,partial);
   if(a->stats){
@@ -276,11 +329,17 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
   stats->data_root_state=a->data_root_state;
   stats->installed_root_state=a->installed_root_state;
  }
- char finish[440];
+ char finish[570];
+ const uint32_t caches=stats?stats->cache_like_folders:0u;
+ const uint32_t cache_files=stats?stats->cache_like_files:0u;
+ const uint64_t cache_bytes=stats?stats->cache_like_nominal_bytes:0u;
+ const unsigned cache_partial=stats?stats->cache_like_partial:0u;
  snprintf(finish,sizeof(finish),
-  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
+  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
   a->visited,a->partial?"true":"false",
-  root_state_name(a->data_root_state),root_state_name(a->installed_root_state));
+  root_state_name(a->data_root_state),root_state_name(a->installed_root_state),
+  caches,cache_files,(unsigned long long)cache_bytes,
+  cache_partial?"true":"false");
  add(&a->out,finish);
  char*result=a->out.data;
  if(a->out.bad){free(result);result=NULL;}else *length=a->out.len;
