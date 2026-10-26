@@ -85,6 +85,27 @@ int main(void){
        "GRP_0123456789ABCDEF__1",
        "/download0/cmp5-private-rehearsals",
        "GRP_0123456789ABCDEF__2",&receipt,NULL,NULL));
+ /* PS5 private cleanup requires an individual CAP_ capsule paired
+  * with RAW_CAP_ output. All forged routes must fail before unlinkat. */
+ uint64_t removed=999u;
+ assert(!cmp5_discard_rehearsed_backup("/tmp/backup",id,
+     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
+ assert(!removed);
+ assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",id,
+     "/user/av_contents/photo",raw,&removed,NULL,NULL));
+ assert(!removed);
+ assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",id,
+     "/download0/cmp5-private-rehearsals",
+     "RAW_CAP_0123456789ABCDE0",&removed,NULL,NULL));
+ assert(!removed);
+ assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",
+     "GRP_0123456789ABCDEF",
+     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
+ assert(!removed);
+ assert(!cmp5_discard_rehearsed_backup("/download0/cmp5-private-backups",
+     "CAP_0123456789ABCDEg",
+     "/download0/cmp5-private-rehearsals",raw,&removed,NULL,NULL));
+ assert(!removed);
  assert(!receipt.published&&!grouped.count);
  puts("Native private single + grouped rehearsal scope: PASS");
  return 0;
