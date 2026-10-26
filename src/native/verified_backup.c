@@ -360,6 +360,56 @@ static int verify_restored_file(int dir,const char*id,
  close(fd);
  return ok;
 }
+/* Post-restart, read-only verification of an already published raw
+ * rehearsal. Do not create directories or reuse restoration side effects:
+ * re-hash BOTH the committed capsule and the named raw file, and pin the
+ * two private workspace identities throughout the operation. */
+int cmp5_verify_rehearsed_backup(const char*backup,const char*id,
+ const char*destination,const char*newname,Cmp5BackupReceipt*r,
+ Cmp5CancelCheck cancel,void*ctx){
+ if(r)memset(r,0,sizeof(*r));
+ if(!r||!valid_id(id)||!valid_id(newname)||!backup||!destination||
+    canceled(cancel,ctx))return 0;
+#ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
+ /* A native audit is no more privileged than the reconstruction itself. */
+ if(strcmp(backup,"/download0/cmp5-private-backups")!=0||
+    strcmp(destination,"/download0/cmp5-private-rehearsals")!=0||
+    strlen(id)!=20u||strncmp(id,"CAP_",4u)!=0||
+    strlen(newname)!=24u||strncmp(newname,"RAW_",4u)!=0||
+    strcmp(newname+4u,id)!=0)return 0;
+ for(unsigned i=4u;i<20u;i++)
+  if(!((id[i]>='0'&&id[i]<='9')||
+       (id[i]>='A'&&id[i]<='F')))return 0;
+#endif
+ int from=private_dir(backup);
+ if(from<0)return 0;
+ int to=private_dir(destination);
+ if(to<0){close(from);return 0;}
+ struct stat before_source={0},before_target={0};
+ struct stat after_source={0},after_target={0};
+ int ok=fstat(from,&before_source)==0&&
+   fstat(to,&before_target)==0&&
+   !(before_source.st_dev==before_target.st_dev&&
+     before_source.st_ino==before_target.st_ino);
+ Cmp5BackupReceipt initial={0},again={0};
+ if(ok)ok=cmp5_verify_backup(backup,id,&initial,cancel,ctx)&&
+   initial.published&&initial.bytes>0&&
+   initial.bytes<=CMP5_BACKUP_LIMIT&&!canceled(cancel,ctx);
+ if(ok)ok=verify_restored_file(to,newname,&initial,cancel,ctx);
+ if(ok)ok=cmp5_verify_backup(backup,id,&again,cancel,ctx)&&
+   again.published&&initial.bytes==again.bytes&&
+   memcmp(initial.sha256,again.sha256,32)==0&&
+   !canceled(cancel,ctx);
+ if(ok)ok=fstat(from,&after_source)==0&&
+   fstat(to,&after_target)==0&&
+   same_private_directory(&before_source,&after_source)&&
+   same_private_directory(&before_target,&after_target)&&
+   private_directory_current(from,backup,&before_source)&&
+   private_directory_current(to,destination,&before_target);
+ close(to);close(from);
+ if(ok)*r=again;
+ return ok;
+}
 int cmp5_restore_backup(const char*backup,const char*id,
  const char*destination,const char*newname,Cmp5BackupReceipt*r,
  Cmp5CancelCheck cancel,void*ctx){
