@@ -175,6 +175,38 @@ int main(void) {
  assert(snprintf(folder,sizeof(folder),"%s/data/homebrew/PPSA12345",
                  sandbox)>0);
  assert(mkdir(folder,0700)==0);
+ /* Presence of an external-looking directory is NOT a mounted volume.
+  * The direct AMPR endpoint and the actual worker now both reject it.
+  * Host fixtures still exercise generic O_NOFOLLOW path identity under
+  * this fake tree, independently of hardware mount admission. */
+ struct stat mount_parent={0},mount_leaf={0};
+ mount_parent.st_mode=mount_leaf.st_mode=S_IFDIR|0700;
+ mount_parent.st_dev=71;mount_leaf.st_dev=71;
+ assert(!cmp5_game_distinct_mount(&mount_parent,&mount_leaf));
+ mount_leaf.st_dev=72;
+ assert(cmp5_game_distinct_mount(&mount_parent,&mount_leaf));
+ mount_leaf.st_mode=S_IFREG|0600;
+ assert(!cmp5_game_distinct_mount(&mount_parent,&mount_leaf));
+ mount_leaf.st_mode=S_IFDIR|0700;
+ mount_parent.st_mode=S_IFREG|0600;
+ assert(!cmp5_game_distinct_mount(&mount_parent,&mount_leaf));
+ assert(cmp5_game_external_mount_ready(sandbox,
+        "/data/homebrew/PPSA12345"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb0/homebrew"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/ext7/homebrew/PPSA12345"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb8/homebrew"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb0"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb0/homebrew/../danger"));
+ assert(!cmp5_game_external_mount_ready(sandbox,
+        "/mnt/usb1/homebrew"));
+ assert(!cmp5_game_external_mount_ready(sandbox,NULL));
+ assert(!cmp5_game_external_mount_ready(NULL,
+        "/mnt/usb0/homebrew"));
  assert(snprintf(image,sizeof(image),"%s/mnt/usb0/GAME.exfat",sandbox)>0);
  FILE*out=fopen(image,"wb");assert(out);
  assert(fputs("SYNTHETIC_GAME_IMAGE",out)>=0&&fclose(out)==0);
