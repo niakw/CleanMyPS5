@@ -46,4 +46,98 @@ static int cmp5_entries_plan_hash(const e2a_list *entries,char hex[65]){
   hex[64]=0;
   return 0;
 }
+/* V2: bind the ACTUAL BYTES of every synthetic runtime/plugin to the
+ * finalized action plan. Earlier v1 covered size/mtime (synthetic mtime
+ * intentionally ignored), so a same-size plugin replacement could pass.
+ * This helper reads through a no-follow fd; it never creates or repairs
+ * any file. The old v1 routine remains only for compatibility tests. */
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static int cmp5_hash_synthetic_file(const char*destination,
+                                    const e2a_entry*entry,
+                                    unsigned char digest[32]){
+  if(!destination||!entry||!entry->rel||!digest||
+     entry->size==0u||entry->size>64u*1024u*1024u)return -1;
+  /* Only recognized, directly published fakelib artefacts may be read.
+   * Refuse relative path traversal and nested/arbitrary trees. */
+  if(strncmp(entry->rel,"fakelib/",8u)!=0)return -1;
+  const char*leaf=entry->rel+8u;
+  const size_t leaflen=strlen(leaf);
+  if(!leaflen||leaf[0]=='.'||leaflen>120u||
+     strstr(leaf,"..")||strchr(leaf,'/')||strchr(leaf,'\\'))return -1;
+  for(size_t i=0;i<leaflen;i++){
+    const unsigned char c=(unsigned char)leaf[i];
+    if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+         (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'))return -1;
+  }
+  char path[1024];
+  const int written=snprintf(path,sizeof(path),"%s/%s",destination,entry->rel);
+  if(written<=0||(size_t)written>=sizeof(path))return -1;
+  int fd=open(path,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+  if(fd<0)return -1;
+  struct stat before,after;
+  int result=-1;
+  if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
+     before.st_nlink!=1||before.st_size<0||
+     (uint64_t)before.st_size!=entry->size)goto complete;
+  e2a_sha256 hash;
+  e2a_sha256_init(&hash);
+  uint8_t data[8192];
+  uint64_t bytes=0u;
+  for(;;){
+    const ssize_t n=read(fd,data,sizeof(data));
+    if(n<0&&errno==EINTR)continue;
+    if(n<0)goto complete;
+    if(n==0)break;
+    bytes+=(uint64_t)n;
+    if(bytes>entry->size)goto complete;
+    e2a_sha256_update(&hash,data,(size_t)n);
+  }
+  if(bytes!=entry->size||fstat(fd,&after)!=0||
+     before.st_dev!=after.st_dev||before.st_ino!=after.st_ino||
+     before.st_size!=after.st_size||before.st_mode!=after.st_mode||
+     before.st_mtime!=after.st_mtime||
+     before.st_ctime!=after.st_ctime)goto complete;
+  e2a_sha256_final(&hash,digest);
+  result=0;
+complete:
+  close(fd);
+  return result;
+}
+static int cmp5_entries_plan_hash_with_assets(const e2a_list*entries,
+                                               const char*destination,
+                                               char out[65]){
+  if(!entries||!destination||!out)return -1;
+  char plan_hex[65];
+  if(cmp5_entries_plan_hash(entries,plan_hex)!=0)return -1;
+  e2a_sha256 hash;
+  e2a_sha256_init(&hash);
+  static const char tag[]="CMP5-FILE-PLAN-ASSETS-v2";
+  e2a_sha256_update(&hash,tag,sizeof(tag));
+  e2a_sha256_update(&hash,plan_hex,64u);
+  uint64_t asset_count=0u;
+  for(size_t i=0;i<entries->n;i++){
+    const e2a_entry*entry=&entries->v[i];
+    if(!entry->synthetic)continue;
+    unsigned char asset_sha[32];
+    if(cmp5_hash_synthetic_file(destination,entry,asset_sha)!=0)return -1;
+    ++asset_count;
+    cmp5_plan_hash_u64(&hash,(uint64_t)i);
+    e2a_sha256_update(&hash,asset_sha,sizeof(asset_sha));
+  }
+  cmp5_plan_hash_u64(&hash,asset_count);
+  unsigned char digest[32];
+  e2a_sha256_final(&hash,digest);
+  static const char chars[]="0123456789abcdef";
+  for(size_t i=0;i<32u;i++){
+    out[i*2u]=chars[digest[i]>>4u];
+    out[i*2u+1u]=chars[digest[i]&15u];
+  }
+  out[64]=0;
+  return 0;
+}
+
 #endif
