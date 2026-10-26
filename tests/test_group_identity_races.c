@@ -66,7 +66,25 @@ static ssize_t race_read(int fd,void*out,size_t n){
 /* Simulate rename/replacement after opening the original capture inode,
  * immediately before the final pathname identity check. */
 static int origin_name_swap=0;
+static char origin_parent_path[1024],origin_parent_moved[1024];
+static int origin_parent_swap_on_named=0,origin_parent_swap_on_missing=0;
+static void move_origin_parent(void){
+ assert(rename(origin_parent_path,origin_parent_moved)==0);
+ assert(mkdir(origin_parent_path,0700)==0);
+ triggered=1;
+}
+static int racing_openat(int dir,const char*name,int flags,...){
+ if(origin_parent_swap_on_missing&&!strcmp(name,"MISSING.jpg")){
+  origin_parent_swap_on_missing=0;
+  move_origin_parent();
+ }
+ return openat(dir,name,flags,0600);
+}
 static int racing_fstatat(int dir,const char*name,struct stat*st,int flags){
+ if(origin_parent_swap_on_named&&!strcmp(name,"ORIGINAL.jpg")){
+  origin_parent_swap_on_named=0;
+  move_origin_parent();
+ }
  if(origin_name_swap&&strcmp(name,"ORIGINAL.jpg")==0){
   const int replace=origin_name_swap==2;
   assert(rename(watched,moved)==0);
@@ -98,7 +116,9 @@ static struct dirent*racing_readdir(DIR*dir){
 #define unlinkat racing_unlinkat
 #define fsync racing_fsync
 #define fstatat racing_fstatat
+#define openat racing_openat
 #include "../src/native/verified_group.c"
+#undef openat
 #undef fstatat
 #undef fsync
 #undef unlinkat
@@ -431,6 +451,57 @@ int main(int argc,char**argv){
  assert(triggered&&!origin_name_swap);
  assert(unlink(watched)==0);
  assert(unlink(moved)==0);
+ /* A missing pathname cannot be reported as missing if its parent was
+  * renamed/replaced while the anchored fd survived the path change.
+  * Nor can a previously opened original be called UNCHANGED. */
+ assert(snprintf(origin_parent_path,sizeof(origin_parent_path),
+                 "%s/ALBUM",origin_root)>0);
+ assert(snprintf(origin_parent_moved,sizeof(origin_parent_moved),
+                 "%s/ALBUM.moved",origin_root)>0);
+ assert(mkdir(origin_parent_path,0700)==0);
+ int origin_parent_fd=openat(origin_fd,"ALBUM",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+ assert(origin_parent_fd>=0);
+ int nested_fd=openat(origin_parent_fd,"ORIGINAL.jpg",
+                      O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ assert(nested_fd>=0);
+ assert(write(nested_fd,image_data,sizeof(image_data)-1u)==
+        (ssize_t)(sizeof(image_data)-1u));
+ assert(close(nested_fd)==0);
+ struct stat nested_stat={0};
+ assert(fstatat(origin_parent_fd,"ORIGINAL.jpg",
+                &nested_stat,AT_SYMLINK_NOFOLLOW)==0);
+ Cmp5OriginEntry nested_origin={0};
+ strcpy(nested_origin.path,"/ALBUM/ORIGINAL.jpg");
+ nested_origin.bytes=(uint64_t)nested_stat.st_size;
+ nested_origin.media_type=1u;
+ nested_origin.snapshot_device=(uint64_t)nested_stat.st_dev;
+ nested_origin.snapshot_inode=(uint64_t)nested_stat.st_ino;
+ nested_origin.snapshot_ctime=(int64_t)nested_stat.st_ctime;
+ nested_origin.modified_at=(int64_t)nested_stat.st_mtime;
+ nested_origin.snapshot_mtime_nsec=cmp5_mtime_ns(&nested_stat);
+ nested_origin.snapshot_ctime_nsec=cmp5_ctime_ns(&nested_stat);
+ assert(inspect_source_once(origin_fd,&nested_origin)==
+        CMP5_ORIGIN_UNCHANGED);
+ origin_parent_swap_on_named=1;triggered=0;
+ assert(inspect_source_once(origin_fd,&nested_origin)==
+        CMP5_ORIGIN_UNKNOWN);
+ assert(triggered&&!origin_parent_swap_on_named);
+ assert(rmdir(origin_parent_path)==0);
+ assert(rename(origin_parent_moved,origin_parent_path)==0);
+ assert(inspect_source_once(origin_fd,&nested_origin)==
+        CMP5_ORIGIN_UNCHANGED);
+ Cmp5OriginEntry missing=nested_origin;
+ strcpy(missing.path,"/ALBUM/MISSING.jpg");
+ assert(inspect_source_once(origin_fd,&missing)==CMP5_ORIGIN_MISSING);
+ origin_parent_swap_on_missing=1;triggered=0;
+ assert(inspect_source_once(origin_fd,&missing)==CMP5_ORIGIN_UNKNOWN);
+ assert(triggered&&!origin_parent_swap_on_missing);
+ assert(rmdir(origin_parent_path)==0);
+ assert(rename(origin_parent_moved,origin_parent_path)==0);
+ assert(inspect_source_once(origin_fd,&missing)==CMP5_ORIGIN_MISSING);
+ assert(unlinkat(origin_parent_fd,"ORIGINAL.jpg",0)==0);
+ assert(close(origin_parent_fd)==0);
+ assert(rmdir(origin_parent_path)==0);
  assert(close(origin_fd)==0);
  assert(rmdir(origin_root)==0);
  assert(close(dir)==0);
