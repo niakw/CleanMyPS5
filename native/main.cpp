@@ -398,6 +398,7 @@ bool backup_from_inventory=false;
 Screen capsule_return_screen=Screen::detail;
 cmp5_private_backup::Inventory private_inventory{};
 cmp5_private_backup::ArchiveAudit private_archive_audit{};
+cmp5_private_backup::ArchiveAuditProgress private_audit_progress{};
 unsigned private_inventory_selection=0;
 bool private_inventory_groups=false;
 bool group_verify_only=false,group_from_inventory=false;
@@ -788,6 +789,7 @@ void run_private_backup_verify() noexcept {
 void run_capsule_inventory() noexcept {
  private_inventory=cmp5_private_backup::Inventory{};
  private_archive_audit=cmp5_private_backup::ArchiveAudit{};
+ private_audit_progress.reset();
  private_inventory_selection=0u;
  cmp5_private_backup::Inventory checked{};
  if(cmp5_private_backup::scan(&checked,cancellation_hook,nullptr)&&
@@ -796,9 +798,11 @@ void run_capsule_inventory() noexcept {
 }
 void run_private_archive_audit() noexcept {
  private_archive_audit=cmp5_private_backup::ArchiveAudit{};
+ private_audit_progress.reset();
  cmp5_private_backup::ArchiveAudit verified{};
  cmp5_private_backup::Inventory current{};
- if(cmp5_private_backup::audit(&verified,&current,cancellation_hook,nullptr)&&
+ if(cmp5_private_backup::audit(&verified,&current,cancellation_hook,nullptr,
+                               &private_audit_progress)&&
     !cancellation_hook(nullptr)){
   /* Show exactly the bounded set independently re-scanned after hashing;
    * an old selection index must not target a different archive. */
@@ -2844,21 +2848,53 @@ void show_detail(ps5::demo::Canvas&canvas) noexcept {
   "L1 ARCHIVES  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE":
   "L1 ARCHIVES  L2 VERIFIER  R2 SAUVEGARDE  TRIANGLE MARQUER  CERCLE");
 }
+/* A private archive audit is a bounded SHA proof, never a Sony restore
+ * promise. Show the result even when one tab has no archives. */
+void show_archive_audit_result(ps5::demo::Canvas&canvas,unsigned y) noexcept {
+ if(!private_archive_audit.checked)return;
+ char message[160]{};
+ (void)std::snprintf(message,sizeof(message),
+  "SHA-256  %u/%u CAPSULES  %u/%u GROUPES  %s",
+  private_archive_audit.valid_capsules,private_archive_audit.capsules,
+  private_archive_audit.valid_groups,private_archive_audit.groups,
+  private_archive_audit.partial?"COUVERTURE PARTIELLE":"PERIMETRE BORNE");
+ const bool uncertain=private_archive_audit.partial||
+    private_archive_audit.valid_capsules!=private_archive_audit.capsules||
+    private_archive_audit.valid_groups!=private_archive_audit.groups;
+ canvas.text(130,y,message,2,uncertain?Color::yellow:Color::cyan);
+}
 void show_capsules(ps5::demo::Canvas&canvas) noexcept {
  panel(canvas,286,private_inventory_groups?"GROUPES PRIVES":"CAPSULES PRIVEES",
    "L1/R1 BASCULER  AUCUN CHEMIN GALERIE AFFICHE",Color::cyan);
  if(task_busy()){
-  panel(canvas,470,task_kind==Task::private_archive_audit?
-      "AUDIT SHA-256 EN COURS":"INVENTAIRE EN COURS",
-    task_kind==Task::private_archive_audit?
-      "CAPSULES ET GROUPES  LECTURE INTEGRALE  ANNULABLE":
-      "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
+  if(task_kind==Task::private_archive_audit){
+   const unsigned total=private_audit_progress.total.load(
+       std::memory_order_acquire);
+   const unsigned done=private_audit_progress.completed.load(
+       std::memory_order_acquire);
+   char detail[120]{};
+   if(total)
+    (void)std::snprintf(detail,sizeof(detail),
+      "%u/%u ARCHIVES VERIFIEES  LECTURE SHA-256",done,total);
+   else
+    (void)std::snprintf(detail,sizeof(detail),
+      "LECTURE DU CATALOGUE PRIVE  SHA-256 ENSUITE");
+   panel(canvas,470,"AUDIT PRIVE EN COURS",detail,Color::cyan);
+   panel(canvas,650,"SAUVEGARDES",
+     "AUCUN ORIGINAL NI INDEX SONY MODIFIE",Color::yellow);
+  }else panel(canvas,470,"INVENTAIRE EN COURS",
+    "LECTURE DU DOSSIER PRIVE UNIQUEMENT",Color::cyan);
   footer(canvas,"CERCLE ANNULER  AUCUNE ECRITURE");
   return;
  }
  if(!private_inventory.checked){
-  panel(canvas,460,"INVENTAIRE NON DISPONIBLE",
-    "STOCKAGE PRIVE INACCESSIBLE OU NON PRESENT",Color::yellow);
+  panel(canvas,460,task_cancelled()?"AUDIT ANNULE":
+    task_kind==Task::private_archive_audit?
+      "AUDIT INCOMPLET":"INVENTAIRE NON DISPONIBLE",
+    task_cancelled()?"AUCUN BILAN SHA-256 PUBLIE":
+      task_kind==Task::private_archive_audit?
+        "CATALOGUE MODIFIE OU STOCKAGE INACCESSIBLE":
+        "STOCKAGE PRIVE INACCESSIBLE OU NON PRESENT",Color::yellow);
   footer(canvas,capsule_return_screen==Screen::menu?
     "TRIANGLE RECONTROLER  CERCLE ACCUEIL":
     "TRIANGLE RECONTROLER  CERCLE DETAIL");
@@ -2870,35 +2906,26 @@ void show_capsules(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,460,private_inventory_groups?
       "AUCUN GROUPE PUBLIE":"AUCUNE CAPSULE CONFIRMEE",
     private_inventory.partial?"DOSSIER PARTIEL OU RESIDUS A AUDITER":
-      "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIQUE");
-  footer(canvas,capsule_return_screen==Screen::menu?
-    "TRIANGLE RECONTROLER  CERCLE ACCUEIL":
-    "TRIANGLE RECONTROLER  CERCLE DETAIL");
+      "AUCUN IDENTIFIANT DE SAUVEGARDE PUBLIE");
+  show_archive_audit_result(canvas,700);
+  footer(canvas,"L1/R1 TYPE  CARRE AUDITER TOUT  TRIANGLE SCANNER  CERCLE");
   return;
  }
- const unsigned page=private_inventory_selection/5u;
- const unsigned start=page*5u;
- for(unsigned i=start;i<items&&i<start+5u;i++){
+ /* Four rows leave a dedicated, nonoverlapping audit summary area.
+  * Five 116px panels previously painted underneath the result/footer. */
+ const unsigned page=private_inventory_selection/4u;
+ const unsigned start=page*4u;
+ for(unsigned i=start;i<items&&i<start+4u;i++){
   const char*name=private_inventory_groups?
     private_inventory.group_ids[i]:private_inventory.ids[i];
-  panel(canvas,422+(i-start)*103u,
+  panel(canvas,405+(i-start)*112u,
     i==private_inventory_selection?"ARCHIVE SELECTIONNEE":"ARCHIVE",
     name,i==private_inventory_selection?Color::cyan:Color::white);
  }
- if(private_archive_audit.checked){
-  char status[160]{};
-  (void)std::snprintf(status,sizeof(status),
-    "SHA-256  %u/%u CAPSULES  %u/%u GROUPES  %s",
-    private_archive_audit.valid_capsules,private_archive_audit.capsules,
-    private_archive_audit.valid_groups,private_archive_audit.groups,
-    private_archive_audit.partial?"PARTIEL":"INVENTAIRE BORNE");
-  canvas.text(130,930,status,2,
-    (private_archive_audit.partial||
-     private_archive_audit.valid_capsules!=private_archive_audit.capsules||
-     private_archive_audit.valid_groups!=private_archive_audit.groups)?
-       Color::yellow:Color::cyan);
- }else if(private_inventory.partial)
-  canvas.text(130,930,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
+ if(private_archive_audit.checked)
+  show_archive_audit_result(canvas,885);
+ else if(private_inventory.partial)
+  canvas.text(130,885,"INVENTAIRE PARTIEL / RESIDUS POSSIBLES",2,Color::yellow);
  footer(canvas,capsule_return_screen==Screen::menu?
     "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE":
     "L1/R1 TYPE  X DETAIL  CARRE AUDIT  TRIANGLE SCANNER  CERCLE");
