@@ -59,27 +59,10 @@ static int cmp5_entries_plan_hash(const e2a_list *entries,char hex[65]){
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
-static int cmp5_hash_synthetic_file(const char*destination,
-                                    const e2a_entry*entry,
-                                    unsigned char digest[32]){
-  if(!destination||!entry||!entry->rel||!digest||
-     entry->size==0u||entry->size>64u*1024u*1024u)return -1;
-  /* Only recognized, directly published fakelib artefacts may be read.
-   * Refuse relative path traversal and nested/arbitrary trees. */
-  if(strncmp(entry->rel,"fakelib/",8u)!=0)return -1;
-  const char*leaf=entry->rel+8u;
-  const size_t leaflen=strlen(leaf);
-  if(!leaflen||leaf[0]=='.'||leaflen>120u||
-     strstr(leaf,"..")||strchr(leaf,'/')||strchr(leaf,'\\'))return -1;
-  for(size_t i=0;i<leaflen;i++){
-    const unsigned char c=(unsigned char)leaf[i];
-    if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
-         (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'))return -1;
-  }
-  /* A no-follow open of the final .sprx alone is insufficient:
-   * fakelib/ or an ancestor may have become a symlink. Traverse from
-   * the filesystem root, keeping a descriptor for every directory. */
-  if(destination[0]!='/')return -1;
+/* Keep the exact runtime/plugin directory in the live namespace, not
+ * merely the inode reached at the beginning of a potentially long hash. */
+static int cmp5_open_synthetic_assets(const char*destination){
+  if(!destination||destination[0]!='/')return -1;
   int parent=open("/",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
   if(parent<0)return -1;
   const char*part=destination+1;
@@ -105,7 +88,54 @@ static int cmp5_hash_synthetic_file(const char*destination,
   int assets=openat(parent,"fakelib",O_RDONLY|O_DIRECTORY|
                     O_NOFOLLOW|O_CLOEXEC);
   close(parent);
+  return assets;
+}
+static int cmp5_same_asset_directory(const struct stat*a,const struct stat*b){
+  return a&&b&&S_ISDIR(a->st_mode)&&S_ISDIR(b->st_mode)&&
+         a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+         a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
+         a->st_uid==b->st_uid&&a->st_gid==b->st_gid&&
+         a->st_size==b->st_size&&
+         a->st_mtime==b->st_mtime&&a->st_ctime==b->st_ctime;
+}
+static int cmp5_asset_directory_current(const char*destination,
+                                         int assets,
+                                         const struct stat*before){
+  struct stat held={0},named={0};
+  if(assets<0||!before||fstat(assets,&held)!=0||
+     !cmp5_same_asset_directory(before,&held))return 0;
+  const int again=cmp5_open_synthetic_assets(destination);
+  if(again<0)return 0;
+  const int ok=fstat(again,&named)==0&&
+               cmp5_same_asset_directory(before,&named);
+  close(again);
+  return ok;
+}
+static int cmp5_hash_synthetic_file(const char*destination,
+                                    const e2a_entry*entry,
+                                    unsigned char digest[32]){
+  if(!destination||!entry||!entry->rel||!digest||
+     entry->size==0u||entry->size>64u*1024u*1024u)return -1;
+  /* Only recognized, directly published fakelib artefacts may be read.
+   * Refuse relative path traversal and nested/arbitrary trees. */
+  if(strncmp(entry->rel,"fakelib/",8u)!=0)return -1;
+  const char*leaf=entry->rel+8u;
+  const size_t leaflen=strlen(leaf);
+  if(!leaflen||leaf[0]=='.'||leaflen>120u||
+     strstr(leaf,"..")||strchr(leaf,'/')||strchr(leaf,'\\'))return -1;
+  for(size_t i=0;i<leaflen;i++){
+    const unsigned char c=(unsigned char)leaf[i];
+    if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+         (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'))return -1;
+  }
+  /* Resolve each ancestor without following symlinks. Re-open the
+   * full namespace after hashing: a held fd can outlive a rename. */
+  int assets=cmp5_open_synthetic_assets(destination);
   if(assets<0)return -1;
+  struct stat parent_before={0};
+  if(fstat(assets,&parent_before)!=0){
+    close(assets);return -1;
+  }
   int fd=openat(assets,leaf,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
   if(fd<0){close(assets);return -1;}
   struct stat before,after,named;
@@ -136,7 +166,21 @@ static int cmp5_hash_synthetic_file(const char*destination,
      named.st_dev!=after.st_dev||named.st_ino!=after.st_ino||
      named.st_size!=after.st_size||named.st_mode!=after.st_mode||
      named.st_mtime!=after.st_mtime||
-     named.st_ctime!=after.st_ctime)goto complete;
+     named.st_ctime!=after.st_ctime||
+     !cmp5_asset_directory_current(destination,assets,&parent_before))
+    goto complete;
+  /* Confirm the named file through the re-resolved directory as well;
+   * a valid old directory inode is not a live output destination. */
+  int current_assets=cmp5_open_synthetic_assets(destination);
+  if(current_assets<0)goto complete;
+  struct stat live={0};
+  const int live_ok=fstatat(current_assets,leaf,&live,AT_SYMLINK_NOFOLLOW)==0&&
+     S_ISREG(live.st_mode)&&live.st_nlink==1&&
+     live.st_dev==after.st_dev&&live.st_ino==after.st_ino&&
+     live.st_size==after.st_size&&live.st_mode==after.st_mode&&
+     live.st_mtime==after.st_mtime&&live.st_ctime==after.st_ctime;
+  close(current_assets);
+  if(!live_ok)goto complete;
   e2a_sha256_final(&hash,digest);
   result=0;
 complete:
