@@ -61,6 +61,12 @@ bool mock_private_capsule_valid=false;
 unsigned mock_private_verify_calls=0;
 bool mock_private_group_valid=false;
 unsigned mock_private_group_verify_calls=0;
+bool mock_private_group_source_valid=false;
+unsigned mock_private_group_source_calls=0;
+Cmp5OriginLiveState mock_private_group_source_states[CMP5_GROUP_MAX]{
+ CMP5_ORIGIN_UNCHANGED,CMP5_ORIGIN_MISSING,CMP5_ORIGIN_UNKNOWN,
+ CMP5_ORIGIN_UNKNOWN
+};
 
 void press(std::uint32_t mask){
  injected_buttons=mask;
@@ -121,6 +127,17 @@ int cmp5_verify_group(const char*folder,const char*id,
   receipt->count=3u;
   receipt->bytes=30ULL*1024*1024;
  }
+ return 1;
+}
+int cmp5_inspect_group_originals(const char*root,const char*folder,
+ const char*id,Cmp5OriginLiveState states[CMP5_GROUP_MAX],
+ Cmp5CancelCheck cancel,void*context){
+ assert(std::strcmp(root,"/")==0);
+ assert(std::strcmp(folder,"/download0/cmp5-private-backups")==0);
+ assert(std::strncmp(id,"GRP_",4)==0&&std::strlen(id)==20u);
+ ++mock_private_group_source_calls;
+ if((cancel&&cancel(context))||!mock_private_group_source_valid)return 0;
+ std::memcpy(states,mock_private_group_source_states,sizeof(mock_private_group_source_states));
  return 1;
 }
 int sceUserServiceInitialize(const void*){return 0;}
@@ -645,13 +662,36 @@ int main(){
  private_inventory.group_count=1u;
  std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
  mock_private_group_valid=true;
+ mock_private_group_source_valid=true;
  const unsigned group_reads_before=mock_private_group_verify_calls;
+ const unsigned source_reads_before=mock_private_group_source_calls;
  press(r1);assert(private_inventory_groups);
  press(cross);assert(screen==Screen::group_backup&&group_verify_only);
  finish_scan();
  assert(mock_private_group_verify_calls==group_reads_before+1u);
+ assert(mock_private_group_source_calls==source_reads_before+1u);
  assert(group_outcome.status==cmp5_private_backup::GroupStatus::verified);
  assert(group_outcome.receipt.count==3u);
+ assert(group_outcome.sources.checked);
+ assert(group_outcome.sources.unchanged==1u);
+ assert(group_outcome.sources.missing==1u);
+ assert(group_outcome.sources.changed==0u);
+ assert(group_outcome.sources.unknown==1u);
+ show_group_backup(canvas); // Render status without triggering Gallery writes.
+ /* A failed source inspection does not erase a valid, independently
+  * rehashed archive: report UNKNOWN rather than claim restoration. */
+ mock_private_group_source_valid=false;
+ const auto unavailable=cmp5_private_backup::verify_saved_group(
+  "GRP_0123456789ABCDEF",nullptr,nullptr);
+ assert(unavailable.status==cmp5_private_backup::GroupStatus::verified);
+ assert(!unavailable.sources.checked);
+ assert(unavailable.sources.unchanged==0u&&unavailable.sources.missing==0u);
+ mock_private_group_valid=false;
+ const auto corrupt=cmp5_private_backup::verify_saved_group(
+  "GRP_0123456789ABCDEF",nullptr,nullptr);
+ assert(corrupt.status==cmp5_private_backup::GroupStatus::failed);
+ assert(!corrupt.sources.checked);
+ mock_private_group_valid=true;
  press(circle);assert(screen==Screen::capsules);
  press(l1);assert(!private_inventory_groups);
  press(circle);assert(screen==Screen::menu);
