@@ -22,6 +22,13 @@ int cmp5_verify_rehearsed_backup(const char *private_workspace,
  const char *backup_id,const char *restore_workspace,
  const char *restore_name,Cmp5BackupReceipt *receipt,
  Cmp5CancelCheck cancelled,void *context);
+/* Manual cleanup of ONE verified, separate RAW_CAP private rehearsal.
+ * No Sony data, capsule or group member can be removed in native mode.
+ * Reports nominal bytes of removed raw file, NOT verified freed blocks. */
+int cmp5_discard_rehearsed_backup(const char *private_workspace,
+ const char *backup_id,const char *restore_workspace,
+ const char *restore_name,uint64_t *nominal_bytes,
+ Cmp5CancelCheck cancelled,void *context);
 /* Restore to a separate app-owned workspace, NEVER the PS5 gallery. */
 int cmp5_restore_backup(const char *private_workspace,const char *backup_id,
  const char *restore_workspace,const char *restore_name,
