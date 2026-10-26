@@ -325,10 +325,11 @@ int cmp5_verify_backup(const char*workspace,const char*id,
  if(ok&&r)*r=verified;
  return ok;
 }
-/* Native title compiles only additive single-media capsule backup/verify.
- * All restore code remains host-only until Sony Gallery/index consistency
- * is demonstrated; native link must have no restore entry point. */
-#ifndef CMP5_NATIVE_BACKUP_ONLY
+/* Native title normally compiles only additive capsule backup/verify.
+ * The optional PS5 rehearsal build adds one strictly scoped RAW copy into
+ * a SECOND app-owned private workspace. Never writes /user or Sony indexes.
+ * The unrestricted host restore API remains excluded from the PS5 build. */
+#if !defined(CMP5_NATIVE_BACKUP_ONLY) || defined(CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY)
 /* A published restore must be re-read by its destination name. Verifying
  * only the bytes written to the staging descriptor is not sufficient:
  * a rename or replacement after close could publish another object. */
@@ -364,6 +365,21 @@ int cmp5_restore_backup(const char*backup,const char*id,
  Cmp5CancelCheck cancel,void*ctx){
  if(r)memset(r,0,sizeof(*r));
  if(!valid_id(id)||!valid_id(newname)||canceled(cancel,ctx))return 0;
+#ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
+ /* The installed PS5 title cannot choose arbitrary restoration roots
+  * or filenames, even if its UI accidentally passes a different path.
+  * It may reconstruct bytes only in CleanMyPS5's dedicated workspace.
+  * CAP_ + 16 uppercase hexadecimal chars is the native capsule format. */
+ if(!backup||!destination||
+    strcmp(backup,"/download0/cmp5-private-backups")!=0||
+    strcmp(destination,"/download0/cmp5-private-rehearsals")!=0||
+    strlen(id)!=20u||strncmp(id,"CAP_",4u)!=0||
+    strlen(newname)!=24u||strncmp(newname,"RAW_",4u)!=0||
+    strcmp(newname+4u,id)!=0)return 0;
+ for(unsigned i=4u;i<20u;i++)
+  if(!((id[i]>='0'&&id[i]<='9')||
+       (id[i]>='A'&&id[i]<='F')))return 0;
+#endif
  int source_dir=private_dir(backup);if(source_dir<0)return 0;
  int source=openat(source_dir,id,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);
  if(source<0){close(source_dir);return 0;}
@@ -427,4 +443,4 @@ int cmp5_restore_backup(const char*backup,const char*id,
  close(target);
  return ok;
 }
-#endif /* !CMP5_NATIVE_BACKUP_ONLY */
+#endif /* host restore or strictly scoped native rehearsal */
