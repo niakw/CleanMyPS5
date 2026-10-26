@@ -13,6 +13,7 @@ def check_engine(root: Path) -> None:
     http = (root / "src/httpd.c").read_text()
     main = (root / "src/main.c").read_text()
     job = (root / "src/job.c").read_text()
+    plan_hash = (root / "src/cmp5_ampr_checkpoint_plan.h").read_text()
     game_paths = (root / "src/cmp5_compression_allowed_paths.h").read_text()
     required = {
         "progress phase whitelist": 'const char *phase="other",*reason="none";',
@@ -162,8 +163,12 @@ def check_engine(root: Path) -> None:
         "resume reader requires finalized plan pin": "!cmp5_plan_pin_valid(r.reserved)",
         "final checkpoint saved only after plan check": "request_save(state_dir,&req)"
     }.items():
-        if fragment not in job:
+        # The actual SHA encoder lives in the single shared C header,
+        # compiled into the PS5 worker AND tested against upstream SHA256.
+        if fragment not in job and fragment not in plan_hash:
             missing.append("missing saved file-action plan guard: "+label)
+    if '#include "cmp5_ampr_checkpoint_plan.h"' not in job:
+        missing.append("transformed PS5 worker not linked to tested plan hash")
     plan_check=worker.find("cmp5_plan_pin_matches(req.reserved,cmp5_action_plan_sha)")
     late_save=worker.find("request_save(state_dir,&req)")
     pack_start=worker.find("/* the forecast:")
