@@ -2946,8 +2946,23 @@ void show_group_backup(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,750,"COPIE PRIVEE VERIFIEE",receipt,Color::cyan);
  }else panel(canvas,750,"ECHEC SECURISE",
    "RESIDUS PRIVES NON EFFACES  INSPECTION NECESSAIRE",Color::yellow);
+ if(group_verify_only&&success){
+  const auto&sources=group_outcome.sources;
+  if(!sources.checked){
+   panel(canvas,868,"SOURCES D ORIGINE",
+     "CONTROLE INDISPONIBLE  INDEX SONY NON VALIDES",Color::yellow);
+  }else{
+   char detail[148]{};
+   (void)std::snprintf(detail,sizeof(detail),
+     "%u INCHANGES  %u ABSENTS  %u MODIFIES  %u INCONNUS",
+     sources.unchanged,sources.missing,sources.changed,sources.unknown);
+   panel(canvas,868,"ETAT DES ORIGINAUX  LECTURE SEULE",detail,
+     (sources.missing||sources.changed||sources.unknown)?
+       Color::yellow:Color::cyan);
+  }
+ }
  footer(canvas,group_verify_only?
-   "CERCLE ARCHIVES  AUCUNE MODIFICATION":
+   "CERCLE ARCHIVES  SOURCES ET INDEX SONY NON RESTAURES":
    "CERCLE FICHIERS ASSOCIES  INDEX SONY NON VALIDES");
 }
 void show_companions(ps5::demo::Canvas&canvas) noexcept {
