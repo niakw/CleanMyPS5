@@ -3163,7 +3163,9 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  char detail[132]{};
  if(success)
   (void)std::snprintf(detail,sizeof(detail),
-    "%llu MIO RECONSTRUITS  SHA-256 IDENTIQUE",
+    private_rehearsal_verify_only?
+      "%llu MIO REVERIFIES  SHA-256 IDENTIQUE":
+      "%llu MIO RECONSTRUITS  SHA-256 IDENTIQUE",
     static_cast<unsigned long long>(private_rehearsal_outcome.bytes/1048576ULL));
  else
   (void)std::snprintf(detail,sizeof(detail),
