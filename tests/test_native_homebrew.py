@@ -11,6 +11,8 @@ with tempfile.TemporaryDirectory() as directory:
         "data/etaHEN/plugins/plugin.elf":b"PLUGIN",
         "data/ExampleTool/config.json":b"{}",
         "data/ExampleTool/public.bin":b"USER",
+        "data/ExampleTool/cache/index.bin":b"CACHED",
+        "data/ExampleTool/tmp/session.part":b"WORK",
         "data/etaHEN/notice.txt":b"ETA",
         "user/app/TEST0001/eboot.bin":b"BINARY",
         "data/ExampleTool/saves/SECRET_SAVE.bin":b"PRIVATE",
@@ -19,6 +21,9 @@ with tempfile.TemporaryDirectory() as directory:
         file=root/name
         file.parent.mkdir(parents=True,exist_ok=True)
         file.write_bytes(data)
+    # A cache-named symlink must never be traversed as an app cache.
+    (root/"data/ExampleTool/temp").symlink_to(root/"data/ExampleTool/saves",
+                                              target_is_directory=True)
     missing_installed = root / "only-data"
     only_game = missing_installed / "data/homebrew/ExampleTool/eboot.elf"
     only_game.parent.mkdir(parents=True)
@@ -33,4 +38,6 @@ with tempfile.TemporaryDirectory() as directory:
           check=True,text=True,capture_output=True,timeout=12)
         assert "Homebrew readdir and closedir failures" in io_result.stdout
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
+    assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
+    assert b"WORK" == (root/"data/ExampleTool/tmp/session.part").read_bytes()
 print("Homebrew native fixture: PASS")
