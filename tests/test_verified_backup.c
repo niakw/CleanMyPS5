@@ -149,7 +149,7 @@ int main(int argc,char**argv){
                                       &discarded,NULL,NULL));
  assert(!discarded);
  assert(cmp5_restore_backup(backup,"ONE",restore,"SAVED2",&b,NULL,NULL));
- char scratch[512]{};
+ char scratch[512]={0};
  assert(snprintf(scratch,sizeof(scratch),"%s/SAVED2",restore)>0);
  FILE*alter=fopen(scratch,"r+b");assert(alter);
  assert(fseek(alter,15,SEEK_SET)==0);
