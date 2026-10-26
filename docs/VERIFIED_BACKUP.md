@@ -53,6 +53,20 @@ stabilité du nom et des descripteurs. Les producteurs coopératifs sont
 coordonnés par verrou non bloquant ; une concurrence hostile de
 l'utilisateur du même système de fichiers reste hors de portée d'une
 garantie POSIX totalement atomique. Un refus ne supprime rien.
+Avant l'appel `unlinkat`, le moteur marque la transition comme
+potentiellement irréversible. Même si `unlinkat` échoue, si un
+`fsync` échoue après le retrait ou si la dernière vérification
+échoue, le titre annonce **« ÉTAT DE RETRAIT INCERTAIN »**, pas
+« aucun fichier retiré ». L'utilisateur doit alors recontrôler la
+capsule et la copie dans les archives privées. Aucun second essai
+automatique ne risque d'effacer un autre nom.
+
+Les restaurations individuelles acquièrent désormais les mêmes
+verrous de dossiers que la suppression R3 ; la restauration groupée
+conserve les verrous déjà détenus par son moteur de groupe afin
+d'éviter les auto-interblocages. Le verrouillage ne peut pas empêcher
+la concurrence d'un processus qui ignore délibérément `flock`.
+
 Après suppression, `fsync` et une nouvelle vérification de l'archive
 sont requis avant d'annoncer une réussite. **La taille rapportée est
 nominale, pas une mesure des blocs réellement libérés.**
