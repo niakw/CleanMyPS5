@@ -214,6 +214,14 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
 /* Identical planner used by host-only group backup and installed title.
  * No backup/writer implementation is linked with this file. */
 static int validate_capture_group_limit(const Cmp5MediaCandidate*,uint32_t,uint64_t);
+/* A source path may fit exactly while a same-stem companion with a
+ * longer suffix does not. The trailing NUL is part of the capacity budget.
+ * Subtract only after bounding the parent, to avoid integer wraparound. */
+static int companion_locator_fits(size_t parent_len,size_t filename_len,
+                                  size_t capacity){
+ return capacity>0u&&parent_len<capacity-1u&&
+        filename_len<capacity-parent_len-1u;
+}
 /* Read-only companion planner. The root and every parent component are opened
  * with O_NOFOLLOW; fstatat does not follow companion symlinks. Any matching
  * suspicious or unreadable file refuses the entire plan (fail closed). */
@@ -359,7 +367,8 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
    * A shorter primary (e.g. .jpg) can coexist with a longer same-stem
    * companion (e.g. .jpeg): the latter must not write its terminator
    * one byte beyond preview_path[256]. parent_len was bounded above. */
-  if(parent_len+1u+filename_length>=sizeof(out[0].preview_path)){
+  if(!companion_locator_fits(parent_len,filename_length,
+                             sizeof(out[0].preview_path))){
    if(failure)*failure=CMP5_COMPANION_FAILURE_AMBIGUOUS;
    invalid=1;break;
   }
