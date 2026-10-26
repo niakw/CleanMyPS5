@@ -1,5 +1,26 @@
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
+## Conversion LZ4 : verrou de profil sur les checkpoints (26 octobre 2026)
+
+La reprise du worker AMPR ne réutilise plus silencieusement un
+**profil de jeu modifié après une pause**. Une nouvelle conversion
+écrit dans `request.bin` un marqueur versionné et l'empreinte SHA-256
+du profil appliqué (ou une preuve explicite d'absence de profil). Lors
+de la reprise, le moteur confirme le même contenu **avant**
+l'application des règles de fichiers et **avant** toute réécriture
+de la demande. Il vérifie également la stabilité du profil entre
+lecture et empreinte. La représentation est partagée avec l'inventaire
+natif en lecture seule et validée dans la CI du moteur transformé.
+
+Une reprise d'ancien checkpoint sans marqueur ou avec profil changé
+est bloquée sans supprimer la sortie partielle. Cela empêche de
+mélanger le plan de fichiers d'un nouveau profil avec les anciens
+volumes LZ4, mais **ne prouve pas** que les sorties compressées sont
+lançables sur PS5 13.60. Tests hôtes de pin SHA-256, profil absent,
+mutation, extension malformée, lecteur C/C++ et politique worker.
+La validité finale reste soumise à l'exécution réelle sur matériel.
+
+
 ## Audit SHA-256 global des archives natives (26 octobre 2026)
 
 Dans **Archives privées**, le bouton **Carré** lance maintenant un audit
