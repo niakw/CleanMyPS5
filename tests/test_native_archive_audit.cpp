@@ -30,9 +30,11 @@ static void flip_archive_byte(const fs::path&path){
  const int fd=open(path.c_str(),O_RDWR|O_NOFOLLOW);
  assert(fd>=0);
  unsigned char value=0u;
- assert(pread(fd,&value,1,90)==1);
+ /* Group members are raw payloads and can be shorter than a
+  * single-capsule's 64-byte header. The first byte exists in both. */
+ assert(pread(fd,&value,1,0)==1);
  value^=1u;
- assert(pwrite(fd,&value,1,90)==1);
+ assert(pwrite(fd,&value,1,0)==1);
  assert(close(fd)==0);
 }
 int main(){
