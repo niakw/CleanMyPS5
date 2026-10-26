@@ -3196,6 +3196,9 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
  const bool success=!task_failed()&&!task_cancelled()&&
    private_rehearsal_outcome.status==
      cmp5_private_backup::RehearsalStatus::verified;
+ const bool uncertain=private_rehearsal_discard&&
+   private_rehearsal_outcome.status==
+     cmp5_private_backup::RehearsalStatus::indeterminate;
  char detail[132]{};
  if(success)
   (void)std::snprintf(detail,sizeof(detail),
@@ -3206,13 +3209,18 @@ void show_private_rehearsal(ps5::demo::Canvas&canvas) noexcept {
       "%llu MIO RECONSTRUITS  SHA-256 IDENTIQUE",
     static_cast<unsigned long long>(private_rehearsal_outcome.bytes/1048576ULL));
  else
-  (void)std::snprintf(detail,sizeof(detail),
+  (void)std::snprintf(detail,sizeof(detail),"%s",
+    uncertain?"SUPPRESSION TENTEE  VERIFIER LA COPIE ET CAPSULE":
+    private_rehearsal_discard?
+    "AUCUNE SUPPRESSION ENGAGEE  COPIE NON CONFIRMEE":
     "AUCUNE RESTITUTION CERTIFIEE  VERIFIER ESPACE / COLLISION");
  panel(canvas,585,success?(private_rehearsal_discard?
       "COPIE PRIVEE RETIREE":private_rehearsal_verify_only?
       "RESTITUTION TOUJOURS INTEGRE":private_rehearsal_groups?
       "GROUPE PRIVE RESTITUE":"COPIE BRUTE RESTITUEE"):
-      "RESTITUTION PRIVEE REFUSEE",
+      (uncertain?"ETAT DE RETRAIT INCERTAIN":
+                 private_rehearsal_discard?"RETRAIT NON CONFIRME":
+                 "RESTITUTION PRIVEE REFUSEE"),
        detail,success?Color::cyan:Color::yellow);
  panel(canvas,735,"INDEX SONY",
        "NON VERIFIES  AUCUN MEDIA REINTEGRE",Color::yellow);
