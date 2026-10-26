@@ -356,6 +356,8 @@ int cmp5_scan_game_images(const char*,Cmp5GameImageStats*result,
  result->large_candidates=1u;
  result->large_nominal_bytes=24ULL*1024*1024*1024;
  result->nominal_bytes=38ULL*1024*1024*1024;
+ result->folder_nominal_bytes=54ULL*1024*1024*1024;
+ result->folder_partials=1u;
  result->partial=1u;
  return 1;
 }
@@ -878,16 +880,22 @@ int main(){
    cmp5_cleanup::Category::gallery,true,false,1u,0u}).can_delete);
  press(r1);assert(cleanup_page==3u);
  assert(general_games.image_nominal_bytes==38ULL*1024*1024*1024);
- assert(general_games.folder_nominal_bytes==0u);
+ assert(general_games.folder_nominal_bytes==54ULL*1024*1024*1024);
+ assert(general_games.folder_partials==1u);
  scene(canvas);
- bool independent_measures=false, no_false_sum=false;
+ bool independent_measures=false, folder_measure=false;
+ bool no_false_sum=false, root_partial=false;
  for(const auto&command:canvas.commands){
   if(command.text.find("38912 MIO IMAGES")!=std::string::npos)
    independent_measures=true;
+  if(command.text.find("55296 MIO DOSSIERS")!=std::string::npos)
+   folder_measure=true;
+  if(command.text.find("1 DOSSIERS PARTIELS")!=std::string::npos)
+   root_partial=true;
   if(command.text.find("VOLUMES NON ADDITIFS")!=std::string::npos)
    no_false_sum=true;
  }
- assert(independent_measures&&no_false_sum);
+ assert(independent_measures&&folder_measure&&root_partial&&no_false_sum);
  press(r1);assert(cleanup_page==0u);
  press(l1);assert(cleanup_page==3u);
  press(l1);assert(cleanup_page==2u);
