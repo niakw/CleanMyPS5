@@ -202,7 +202,8 @@ static void scan_cache_subdirs(Audit*a,int app_dir){
   uint64_t bytes=0;size_t files=0;int partial=0;
   count_tree(a,child,0,&bytes,&files,&partial); /* owns child fd */
   if(a->stats->cache_like_folders==UINT32_MAX||
-     a->stats->cache_like_files>UINT32_MAX-files||
+     files>UINT32_MAX||
+     a->stats->cache_like_files>UINT32_MAX-(uint32_t)files||
      a->stats->cache_like_nominal_bytes>UINT64_MAX-bytes){
    a->stats->cache_like_partial=1u;a->partial=1;
   }else{
@@ -301,9 +302,12 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  if(length)*length=0;
  if(!root||!length)return NULL;
  if(stats)memset(stats,0,sizeof(*stats));
+ Cmp5HomebrewStats fallback={0};
  Audit*a=(Audit*)calloc(1,sizeof(Audit));
  if(!a)return NULL;
- a->stats=stats;a->cancel=cancel;a->context=context;
+ /* The JSON-only API still needs honest cache-candidate counters. */
+ a->stats=stats?stats:&fallback;
+ a->cancel=cancel;a->context=context;
  a->out.data=(char*)calloc(1,JSON_CAP);
  if(!a->out.data){free(a);return NULL;}
  uint64_t now=now_ns();
@@ -330,10 +334,10 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
   stats->installed_root_state=a->installed_root_state;
  }
  char finish[570];
- const uint32_t caches=stats?stats->cache_like_folders:0u;
- const uint32_t cache_files=stats?stats->cache_like_files:0u;
- const uint64_t cache_bytes=stats?stats->cache_like_nominal_bytes:0u;
- const unsigned cache_partial=stats?stats->cache_like_partial:0u;
+ const uint32_t caches=a->stats->cache_like_folders;
+ const uint32_t cache_files=a->stats->cache_like_files;
+ const uint64_t cache_bytes=a->stats->cache_like_nominal_bytes;
+ const unsigned cache_partial=a->stats->cache_like_partial;
  snprintf(finish,sizeof(finish),
   "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
   a->visited,a->partial?"true":"false",
