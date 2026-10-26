@@ -8,6 +8,9 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+/* AMPR's host-only CLI fixtures do not use the PS5 resume fingerprint.
+ * The separate SHA regression fixture builds this without E2A_HOST. */
+#ifndef E2A_HOST
 static void cmp5_plan_hash_u64(e2a_sha256 *hash,uint64_t value){
   unsigned char little[8];
   for(unsigned i=0;i<8u;i++)little[i]=(unsigned char)(value>>(i*8u));
@@ -139,5 +142,5 @@ static int cmp5_entries_plan_hash_with_assets(const e2a_list*entries,
   out[64]=0;
   return 0;
 }
-
+#endif /* !E2A_HOST */
 #endif
