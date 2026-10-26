@@ -22,6 +22,19 @@ int main(){
    .first_blocker==Blocker::no_observation);
  assert(assess(Evidence{Category::gallery,true,false,2u,0u})
    .first_blocker==Blocker::references_unverified);
+ // Eight installed apps/plugins (or any other count) cannot become
+ // eight proposed caches. Partial/inaccessible scans remain partial.
+ const auto app_observation=unclassified_app_inventory(true,false,8u);
+ assert(app_observation.scanned&&app_observation.observed==0u&&
+        app_observation.proofs==0u);
+ const auto app_readiness=assess(app_observation);
+ assert(!app_readiness.can_review&&!app_readiness.can_delete&&
+        app_readiness.first_blocker==Blocker::no_observation);
+ const auto app_partial=assess(unclassified_app_inventory(true,true,100u));
+ assert(!app_partial.can_review&&!app_partial.can_delete&&
+        app_partial.first_blocker==Blocker::scope_partial);
+ assert(assess(unclassified_app_inventory(false,false,100u)).first_blocker==
+        Blocker::not_scanned);
  assert(assess(Evidence{Category::homebrew_cache,true,false,2u,0u})
    .first_blocker==Blocker::provider_unverified);
  assert(assess(Evidence{Category::autoload,true,false,2u,0u})
