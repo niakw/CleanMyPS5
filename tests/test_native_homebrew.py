@@ -38,7 +38,11 @@ with tempfile.TemporaryDirectory() as directory:
     assert "Native homebrew summary, mandatory root coverage and cancellation: PASS" in result.stdout
     if len(sys.argv)>2:
         io_result=subprocess.run([sys.argv[2],str(root)],
-          check=True,text=True,capture_output=True,timeout=12)
+          check=False,text=True,capture_output=True,timeout=12)
+        if io_result.returncode:
+            raise AssertionError(
+                f"Homebrew fault-injection fixture failed ({io_result.returncode}):\n"
+                f"{io_result.stderr}\n{io_result.stdout}")
         assert "Homebrew readdir and closedir failures" in io_result.stdout
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
     assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
