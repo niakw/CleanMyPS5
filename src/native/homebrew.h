@@ -41,6 +41,12 @@ typedef struct {
  uint32_t cache_like_files;
  uint32_t cache_like_partial;
  uint64_t cache_like_nominal_bytes;
+ /* Strict case-sensitive basename matches to a separately observed
+  * /data/homebrew/<name>/eboot.elf or eboot.bin. These are NEVER verified
+  * owners, references, inactive processes, or deletion permission. */
+ uint32_t cache_like_name_matched;
+ uint32_t cache_like_name_unmatched;
+ uint32_t homebrew_name_index_partial;
 } Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);
