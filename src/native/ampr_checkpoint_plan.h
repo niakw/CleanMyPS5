@@ -76,12 +76,39 @@ static int cmp5_hash_synthetic_file(const char*destination,
     if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
          (c>='0'&&c<='9')||c=='_'||c=='-'||c=='.'))return -1;
   }
-  char path[1024];
-  const int written=snprintf(path,sizeof(path),"%s/%s",destination,entry->rel);
-  if(written<=0||(size_t)written>=sizeof(path))return -1;
-  int fd=open(path,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
-  if(fd<0)return -1;
-  struct stat before,after;
+  /* A no-follow open of the final .sprx alone is insufficient:
+   * fakelib/ or an ancestor may have become a symlink. Traverse from
+   * the filesystem root, keeping a descriptor for every directory. */
+  if(destination[0]!='/')return -1;
+  int parent=open("/",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  if(parent<0)return -1;
+  const char*part=destination+1;
+  if(!*part){close(parent);return -1;}
+  while(*part){
+    const char*slash=strchr(part,'/');
+    const size_t len=slash?(size_t)(slash-part):strlen(part);
+    if(len==0u||len>255u||(len==1u&&part[0]=='.')||
+       (len==2u&&part[0]=='.'&&part[1]=='.')){
+      close(parent);return -1;
+    }
+    char name[256];
+    memcpy(name,part,len);name[len]=0;
+    int next=openat(parent,name,O_RDONLY|O_DIRECTORY|
+                    O_NOFOLLOW|O_CLOEXEC);
+    close(parent);
+    if(next<0)return -1;
+    parent=next;
+    if(!slash)break;
+    part=slash+1;
+    if(!*part){close(parent);return -1;}
+  }
+  int assets=openat(parent,"fakelib",O_RDONLY|O_DIRECTORY|
+                    O_NOFOLLOW|O_CLOEXEC);
+  close(parent);
+  if(assets<0)return -1;
+  int fd=openat(assets,leaf,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+  if(fd<0){close(assets);return -1;}
+  struct stat before,after,named;
   int result=-1;
   if(fstat(fd,&before)!=0||!S_ISREG(before.st_mode)||
      before.st_nlink!=1||before.st_size<0||
@@ -103,11 +130,18 @@ static int cmp5_hash_synthetic_file(const char*destination,
      before.st_dev!=after.st_dev||before.st_ino!=after.st_ino||
      before.st_size!=after.st_size||before.st_mode!=after.st_mode||
      before.st_mtime!=after.st_mtime||
-     before.st_ctime!=after.st_ctime)goto complete;
+     before.st_ctime!=after.st_ctime||
+     fstatat(assets,leaf,&named,AT_SYMLINK_NOFOLLOW)!=0||
+     !S_ISREG(named.st_mode)||named.st_nlink!=1||
+     named.st_dev!=after.st_dev||named.st_ino!=after.st_ino||
+     named.st_size!=after.st_size||named.st_mode!=after.st_mode||
+     named.st_mtime!=after.st_mtime||
+     named.st_ctime!=after.st_ctime)goto complete;
   e2a_sha256_final(&hash,digest);
   result=0;
 complete:
   close(fd);
+  close(assets);
   return result;
 }
 static int cmp5_entries_plan_hash_with_assets(const e2a_list*entries,
