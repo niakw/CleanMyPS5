@@ -1,5 +1,23 @@
 # Sauvegarde privée vérifiée : titre PS5 et restauration sur hôte seulement
 
+## Inventaire des sauvegardes interrompues : volume observable (26 octobre 2026)
+
+L'écran natif **Archives privées** indique désormais le nombre de fichiers
+temporaires `.part` créés dans le seul espace privé de CleanMyPS5 et leur
+**taille nominale**. La mesure n'utilise pas le contenu des captures :
+chaque nom reconnu est contrôlé par `fstatat(..., AT_SYMLINK_NOFOLLOW)`.
+Seuls les fichiers réguliers avec propriétaire courant, permissions privées
+et un unique lien physique entrent dans le total ; les symlinks, autres types,
+hardlinks, erreurs et tailles incohérentes sont comptés séparément comme
+**tailles non vérifiées**. Le compte et les octets restent bornés, et le
+dossier est de nouveau contrôlé avant publication.
+
+Il s'agit de **résidus app-owned à examiner**, pas d'un volume
+automatiquement libérable : un `.part` peut contenir la seule copie
+partielle encore présente d'une ancienne capture. L'écran n'exécute aucune
+purge et ne modifie ni l'index Galerie ni les fichiers sources. Les tests
+utilisent des fichiers temporaires et des symlinks synthétiques sur hôte.
+
 ## Portée exacte
 
 `src/native/verified_backup.c` implémente un **prototype indépendant** de copie de sauvegarde de captures connues, de vérification et de restauration **dans un second dossier privé appartenant à l'application**. Les fonctions de **copie et vérification** sont compilées dans le titre `PPSA99784`, y compris pour les groupes de compagnons visibles. En revanche, les fonctions de **restauration sont exclues du binaire PS5 par les gardes `CMP5_NATIVE_BACKUP_ONLY` et `CMP5_NATIVE_GROUP_BACKUP_ONLY`** et ne sont pas disponibles depuis le helper. **Aucune suppression ni modification de la Galerie PS5 n'est autorisée.**
