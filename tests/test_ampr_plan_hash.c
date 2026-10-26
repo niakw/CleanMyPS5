@@ -1,3 +1,6 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
 /* Host test of the EXACT SHA-256 source-plan encoder linked into the
  * PS5 worker. This test uses synthetic AMPR entries, not console data.
  * GPL-3.0-or-later. */
@@ -7,6 +10,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 int main(void) {
  e2a_entry entries[2]={{0}};
@@ -99,6 +106,59 @@ int main(void) {
  assert(cmp5_entries_plan_hash(&files,current)!=0);
  files.v=entries;files.n=0;
  assert(cmp5_entries_plan_hash(&files,current)==0);
- puts("Pinned AMPR file-action SHA: changed size/date/action/layout/name detected; synthetic mtime stable PASS");
+
+ /* Real synthetic runtime: a same-size byte change MUST change the v2
+  * fingerprint even if path, size, synthetic flag and mtime are unchanged.
+  * No game files and no PlayStation hardware are used here. */
+ char work[]="/tmp/cmp5-plan-assets-XXXXXX";
+ char *root=mkdtemp(work);
+ assert(root);
+ char folder[512],asset[512],hardlink_path[512];
+ assert(snprintf(folder,sizeof(folder),"%s/fakelib",root)>0);
+ assert(snprintf(asset,sizeof(asset),"%s/mod.sprx",folder)>0);
+ assert(snprintf(hardlink_path,sizeof(hardlink_path),"%s/alias",root)>0);
+ assert(mkdir(folder,0700)==0);
+ int fd=open(asset,O_WRONLY|O_CREAT|O_EXCL,0600);
+ assert(fd>=0);
+ assert(write(fd,"ABCD",4)==4);
+ assert(close(fd)==0);
+ e2a_entry synthetic={0};
+ synthetic.rel="fakelib/mod.sprx";
+ synthetic.synthetic=true;
+ synthetic.action=E2A_LOOSE;
+ synthetic.size=4u;
+ synthetic.mtime=1700000000;
+ files.v=&synthetic;files.n=1u;
+ char pinned_bytes[65],changed_bytes[65];
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,pinned_bytes)==0);
+ fd=open(asset,O_WRONLY|O_NOFOLLOW);
+ assert(fd>=0);
+ assert(pwrite(fd,"WXYZ",4,0)==4);
+ assert(close(fd)==0);
+ /* Metadata-only v1 cannot see the replacement, v2 can. */
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)==0);
+ assert(strcmp(pinned_bytes,changed_bytes)!=0);
+ assert(cmp5_plan_pin_set(checkpoint,pinned_bytes));
+ assert(!cmp5_plan_pin_matches(checkpoint,changed_bytes));
+ fd=open(asset,O_WRONLY|O_NOFOLLOW);
+ assert(fd>=0);
+ assert(pwrite(fd,"ABCD",4,0)==4);
+ assert(close(fd)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)==0);
+ assert(strcmp(pinned_bytes,changed_bytes)==0);
+ synthetic.size=5u;
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
+ synthetic.size=4u;
+ assert(link(asset,hardlink_path)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
+ assert(unlink(hardlink_path)==0);
+ assert(unlink(asset)==0);
+ assert(symlink("/etc/passwd",asset)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
+ assert(unlink(asset)==0);
+ assert(cmp5_entries_plan_hash_with_assets(&files,root,changed_bytes)!=0);
+ assert(rmdir(folder)==0);
+ assert(rmdir(root)==0);
+ puts("Pinned AMPR file-action SHA v2: byte mutations, aliases and missing plugins fail closed PASS");
  return 0;
 }
