@@ -418,9 +418,11 @@ int cmp5_verify_rehearsed_backup(const char*backup,const char*id,
  * Each directory is locked against cooperating native workers. */
 int cmp5_discard_rehearsed_backup(const char*backup,const char*id,
  const char*destination,const char*newname,uint64_t*nominal_bytes,
- Cmp5CancelCheck cancel,void*ctx){
+ int*mutation_started,Cmp5CancelCheck cancel,void*ctx){
  if(nominal_bytes)*nominal_bytes=0u;
- if(!nominal_bytes||!valid_id(id)||!valid_id(newname)||
+ if(mutation_started)*mutation_started=0;
+ if(!nominal_bytes||!mutation_started||
+    !valid_id(id)||!valid_id(newname)||
     !backup||!destination||canceled(cancel,ctx))return 0;
 #ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
  if(strcmp(backup,"/download0/cmp5-private-backups")!=0||
@@ -478,8 +480,13 @@ int cmp5_discard_rehearsed_backup(const char*backup,const char*id,
     !canceled(cancel,ctx);
  /* POSIX unlinkat has no inode-conditional variant: the directory lock
   * serializes cooperating clients; an adversarial same-user writer could
-  * ignore it. The scope stays strictly within app-owned private data. */
- if(ok)ok=unlinkat(target,newname,0)==0;
+  * ignore it. The scope stays strictly within app-owned private data.
+  * Once this call is attempted, failures are NOT proof of no mutation.
+  * The caller must show an indeterminate outcome until a new audit. */
+ if(ok){
+  *mutation_started=1;
+  ok=unlinkat(target,newname,0)==0;
+ }
  if(raw>=0)close(raw);
  if(ok){
   struct stat gone={0};
@@ -543,6 +550,17 @@ int cmp5_restore_backup(const char*backup,const char*id,
     !cmp5_workspace_has_capacity(target,verified.bytes,1u)){
   close(source);close(source_dir);close(target);return 0;
  }
+#ifdef CMP5_NATIVE_PRIVATE_REHEARSAL_ONLY
+ /* Group restore already holds locks on both paths throughout its entire
+  * transaction. Single-capsule native restoration must do likewise,
+  * or R3 cleanup could unlink a finished single copy while another
+  * cooperative writer is publishing it. Never reacquire group locks:
+  * flock of a second FD for the same inode could self-conflict. */
+ if(capsule&&(flock(source_dir,LOCK_SH|LOCK_NB)!=0||
+              flock(target,LOCK_EX|LOCK_NB)!=0)){
+  close(source);close(source_dir);close(target);return 0;
+ }
+#endif
  struct stat occupied={0};
  errno=0;
  if(fstatat(target,newname,&occupied,AT_SYMLINK_NOFOLLOW)==0||
