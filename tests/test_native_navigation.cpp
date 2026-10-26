@@ -1786,6 +1786,12 @@ int main(){
   std::strcpy(private_inventory.ids[1],"CAP_9999999999999999");
   private_inventory_selection=0u;
   save(Screen::capsules,"01a-home-private-archives");
+  bool staging_banner=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("2 TEMPORAIRES")!=std::string::npos&&
+      command.text.find("15 MIO")!=std::string::npos)
+    staging_banner=true;
+  assert(staging_banner);
   private_rehearsal_step=1u;
   private_rehearsal_outcome={};
   save(Screen::rehearsal,"01ab-private-rehearsal-confirm");
@@ -1796,12 +1802,6 @@ int main(){
   save(Screen::rehearsal,"01ac-private-rehearsal-complete");
   private_rehearsal_step=0u;
   private_rehearsal_outcome={};
-  bool staging_banner=false;
-  for(const auto&command:canvas.commands)
-   if(command.text.find("2 TEMPORAIRES")!=std::string::npos&&
-      command.text.find("15 MIO")!=std::string::npos)
-    staging_banner=true;
-  assert(staging_banner);
   private_inventory.group_count=1u;
   std::strcpy(private_inventory.group_ids[0],"GRP_0123456789ABCDEF");
   private_inventory_groups=true;
