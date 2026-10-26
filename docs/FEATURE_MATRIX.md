@@ -18,13 +18,13 @@ Légende : ✅ implémenté sur hôte seulement ; 🟡 partiel / borné / lectur
 | Analyse intelligente : analyse coordonnée | 🟡 | **Un lancement natif** coordonne sondes d'accès, captures, homebrews, autoload et jeux/images ; L1/R1 affiche les modules séparément avec leur couverture. Doublons sur demande et compression jamais déclenchée automatiquement. Non vérifié sur PS5 13.60 |
 | Analyse intelligente : recommandation et bilan | 🟡 | Nettoyage coordonne les inventaires multicatégories ; quatre pages L1/R1 séparent captures, autres catégories, volumes observés et **preuves de nettoyage manquantes** calculées par une politique native commune (propriétaire/fournisseur, liens, activité, sauvegarde/restauration, permissions). Aucune suppression ni espace certifié libérable |
 | Cleanup : fichiers journaux | 🟡 | Journaux système et d’apps inconnues inventoriés, aucune purge validée |
-| Cleanup : caches utilisateur/système | ❌ | Métadonnées des caches HTTP système et caches potentiels d’apps ; aucune suppression certifiée |
+| Cleanup : caches utilisateur/système | 🟡 | Scanner natif borné : dossier `cache`, `.cache`, `tmp` ou `temp` directement sous `/data/<app>`, nombre de fichiers et octets nominaux **non additifs**. Dossiers de sauvegardes et symlinks exclus ; fournisseur, usage et caractère supprimable **non attestés**. Les caches HTTP système restent protégés, aucune suppression autorisée |
 | Cleanup : corbeilles | ❌ | Pas d'équivalent PS5 avéré ; à confirmer dans les mounts multimédias |
 | Cleanup : captures écran & vidéos | 🟡 | Inventaire JPG/JXR/PNG, MP4/WebM, revue, photos JPG/PNG et vidéo selon codec ; pas de synchronisation base multimédia ni retrait sûr |
 | Fichiers à examiner : fichiers volumineux et anciens | 🟡 | Seuils 50 / 250 Mio et filtre ≥90j par mtime ; dernier accès et autres dossiers non couverts |
 | Fichiers à examiner : doublons exacts | 🟡 | Comparaison octet à octet bornée (128 images, 32 Mio/fichier, 128 Mio lectures), hardlinks exclus, pas de vidéo |
 | Fichiers à examiner : images similaires | ❌ | Pas de détection perceptuelle ni fusion de quasi-doublons |
-| Cleanup : fichiers temporaires d'applications | ❌ | Inventaire homebrew disponible, mais pas de définition sûre de cache/résidu temporaire |
+| Cleanup : fichiers temporaires d'applications | 🟡 | Repérage en lecture seule des sous-dossiers `cache`/`.cache`/`tmp`/`temp` sous `/data/<app>` ; inventaire borné à 5 000 visites, 5 profondeurs et 3 s. Les noms ne prouvent **ni la propriété, ni l'inactivité, ni l'absence de références**. Aucun retrait généralisé |
 | Fichiers à examiner : téléchargements | — | Les dossiers navigateur Mac ne sont pas transposables ; détecter seulement des téléchargements PS5 réellement attestés |
 | Applications : permissions des applications | ❌ | Aucun registre de permissions des homebrews vérifié sur FW 13.60 |
 | Applications : éléments lancés au démarrage | 🟡 | Diagnostique certains fichiers autoload mais pas un inventaire exhaustif des processus actifs |
