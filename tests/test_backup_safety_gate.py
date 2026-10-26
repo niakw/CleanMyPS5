@@ -56,7 +56,8 @@ assert 'strcmp(newname+4u,id)!=0' in sources
 assert 'cmp5_restore_backup(workspace,id,rehearsal_workspace,raw_name,' in (
     root/"native/private_media_backup.hpp").read_text()
 assert 'Operation::rehearse_private_media: return actor==Actor::native_title;' in privilege
-assert 'Operation::restore_gallery' in privilege
+assert 'restore_gallery,' in privilege
+assert 'case Operation::restore_gallery:' not in privilege
 assert '#include "elevation.hpp"' not in native
 
 # No gallery file deletion or renaming exists even in the isolated prototype.
