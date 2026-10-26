@@ -118,6 +118,39 @@ inline GroupOutcome backup_visible_group(const Cmp5MediaCandidate&primary,
  out.status=GroupStatus::verified;
  return out;
 }
+/* Reopen both independent private namespaces after restart and verify
+ * that the raw RESTORED marker and all member bytes match COMMIT.
+ * Purely read-only: never creates rehearsal folders, never writes Sony. */
+inline RehearsalOutcome verify_rehearsed_group_by_id(
+ const char*id,Cmp5CancelCheck cancel,void*ctx) noexcept {
+ RehearsalOutcome result{};
+ if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"GRP_",4u)!=0||
+    (cancel&&cancel(ctx))){
+  result.status=RehearsalStatus::denied;return result;
+ }
+ for(unsigned i=4u;i<20u;i++){
+  const char c=id[i];
+  if(!((c>='0'&&c<='9')||(c>='A'&&c<='F'))){
+   result.status=RehearsalStatus::denied;return result;
+  }
+ }
+ Cmp5RecoveryPairReport pair{};
+ if(!cmp5_inspect_backup_restore_pair(workspace,id,
+      rehearsal_workspace,id,&pair)||
+    pair.state!=CMP5_PAIR_MATCH||(cancel&&cancel(ctx))){
+  result.status=RehearsalStatus::failed;return result;
+ }
+ Cmp5GroupReceipt checked{};
+ if(!cmp5_verify_restored_group(rehearsal_workspace,id,&checked,
+      cancel,ctx)||checked.count<2u||checked.count>CMP5_GROUP_MAX||
+      !checked.bytes||checked.bytes>CMP5_BACKUP_LIMIT||
+      (cancel&&cancel(ctx))){
+  result.status=RehearsalStatus::failed;return result;
+ }
+ result.bytes=checked.bytes;
+ result.status=RehearsalStatus::verified;
+ return result;
+}
 /* Group rehearsal reconstructs all committed members into a separate
  * private workspace; every member and the RESTORED marker are rehashed.
  * No source path is requested from the UI and nothing is restored to Sony. */
