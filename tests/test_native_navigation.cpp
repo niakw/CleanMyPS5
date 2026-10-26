@@ -1932,6 +1932,19 @@ int main(){
    if(command.text.find("COPIE PRIVEE RETIREE")!=std::string::npos)
     raw_cleanup_banner=true;
   assert(raw_cleanup_banner);
+  /* A post-unlink fsync failure must NEVER render a clean refusal or
+   * report the target as definitely still present. */
+  private_rehearsal_outcome.status=
+    cmp5_private_backup::RehearsalStatus::indeterminate;
+  scene(canvas);
+  bool uncertain_banner=false,ambiguous_detail=false;
+  for(const auto&command:canvas.commands){
+   if(command.text.find("ETAT DE RETRAIT INCERTAIN")!=std::string::npos)
+    uncertain_banner=true;
+   if(command.text.find("SUPPRESSION TENTEE")!=std::string::npos)
+    ambiguous_detail=true;
+  }
+  assert(uncertain_banner&&ambiguous_detail);
   private_rehearsal_discard=false;
   private_rehearsal_step=0u;
   private_rehearsal_outcome={};
