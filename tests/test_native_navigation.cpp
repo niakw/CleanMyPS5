@@ -876,6 +876,21 @@ int main(){
  assert(app_cache_disclaimer); // Installed apps are NOT cleanup proposals.
  assert(!cmp5_cleanup::assess(cmp5_cleanup::Evidence{
    cmp5_cleanup::Category::gallery,true,false,1u,0u}).can_delete);
+ press(r1);assert(cleanup_page==3u);
+ assert(general_games.image_nominal_bytes==38ULL*1024*1024*1024);
+ assert(general_games.folder_nominal_bytes==0u);
+ scene(canvas);
+ bool independent_measures=false, no_false_sum=false;
+ for(const auto&command:canvas.commands){
+  if(command.text.find("38912 MIO IMAGES")!=std::string::npos)
+   independent_measures=true;
+  if(command.text.find("VOLUMES NON ADDITIFS")!=std::string::npos)
+   no_false_sum=true;
+ }
+ assert(independent_measures&&no_false_sum);
+ press(r1);assert(cleanup_page==0u);
+ press(l1);assert(cleanup_page==3u);
+ press(l1);assert(cleanup_page==2u);
  press(l1);assert(cleanup_page==1u);
  press(l1);assert(cleanup_page==0u);
  assert(!duplicates_checked);
@@ -1793,6 +1808,8 @@ int main(){
   save(Screen::cleanup,"02b-cleanup-domains");
   cleanup_page=2u;
   save(Screen::cleanup,"02c-cleanup-readiness");
+  cleanup_page=3u;
+  save(Screen::cleanup,"02d-cleanup-storage-volumes");
   cleanup_page=0u;
   review_query[0]=0;review_game[0]=0;
   review_type=MediaType::all;review_older=false;review_large=false;
