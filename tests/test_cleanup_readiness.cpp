@@ -30,6 +30,13 @@ int main(){
  const auto app_readiness=assess(app_observation);
  assert(!app_readiness.can_review&&!app_readiness.can_delete&&
         app_readiness.first_blocker==Blocker::no_observation);
+ const auto named_cache=assess(unverified_cache_names(true,false,2u));
+ assert(named_cache.can_review&&!named_cache.can_delete);
+ assert(named_cache.first_blocker==Blocker::provider_unverified);
+ assert((named_cache.missing_proofs&provider)!=0u);
+ assert((named_cache.missing_proofs&verified_backup)!=0u);
+ assert(!assess(unverified_cache_names(true,true,2u)).can_review);
+ assert(!assess(unverified_cache_names(true,false,0u)).can_review);
  const auto app_partial=assess(unclassified_app_inventory(true,true,100u));
  assert(!app_partial.can_review&&!app_partial.can_delete&&
         app_partial.first_blocker==Blocker::scope_partial);
