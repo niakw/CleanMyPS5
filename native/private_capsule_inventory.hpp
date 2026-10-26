@@ -134,6 +134,95 @@ inline bool same_inventory_directory(const struct stat&a,
    a.st_nlink==b.st_nlink&&a.st_size==b.st_size&&
    a.st_mtime==b.st_mtime&&a.st_ctime==b.st_ctime;
 }
+/* Track the exact named files (including every potential group member)
+ * before and after the long SHA read. Renaming archives changes directory
+ * metadata, but rewriting bytes IN PLACE does not; comparing just the
+ * catalogue IDs would publish a stale successful digest. This is a
+ * fail-closed freshness fence, NOT an atomic snapshot or an authorization
+ * to modify Sony data. Capped at 32 capsules + 32*6 group names. */
+struct ArchiveFileStamp {
+ bool present=false;
+ dev_t device=0;
+ ino_t inode=0;
+ uid_t owner=0;
+ gid_t group=0;
+ mode_t mode=0;
+ nlink_t links=0;
+ off_t bytes=0;
+ time_t mtime=0,ctime=0;
+ long mtime_ns=0,ctime_ns=0;
+};
+constexpr unsigned archive_stamp_capacity=inventory_limit*7u;
+inline bool stamp_named_archive(int dir,const char*name,
+                                ArchiveFileStamp*out) noexcept {
+ if(out)*out=ArchiveFileStamp{};
+ if(!out||!name)return false;
+ struct stat st{};
+ if(fstatat(dir,name,&st,AT_SYMLINK_NOFOLLOW)!=0)
+  return errno==ENOENT;
+ out->present=true;
+ out->device=st.st_dev;out->inode=st.st_ino;
+ out->owner=st.st_uid;out->group=st.st_gid;
+ out->mode=st.st_mode;out->links=st.st_nlink;
+ out->bytes=st.st_size;out->mtime=st.st_mtime;out->ctime=st.st_ctime;
+#if defined(__APPLE__)
+ out->mtime_ns=st.st_mtimespec.tv_nsec;
+ out->ctime_ns=st.st_ctimespec.tv_nsec;
+#else
+ out->mtime_ns=st.st_mtim.tv_nsec;
+ out->ctime_ns=st.st_ctim.tv_nsec;
+#endif
+ return true;
+}
+inline bool same_archive_stamp(const ArchiveFileStamp&a,
+                               const ArchiveFileStamp&b) noexcept {
+ if(a.present!=b.present)return false;
+ return !a.present||
+  (a.device==b.device&&a.inode==b.inode&&
+   a.owner==b.owner&&a.group==b.group&&
+   a.mode==b.mode&&a.links==b.links&&a.bytes==b.bytes&&
+   a.mtime==b.mtime&&a.ctime==b.ctime&&
+   a.mtime_ns==b.mtime_ns&&a.ctime_ns==b.ctime_ns);
+}
+inline bool stamp_archive_namespace(int dir,const Inventory&listed,
+                                    ArchiveFileStamp*out,
+                                    unsigned capacity) noexcept {
+ if(dir<0||!out||!listed.checked||
+    listed.count>inventory_limit||listed.group_count>inventory_limit||
+    capacity<listed.count+listed.group_count*6u)return false;
+ unsigned index=0;
+ for(unsigned i=0;i<listed.count;i++){
+  if(!valid_capsule_id(listed.ids[i])||
+     !stamp_named_archive(dir,listed.ids[i],&out[index++]))
+   return false;
+ }
+ static constexpr const char*suffixes[]={
+  "__COMMIT","__ORIGINS","__1","__2","__3","__4"
+ };
+ for(unsigned i=0;i<listed.group_count;i++){
+  if(!valid_group_id(listed.group_ids[i]))return false;
+  for(const char*suffix:suffixes){
+   char name[48]{};
+   const int length=std::snprintf(name,sizeof(name),"%s%s",
+                                    listed.group_ids[i],suffix);
+   if(length<=0||(std::size_t)length>=sizeof(name)||
+      !stamp_named_archive(dir,name,&out[index++]))
+    return false;
+  }
+ }
+ return true;
+}
+inline bool same_archive_namespace(const ArchiveFileStamp*before,
+                                   const ArchiveFileStamp*after,
+                                   const Inventory&listed) noexcept {
+ if(!before||!after||!listed.checked||
+    listed.count>inventory_limit||listed.group_count>inventory_limit)
+  return false;
+ const unsigned used=listed.count+6u*listed.group_count;
+ for(unsigned i=0;i<used;i++)
+  if(!same_archive_stamp(before[i],after[i]))return false;
+ return true;
+}
 inline bool valid_capsule_id(const char*id) noexcept {
  if(!id||strnlen(id,21u)!=20u||std::memcmp(id,"CAP_",4u)!=0)return false;
  for(unsigned i=4u;i<20u;i++){
@@ -339,11 +428,16 @@ inline bool audit_at(const char*folder,ArchiveAudit*out,
  struct stat original{},held{},visible{};
  Inventory before{},after{};
  ArchiveAudit result{};
+ ArchiveFileStamp initial[archive_stamp_capacity]{};
+ ArchiveFileStamp final[archive_stamp_capacity]{};
  bool ok=fstat(pinned,&original)==0&&
    scan_at(folder,&before,cancel,context)&&
+   stamp_archive_namespace(pinned,before,initial,archive_stamp_capacity)&&
    audit_inventory_at(before,folder,&result,cancel,context,progress)&&
    scan_at(folder,&after,cancel,context)&&
-   same_archive_listing(before,after);
+   same_archive_listing(before,after)&&
+   stamp_archive_namespace(pinned,after,final,archive_stamp_capacity)&&
+   same_archive_namespace(initial,final,before);
  const int current=ok?cmp5_open_private_workspace(folder):-1;
  if(ok)ok=current>=0&&fstat(pinned,&held)==0&&
    fstat(current,&visible)==0&&
