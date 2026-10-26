@@ -1,5 +1,36 @@
 # Compression des jeux PS5 — conserver le lancement
 
+## Reprise : empreinte réelle des fichiers runtime et plugins (26 octobre 2026)
+
+L'empreinte des fichiers source et des actions LZ4 ne suffisait pas
+pour les éléments `fakelib` générés : leur date de modification est
+volontairement ignorée, et deux plugins différents peuvent partager
+le même nom et la même taille. Le moteur utilise désormais une
+**empreinte de plan v2** qui combine le plan précédent et le SHA-256
+du **contenu réel** de chaque fichier synthétique publié.
+
+Chaque fichier synthétique est ouvert avec `O_NOFOLLOW` et ses
+attributs sont vérifiés : fichier régulier, lien unique, taille
+identique au manifeste et identité stable au cours de la lecture.
+Les fichiers absents, illisibles, remplacés par un lien symbolique
+ou dont le contenu ne correspond plus empêchent la reprise. La
+vérification n'écrit rien dans le dossier du jeu. Elle s'ajoute
+à la vérification du runtime `libSceAmpr.sprx` précédemment intégrée.
+
+La fixture **compile la même fonction C** que le moteur PS5 et
+utilise l'implémentation SHA-256 épinglée d'AMPR. Elle remplace
+quatre octets synthétiques par quatre autres sans changer le nom ni
+la taille : le digest doit changer. Elle vérifie aussi les refus
+sur lien symbolique, lien dur, fichier absent ou taille incorrecte.
+Les checkpoints créés avant cette évolution de l'empreinte sont
+conservés, mais leur plan v1 ne satisfait plus une reprise v2.
+
+**Portée :** ceci garantit une vérification conservatrice des
+fichiers synthétiques inspectés pendant l'audit, pas une
+attestation cryptographique du jeu entier, ni la stabilité des
+fichiers après l'audit ou le fonctionnement sur PS5 13.60.
+
+
 ## Reprise : ne pas modifier la sortie partielle avant vérification (26 octobre 2026)
 
 Un problème subsistait dans le moteur AMPR : lors d'une **reprise**,
