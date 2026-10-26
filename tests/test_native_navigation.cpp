@@ -757,6 +757,7 @@ int main(){
  assert(found_empty_summary);
  /* Four visible rows + a fixed summary area; the fifth item paginates.
   * There must be no private-archive panel drawn over the audit footer. */
+ private_inventory_groups=false; // Show the populated capsule tab.
  private_inventory.count=5u;
  for(unsigned i=0;i<private_inventory.count;i++)
   (void)std::snprintf(private_inventory.ids[i],
@@ -776,6 +777,7 @@ int main(){
    rendered_total=true;
  }
  assert(visible_rows==4u&&rendered_total);
+ private_inventory_groups=true; // Restore selected group tab for pad test.
  private_archive_audit={};
  press(square);assert(screen==Screen::capsules);
  finish_scan();
