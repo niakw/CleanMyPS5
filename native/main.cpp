@@ -2718,10 +2718,11 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
  };
  char footer_message[160]{};
  (void)std::snprintf(footer_message,sizeof(footer_message),
-  "PAGE %u/2  L1/R1  X ACTUALISER  /DATA:%s  /USER/APP:%s  %s",
+  "PAGE %u/2 L1/R1  /DATA:%s /USER/APP:%s  CACHE/TMP:%u  %s",
   homebrew_page+1u,root_label(homebrew_stats.data_root_state),
   root_label(homebrew_stats.installed_root_state),
-  homebrew_stats.partial?"SCAN PARTIEL":"LECTURE SEULE");
+  homebrew_stats.cache_like_folders,
+  homebrew_stats.partial?"PARTIEL":"NON ATTESTE");
  footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
@@ -2801,14 +2802,14 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
   const auto gallery=assess(Evidence{Category::gallery,
     general_audit_completed&&summary_status==Summary::ok,
     summary_partial||media_review.partial!=0u,summary_files,0u});
-  /* Apps/plugins are inventory entries, NOT detected removable caches.
-   * The scanner has not proven cache ownership or provider semantics. */
-  const auto apps=assess(cmp5_cleanup::unclassified_app_inventory(
+  /* A cache/tmp-shaped DIRECTORY under /data/<app> is a review hint,
+   * not provider proof or an executable delete candidate. */
+  const auto apps=assess(cmp5_cleanup::unverified_cache_names(
     general_audit_completed&&homebrew_checked,
-    homebrew_stats.partial!=0u||
+    homebrew_stats.partial!=0u||homebrew_stats.cache_like_partial!=0u||
       homebrew_stats.data_root_state!=1u||
       homebrew_stats.installed_root_state!=1u,
-    homebrew_stats.entries));
+    homebrew_stats.cache_like_folders));
   const auto startup=assess(Evidence{Category::autoload,
     general_audit_completed&&autoload_checked,
     autoload_stats.unreadable!=0u||autoload_stats.oversized!=0u,
@@ -2821,9 +2822,9 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
     "%u OBSERVATIONS  %s",summary_files,reason_fr(gallery.first_blocker));
   panel(canvas,355,"CAPTURES ET REFERENCES GALERIE",message,Color::yellow);
   (void)std::snprintf(message,sizeof(message),
-    "%u APPLICATIONS/PLUGINS  %s",homebrew_stats.entries,
+    "%u DOSSIERS CACHE/TMP  %s",homebrew_stats.cache_like_folders,
     reason_fr(apps.first_blocker));
-  panel(canvas,503,"CACHES NON IDENTIFIES (INVENTAIRE APPS)",message,
+  panel(canvas,503,"INDICES TEMPORAIRES NON ATTESTES",message,
     Color::yellow);
   (void)std::snprintf(message,sizeof(message),
     "%u CHEMINS  %s",autoload_stats.present,reason_fr(startup.first_blocker));
