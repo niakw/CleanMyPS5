@@ -31,6 +31,8 @@ inline bool valid_group_id(const char*id) noexcept;
 struct ArchiveAudit {
  bool checked=false,partial=false;
  unsigned capsules=0u,valid_capsules=0u,groups=0u,valid_groups=0u;
+ bool capsule_valid[inventory_limit]{};
+ bool group_valid[inventory_limit]{};
  std::uint64_t verified_bytes=0u; // per-archive sum, may include duplicates
 };
 /* Progress is informational and independent of publication. The worker
@@ -86,6 +88,7 @@ inline bool audit_inventory_at(const Inventory&listed,const char*folder,
   if(cmp5_verify_backup(folder,listed.ids[i],&receipt,cancel,context)&&
      receipt.published&&receipt.bytes>0u&&
      receipt.bytes<=CMP5_BACKUP_LIMIT){
+   fresh.capsule_valid[i]=true;
    ++fresh.valid_capsules;
    fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
      UINT64_MAX:fresh.verified_bytes+receipt.bytes;
@@ -100,6 +103,7 @@ inline bool audit_inventory_at(const Inventory&listed,const char*folder,
   if(cmp5_verify_group(folder,listed.group_ids[i],&receipt,cancel,context)&&
      receipt.count>=2u&&receipt.count<=CMP5_GROUP_MAX&&
      receipt.bytes>0u&&receipt.bytes<=CMP5_BACKUP_LIMIT){
+   fresh.group_valid[i]=true;
    ++fresh.valid_groups;
    fresh.verified_bytes=(UINT64_MAX-fresh.verified_bytes<receipt.bytes)?
      UINT64_MAX:fresh.verified_bytes+receipt.bytes;
@@ -286,6 +290,29 @@ inline bool scan_at(const char*folder,Inventory*out,
  if(current>=0)close(current);
  close(fd);
  if(!good)return false;
+ /* The audit reports validity by list index. Canonical sorting is
+  * required across two independent readdir passes: identical SETS
+  * may otherwise map a verdict to the WRONG archive on the screen. */
+ for(unsigned i=1;i<found.count;i++){
+  char pivot[32]{};
+  std::memcpy(pivot,found.ids[i],sizeof(pivot));
+  unsigned j=i;
+  while(j&&std::strcmp(found.ids[j-1u],pivot)>0){
+   std::memcpy(found.ids[j],found.ids[j-1u],sizeof(pivot));
+   --j;
+  }
+  std::memcpy(found.ids[j],pivot,sizeof(pivot));
+ }
+ for(unsigned i=1;i<found.group_count;i++){
+  char pivot[32]{};
+  std::memcpy(pivot,found.group_ids[i],sizeof(pivot));
+  unsigned j=i;
+  while(j&&std::strcmp(found.group_ids[j-1u],pivot)>0){
+   std::memcpy(found.group_ids[j],found.group_ids[j-1u],sizeof(pivot));
+   --j;
+  }
+  std::memcpy(found.group_ids[j],pivot,sizeof(pivot));
+ }
  found.checked=true;
  *out=found;
  return true;
