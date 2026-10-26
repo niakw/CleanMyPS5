@@ -174,7 +174,11 @@ static int cache_like_name(const char*name){
 }
 static void scan_cache_subdirs(Audit*a,int app_dir){
  if(!a||!a->stats||app_dir<0)return;
- const int iter=dup(app_dir);
+ /* dup() SHARES a directory offset with app_dir. Enumerating via a
+  * duplicate would exhaust the parent's iterator before count_tree(),
+  * silently undercounting ALL app bytes. Open a fresh description
+  * anchored to this already verified directory instead. */
+ const int iter=openat(app_dir,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(iter<0){a->stats->cache_like_partial=1u;a->partial=1;return;}
  DIR*d=fdopendir(iter);
  if(!d){close(iter);a->stats->cache_like_partial=1u;a->partial=1;return;}
