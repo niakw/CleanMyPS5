@@ -1945,6 +1945,14 @@ int main(){
     ambiguous_detail=true;
   }
   assert(uncertain_banner&&ambiguous_detail);
+  screen=Screen::capsules;
+  scene(canvas);
+  bool archive_warning=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("RETRAIT R3 INCERTAIN")!=std::string::npos)
+    archive_warning=true;
+  assert(archive_warning);
+  screen=Screen::rehearsal;
   /* A late Circle event can set the task to cancelled after unlink
    * confirmation. A recorded success is still a success, not an error. */
   private_rehearsal_outcome.status=
@@ -1956,6 +1964,14 @@ int main(){
    if(command.text.find("COPIE PRIVEE RETIREE")!=std::string::npos)
     successful_late_cancel=true;
   assert(successful_late_cancel);
+  screen=Screen::capsules;
+  scene(canvas);
+  bool archive_confirmed=false;
+  for(const auto&command:canvas.commands)
+   if(command.text.find("RETRAIT R3 CONFIRME")!=std::string::npos)
+    archive_confirmed=true;
+  assert(archive_confirmed);
+  screen=Screen::rehearsal;
   task_state.store(2u,std::memory_order_release);
   private_rehearsal_discard=false;
   private_rehearsal_step=0u;
