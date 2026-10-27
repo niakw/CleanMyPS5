@@ -4,6 +4,18 @@
 
 ## Deux livrables réellement distincts
 
+**Voies d'essai M2 (sans garantie matérielle) :** l'archive
+`PPSA99784.zip` peut servir de dossier FTP
+`/data/homebrew/PPSA99784/` si le gestionnaire de homebrews de la
+console accepte *déjà* ce type de titres (même convention de dossier
+que NiakPS5, mais **aucune preuve** d'enregistrement automatique sur
+FW 13.60). Sinon, `PPSA99784.ffpkg` n'est utilisable qu'avec un
+installateur sachant lire ce format UFS2 expérimental. **Ne pas
+renommer `.ffpkg` en `.pkg`, copier l'ELF hors du titre ou toucher aux
+registres Shell pour contourner un échec.** La
+[fiche M2](SMOKE_TEST_PS5_13_60.md) donne les deux procédures et les
+conditions d'arrêt.
+
 **Titre PS5 natif expérimental :** l'archive `dist/native/PPSA99784.zip` contient un dossier de titre avec `eboot.bin`, `sce_sys/param.json`, une icône originale et le runtime requis. La compilation de ce format, ses métadonnées et ses tests hôte passent en CI. Ce n'est pas un PKG retail et **son fonctionnement sur PS5 13.60 reste non validé**.
 
 **Moteur d'inspection :** l'application native embarque dorénavant le scanner de métadonnées dans son `eboot.bin`. Le payload de diagnostic `assets/cleanmyps5-helper.elf` est **déjà inclus** dans le même titre ; son lancement à la manette est **facultatif**, en lecture seule, sans navigateur et soumis à ses propres permissions. Il peut élargir la couverture et servir des diagnostics via `127.0.0.1:8877` sans nécessiter un second livrable. Le frontend installé sonde directement quelques chemins de *son propre sandbox*, et en énumère au maximum 256 entrées immédiates par dossier accessible. Il tente également de lire l'espace disponible (`fstatvfs`) pour chaque montage réellement accessible, sans établir de total SSD. Il peut utiliser `/api/overview` du helper si celui-ci fonctionne déjà, mais ne dépend plus de son lancement : les sondes locales et le scan natif s'exécutent sur un worker pour éviter de figer VideoOut. Cercle demande une annulation coopérative ; la comparaison des doublons et le parcours des dossiers contrôlent cette demande, ne publient aucun résultat annulé comme complet et interdisent les workers concurrents. Un catalogue jusqu'à 10 000 médias découverts est consultable et filtrable à la manette, avec tris, pagination, recherche à la manette, regroupement par jeu, fiches de métadonnées et aperçus JPG/PNG locaux lorsque les fichiers sont accessibles (bornes strictes ; un JXR peut utiliser son JPG compagnon SDR sans décodage HDR ; aucun aperçu ni lecture vidéo). Un écran de diagnostic MP4/WebM consulte en plus durée et résolution par lecture bornée de métadonnées, sans extraction des images ni modification. ; les captures peuvent être marquées à revoir durant la session, sélection effacée au rescan. Toutes les limites du scan et des droits restent applicables ; elle n'autorise aucune suppression. Le frontend ne bénéficie pas automatiquement des privilèges du helper.

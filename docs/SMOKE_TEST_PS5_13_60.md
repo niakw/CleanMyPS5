@@ -12,15 +12,38 @@ nettoyage, une preuve de privilège élevé ou un test de compression.
    Il contient `PPSA99784.ffpkg`, `PPSA99784.zip`,
    `manifest.json` et `release-readiness.json`. Le téléchargement
    dépend de l'accès GitHub aux artefacts du dépôt.
-2. Utiliser **un seul** format reconnu par le gestionnaire de titres
-   homebrew déjà installé. Le `.ffpkg` est un format expérimental
-   **non signé par Sony**. Si aucun format n'est reconnu, **arrêter** :
-   ne pas modifier le registre des titres, la liste blanche sandbox,
-   le firmware ni les paramètres etaHEN pour forcer l'installation.
-3. Vérifier les SHA-256 des deux archives à l'aide de `manifest.json`
-   sur l'ordinateur avant tout transfert. Conserver le jeu et les
-   données utilisateur en dehors de cet essai. Aucun second helper
-   ni outil AMPR n'est à installer : ils sont empaquetés dans le titre.
+2. Sur l'ordinateur, vérifier les SHA-256 des archives
+   `PPSA99784.zip` et `PPSA99784.ffpkg` avec `manifest.json`
+   **avant** tout transfert. Choisir **une seule** des deux voies
+   ci-dessous, selon les capacités déjà connues de son gestionnaire.
+   Les deux contiennent le **même titre**, pas deux applications
+   indépendantes. Ne pas installer un second helper ou un outil AMPR.
+3. **Voie A, dossier homebrew par FTP (alternative sans installateur
+   FFPKG) :** extraire `PPSA99784.zip`. Il contient un dossier
+   `PPSA99784/` avec `eboot.bin`, `sce_sys/param.json`,
+   `sce_module/libc.prx` et `assets/`. Si et seulement si le
+   gestionnaire homebrew existant reconnaît les dossiers de titres
+   sous `/data/homebrew/`, copier ce **dossier entier** à l'emplacement
+   `/data/homebrew/PPSA99784/`. Ne pas copier l'archive ZIP à la
+   place de `eboot.bin`, ni disperser ses fichiers directement
+   sous `/data/homebrew`. Se limiter à ce nouveau répertoire,
+   sans modifier un titre tiers, l'autoload, le registre système
+   ou un fichier existant. L'apparition dans le menu PS5 n'est
+   **pas démontrée** par la simple copie.
+4. **Voie B, gestionnaire acceptant les FFPKG UFS2 :** lui présenter
+   `PPSA99784.ffpkg` sans renommer l'extension ni prétendre qu'il
+   s'agit d'un PKG retail signé. Cette compatibilité est toujours
+   **non vérifiée** sur FW 13.60.
+5. En cas de refus d'installation, titre absent ou écran noir,
+   marquer `FAIL_INSTALL` ou `BLOCKED_INSTALLER` pour M2.1,
+   **arrêter** et garder le package exact pour diagnostic. Ne pas
+   forcer l'enregistrement Shell, la liste blanche sandbox, le
+   firmware ou les paramètres etaHEN.
+6. Conserver les jeux et données utilisateur hors de l'essai. Le
+   périmètre M2 se limite aux **menus, diagnostics et aperçus en
+   lecture seule** : ne pas confirmer de sauvegarde (R2), de
+   restitution/quarantaine ou de conversion et ne pas démarrer
+   le moteur AMPR (Carré dans Jeux et compression).
 4. L'essai n'est autorisé que pour les **menus, diagnostics et aperçus
    en lecture seule**. Ne pas confirmer de sauvegarde privée
    (R2), de restitution/quarantaine ou de conversion ; ne pas lancer
@@ -30,7 +53,7 @@ nettoyage, une preuve de privilège élevé ou un test de compression.
 
 | ID | Manipulation | Preuve / réussite attendue |
 | --- | --- | --- |
-| M2.1 | Installer puis ouvrir `PPSA99784` depuis le menu PS5 | Icône et interface native visibles ; pas de crash au démarrage |
+| M2.1 | Installer/ouvrir `PPSA99784` par l'une des deux voies documentées, puis constater sa présence dans l'interface du gestionnaire / menu PS5 | Icône et interface native visibles ; pas de crash au démarrage ; sinon indiquer la voie et `BLOCKED_INSTALLER` |
 | M2.2 | Naviguer à la DualSense entre Accueil, Analyse, Accès, Nettoyage, Retour officiel ; revenir avec Cercle | Pas de blocage, focus perdu, écran vide ou action destructive |
 | M2.3 | Lancer **une** Analyse générale (sans helper manuel) | Les cinq contrôles aboutissent ou signalent explicitement une couverture partielle / un refus de permission ; vidéo et manette restent réactives |
 | M2.4 | Ouvrir un catalogue ou la fiche d'une capture **si accessible** ; consulter un aperçu JPG/PNG disponible (sans R2) | Métadonnées/aperçu cohérents ; si inaccessible, marquer `BLOCKED_PERMISSIONS`, jamais `PASS` |
