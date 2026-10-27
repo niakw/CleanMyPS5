@@ -1,3 +1,24 @@
+## Reprises AMPR : distinguer les vrais montages et revalider le proprietaire (27 octobre 2026)
+
+Sur la console (racine /), le scanner des checkpoints verifie maintenant
+que /mnt/usbN ou /mnt/extN possede un identifiant de systeme de fichiers
+(st_dev) distinct de /mnt. Un simple dossier residuel nomme usb0,
+sans volume monte, n'est donc pas compte comme disque externe portant
+une reprise. Ce refus conservateur est coherent avec l'inventaire
+des volumes deja present dans CleanMyPS5. Un volume reel qui expose
+le meme st_dev que le parent pourra etre exclu par prudence.
+Un volume absent sans erreur d'acces est ignore ; un refus de lecture,
+un lien symbolique ou une erreur I/O restent un inventaire partiel.
+
+L'identite du proprietaire UID est maintenant comparee entre tous
+les releves POSIX du stage, du request.bin et des repertoires de
+checkpoint. Une injection hote modifie successivement ce champ
+pendant les controles des noms stage et request.bin : chacun doit
+rendre le groupe partiel et eliminer uniquement le candidat suspect.
+La fixture teste aussi le refus d'un montage de meme peripherique.
+Aucune modification n'est appliquee aux fichiers de jeu ; ce
+n'est pas une preuve de bon demarrage du jeu sur PS5 13.60.
+
 ## Acknowledgement HTTP et annulation avant le POST (27 octobre 2026)
 
 Le client natif de conversion, pause et reprise distingue maintenant

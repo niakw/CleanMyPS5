@@ -18,13 +18,23 @@ static int inject_readdir_error,inject_closedir_error;
 static int readdir_error_pending,closedir_error_pending;
 static int deny_request_once,deny_state_once,io_request_once;
 static int io_stage_read_once,io_stage_stat_once;
+static int inject_stage_owner_once,inject_request_owner_once;
 static int test_fstatat(int fd,const char*name,struct stat*st,int flags){
  if(io_stage_stat_once&&!strcmp(name,"stage")){
   io_stage_stat_once=0;
   errno=EIO;
   return -1;
  }
- return fstatat(fd,name,st,flags);
+ const int result=fstatat(fd,name,st,flags);
+ if(result==0&&inject_stage_owner_once&&!strcmp(name,"stage")){
+  inject_stage_owner_once=0;
+  st->st_uid=(uid_t)(st->st_uid+1u);
+ }else if(result==0&&inject_request_owner_once&&
+          !strcmp(name,"request.bin")){
+  inject_request_owner_once=0;
+  st->st_uid=(uid_t)(st->st_uid+1u);
+ }
+ return result;
 }
 static ssize_t test_read(int fd,void*data,size_t n){
  if(io_stage_read_once){
@@ -159,6 +169,20 @@ int main(void){
  Cmp5RecoveryInventory results={0};
  assert(cmp5_scan_recovery_inventory(root,&results));
  assert(results.count==3&&!results.hidden);
+ /* A mount name alone is not proof of external storage, even when it
+  * has a plausible 'homebrew' directory underneath. */
+ assert(!cmp5_recovery_distinct_mount((dev_t)17,(dev_t)17));
+ assert(cmp5_recovery_distinct_mount((dev_t)17,(dev_t)18));
+ /* Owner changes on the named stage or request after read must make
+  * that particular checkpoint untrustworthy, without touching files. */
+ inject_stage_owner_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!inject_stage_owner_once&&results.count==2u&&results.partial);
+ inject_request_owner_once=1;
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(!inject_request_owner_once&&results.count==2u&&results.partial);
+ assert(cmp5_scan_recovery_inventory(root,&results));
+ assert(results.count==3u&&!results.partial);
  /* A request of the expected byte size but without the pinned magic or
   * safe options is not a legitimate resume candidate, even if its stage
   * happens to say pack/copy/verify. A different source cannot acquire a

@@ -63,6 +63,12 @@ static inline bool cmp5_recovery_allowed_base(const char*dest){
  if(strncmp(p,"usb",3)&&strncmp(p,"ext",3))return false;
  return p[3]>='0'&&p[3]<='7'&&!strcmp(p+4,"/homebrew");
 }
+/* A visible /mnt/usbN or /mnt/extN directory is not proof that its
+ * device is actually mounted. Mirror the conservative volumes scanner:
+ * the mounted child must have a different device than /mnt. */
+static inline bool cmp5_recovery_distinct_mount(dev_t parent,dev_t child){
+ return parent!=child;
+}
 static inline bool cmp5_recovery_same(const struct stat*a,
                                       const struct stat*b){
  if(!a||!b)return false;
@@ -74,6 +80,7 @@ static inline bool cmp5_recovery_same(const struct stat*a,
                  a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
 #endif
  return nano&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_uid==b->st_uid&&
    a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
    a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
    a->st_ctime==b->st_ctime;
@@ -82,6 +89,12 @@ static inline int cmp5_recovery_parent_fd(const char*root,const char*dest){
  if(!root||!dest||!cmp5_recovery_allowed_base(dest))return -1;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
  if(fd<0)return -1;
+ /* On the actual PS5 root, refuse stale /mnt/usbN and /mnt/extN
+  * directories when they are not a distinct filesystem mount. Host
+  * fixture roots are synthetic ordinary directories by design. */
+ const bool external=strcmp(root,"/")==0&&strncmp(dest,"/mnt/",5)==0;
+ dev_t mnt_device=0;
+ unsigned depth=0;
  const char*start=dest+1;
  while(*start){
   const char*slash=strchr(start,'/');
@@ -91,12 +104,26 @@ static inline int cmp5_recovery_parent_fd(const char*root,const char*dest){
   memcpy(piece,start,len);piece[len]=0;
   int next=openat(fd,piece,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
   const int open_error=next<0?errno:0;
+  if(next>=0&&external&&depth<2u){
+   struct stat st=CMP5_RECOVERY_ZERO;
+   if(fstat(next,&st)!=0||!S_ISDIR(st.st_mode)){
+    const int saved=errno?errno:EIO;
+    close(next);close(fd);errno=saved;return -1;
+   }
+   if(depth==0u)mnt_device=st.st_dev;
+   else if(!cmp5_recovery_distinct_mount(mnt_device,st.st_dev)){
+    /* No mount: do not treat residual files on the internal parent
+     * volume as an external checkpoint or as an I/O failure. */
+    close(next);close(fd);errno=ENODEV;return -1;
+   }
+  }
   (void)close(fd);
   /* Do not let close() mask ENOENT/EACCES/ENOTDIR from openat().
    * The caller relies on errno to distinguish an absent volume from
    * an inaccessible or unsafe volume. */
   if(next<0){errno=open_error;return -1;}
   fd=next;
+  depth++;
   if(!slash)break;
   start=slash+1;
  }
@@ -291,7 +318,9 @@ static inline bool cmp5_scan_recovery_inventory_cancel(
   int parent=cmp5_recovery_parent_fd(root,dest);
   if(parent<0){
    const int open_error=errno;
-   if(open_error!=ENOENT){out->unavailable++;out->partial=1;}
+   if(open_error!=ENOENT&&open_error!=ENODEV){
+    out->unavailable++;out->partial=1;
+   }
    continue;
   }
   if(fstat(parent,&parent_before)!=0||!S_ISDIR(parent_before.st_mode)){
