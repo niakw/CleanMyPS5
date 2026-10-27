@@ -224,14 +224,14 @@ int main(int argc,char**argv){
   }else if(mode==3){
    assert(stats.nominal_bytes==35u);
    assert(!stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
-   assert(strstr(json,"\\\"path\\\":\\\"/data/ExampleTool\\\",\\\"kind\\\":\\\"app-data\\\",\\\"risk\\\":\\\"protected\\\",\\\"nominalBytes\\\":15,\\\"files\\\":4,\\\"partial\\\":true"));
+   assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":15,\"files\":4,\"partial\":true"));
   }else{
    assert(stats.nominal_bytes==36u);
    assert(!stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
-   assert(strstr(json,"\\\"path\\\":\\\"/data/etaHEN/notice.txt\\\",\\\"kind\\\":\\\"app-data\\\",\\\"risk\\\":\\\"protected\\\",\\\"nominalBytes\\\":0,\\\"files\\\":0,\\\"partial\\\":true"));
+   assert(strstr(json,"\"path\":\"/data/etaHEN/notice.txt\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
   }
-  assert(strstr(json,"\\\"partial\\\":true"));
-  assert(strstr(json,"\\\"deletable\\\":false"));
+  assert(strstr(json,"\"partial\":true"));
+  assert(strstr(json,"\"deletable\":false"));
   free(json);
  }
  fake_regular_mode=0;
