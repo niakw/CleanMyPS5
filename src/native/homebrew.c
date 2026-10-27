@@ -132,14 +132,17 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
       opened.st_dev!=st.st_dev||opened.st_ino!=st.st_ino){
     close(child);*partial=1;if(change)change->unknown=1;continue;
    }
+   const uint64_t before_bytes=*size;
+   const size_t before_files=*files;
    count_tree(a,child,depth+1,size,files,partial,change);
-   /* A rename/swap during recursion invalidates the directory's
-    * metadata evidence, even if the contents were readable. A bounded
-    * scan can diagnose the partial view, never grant deletion rights. */
+   /* A rename/swap invalidates that subtree's attribution. Discard
+    * its stale bytes and file count, even though the parent scan
+    * necessarily stays partial and cannot prove inactivity. */
    struct stat after={0};
    if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
       !S_ISDIR(after.st_mode)||after.st_dev!=st.st_dev||
       after.st_ino!=st.st_ino){
+    *size=before_bytes;*files=before_files;
     *partial=1;if(change)change->unknown=1;
    }
   }else{
