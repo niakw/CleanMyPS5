@@ -1,3 +1,30 @@
+## Application sans API : comparaison locale de caches (27 octobre 2026)
+
+CleanMyPS5 **n'exige pas d'API applicative** pour inventorier les dossiers
+déjà accessibles au titre PS5. La cinquième page Applications a été
+réorientée : le diagnostic `sysctl` / `sceKernelGetAppInfo`, non validé
+sur firmware 13.60, ne fait plus partie du titre natif. Aucun PID, nom
+de processus ni Title ID dérivé de ces interfaces n'est demandé.
+
+À la place, **X relance l'inventaire local en lecture seule**. Le premier
+scan cohérent des caches sous `/data` sert de référence temporaire en
+mémoire ; le second compare les quatre plus gros dossiers selon leur nom
+local et catégorie, leur taille nominale et leur nombre de fichiers.
+Une variation observable est signalée, et une absence de variation
+reste explicitement **sans preuve d'inactivité**. Une erreur d'accès,
+un dossier partiel, un nom tronqué, des doublons ou un dossier sorti
+du classement invalident la correspondance ou l'ensemble du bilan :
+aucune déduction de suppression, d'absence de fichiers ou de
+fournisseur ne peut en être tirée.
+
+La référence est effacée lors d'un scan incomplet ou annulé. Elle n'est
+pas sauvegardée sur la console, ni exportée via le helper local.
+Cette fonction ne lit aucun contenu de fichier et ne requiert ni
+serveur distant ni interface de liste des processus.
+La logique de comparaison et la navigation sont testées sur hôte ; un
+test réel PS5 13.60 reste nécessaire pour vérifier l'accès aux
+répertoires disponibles et le comportement de l'interface.
+
 ### Ordre du sysctl et budget d'identification (27 octobre 2026)
 
 Le relevé de processus peut lister les services système avant les jeux.

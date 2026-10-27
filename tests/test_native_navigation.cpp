@@ -1838,35 +1838,40 @@ int main(){
    blocked_delete=true;
  }
  assert(listed_cache&&listed_temp&&blocked_delete);
- /* Fifth tab: an explicit, bounded sysctl probe. Unsupported on the
-  * host test must never be misreported as no active applications. */
+ /* Fifth tab uses only metadata from two native filesystem surveys.
+  * No sysctl or per-process application API is required. */
  press(r1);assert(homebrew_page==4u);
  scene(canvas);
- bool no_idle=false,process_page=false;
+ bool no_idle=false,compare_page=false;
  for(const auto&cmd:canvas.commands){
-  if(cmd.text.find("ACTIVITE DES CACHES INCONNUE")!=std::string::npos)no_idle=true;
-  if(cmd.text.find("PAGE 5/5")!=std::string::npos)process_page=true;
+  if(cmd.text.find("ZERO CACHE SUPPRIMABLE")!=std::string::npos)no_idle=true;
+  if(cmd.text.find("PAGE 5/5")!=std::string::npos)compare_page=true;
  }
- assert(no_idle&&process_page);
- process_snapshot.state=cmp5_process::State::observed;
- process_snapshot.processes=7u;
- process_snapshot.title_lookups=6u;
- process_snapshot.identified_titles=2u;
- std::strcpy(process_snapshot.title_ids[0],"PPSA12345");
- std::strcpy(process_snapshot.title_ids[1],"CUSA00001");
+ assert(no_idle&&compare_page);
+ cache_change=cmp5_cache_delta::Comparison{};
+ cache_change.state=cmp5_cache_delta::State::compared;
+ cache_change.compared=2u;cache_change.changed=1u;
+ cache_change.unchanged_observed=1u;
+ cache_change.entries[0].result=cmp5_cache_delta::Kind::changed;
+ std::strcpy(cache_change.entries[0].app_label,"ExampleTool");
+ cache_change.entries[0].old_bytes=1024u;
+ cache_change.entries[0].new_bytes=4096u;
  scene(canvas);
- bool titles_present=false,unknown_activity=false;
+ bool changed_label=false,stability_not_idle=false;
  for(const auto&cmd:canvas.commands){
-  if(cmd.text.find("PPSA12345")!=std::string::npos&&
-     cmd.text.find("CUSA00001")!=std::string::npos)
-   titles_present=true;
-  if(cmd.text.find("ACTIVITE DES CACHES INCONNUE")!=std::string::npos)
-   unknown_activity=true;
+  if(cmd.text.find("1 CHANGEMENTS")!=std::string::npos&&
+     cmd.text.find("1 SANS VARIATION")!=std::string::npos)
+   changed_label=true;
+  if(cmd.text.find("ABSENTE MEME SI STABLE")!=std::string::npos)
+   stability_not_idle=true;
  }
- assert(titles_present&&unknown_activity);
+ assert(changed_label&&stability_not_idle);
+ /* Simulate a local user-requested rescan. With unavailable /data on the
+  * host, the old comparison is discarded, never treated as current. */
  press(cross);finish_scan();
- assert(process_snapshot.state==cmp5_process::State::unavailable);
- assert(!process_snapshot.safe_to_clean);
+ assert(!cache_baseline_valid);
+ assert(cache_change.state==cmp5_cache_delta::State::incomplete||
+        cache_change.state==cmp5_cache_delta::State::no_baseline);
  /* Both directions wrap all five tabs, including zero candidates. */
  homebrew_stats.cache_like_files=0u;
  homebrew_stats.cache_like_folders=0u;

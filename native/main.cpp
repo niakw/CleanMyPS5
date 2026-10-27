@@ -17,13 +17,7 @@
 #include "compression_image.hpp"
 #include "privilege_contract.hpp"
 #include "cleanup_readiness.hpp"
-#include "process_snapshot.hpp"
-#if defined(__FreeBSD__) && __has_include(<sys/sysctl.h>)
-#include <sys/sysctl.h>
-#define CMP5_PROCESS_SYSCTL 1
-#else
-#define CMP5_PROCESS_SYSCTL 0
-#endif
+#include "cache_delta.hpp"
 #include "capture_companions.h"
 #include "private_media_backup.hpp"
 #include "private_group_backup.hpp"
@@ -400,7 +394,9 @@ bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
 bool homebrew_checked=false;
 unsigned homebrew_page=0;
-cmp5_process::Snapshot process_snapshot{};
+Cmp5HomebrewStats cache_baseline{};
+bool cache_baseline_valid=false;
+cmp5_cache_delta::Comparison cache_change{};
 Cmp5AutoloadStats autoload_stats{};
 bool autoload_checked=false;
 /* Coordinated read-only audit: only aggregate game counts persist here.
@@ -888,45 +884,6 @@ void run_private_archive_audit() noexcept {
   private_inventory_selection=0u;
  }
 }
-#if CMP5_PROCESS_SYSCTL
-/* 0x60-byte app-info ABI, Title ID begins at offset 16. The only user data
- * retained are well-formed, de-duplicated user Title IDs; never use this
- * mapping to authorize mutation. Hardware FW 13.60 is still unverified. */
-struct alignas(8) Cmp5NativeAppInfo {
- std::uint32_t app_id;
- std::uint32_t padding;
- std::uint64_t unknown;
- char title_id[14];
- unsigned char rest[60];
-};
-static_assert(sizeof(Cmp5NativeAppInfo)==0x60);
-static_assert(offsetof(Cmp5NativeAppInfo,title_id)==16u);
-extern "C" int sceKernelGetAppInfo(int,Cmp5NativeAppInfo*);
-#endif
-void run_process_snapshot() noexcept {
- process_snapshot=cmp5_process::Snapshot{};
-#if CMP5_PROCESS_SYSCTL
- // This is a read-only sysctl query. The title's sandbox may deny it;
- // that result remains UNAVAILABLE, never "no active processes".
- const int mib[4]={CTL_KERN,KERN_PROC,KERN_PROC_PROC,0};
- process_snapshot=cmp5_process::sample_with_titles(
-  [&](void*out,std::size_t*size){
-   if(cancellation_hook(nullptr))return false;
-   return sysctl(mib,4,out,size,nullptr,0)==0;
-  },
-  [&](int pid,char title[10])->bool {
-   if(cancellation_hook(nullptr))return false;
-   Cmp5NativeAppInfo info{};
-   if(sceKernelGetAppInfo(pid,&info)!=0||info.app_id==0u)return false;
-   std::memcpy(title,info.title_id,9u);
-   title[9]='\0';
-   return cmp5_process::valid_user_title_id(title);
-  });
-#else
- process_snapshot.state=cmp5_process::State::unavailable;
-#endif
- if(cancellation_hook(nullptr))process_snapshot=cmp5_process::Snapshot{};
-}
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
  homebrew_checked=false;
@@ -937,6 +894,21 @@ void run_homebrew_check() noexcept {
  if(report){
   std::free(report);
   homebrew_checked=!cancellation_hook(nullptr);
+ }
+ /* Publish a baseline only after an internally consistent /data scan.
+  * An interrupted or unreadable survey invalidates the comparison chain.
+  * A "no change" observation is NEVER evidence of inactive processes. */
+ if(homebrew_checked&&cmp5_cache_delta::complete(homebrew_stats)){
+  cache_change=cmp5_cache_delta::compare(
+    cache_baseline,homebrew_stats,cache_baseline_valid);
+  cache_baseline=homebrew_stats;
+  cache_baseline_valid=true;
+ }else{
+  cache_baseline=Cmp5HomebrewStats{};
+  cache_baseline_valid=false;
+  cache_change=cmp5_cache_delta::Comparison{};
+  if(homebrew_checked)cache_change.state=
+    cmp5_cache_delta::State::incomplete;
  }
 }
 void run_autoload_check() noexcept {
@@ -1720,7 +1692,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, process_snapshot, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify,
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify,
  private_rehearsal_discard };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
@@ -1732,7 +1704,6 @@ void* background_task(void*) noexcept {
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
   case Task::homebrew: run_homebrew_check(); break;
-  case Task::process_snapshot: run_process_snapshot(); break;
   case Task::autoload: run_autoload_check(); break;
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
@@ -1777,9 +1748,10 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::homebrew){
    homebrew_stats=Cmp5HomebrewStats{};
    homebrew_checked=false;
+   cache_baseline=Cmp5HomebrewStats{};
+   cache_baseline_valid=false;
+   cache_change=cmp5_cache_delta::Comparison{};
   }
-  if(task_kind==Task::process_snapshot)
-   process_snapshot=cmp5_process::Snapshot{};
   if(task_kind==Task::autoload){
    autoload_stats=Cmp5AutoloadStats{};
    autoload_checked=false;
@@ -2431,8 +2403,7 @@ void poll_pad() noexcept {
    if(screen==Screen::analyze)(void)begin_task(Task::environment);
    if(screen==Screen::cleanup)(void)begin_task(Task::environment);
    if(screen==Screen::access)(void)begin_task(Task::access);
-   if(screen==Screen::apps)(void)begin_task(homebrew_page==4u?
-     Task::process_snapshot:Task::homebrew);
+   if(screen==Screen::apps)(void)begin_task(Task::homebrew);
   }
  }
 }
@@ -2714,45 +2685,42 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   return;
  }
  if(homebrew_page==4u){
-  char count[128]{};
-  if(process_snapshot.state==cmp5_process::State::observed)
-   (void)std::snprintf(count,sizeof(count),
-       "%u PROCESSUS  %u EBOOT.BIN  %u ELF",
-       process_snapshot.processes,process_snapshot.eboot_names,
-       process_snapshot.elf_names);
+  const auto state=cache_change.state;
+  char status[155]{};
+  if(state==cmp5_cache_delta::State::compared)
+   (void)std::snprintf(status,sizeof(status),
+      "%u CHANGEMENTS  %u SANS VARIATION  %u NON COMPARABLES",
+      cache_change.changed,cache_change.unchanged_observed,
+      cache_change.incomparable);
   else
-   (void)std::snprintf(count,sizeof(count),"NON VERIFIE / ACCES REFUSE");
-  panel(canvas,355,"PROCESSUS VISIBLES DEPUIS LE TITRE",count,
-    process_snapshot.state==cmp5_process::State::observed?
-      Color::cyan:Color::yellow);
-  char identity[155]{};
-  if(process_snapshot.state==cmp5_process::State::observed)
-   (void)std::snprintf(identity,sizeof(identity),
-     "%u IDENTIFIANTS  %u REQUETES  %s",
-     process_snapshot.identified_titles,process_snapshot.title_lookups,
-     process_snapshot.title_lookups_limited?
-       "LIMITE ATTEINTE":"REPONSES PARTIELLES POSSIBLES");
-  else
-   (void)std::snprintf(identity,sizeof(identity),
-     "API NON VERIFIEE  IDENTITE INCONNUE");
-  panel(canvas,503,"CORRESPONDANCE PID / TITLE ID",identity,Color::yellow);
-  char names[152]{};
-  const unsigned shown=process_snapshot.identified_titles;
-  if(shown>0u)
-   (void)std::snprintf(names,sizeof(names),
-     "%s  %s  %s  %s%s",
-     process_snapshot.title_ids[0],
-     shown>1u?process_snapshot.title_ids[1]:"",
-     shown>2u?process_snapshot.title_ids[2]:"",
-     shown>3u?process_snapshot.title_ids[3]:"",
-     process_snapshot.hidden_titles?"  AUTRES NON AFFICHES":"");
-  else
-   (void)std::snprintf(names,sizeof(names),
-     "AUCUNE IDENTITE ATTESTEE  RESULTAT NON EXHAUSTIF");
-  panel(canvas,651,"TITRES RAPPORTES PAR LE NOYAU",names,Color::yellow);
-  panel(canvas,799,"AUTORISATION DE NETTOYAGE",
-    "ACTIVITE DES CACHES INCONNUE  AUCUNE SUPPRESSION",Color::yellow);
-  footer(canvas,"PAGE 5/5  X SONDER  L1/R1 NAVIGUER  ZERO EFFACEMENT");
+   (void)std::snprintf(status,sizeof(status),
+      state==cmp5_cache_delta::State::incomplete?
+      "DONNEES PARTIELLES  COMPARAISON NON FIABLE":
+      "PREMIER INVENTAIRE  X POUR UN SECOND RELEVE");
+  panel(canvas,355,"COMPARAISON LOCALE DE DEUX SCANS",status,
+      state==cmp5_cache_delta::State::compared?Color::cyan:Color::yellow);
+  char observed[165]{};
+  bool shown=false;
+  if(state==cmp5_cache_delta::State::compared)
+   for(unsigned i=0;i<CMP5_CACHE_TOP_CAP;i++){
+    const auto&item=cache_change.entries[i];
+    if(item.result==cmp5_cache_delta::Kind::changed){
+     (void)std::snprintf(observed,sizeof(observed),
+       "%s  %llu -> %llu OCTETS NOMINAUX",
+       item.app_label,
+       static_cast<unsigned long long>(item.old_bytes),
+       static_cast<unsigned long long>(item.new_bytes));
+     shown=true;break;
+    }
+   }
+  panel(canvas,503,"VARIATION OBSERVEE",
+     shown?observed:"AUCUN EXEMPLE COMPARABLE DE VARIATION",Color::yellow);
+  panel(canvas,651,"LIMITES DE L OBSERVATION",
+     "TOP 4  NOMS NON CERTIFIES  TAILLES ET FICHIERS SEULEMENT",
+     Color::yellow);
+  panel(canvas,799,"PREUVE D INACTIVITE",
+     "ABSENTE MEME SI STABLE  ZERO CACHE SUPPRIMABLE",Color::yellow);
+  footer(canvas,"PAGE 5/5  X NOUVEAU SCAN LOCAL  SANS API  L1/R1");
   return;
  }
  if(task_cancelled()||task_failed()||!homebrew_checked){
