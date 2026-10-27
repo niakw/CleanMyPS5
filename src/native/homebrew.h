@@ -47,6 +47,11 @@ typedef struct {
  uint32_t cache_like_name_matched;
  uint32_t cache_like_name_unmatched;
  uint32_t homebrew_name_index_partial;
+ /* mtime-based hints only. These three categories are exclusive and
+  * total cache_like_folders, but none proves an application is idle. */
+ uint32_t cache_mtime_recent;
+ uint32_t cache_mtime_unknown;
+ uint32_t cache_mtime_no_recent;
 } Cmp5HomebrewStats;
 /* Read-only bounded inventory of known homebrew and plugin directories. Caller frees output. */
 char *cmp5_homebrew(const char *root, size_t *length);
