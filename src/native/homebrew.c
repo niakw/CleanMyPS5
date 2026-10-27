@@ -27,7 +27,16 @@ typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
  unsigned data_root_state,installed_root_state;
  size_t homebrew_name_count;
  char homebrew_names[HOMEBREW_NAMES_CAP][HOMEBREW_NAME_LEN];
- Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;} Audit;
+ Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;
+ time_t cache_wall_now;} Audit;
+typedef struct {time_t now;int recent;int unknown;} CacheChange;
+/* mtime is only a signal of recent writes; its age never proves idle. */
+static void note_cache_mtime(CacheChange*change,time_t modified){
+ if(!change)return;
+ if(change->now<=0||modified<=0||difftime(modified,change->now)>0.0)
+  change->unknown=1;
+ else if(difftime(change->now,modified)<=86400.0)change->recent=1;
+}
 /* A missing optional plugin/USB folder is normal. Missing /data or
  * /user/app is different: a zero inventory must not imply complete access. */
 static unsigned root_state_from_errno(int error){
@@ -74,29 +83,33 @@ static int over(Audit*a){
  if(a->deadline&&n&&n>a->deadline){a->partial=1;return 1;}
  return 0;
 }
-static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*partial){
- if(over(a)){*partial=1;close(fd);return;}
+static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
+                       int*partial,CacheChange*change){
+ if(over(a)){*partial=1;if(change)change->unknown=1;close(fd);return;}
  const int anchored_fd=fd;
  DIR*d=fdopendir(fd);
- if(!d){close(fd);*partial=1;return;}
+ if(!d){close(fd);*partial=1;if(change)change->unknown=1;return;}
  struct dirent*e;
  for(;;){
   /* A NULL entry means EOF or an I/O failure. Metadata operations on
    * earlier children can modify errno, so clear it before each read. */
   errno=0;
   e=readdir(d);
-  if(!e){if(errno!=0)*partial=1;break;}
+  if(!e){if(errno!=0){*partial=1;if(change)change->unknown=1;}break;}
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
   a->visited++;
-  if(over(a)){*partial=1;break;}
+  if(over(a)){*partial=1;if(change)change->unknown=1;break;}
   struct stat st;
-  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){*partial=1;continue;}
-  if(S_ISLNK(st.st_mode))continue;
+  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){
+   *partial=1;if(change)change->unknown=1;continue;
+  }
+  if(S_ISLNK(st.st_mode)){if(change)change->unknown=1;continue;}
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
   for(size_t i=0;i<count;i++)if(!strcasecmp(e->d_name,names[i]))excluded=1;
-  if(excluded)continue;
+  if(excluded){if(change)change->unknown=1;continue;}
+  if(change)note_cache_mtime(change,st.st_mtime);
   if(S_ISREG(st.st_mode)){
    (*files)++;
    if(st.st_size>=0){
@@ -105,15 +118,15 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,int*p
     *size+=v;
    }
   }else if(S_ISDIR(st.st_mode)){
-   if(depth>=DEPTH_CAP){*partial=1;continue;}
+   if(depth>=DEPTH_CAP){*partial=1;if(change)change->unknown=1;continue;}
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-   if(child<0){*partial=1;continue;}
-   count_tree(a,child,depth+1,size,files,partial);
+   if(child<0){*partial=1;if(change)change->unknown=1;continue;}
+   count_tree(a,child,depth+1,size,files,partial,change);
   }
   /* A corrupt sibling is not a global hard stop. Continue to count
    * readable files within the fixed visit/time/depth budgets. */
  }
- if(closedir(d)!=0)*partial=1;
+ if(closedir(d)!=0){*partial=1;if(change)change->unknown=1;}
 }
 static int open_dir(const char*root,const char*relative){
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
