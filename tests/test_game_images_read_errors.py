@@ -14,7 +14,11 @@ with tempfile.TemporaryDirectory() as tmp:
     folder=games/"FAULT_GAME"
     (folder/"sce_sys").mkdir(parents=True)
     (folder/"eboot.bin").write_bytes(b"synthetic eboot")
-    for mode in ("normal","stat","dir"):
+    assets=folder/"assets"
+    assets.mkdir()
+    (assets/"texture.bin").write_bytes(b"synthetic texture")
+    for mode in ("normal","stat","dir","regular-inode","regular-size",
+                 "regular-mtime","child-inode","child-mtime"):
         result=subprocess.run([sys.argv[1],str(root),mode],
                               capture_output=True,text=True,timeout=12)
         assert result.returncode==0,(mode,result.stdout,result.stderr)

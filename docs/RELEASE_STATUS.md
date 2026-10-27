@@ -1,3 +1,31 @@
+## Inventaire des jeux : identité des fichiers et des sous-dossiers (27 octobre 2026)
+
+Le calcul nominal des tailles de dossiers de jeux parcourait les fichiers
+réguliers sous `/data/homebrew`, `etaHEN/games` et les racines USB/EXT
+sans seconde lecture de leur identité. Un fichier remplacé, raccourci ou
+modifié après le premier `fstatat` pouvait contribuer à une taille
+présentée comme complète. Un répertoire enfant renommé après son
+ouverture pouvait aussi contribuer aux octets de l'ancien inode.
+
+Désormais chaque fichier régulier doit satisfaire un **second
+`fstatat(..., AT_SYMLINK_NOFOLLOW)`** cohérent sur identité, mode,
+nombre de liens, taille et horodatages à résolution fine. Les
+sous-dossiers sont vérifiés par `fstat` immédiatement après ouverture,
+puis par un **nouveau contrôle du chemin nommé** après la récursion.
+Une divergence annule l'attribution des octets du sous-arbre et fait
+échouer le calcul complet du dossier. La bibliothèque conserve le jeu
+dans le catalogue avec **taille inconnue** plutôt que d'afficher un
+total mensonger ou de le classer comme gros jeu.
+
+Les tests du moteur C simulent, sans modifier les fichiers, une
+substitution d'inode, un changement de taille, une réécriture horodatée,
+une substitution de sous-répertoire et une mutation de son contenu sans
+remplacement d'inode. Les jeux indépendants restent consultables.
+Ces contrôles bornés sont des **observations de métadonnées**, pas un
+instantané atomique ni une preuve d'absence d'activité de jeu.
+Un précontrôle indépendant reste requis avant la compression ; aucun
+nettoyage des données système n'est activé.
+
 ## Applications : classement des caches par dossier observé (27 octobre 2026)
 
 Le scanner natif conserve maintenant un **top 4 borné** des dossiers

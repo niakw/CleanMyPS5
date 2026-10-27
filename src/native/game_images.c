@@ -130,14 +130,35 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
    good=0;break;
   }
   if(S_ISREG(st.st_mode)){
+   /* A file observed before traversal may be replaced, resized, or
+    * rewritten before we account for its nominal bytes. The second
+    * path-anchored no-follow lookup must agree on size, inode and both
+    * timestamps (including nanoseconds) before we accept its size. */
+   struct stat confirmed={0};
    if(st.st_nlink!=1||st.st_size<0||
+      fstatat(fd,entry->d_name,&confirmed,AT_SYMLINK_NOFOLLOW)!=0||
+      !equal_stat(&st,&confirmed)||
       (uint64_t)st.st_size>UINT64_MAX-*out){good=0;break;}
    *out+=(uint64_t)st.st_size;
   }else if(S_ISDIR(st.st_mode)){
    if(depth==6u){good=0;break;}
    int child=openat(fd,entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-   if(child<0||!total_game_tree(a,child,depth+1,out)){
-    good=0;break;
+   if(child<0){good=0;break;}
+   struct stat opened={0};
+   if(fstat(child,&opened)!=0||
+      !cmp5_same_game_directory(&st,&opened)){
+    close(child);good=0;break;
+   }
+   const uint64_t previous=*out;
+   const int child_complete=total_game_tree(a,child,depth+1,out);
+   /* The opened directory may have been renamed while the recursion
+    * walked its old inode. Recheck the *named* child under its parent:
+    * metadata from a different folder cannot be reported as complete. */
+   struct stat named_after={0};
+   if(!child_complete||
+      fstatat(fd,entry->d_name,&named_after,AT_SYMLINK_NOFOLLOW)!=0||
+      !cmp5_same_game_directory(&st,&named_after)){
+    *out=previous;good=0;break;
    }
   }else{good=0;break;} /* unexpected links or device files */
  }
