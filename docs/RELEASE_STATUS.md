@@ -1,3 +1,26 @@
+## Scanner de fichiers : attribution refusée en cas de remplacement (27 octobre 2026)
+
+Après le contrôle des dossiers parents, l'inventaire `homebrew.c`
+réinspecte maintenant **chaque fichier régulier rencontré** par un second
+`fstatat` relatif au dossier ouvert avec `AT_SYMLINK_NOFOLLOW`, avant
+de lui attribuer des octets ou un fichier. Une divergence d'inode, taille,
+type, permissions, nombre de liens, date de modification ou date de
+changement de statut refuse l'attribution et marque le résultat partiel.
+Le principe s'applique aux sous-arborescences comme aux fichiers situés
+directement dans une racine analysée.
+
+La CI injecte des substitutions d'inode, changements de taille et
+d'horodatage sur des exemples synthétiques de cache, de données
+d'application et de fichier etaHEN : aucun octet périmé n'est attribué
+au périmètre affecté, tandis que les fichiers indépendants restent
+comptés. Le total de caches conserve sa nature **nominale et non additive**.
+
+Deux contrôles de métadonnées n'offrent ni instantané atomique,
+ni garantie contre les changements après la seconde lecture ou durant
+une seconde non observable dans l'horodatage. Il n'existe toujours
+**aucune autorisation de purge** des caches, journaux, données Sony ou
+médias Galerie sur console.
+
 ## Analyse native des applications : compteurs invalidés après échange de dossier (27 octobre 2026)
 
 Le scanner de répertoires publiait déjà une couverture **partielle** et

@@ -16,6 +16,7 @@ static int close_error_enabled,close_error_seen;
 static int fake_cache_identity_mode,cache_name_lookups;
 static int fake_nested_identity_mode,nested_name_lookups;
 static int fake_app_identity_mode,app_name_lookups;
+static int fake_regular_mode,regular_name_lookups;
 /* Inject an identity swap at either lookup edge of /data/<app>/cache.
  * Actual files remain untouched; this simulates concurrent renames
  * reproducibly on macOS, Linux and under sanitizers. */
@@ -35,6 +36,18 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
    st->st_dev+=1; /* nested bind mount outside cache device */
   else if(nested_name_lookups==fake_nested_identity_mode)
    st->st_ino+=1;
+ }
+ if(rc==0&&fake_regular_mode){
+  const char*target=fake_regular_mode==3?"public.bin":
+                    fake_regular_mode==4?"notice.txt":"index.bin";
+  if(strcmp(name,target)==0){
+   ++regular_name_lookups;
+   if(regular_name_lookups==2){
+    if(fake_regular_mode==1||fake_regular_mode==4)st->st_ino+=1;
+    else if(fake_regular_mode==2)st->st_size+=1;
+    else if(fake_regular_mode==3)st->st_mtime-=60;
+   }
+  }
  }
  if(rc==0&&fake_app_identity_mode&&strcmp(name,"ExampleTool")==0){
   ++app_name_lookups;
@@ -190,6 +203,38 @@ int main(int argc,char**argv){
         stats.cache_mtime_recent==0u&&stats.cache_mtime_unknown==0u);
  assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
  free(json);
+ fake_app_identity_mode=0;
+ /* A metadata-only scanner must not count an inode, length or mtime
+  * which changed between its two anchored file-name probes. */
+ for(int mode=1;mode<=4;mode++){
+  fake_regular_mode=mode;regular_name_lookups=0;
+  memset(&stats,0,sizeof(stats));size=0;
+  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+  assert(json&&size>100&&stats.partial);
+  assert(regular_name_lookups>=2);
+  if(mode<=2){
+   /* index.bin is counted separately in the cache shortlist first.
+    * Later clean metadata samples in the general tree are independent. */
+   assert(stats.cache_like_partial);
+   assert(stats.cache_like_folders==4u);
+   assert(stats.cache_like_nominal_bytes==16u&&stats.cache_like_files==4u);
+   assert(stats.cache_mtime_recent==0u&&stats.cache_mtime_unknown==2u&&
+          stats.cache_mtime_no_recent==2u);
+   assert(stats.nominal_bytes==39u);
+  }else if(mode==3){
+   assert(stats.nominal_bytes==35u);
+   assert(!stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
+   assert(strstr(json,"\\\"path\\\":\\\"/data/ExampleTool\\\",\\\"kind\\\":\\\"app-data\\\",\\\"risk\\\":\\\"protected\\\",\\\"nominalBytes\\\":15,\\\"files\\\":4,\\\"partial\\\":true"));
+  }else{
+   assert(stats.nominal_bytes==36u);
+   assert(!stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
+   assert(strstr(json,"\\\"path\\\":\\\"/data/etaHEN/notice.txt\\\",\\\"kind\\\":\\\"app-data\\\",\\\"risk\\\":\\\"protected\\\",\\\"nominalBytes\\\":0,\\\"files\\\":0,\\\"partial\\\":true"));
+  }
+  assert(strstr(json,"\\\"partial\\\":true"));
+  assert(strstr(json,"\\\"deletable\\\":false"));
+  free(json);
+ }
+ fake_regular_mode=0;
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
 }

@@ -83,6 +83,20 @@ static int over(Audit*a){
  if(a->deadline&&n&&n>a->deadline){a->partial=1;return 1;}
  return 0;
 }
+/* A file's first directory-entry stat can be stale before it is
+ * attributed. Require a second anchored, no-follow lookup for identity,
+ * size and metadata. This is bounded metadata sampling, NOT a filesystem
+ * transaction or proof that an application has stopped writing. */
+static int stable_regular_file(const struct stat*first,
+                               const struct stat*second){
+ return S_ISREG(first->st_mode)&&S_ISREG(second->st_mode)&&
+        first->st_dev==second->st_dev&&first->st_ino==second->st_ino&&
+        first->st_mode==second->st_mode&&
+        first->st_nlink==second->st_nlink&&
+        first->st_size>=0&&first->st_size==second->st_size&&
+        first->st_mtime==second->st_mtime&&
+        first->st_ctime==second->st_ctime;
+}
 static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
                        int*partial,CacheChange*change){
  if(over(a)){*partial=1;if(change)change->unknown=1;close(fd);return;}
@@ -115,12 +129,15 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
   if(excluded){if(change)change->unknown=1;continue;}
   if(change)note_cache_mtime(change,st.st_mtime);
   if(S_ISREG(st.st_mode)){
-   (*files)++;
-   if(st.st_size>=0){
-    uint64_t v=(uint64_t)st.st_size;
-    if(v>UINT64_MAX-*size){*partial=1;continue;}
-    *size+=v;
+   struct stat confirmed={0};
+   if(fstatat(anchored_fd,e->d_name,&confirmed,AT_SYMLINK_NOFOLLOW)!=0||
+      !stable_regular_file(&st,&confirmed)){
+    *partial=1;if(change)change->unknown=1;continue;
    }
+   uint64_t v=(uint64_t)st.st_size;
+   if(v>UINT64_MAX-*size){*partial=1;if(change)change->unknown=1;continue;}
+   (*files)++;
+   *size+=v;
   }else if(S_ISDIR(st.st_mode)){
    if(depth>=DEPTH_CAP||st.st_dev!=parent.st_dev){
     *partial=1;if(change)change->unknown=1;continue;
@@ -379,8 +396,15 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   char relative_path[NAME_CAP];
   if(!join(relative_path,sizeof(relative_path),relative,e->d_name)){a->partial=1;continue;}
   uint64_t bytes=0;size_t files=0;int partial=0;
-  if(S_ISREG(st.st_mode)){if(st.st_size>=0)bytes=(uint64_t)st.st_size;files=1;}
-  else{
+  if(S_ISREG(st.st_mode)){
+   struct stat confirmed={0};
+   if(fstatat(anchored_fd,e->d_name,&confirmed,AT_SYMLINK_NOFOLLOW)!=0||
+      !stable_regular_file(&st,&confirmed)){
+    /* A changing direct child is displayed but cannot contribute
+     * nominal bytes or a confident file count. */
+    partial=1;
+   }else{bytes=(uint64_t)st.st_size;files=1;}
+  }else{
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0)partial=1;
    else{
