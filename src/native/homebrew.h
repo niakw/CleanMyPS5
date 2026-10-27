@@ -12,12 +12,19 @@ typedef int (*Cmp5CancelCheck)(void *context);
 #define CMP5_HOMEBREW_TOP_CAP 4u
 #define CMP5_CACHE_TOP_CAP 4u
 #define CMP5_CACHE_LEDGER_CAP 96u
+/* Incomplete metadata observations; OR-able, never cleanup permissions. */
+#define CMP5_CACHE_REASON_IO          (1u<<0)
+#define CMP5_CACHE_REASON_CHANGED     (1u<<1)
+#define CMP5_CACHE_REASON_LIMIT       (1u<<2)
+#define CMP5_CACHE_REASON_EXCLUDED    (1u<<3)
+#define CMP5_CACHE_REASON_PERMISSION  (1u<<4)
 /* Hash-keyed, pathless scan observations; they do not identify a provider
  * and cannot be used as deletion targets. Hash collisions fail comparison. */
 typedef struct {
  uint64_t key,nominal_bytes,metadata_xor,metadata_sum;
  uint32_t files,metadata_nodes,metadata_complete;
  uint32_t kind,age_hint,name_matched;
+ uint32_t partial_reasons;
  char app_label[48]; /* sanitized local basename, NEVER full path */
 } Cmp5CacheLedger;
 /* 1=cache, 2=.cache, 3=tmp, 4=temp; not deletion categories. */
@@ -34,6 +41,7 @@ typedef struct {
  uint64_t metadata_sum;
  uint32_t metadata_nodes;
  uint32_t metadata_complete;
+ uint32_t partial_reasons;
  uint64_t identity_key; /* exact raw app/cache basenames, hashed in memory */
  char app_label[48]; /* ASCII basename only; no paths persisted */
 } Cmp5CacheTop;
@@ -69,6 +77,7 @@ typedef struct {
  Cmp5CacheTop cache_top[CMP5_CACHE_TOP_CAP];
  uint32_t cache_ledger_count;
  uint32_t cache_ledger_overflow;
+ uint32_t cache_reason_mask;
  Cmp5CacheLedger cache_ledger[CMP5_CACHE_LEDGER_CAP];
  uint32_t cache_like_files;
  uint32_t cache_like_partial;

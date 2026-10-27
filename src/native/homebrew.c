@@ -32,9 +32,18 @@ typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
 typedef struct {
  time_t now;
  int recent,unknown,metadata_partial;
+ uint32_t reasons;
  uint64_t metadata_xor,metadata_sum;
  uint32_t metadata_nodes;
 } CacheChange;
+static uint32_t cache_io_reason(int error){
+ return error==EACCES||error==EPERM?
+   CMP5_CACHE_REASON_PERMISSION:CMP5_CACHE_REASON_IO;
+}
+static void cache_mark(CacheChange*change,uint32_t reason){
+ if(!change)return;
+ change->unknown=1;change->metadata_partial=1;change->reasons|=reason;
+}
 /* Fingerprint only already-verified directory entries. XOR + sum make the
  * aggregate independent of readdir ordering; the tuple uses path context
  * (parent inode + entry basename), own inode and high-resolution times.
@@ -176,62 +185,63 @@ static int stable_directory(const struct stat*first,const struct stat*after){
 }
 static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
                        int*partial,CacheChange*change){
- if(over(a)){*partial=1;if(change)change->unknown=1;close(fd);return;}
+ if(over(a)){*partial=1;cache_mark(change,CMP5_CACHE_REASON_LIMIT);close(fd);return;}
  const int anchored_fd=fd;
  struct stat parent={0};
  if(fstat(fd,&parent)!=0||!S_ISDIR(parent.st_mode)){
-  close(fd);*partial=1;if(change)change->unknown=1;return;
+  close(fd);*partial=1;cache_mark(change,CMP5_CACHE_REASON_IO);return;
  }
  DIR*d=fdopendir(fd);
- if(!d){close(fd);*partial=1;if(change)change->unknown=1;return;}
+ if(!d){const int err=errno;close(fd);*partial=1;cache_mark(change,cache_io_reason(err));return;}
  struct dirent*e;
  for(;;){
   /* A NULL entry means EOF or an I/O failure. Metadata operations on
    * earlier children can modify errno, so clear it before each read. */
   errno=0;
   e=readdir(d);
-  if(!e){if(errno!=0){*partial=1;if(change)change->unknown=1;}break;}
+  if(!e){if(errno!=0){*partial=1;cache_mark(change,cache_io_reason(errno));}break;}
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
   a->visited++;
-  if(over(a)){*partial=1;if(change)change->unknown=1;break;}
+  if(over(a)){*partial=1;cache_mark(change,CMP5_CACHE_REASON_LIMIT);break;}
   struct stat st;
   if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){
-   *partial=1;if(change)change->unknown=1;continue;
+   *partial=1;cache_mark(change,cache_io_reason(errno));continue;
   }
   if(S_ISLNK(st.st_mode)){
-   if(change){change->unknown=1;change->metadata_partial=1;}
-   continue;
+   cache_mark(change,CMP5_CACHE_REASON_EXCLUDED);continue;
   }
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
   for(size_t i=0;i<count;i++)if(!strcasecmp(e->d_name,names[i]))excluded=1;
   if(excluded){
-   if(change){change->unknown=1;change->metadata_partial=1;}
-   continue;
+   cache_mark(change,CMP5_CACHE_REASON_EXCLUDED);continue;
   }
   if(change)note_cache_mtime(change,st.st_mtime);
   if(S_ISREG(st.st_mode)){
    struct stat confirmed={0};
-   if(fstatat(anchored_fd,e->d_name,&confirmed,AT_SYMLINK_NOFOLLOW)!=0||
-      !stable_regular_file(&st,&confirmed)){
-    *partial=1;if(change)change->unknown=1;continue;
+   if(fstatat(anchored_fd,e->d_name,&confirmed,AT_SYMLINK_NOFOLLOW)!=0){
+    *partial=1;cache_mark(change,cache_io_reason(errno));continue;
+   }
+   if(!stable_regular_file(&st,&confirmed)){
+    *partial=1;cache_mark(change,CMP5_CACHE_REASON_CHANGED);continue;
    }
    uint64_t v=(uint64_t)st.st_size;
-   if(v>UINT64_MAX-*size){*partial=1;if(change)change->unknown=1;continue;}
+   if(v>UINT64_MAX-*size){*partial=1;cache_mark(change,CMP5_CACHE_REASON_LIMIT);continue;}
    (*files)++;
    *size+=v;
    cache_observe(change,&parent,e->d_name,&st);
   }else if(S_ISDIR(st.st_mode)){
    if(depth>=DEPTH_CAP||st.st_dev!=parent.st_dev){
-    *partial=1;if(change)change->unknown=1;continue;
+    *partial=1;cache_mark(change,depth>=DEPTH_CAP?
+      CMP5_CACHE_REASON_LIMIT:CMP5_CACHE_REASON_EXCLUDED);continue;
    }
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-   if(child<0){*partial=1;if(change)change->unknown=1;continue;}
+   if(child<0){*partial=1;cache_mark(change,cache_io_reason(errno));continue;}
    struct stat opened={0};
    if(fstat(child,&opened)!=0||!S_ISDIR(opened.st_mode)||
       opened.st_dev!=st.st_dev||opened.st_ino!=st.st_ino){
-    close(child);*partial=1;if(change)change->unknown=1;continue;
+    close(child);*partial=1;cache_mark(change,CMP5_CACHE_REASON_CHANGED);continue;
    }
    const uint64_t before_bytes=*size;
    const size_t before_files=*files;
@@ -243,17 +253,17 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
    if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
       !stable_directory(&st,&after)){
     *size=before_bytes;*files=before_files;
-    *partial=1;if(change)change->unknown=1;
+    *partial=1;cache_mark(change,CMP5_CACHE_REASON_CHANGED);
    }else if(!*partial){
     cache_observe(change,&parent,e->d_name,&st);
    }
   }else{
-   *partial=1;if(change)change->unknown=1;
+   *partial=1;cache_mark(change,CMP5_CACHE_REASON_EXCLUDED);
   }
   /* A corrupt sibling is not a global hard stop. Continue to count
    * readable files within the fixed visit/time/depth budgets. */
  }
- if(closedir(d)!=0){*partial=1;if(change)change->unknown=1;}
+ if(closedir(d)!=0){*partial=1;cache_mark(change,cache_io_reason(errno));}
 }
 static int open_dir(const char*root,const char*relative){
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
@@ -399,9 +409,13 @@ static void record_cache_top(Audit*a,const char*app_name,
   item.metadata_xor=change->metadata_xor;
   item.metadata_sum=change->metadata_sum;
   item.metadata_nodes=change->metadata_nodes;
+  item.partial_reasons=change->reasons;
   item.metadata_complete=(!partial&&!change->metadata_partial&&
                           change->metadata_nodes>0u)?1u:0u;
  }
+ if(partial&&!item.partial_reasons)
+  item.partial_reasons=CMP5_CACHE_REASON_IO;
+ stats->cache_reason_mask|=item.partial_reasons;
  size_t len=0;
  for(const unsigned char*p=(const unsigned char*)app_name;*p&&
      len<sizeof(item.app_label)-1u;p++){
@@ -429,6 +443,7 @@ static void record_cache_top(Audit*a,const char*app_name,
  stamp.files=item.files;
  stamp.kind=item.kind;stamp.age_hint=item.age_hint;
  stamp.name_matched=item.name_matched;
+ stamp.partial_reasons=item.partial_reasons;
  memcpy(stamp.app_label,item.app_label,sizeof(stamp.app_label));
  unsigned insert=0;
  for(;insert<stats->cache_ledger_count;insert++){
@@ -441,6 +456,7 @@ static void record_cache_top(Audit*a,const char*app_name,
   stats->cache_ledger_count++;
  else{
   stats->cache_ledger_overflow=1u;
+  stats->cache_reason_mask|=CMP5_CACHE_REASON_LIMIT;
   stats->cache_like_partial=1u;
   a->partial=1;
  }
@@ -472,23 +488,30 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
   * silently undercounting ALL app bytes. Open a fresh description
   * anchored to this already verified directory instead. */
  const int iter=openat(app_dir,".",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
- if(iter<0){a->stats->cache_like_partial=1u;a->partial=1;return;}
+ if(iter<0){a->stats->cache_reason_mask|=cache_io_reason(errno);
+  a->stats->cache_like_partial=1u;a->partial=1;return;}
  DIR*d=fdopendir(iter);
- if(!d){close(iter);a->stats->cache_like_partial=1u;a->partial=1;return;}
+ if(!d){const int err=errno;close(iter);
+  a->stats->cache_reason_mask|=cache_io_reason(err);
+  a->stats->cache_like_partial=1u;a->partial=1;return;}
  for(;;){
-  if(over(a)){a->stats->cache_like_partial=1u;break;}
+  if(over(a)){a->stats->cache_reason_mask|=CMP5_CACHE_REASON_LIMIT;
+   a->stats->cache_like_partial=1u;break;}
   errno=0;
   struct dirent*e=readdir(d);
   if(!e){
-   if(errno){a->stats->cache_like_partial=1u;a->partial=1;}
+   if(errno){a->stats->cache_reason_mask|=cache_io_reason(errno);
+    a->stats->cache_like_partial=1u;a->partial=1;}
    break;
   }
   const unsigned kind=cache_kind(e->d_name);
   if(!kind)continue;
   a->visited++;
-  if(over(a)){a->stats->cache_like_partial=1u;break;}
+  if(over(a)){a->stats->cache_reason_mask|=CMP5_CACHE_REASON_LIMIT;
+   a->stats->cache_like_partial=1u;break;}
   struct stat st={0};
   if(fstatat(app_dir,e->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+   a->stats->cache_reason_mask|=cache_io_reason(errno);
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   /* A symlink or regular file called cache/temp is not a cache folder.
@@ -497,14 +520,17 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
   struct stat parent={0};
   if(fstat(app_dir,&parent)!=0||!S_ISDIR(parent.st_mode)||
      st.st_dev!=parent.st_dev){
+   a->stats->cache_reason_mask|=CMP5_CACHE_REASON_EXCLUDED;
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   const int child=openat(app_dir,e->d_name,
                          O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
-  if(child<0){a->stats->cache_like_partial=1u;a->partial=1;continue;}
+  if(child<0){a->stats->cache_reason_mask|=cache_io_reason(errno);
+   a->stats->cache_like_partial=1u;a->partial=1;continue;}
   struct stat opened={0};
   if(fstat(child,&opened)!=0||!same_cache_dir(&st,&opened)){
-   close(child);a->stats->cache_like_partial=1u;a->partial=1;continue;
+   close(child);a->stats->cache_reason_mask|=CMP5_CACHE_REASON_CHANGED;
+   a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   uint64_t bytes=0;size_t files=0;int partial=0;
   CacheChange change={0};
@@ -515,13 +541,16 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
   struct stat after={0};
   if(fstatat(app_dir,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
      !stable_directory(&st,&after)){
+   a->stats->cache_reason_mask|=CMP5_CACHE_REASON_CHANGED;
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   if(a->stats->cache_like_folders==UINT32_MAX||
      files>UINT32_MAX||
      a->stats->cache_like_files>UINT32_MAX-(uint32_t)files||
      a->stats->cache_like_nominal_bytes>UINT64_MAX-bytes){
-   a->stats->cache_like_partial=1u;a->partial=1;
+   a->stats->cache_like_partial=1u;
+   a->stats->cache_reason_mask|=CMP5_CACHE_REASON_LIMIT;
+   a->partial=1;
   }else{
    a->stats->cache_like_folders++;
    if(weak_match)a->stats->cache_like_name_matched++;
@@ -536,9 +565,10 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    record_cache_top(a,app_name,e->d_name,kind,bytes,files,partial,
                     weak_match,age,&change);
   }
-  if(partial){a->stats->cache_like_partial=1u;a->partial=1;}
+  if(partial||change.metadata_partial){a->stats->cache_like_partial=1u;a->partial=1;}
  }
- if(closedir(d)!=0){a->stats->cache_like_partial=1u;a->partial=1;}
+ if(closedir(d)!=0){a->stats->cache_reason_mask|=cache_io_reason(errno);
+  a->stats->cache_like_partial=1u;a->partial=1;}
 }
 static void audit_root(Audit*a,const char*root,const char*relative,const char*kind){
  unsigned*critical=NULL;
