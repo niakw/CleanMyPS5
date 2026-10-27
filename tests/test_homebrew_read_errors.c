@@ -179,7 +179,8 @@ int main(int argc,char**argv){
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
-  assert((stats.cache_reason_mask&CMP5_CACHE_REASON_CHANGED)!=0u);
+  assert((stats.cache_reason_mask&
+      (mode==3?CMP5_CACHE_REASON_EXCLUDED:CMP5_CACHE_REASON_CHANGED))!=0u);
   assert(cache_name_lookups>=2);
   assert(stats.cache_like_folders==3u);
   assert(stats.cache_like_name_matched+
