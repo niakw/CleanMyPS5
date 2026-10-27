@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory() as directory:
         "data/ExampleTool/config.json":b"{}",
         "data/ExampleTool/public.bin":b"USER",
         "data/ExampleTool/cache/index.bin":b"CACHED",
+        "data/ExampleTool/cache/nested/cache2.bin":b"SUB",
         "data/ExampleTool/.cache/thumbnail.bin":b"HIDDEN!",
         "data/ExampleTool/tmp/session.part":b"WORK",
         # OtherApp has a cache-shaped directory, but the same-named
@@ -30,9 +31,6 @@ with tempfile.TemporaryDirectory() as directory:
     (root/"data/homebrew/OtherApp").mkdir(parents=True)
     (root/"data/homebrew/OtherApp/eboot.elf").symlink_to(
         "../ExampleTool/eboot.elf")
-    # An empty nested directory changes neither byte count nor file
-    # count, but permits deterministic nested rename/mount fault tests.
-    (root/"data/ExampleTool/cache/nested").mkdir()
     # Create four distinct, deterministic mtime observations. Reset BOTH
     # the contents and their directory's mtime (directory writes alone
     # would otherwise imply activity within 24 hours).
@@ -71,6 +69,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert "Homebrew readdir and closedir failures" in io_result.stdout
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
     assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
+    assert b"SUB" == (root/"data/ExampleTool/cache/nested/cache2.bin").read_bytes()
     assert b"HIDDEN!" == (root/"data/ExampleTool/.cache/thumbnail.bin").read_bytes()
     assert b"WORK" == (root/"data/ExampleTool/tmp/session.part").read_bytes()
     assert b"??" == (root/"data/OtherApp/cache/stale.bin").read_bytes()
