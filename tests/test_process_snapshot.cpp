@@ -9,7 +9,7 @@
 static void record(std::vector<unsigned char>&data,int pid,const char*name,
                    int declared=512){
  const std::size_t start=data.size();
- data.resize(start+512u,0u);
+ data.resize(start+static_cast<std::size_t>(declared),0u);
  std::memcpy(data.data()+start,&declared,sizeof(declared));
  std::memcpy(data.data()+start+72u,&pid,sizeof(pid));
  std::memcpy(data.data()+start+447u,name,std::strlen(name));
@@ -57,7 +57,7 @@ int main(){
  auto over=[](void*,std::size_t*sz)->bool{*sz=max_bytes+1u;return true;};
  assert(sample(over).state==State::over_limit);
  std::vector<unsigned char> huge;
- for(unsigned i=0;i<max_processes+1u;i++)record(huge,int(i+1),"eboot.bin");
+ for(unsigned i=0;i<max_processes+1u;i++)record(huge,int(i+1),"e",448);
  assert(decode(huge.data(),huge.size()).state==State::over_limit);
  assert(!decode(nullptr,0).safe_to_clean);
  puts("Read-only bounded process observer and fail-closed states: PASS");
