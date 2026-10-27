@@ -400,16 +400,40 @@ static void record_cache_top(Audit*a,const char*app_name,
  while(len&&item.app_label[len-1]==' ')len--;
  if(!len){memcpy(item.app_label,"APPLICATION",12u);len=11u;}
  item.app_label[len]=0;
- if(stats->cache_ledger_count<CMP5_CACHE_LEDGER_CAP){
-  Cmp5CacheLedger*stamp=&stats->cache_ledger[stats->cache_ledger_count++];
-  stamp->key=item.identity_key;
-  stamp->nominal_bytes=item.nominal_bytes;
-  stamp->metadata_xor=item.metadata_xor;
-  stamp->metadata_sum=item.metadata_sum;
-  stamp->metadata_nodes=item.metadata_nodes;
-  stamp->metadata_complete=item.metadata_complete;
-  stamp->files=item.files;
- }else stats->cache_ledger_overflow=1u;
+ /* Retain up to 96 largest candidates for inspection. The list is
+  * insertion-sorted independently from readdir ordering, with a stable
+  * key tie-breaker. Exceeding the limit invalidates completeness even
+  * though all nominal folder counters continue tracking observations. */
+ Cmp5CacheLedger stamp={0};
+ stamp.key=item.identity_key;
+ stamp.nominal_bytes=item.nominal_bytes;
+ stamp.metadata_xor=item.metadata_xor;
+ stamp.metadata_sum=item.metadata_sum;
+ stamp.metadata_nodes=item.metadata_nodes;
+ stamp.metadata_complete=item.metadata_complete;
+ stamp.files=item.files;
+ stamp.kind=item.kind;stamp.age_hint=item.age_hint;
+ stamp.name_matched=item.name_matched;
+ memcpy(stamp.app_label,item.app_label,sizeof(stamp.app_label));
+ unsigned insert=0;
+ for(;insert<stats->cache_ledger_count;insert++){
+  const Cmp5CacheLedger*prior=&stats->cache_ledger[insert];
+  if(stamp.nominal_bytes>prior->nominal_bytes||
+     (stamp.nominal_bytes==prior->nominal_bytes&&stamp.key<prior->key))
+   break;
+ }
+ if(stats->cache_ledger_count<CMP5_CACHE_LEDGER_CAP)
+  stats->cache_ledger_count++;
+ else{
+  stats->cache_ledger_overflow=1u;
+  stats->cache_like_partial=1u;
+  a->partial=1;
+ }
+ if(insert<stats->cache_ledger_count){
+  for(unsigned i=stats->cache_ledger_count-1u;i>insert;i--)
+   stats->cache_ledger[i]=stats->cache_ledger[i-1u];
+  stats->cache_ledger[insert]=stamp;
+ }
  unsigned where=0;
  for(;where<stats->cache_top_count;where++){
   const Cmp5CacheTop*prev=&stats->cache_top[where];

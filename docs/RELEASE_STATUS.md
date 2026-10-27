@@ -1,3 +1,22 @@
+## Consultation des 96 caches locaux par pages (27 octobre 2026)
+
+La liste native **Applications et plugins**, page 4/5, est maintenant
+navigable avec **Haut/Bas** : quatre dossiers par écran, jusqu'à 96.
+Le scanner conserve pour chaque entrée une courte étiquette ASCII déjà
+assainie, la catégorie de dossier (cache, .cache, tmp, temp), une taille
+nominale, le nombre de fichiers et l'état de sa couverture métadonnées.
+Aucun chemin complet, PID, titre lancé ou contenu n'est conservé.
+Le registre est trié par taille nominale descendante, avec clé de
+départage stable : les fichiers d'une application ne sont pas considérés
+comme des octets récupérables.
+
+Au-delà de 96 candidats, seuls les 96 plus gros restent consultables,
+mais le scan est marqué partiel et la cinquième page refuse de comparer
+des relevés incomplets. Un changement de page ne déclenche ni relecture
+de fichiers ni action de nettoyage. Les tests de navigation vérifient
+l'accès au cinquième élément et le bouclage des pages ; le test C du
+scanner vérifie le classement et l'absence de chemins bruts.
+
 ## Nouveaux dossiers, dossiers non retrouvés et comparaison incertaine (27 octobre 2026)
 
 La comparaison de deux relevés complets différencie maintenant les

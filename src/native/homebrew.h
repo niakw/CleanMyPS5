@@ -17,6 +17,8 @@ typedef int (*Cmp5CancelCheck)(void *context);
 typedef struct {
  uint64_t key,nominal_bytes,metadata_xor,metadata_sum;
  uint32_t files,metadata_nodes,metadata_complete;
+ uint32_t kind,age_hint,name_matched;
+ char app_label[48]; /* sanitized local basename, NEVER full path */
 } Cmp5CacheLedger;
 /* 1=cache, 2=.cache, 3=tmp, 4=temp; not deletion categories. */
 typedef struct {

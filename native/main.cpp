@@ -394,6 +394,7 @@ bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
 bool homebrew_checked=false;
 unsigned homebrew_page=0;
+unsigned homebrew_cache_page=0; // 4 read-only cache observations per view
 Cmp5HomebrewStats cache_baseline{};
 bool cache_baseline_valid=false;
 cmp5_cache_delta::Comparison cache_change{};
@@ -2341,6 +2342,15 @@ void poll_pad() noexcept {
      (homebrew_page+4u)%5u;
    continue;
   }
+  if(screen==Screen::apps&&homebrew_page==3u&&
+     (pressed&up||pressed&down)){
+   const unsigned count=homebrew_stats.cache_ledger_count;
+   const unsigned pages=count?((count-1u)/4u)+1u:1u;
+   const unsigned current=homebrew_cache_page%pages;
+   homebrew_cache_page=(pressed&down)?(current+1u)%pages:
+     (current+pages-1u)%pages;
+   continue;
+  }
   if(screen==Screen::analyze&&(pressed&l1||pressed&r1)){
    analyze_page^=1u;
    continue;
@@ -2362,7 +2372,7 @@ void poll_pad() noexcept {
   }
   if(screen==Screen::access&&(pressed&square)){
    screen=Screen::apps;
-   homebrew_page=0;
+   homebrew_page=0;homebrew_cache_page=0;
    (void)begin_task(Task::homebrew);
    continue;
   }
@@ -2830,29 +2840,34 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
     Color::yellow);
  }else if(homebrew_page==3u){
   static constexpr const char*kinds[]={"INCONNU","CACHE",".CACHE","TMP","TEMP"};
-  for(unsigned i=0;i<CMP5_CACHE_TOP_CAP;i++){
-   if(i>=homebrew_stats.cache_top_count){
+  const unsigned count=homebrew_stats.cache_ledger_count;
+  const unsigned pages=count?((count-1u)/4u)+1u:1u;
+  const unsigned page=homebrew_cache_page%pages;
+  const unsigned start=page*4u;
+  for(unsigned i=0;i<4u;i++){
+   const unsigned index=start+i;
+   if(index>=count){
     panel(canvas,355+i*144,"AUCUN AUTRE CACHE",
       "OBSERVATION BORNEE  AUCUNE SUPPRESSION");
     continue;
    }
-   const Cmp5CacheTop&item=homebrew_stats.cache_top[i];
+   const Cmp5CacheLedger&item=homebrew_stats.cache_ledger[index];
    const char*type=item.kind<=4u?kinds[item.kind]:"INCONNU";
    char label[105]{},detail[145]{};
    (void)std::snprintf(label,sizeof(label),"%u  %s / %s",
-     i+1u,item.app_label,type);
+     index+1u,item.app_label[0]?item.app_label:"APPLICATION",type);
    const char*age=item.age_hint==1u?"RECENT 24H":
      item.age_hint==2u?"NON RECENT":"DATE INCONNUE";
    if(item.nominal_bytes>=1048576ULL)
     (void)std::snprintf(detail,sizeof(detail),
-      "%llu MIO  %u FICHIERS  %s%s",
+      "%llu MIO NOMINAUX  %u FICHIERS  %s%s",
       static_cast<unsigned long long>(item.nominal_bytes/1048576ULL),
-      item.files,age,item.partial?"  PARTIEL":"");
+      item.files,age,!item.metadata_complete?"  PARTIEL":"");
    else
     (void)std::snprintf(detail,sizeof(detail),
-      "%llu OCTETS  %u FICHIERS  %s%s",
+      "%llu OCTETS NOMINAUX  %u FICHIERS  %s%s",
       static_cast<unsigned long long>(item.nominal_bytes),
-      item.files,age,item.partial?"  PARTIEL":"");
+      item.files,age,!item.metadata_complete?"  PARTIEL":"");
    panel(canvas,355+i*144,label,detail,Color::yellow);
   }
  }
@@ -2866,10 +2881,15 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   }
  };
  char footer_message[160]{};
- if(homebrew_page==3u)
+ if(homebrew_page==3u){
+  const unsigned count=homebrew_stats.cache_ledger_count;
+  const unsigned pages=count?((count-1u)/4u)+1u:1u;
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE 4/5  /DATA:%s  AUCUN CACHE SUPPRIMABLE  L1/R1",
-    root_label(homebrew_stats.data_root_state));
+    "PAGE 4/5  LISTE %u/%u  %u/%u OBSERVES%s  AUCUN CACHE SUPPRIMABLE",
+    homebrew_cache_page%pages+1u,pages,count,
+    homebrew_stats.cache_like_folders,
+    homebrew_stats.cache_ledger_overflow?"  REGISTRE SATURE":"");
+ }
  else if(homebrew_page==2u)
   (void)std::snprintf(footer_message,sizeof(footer_message),
     "PAGE 3/5  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",

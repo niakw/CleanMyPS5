@@ -1825,6 +1825,23 @@ int main(){
  homebrew_stats.cache_top[1].age_hint=0u;
  homebrew_stats.cache_top[1].partial=1u;
  std::strcpy(homebrew_stats.cache_top[1].app_label,"OtherApp");
+ homebrew_stats.cache_ledger_count=5u;
+ homebrew_stats.cache_ledger_overflow=0u;
+ homebrew_stats.cache_like_folders=5u;
+ for(unsigned i=0;i<2u;i++){
+  auto&entry=homebrew_stats.cache_ledger[i];
+  const auto&top=homebrew_stats.cache_top[i];
+  entry.key=i+1u;entry.nominal_bytes=top.nominal_bytes;
+  entry.files=top.files;entry.kind=top.kind;entry.age_hint=top.age_hint;
+  entry.metadata_complete=i==0u?1u:0u;
+  std::strcpy(entry.app_label,top.app_label);
+ }
+ for(unsigned i=2u;i<5u;i++){
+  auto&entry=homebrew_stats.cache_ledger[i];
+  entry.key=i+1u;entry.nominal_bytes=6u-i;entry.kind=1u;
+  entry.metadata_complete=1u;
+  std::snprintf(entry.app_label,sizeof(entry.app_label),"Later%u",i);
+ }
  press(r1);assert(homebrew_page==3u);
  scene(canvas);
  bool listed_cache=false,listed_temp=false,blocked_delete=false;
@@ -1838,6 +1855,18 @@ int main(){
    blocked_delete=true;
  }
  assert(listed_cache&&listed_temp&&blocked_delete);
+ /* Page navigation exposes entries beyond the first four, never paths. */
+ press(down);assert(homebrew_cache_page==1u);
+ scene(canvas);
+ bool fifth_visible=false,second_page=false;
+ for(const auto&cmd:canvas.commands){
+  if(cmd.text.find("5  Later4 / CACHE")!=std::string::npos)fifth_visible=true;
+  if(cmd.text.find("LISTE 2/2")!=std::string::npos)second_page=true;
+ }
+ assert(fifth_visible&&second_page);
+ press(down);assert(homebrew_cache_page==0u);
+ press(up);assert(homebrew_cache_page==1u);
+ press(up);assert(homebrew_cache_page==0u);
  /* Fifth tab uses only metadata from two native filesystem surveys.
   * No sysctl or per-process application API is required. */
  press(r1);assert(homebrew_page==4u);
