@@ -45,9 +45,11 @@ with tempfile.TemporaryDirectory() as directory:
         for child in folder.iterdir():
             os.utime(child,(now-age,now-age))
         os.utime(folder,(now-age,now-age))
-    # A cache-named symlink must never be traversed as an app cache.
-    (root/"data/ExampleTool/temp").symlink_to(root/"data/ExampleTool/saves",
-                                              target_is_directory=True)
+    # This healthy inventory may contain unrelated symlinks; the
+    # cache-shaped alias case is tested separately and must be partial.
+    # Never follow this link to the protected saves directory.
+    (root/"data/ExampleTool/saves-shortcut").symlink_to(
+        root/"data/ExampleTool/saves",target_is_directory=True)
     missing_installed = root / "only-data"
     only_game = missing_installed / "data/homebrew/ExampleTool/eboot.elf"
     only_game.parent.mkdir(parents=True)
@@ -67,6 +69,7 @@ with tempfile.TemporaryDirectory() as directory:
                 f"Homebrew fault-injection fixture failed ({io_result.returncode}):\n"
                 f"{io_result.stderr}\n{io_result.stdout}")
         assert "Homebrew readdir and closedir failures" in io_result.stdout
+    assert (root/"data/ExampleTool/saves-shortcut").is_symlink()
     assert b"PRIVATE" == (root/"data/ExampleTool/saves/SECRET_SAVE.bin").read_bytes()
     assert b"CACHED" == (root/"data/ExampleTool/cache/index.bin").read_bytes()
     assert b"SUB" == (root/"data/ExampleTool/cache/nested/cache2.bin").read_bytes()
