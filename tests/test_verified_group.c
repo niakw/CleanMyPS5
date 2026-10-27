@@ -58,6 +58,27 @@ static int add_companion_during_backup(void*context){
  }
  return 0;
 }
+/* Move the locked target directory between source audit and first copy.
+ * The selected pathname now refers to a NEW directory while the locked
+ * descriptor still refers to its original inode. */
+typedef struct {
+ const char*path;
+ char moved[512];
+ unsigned callbacks;
+ int swapped;
+} RestorePathRace;
+static int replace_restore_path(void*context){
+ RestorePathRace*state=(RestorePathRace*)context;
+ if(++state->callbacks==2u){
+  const int n=snprintf(state->moved,sizeof(state->moved),
+                       "%s.moved",state->path);
+  assert(n>0&&(size_t)n<sizeof(state->moved));
+  assert(rename(state->path,state->moved)==0);
+  assert(mkdir(state->path,0700)==0);
+  state->swapped=1;
+ }
+ return 0; /* The restore must detect the problem, not the callback. */
+}
 static void snapshot(Cmp5MediaCandidate*c,const char*absolute,
  const char*relative,unsigned type){
  struct stat st;assert(stat(absolute,&st)==0);
@@ -540,6 +561,26 @@ int main(int argc,char**argv){
  assert(unlink(stale_restore)==0);
  assert(!cmp5_restore_group(private,"ALBUM",restored,&b,stop,NULL));
  assert(!cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
+ /* A path replacement AFTER the original destination is locked must
+  * be rejected BEFORE a copy is placed in the replacement directory. */
+ char race_path[512],new_member[512],moved_member[512];
+ assert(snprintf(race_path,sizeof(race_path),
+   "%s/identity-swapped-restore",root)>0);
+ assert(mkdir(race_path,0700)==0);
+ RestorePathRace replacement={0};replacement.path=race_path;
+ Cmp5GroupReceipt rejected={0};
+ assert(!cmp5_restore_group(private,"ALBUM",race_path,&rejected,
+                            replace_restore_path,&replacement));
+ assert(replacement.swapped&&replacement.callbacks>=2u);
+ assert(!rejected.count&&!rejected.bytes);
+ assert(snprintf(new_member,sizeof(new_member),
+   "%s/ALBUM__1",race_path)>0);
+ assert(snprintf(moved_member,sizeof(moved_member),
+   "%s/ALBUM__1",replacement.moved)>0);
+ assert(access(new_member,F_OK)!=0&&access(moved_member,F_OK)!=0);
+ assert(rmdir(race_path)==0);
+ assert(rename(replacement.moved,race_path)==0);
+ assert(rmdir(race_path)==0);
  assert(cmp5_restore_group(private,"ALBUM",restored,&b,NULL,NULL));
  assert(cmp5_verify_restored_group(restored,"ALBUM",&b,NULL,NULL));
  assert(cmp5_inspect_restored_group_recovery(restored,"ALBUM",&recovery));

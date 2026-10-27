@@ -93,6 +93,26 @@ static int same_file(const struct stat*a,const struct stat*b){
 /* A descriptor survives rename/unlink of its pathname. Do not report a
  * verified group for bytes in an orphaned directory when the caller's
  * selected private workspace now names another one (or no directory). */
+/* A restore can change directory size/mtime. Keep the opened private
+ * inode pinned while requiring the original PATH to name it, with
+ * unchanged owner, access mode and link count. Never follow symlinks. */
+static int mutable_workspace_current(int fd,const char*path,
+                                     const struct stat*initial){
+ struct stat held={0},named={0};
+ if(fd<0||!path||!initial||fstat(fd,&held)!=0||
+    !S_ISDIR(held.st_mode)||
+    held.st_dev!=initial->st_dev||held.st_ino!=initial->st_ino||
+    held.st_uid!=initial->st_uid||held.st_mode!=initial->st_mode||
+    held.st_nlink!=initial->st_nlink)return 0;
+ int reopened=safe_dir(path);
+ if(reopened<0)return 0;
+ const int ok=fstat(reopened,&named)==0&&S_ISDIR(named.st_mode)&&
+   named.st_dev==held.st_dev&&named.st_ino==held.st_ino&&
+   named.st_uid==held.st_uid&&named.st_mode==held.st_mode&&
+   named.st_nlink==held.st_nlink;
+ close(reopened);
+ return ok;
+}
 static int workspace_unchanged(int dir,const char*path,
                                const struct stat*initial){
  struct stat anchored,current,named;
@@ -769,6 +789,10 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
  Cmp5RecoveryReport source_state={0};
  ok=cmp5_inspect_group_recovery(backup,id,&source_state)&&
    source_state.state==CMP5_RECOVERY_VERIFIED&&!cancelled(cancel,ctx);
+ /* A locked descriptor survives renaming. Never copy into a newly
+  * named, unlocked private directory created after our initial locks. */
+ if(ok)ok=mutable_workspace_current(from,backup,&src_dir)&&
+           mutable_workspace_current(dest,target,&dst_dir);
  if(!ok)goto restore_done;
  uint8_t manifest[MARK_SIZE];
  Cmp5BackupReceipt pieces[CMP5_GROUP_MAX];
@@ -792,6 +816,10 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
   if(ok)ok=cmp5_workspace_has_capacity(dest,total,count+1u);
  }
  if(!ok)goto restore_done;
+ if(!mutable_workspace_current(from,backup,&src_dir)||
+    !mutable_workspace_current(dest,target,&dst_dir)){
+  ok=0;goto restore_done;
+ }
  for(unsigned i=0;i<count;i++){
   if(cancelled(cancel,ctx)){ok=0;goto restore_done;}
   char name[48];member_name(name,id,i);
@@ -818,10 +846,18 @@ int cmp5_restore_group(const char*backup,const char*id,const char*target,
                    &current_count,NULL)&&
      current_count==count&&
      memcmp(current_manifest,manifest,MARK_SIZE)==0&&
+     mutable_workspace_current(from,backup,&src_dir)&&
+     mutable_workspace_current(dest,target,&dst_dir)&&
      !cancelled(cancel,ctx);
  }
  if(ok)ok=publish_manifest(dest,id,1,manifest,cancel,ctx);
+ if(ok)ok=mutable_workspace_current(from,backup,&src_dir)&&
+           mutable_workspace_current(dest,target,&dst_dir);
  if(ok)ok=cmp5_verify_restored_group(target,id,r,cancel,ctx);
+ if(ok&&!mutable_workspace_current(from,backup,&src_dir))ok=0;
+ if(ok&&!mutable_workspace_current(dest,target,&dst_dir))ok=0;
+ /* An already filled receipt cannot survive a late identity failure. */
+ if(!ok&&r)memset(r,0,sizeof(*r));
 restore_done:
  close(dest);
  close(from);

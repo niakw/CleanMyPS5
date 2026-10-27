@@ -1,3 +1,21 @@
+## Verrouillage des chemins privés pendant une restauration de groupe (27 octobre 2026)
+
+La restitution d'un groupe revalide désormais l'identité des deux
+dossiers privés après la vérification initiale, juste avant la première
+copie, avant le manifeste RESTORED et après le contrôle final. Elle
+exige que le chemin d'origine désigne encore le dossier verrouillé :
+même périphérique, inode, propriétaire, permissions et nombre de liens.
+Les modifications normales de mtime/ctime et de taille du dossier
+cible sont tolérées pendant la création des fichiers.
+
+Un test hôte renomme le dossier cible après le verrou et crée un
+nouveau dossier au chemin précédent. La transaction doit échouer
+avant toute copie dans l'un ou l'autre dossier, sans reçu de succès.
+Une identité de chemin revalidée ponctuellement ne constitue pas
+une publication atomiquement conditionnelle contre tous les écrivains
+non coopératifs. Aucune restauration dans la Galerie ni suppression
+du contenu Sony n'est activée.
+
 ## Propriétaire des manifestes, cartes d'origine et restaurations de groupe (27 octobre 2026)
 
 Le comparateur d'identité des groupes dans `verified_group.c` vérifie
