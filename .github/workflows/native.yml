@@ -7,6 +7,11 @@ on:
       - tests/test_native_protocol.cpp
       - tests/test_native_overview_protocol.cpp
       - tests/test_native_navigation.cpp
+      - tests/test_homebrew_read_errors.c
+      - tests/test_native_homebrew.c
+      - tests/test_native_homebrew.py
+      - tests/test_cache_metadata.c
+      - tests/test_cache_metadata.py
       - tests/test_cleanup_readiness.cpp
       - native/cleanup_readiness.hpp
       - tests/test_gallery_thumbnail.c
