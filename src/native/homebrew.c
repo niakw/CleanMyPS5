@@ -371,6 +371,19 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   if(error!=ENOENT)a->partial=1;
   return;
  }
+ /* Root enumeration is provisional. If the opened root mutates, or
+  * its pathname stops resolving to the same directory, roll back its
+  * ENTIRE output and stats (including cache and weak-name evidence).
+  * Other separately inspected roots remain valid and visible. */
+ const Cmp5HomebrewStats before_stats=*a->stats;
+ const size_t before_names=a->homebrew_name_count;
+ const size_t before_items=a->items;
+ const size_t before_json=a->out.len;
+ struct stat root_before={0};
+ if(fstat(fd,&root_before)!=0||!S_ISDIR(root_before.st_mode)){
+  if(critical)*critical=4u;
+  close(fd);a->partial=1;return;
+ }
  const int anchored_fd=fd;
  DIR*d=fdopendir(fd);
  if(!d){
@@ -489,7 +502,26 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   if(partial)a->partial=1;
   if(a->out.bad||over(a))break;
  }
- if(closedir(d)!=0)a->partial=1;
+ /* Compare both the still-open directory and the root pathname. A
+  * replacement after enumeration must never leave stale JSON entries,
+  * top-N items or cache candidates attributed to the new root. */
+ struct stat root_after={0},resolved={0};
+ const int original_ok=fstat(dirfd(d),&root_after)==0&&
+   stable_directory(&root_before,&root_after);
+ const int current_fd=open_dir(root,relative);
+ const int resolved_ok=current_fd>=0&&
+   fstat(current_fd,&resolved)==0&&stable_directory(&root_before,&resolved);
+ if(current_fd>=0)close(current_fd);
+ const int closed_ok=closedir(d)==0;
+ if(!original_ok||!resolved_ok||!closed_ok){
+  *a->stats=before_stats;
+  a->homebrew_name_count=before_names;
+  a->items=before_items;
+  a->out.len=before_json;
+  a->out.data[before_json]=0;
+  a->partial=1;
+  if(critical)*critical=4u;
+ }
 }
 char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  Cmp5HomebrewStats *stats,Cmp5CancelCheck cancel,void *context){

@@ -1,3 +1,29 @@
+## Inventaire applicatif : invalidation transactionnelle par racine (27 octobre 2026)
+
+Le scanner pouvait reconnaître un changement d'inode ou de métadonnées
+dans **un sous-dossier**, mais pas une mutation de la racine parcourue
+elle-même (`/data`, `/data/homebrew`, `/user/app` ou support externe).
+Cette lacune pouvait conserver dans le JSON et dans les totaux des
+attributions provenant d'une racine devenue différente pendant le scan.
+
+Chaque parcours de racine mémorise désormais sa propre position dans
+la sortie JSON ainsi que les agrégats et correspondances de noms
+précédents. Après lecture, le scanner vérifie **le descripteur de la
+racine** et résout une nouvelle fois **son chemin**. Un changement de
+l'identité ou des métadonnées observables, une disparition, ou une
+erreur de fermeture annule la contribution de cette racine : éléments
+JSON, classements, compteurs d'apps, caches et indices d'homonymie.
+Les racines indépendantes déjà parcourues restent inchangées et le
+rapport global est signalé partiel. Une racine essentielle devenue
+instable est déclarée `error`, et non `readable`.
+
+Deux simulations déterministes injectent une modification observable
+de la racine `/data/homebrew` et de `/data` après leur inspection.
+L'inventaire reste **en lecture seule** : les tests n'effacent ni
+fichiers ni répertoires, et aucun fichier temporaire n'est désormais
+présumé supprimable. Des métadonnées stables ne garantissent jamais
+un instantané atomique ni une période d'inactivité réelle sur PS5.
+
 ## Scanner des dossiers : mutation sans changement d'inode (27 octobre 2026)
 
 Les protections du scanner de fichiers couvrent également les mutations
