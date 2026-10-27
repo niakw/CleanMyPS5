@@ -1,3 +1,15 @@
+## Cache nommé par un lien symbolique : couverture explicitement partielle
+
+Un nom direct `/data/<application>/cache`, `.cache`, `tmp` ou
+`temp` qui désigne un **lien symbolique** n'est jamais suivi. Le
+scanner signale maintenant `CONTENU EXCLU` dans les motifs globaux,
+marque l'inventaire partiel et empêche qu'un scan incomplet serve de
+référence à une comparaison. Les vrais répertoires de cache voisins
+restent visibles et leurs octets nominaux ne sont pas confondus avec
+ceux de la cible du lien. Une fixture synthétique confirme le
+comportement avec une cible externe et vérifie qu'elle n'est pas
+modifiée. Aucune déduction de sécurité de suppression n'est faite.
+
 ## Motifs vérifiables d'inventaire de caches incomplet (27 octobre 2026)
 
 Le scanner associe désormais un masque de motifs à ses observations

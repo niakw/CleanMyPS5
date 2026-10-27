@@ -18,6 +18,20 @@ int main(int argc,char**argv){
  char*json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100u);
  free(json);
+ if(argc==3&&strcmp(argv[2],"alias")==0){
+  /* One regular cache remains independently observable. The symlink
+   * named tmp must not be traversed, counted, or treated as coverage. */
+  assert(stats.cache_like_folders==1u&&stats.cache_ledger_count==1u);
+  assert(stats.cache_like_files==1u&&stats.cache_like_nominal_bytes==6u);
+  assert(!stats.cache_ledger_overflow);
+  assert(stats.cache_ledger[0].metadata_complete==1u);
+  assert(stats.cache_ledger[0].kind==1u);
+  assert((stats.cache_reason_mask&CMP5_CACHE_REASON_EXCLUDED)!=0u);
+  assert(stats.cache_like_partial&&stats.partial);
+  assert(strstr(json,"\\"deletable\\":false")!=NULL);
+  puts("Symlinked cache-shaped alias excluded, actual cache preserved: PASS");
+  return 0;
+ }
  if(argc==3&&strcmp(argv[2],"excluded")==0){
   assert(stats.cache_like_folders==1u&&stats.cache_ledger_count==1u);
   const Cmp5CacheLedger*item=&stats.cache_ledger[0];

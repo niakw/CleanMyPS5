@@ -82,4 +82,26 @@ with tempfile.TemporaryDirectory() as temp:
         check=True, capture_output=True, text=True, timeout=12)
     assert "Excluded content marked as incomplete" in check.stdout
 
-print("Native cache metadata, limits and exclusion reasons: PASS")
+# A cache-shaped symlink is not a cache directory, but must invalidate
+# a claim that all potential cache aliases have been covered.
+# It must not be followed to a separate directory containing private data.
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    (root / "data/homebrew").mkdir(parents=True)
+    (root / "data/etaHEN/plugins").mkdir(parents=True)
+    (root / "user/app").mkdir(parents=True)
+    cache = root / "data/ExampleApp/cache"
+    cache.mkdir(parents=True)
+    (cache / "content.bin").write_bytes(b"ABCDEF")
+    target = root / "unscanned-private-target"
+    target.mkdir()
+    secret = target / "private-state.bin"
+    secret.write_bytes(b"SECRET")
+    alias = root / "data/ExampleApp/tmp"
+    alias.symlink_to(target, target_is_directory=True)
+    check = subprocess.run([sys.argv[1], str(root), "alias"],
+        check=True, capture_output=True, text=True, timeout=12)
+    assert "Symlinked cache-shaped alias excluded" in check.stdout
+    assert alias.is_symlink() and secret.read_bytes() == b"SECRET"
+
+print("Native cache metadata, limits, exclusions and cache aliases: PASS")

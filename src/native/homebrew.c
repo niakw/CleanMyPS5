@@ -514,8 +514,16 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    a->stats->cache_reason_mask|=cache_io_reason(errno);
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
-  /* A symlink or regular file called cache/temp is not a cache folder.
-   * A mounted subvolume is also deliberately outside this one-app scope. */
+  /* A symlink called cache/tmp/temp is an uninspected alias: never
+   * follow it or mistake its absence from the directory ledger for
+   * full coverage. A normal regular file with that basename is not a
+   * cache folder and is simply outside this folder-only inventory. */
+  if(S_ISLNK(st.st_mode)){
+   a->stats->cache_reason_mask|=CMP5_CACHE_REASON_EXCLUDED;
+   a->stats->cache_like_partial=1u;
+   a->partial=1;
+   continue;
+  }
   if(!S_ISDIR(st.st_mode))continue;
   struct stat parent={0};
   if(fstat(app_dir,&parent)!=0||!S_ISDIR(parent.st_mode)||
