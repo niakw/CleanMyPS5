@@ -1,3 +1,28 @@
+## Applications : classement des caches par dossier observé (27 octobre 2026)
+
+Le scanner natif conserve maintenant un **top 4 borné** des dossiers
+`cache`, `.cache`, `tmp` et `temp` sous `/data/<app>`, en plus de
+ses agrégats. Les entrées incluent un nom d'application **assaini, sans
+chemin complet**, la catégorie, le nombre de fichiers, les octets
+nominaux, l'observation de date et le caractère partiel. Le tri est
+décroissant en taille, avec ordre stable pour les égalités. Le
+rapprochement d'un nom avec un exécutable reste une **homonymie**,
+jamais une preuve de fournisseur.
+
+La page native **Applications et plugins** comporte désormais quatre
+onglets : comptes, tailles globales, agrégats cache/temp et **les quatre
+dossiers temporaires individuels les plus volumineux**. Les boutons
+L1/R1 restent circulaires. La liste n'expose aucun bouton d'effacement.
+Aucune taille nominale n'est qualifiée de place récupérable.
+
+Les classements sont insérés seulement après la double vérification du
+dossier cache. En cas de remplacement du dossier parent ou de sa racine,
+une sauvegarde des agrégats **incluant le classement** est restaurée
+pour éviter de publier des éléments périmés. Les tests C et C++ hôtes
+vérifient le tri réel du catalogue, le retour arrière des données
+après mutation, les catégories, la navigation et le message bloquant.
+Aucun comportement console 13.60 n'est encore prouvé.
+
 ## Troisième page native « Applications » : caches à examiner (27 octobre 2026)
 
 La navigation DualSense de l'écran **Applications et plugins** comporte

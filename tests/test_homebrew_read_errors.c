@@ -284,6 +284,8 @@ int main(int argc,char**argv){
   }else{
    assert(stats.cache_like_partial);
    assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
+   assert(stats.cache_top_count==1u&&stats.cache_top[0].nominal_bytes==2u);
+   assert(!strcmp(stats.cache_top[0].app_label,"OtherApp"));
    assert(stats.nominal_bytes==20u);
    assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
   }

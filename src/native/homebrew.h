@@ -10,6 +10,17 @@ extern "C" {
 typedef int (*Cmp5CancelCheck)(void *context);
 #endif
 #define CMP5_HOMEBREW_TOP_CAP 4u
+#define CMP5_CACHE_TOP_CAP 4u
+/* 1=cache, 2=.cache, 3=tmp, 4=temp; not deletion categories. */
+typedef struct {
+ uint64_t nominal_bytes;
+ uint32_t files;
+ uint32_t partial;
+ uint32_t kind;
+ uint32_t name_matched;
+ uint32_t age_hint; /* 0=unknown/partial, 1=recent 24h, 2=no recent mtime */
+ char app_label[48]; /* ASCII basename only; no paths persisted */
+} Cmp5CacheTop;
 /* Categories: 1=homebrew, 2=plugin, 3=app-data, 4=installed.
  * Labels are local-only, printable ASCII (not paths or identifiers of users). */
 typedef struct {
@@ -38,6 +49,8 @@ typedef struct {
   * Folder naming does NOT prove provider ownership or safe deletion.
   * Never add this nominal subtotal to the general storage total. */
  uint32_t cache_like_folders;
+ uint32_t cache_top_count;
+ Cmp5CacheTop cache_top[CMP5_CACHE_TOP_CAP];
  uint32_t cache_like_files;
  uint32_t cache_like_partial;
  uint64_t cache_like_nominal_bytes;

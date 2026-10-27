@@ -286,9 +286,53 @@ static int homebrew_name_observed(const Audit*a,const char*name){
   if(strcmp(a->homebrew_names[i],name)==0)return 1;
  return 0;
 }
-static int cache_like_name(const char*name){
- return name&&(!strcasecmp(name,"cache")||!strcasecmp(name,".cache")||
-               !strcasecmp(name,"tmp")||!strcasecmp(name,"temp"));
+static unsigned cache_kind(const char*name){
+ if(!name)return 0u;
+ if(!strcasecmp(name,"cache"))return 1u;
+ if(!strcasecmp(name,".cache"))return 2u;
+ if(!strcasecmp(name,"tmp"))return 3u;
+ if(!strcasecmp(name,"temp"))return 4u;
+ return 0u;
+}
+/* Keep the four largest observed cache-shaped folders for human review.
+ * The display never contains full paths and no entry proves deletion-safe
+ * ownership or inactivity. Sorting is stable under equal byte counts. */
+static void record_cache_top(Audit*a,const char*app_name,unsigned kind,
+                            uint64_t bytes,size_t files,int partial,
+                            int matched,unsigned age){
+ Cmp5HomebrewStats*stats=a->stats;
+ Cmp5CacheTop item={0};
+ item.nominal_bytes=bytes;
+ item.files=(uint32_t)files;
+ item.partial=partial?1u:0u;
+ item.kind=kind;item.name_matched=matched?1u:0u;item.age_hint=age;
+ size_t len=0;
+ for(const unsigned char*p=(const unsigned char*)app_name;*p&&
+     len<sizeof(item.app_label)-1u;p++){
+  const unsigned char ch=*p;
+  if((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z')||
+     (ch>='0'&&ch<='9')||ch=='-'||ch=='_'||ch=='.')
+   item.app_label[len++]=(char)ch;
+  else if(ch==' '&&len&&item.app_label[len-1]!=' ')
+   item.app_label[len++]=' ';
+ }
+ while(len&&item.app_label[len-1]==' ')len--;
+ if(!len){memcpy(item.app_label,"APPLICATION",12u);len=11u;}
+ item.app_label[len]=0;
+ unsigned where=0;
+ for(;where<stats->cache_top_count;where++){
+  const Cmp5CacheTop*prev=&stats->cache_top[where];
+  if(item.nominal_bytes>prev->nominal_bytes)break;
+  if(item.nominal_bytes==prev->nominal_bytes){
+   int order=strcmp(item.app_label,prev->app_label);
+   if(order<0||(order==0&&item.kind<prev->kind))break;
+  }
+ }
+ if(where>=CMP5_CACHE_TOP_CAP)return;
+ if(stats->cache_top_count<CMP5_CACHE_TOP_CAP)stats->cache_top_count++;
+ for(unsigned i=stats->cache_top_count-1u;i>where;i--)
+  stats->cache_top[i]=stats->cache_top[i-1u];
+ stats->cache_top[where]=item;
 }
 static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
  if(!a||!a->stats||app_dir<0)return;
@@ -309,7 +353,8 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    if(errno){a->stats->cache_like_partial=1u;a->partial=1;}
    break;
   }
-  if(!cache_like_name(e->d_name))continue;
+  const unsigned kind=cache_kind(e->d_name);
+  if(!kind)continue;
   a->visited++;
   if(over(a)){a->stats->cache_like_partial=1u;break;}
   struct stat st={0};
@@ -352,9 +397,13 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    else a->stats->cache_like_name_unmatched++;
    a->stats->cache_like_files+=(uint32_t)files;
    a->stats->cache_like_nominal_bytes+=bytes;
-   if(partial||change.unknown)a->stats->cache_mtime_unknown++;
-   else if(change.recent)a->stats->cache_mtime_recent++;
+   const unsigned age=(partial||change.unknown)?0u:
+                       change.recent?1u:2u;
+   if(age==0u)a->stats->cache_mtime_unknown++;
+   else if(age==1u)a->stats->cache_mtime_recent++;
    else a->stats->cache_mtime_no_recent++;
+   record_cache_top(a,app_name,kind,bytes,files,partial||change.unknown,
+                    weak_match,age);
   }
   if(partial){a->stats->cache_like_partial=1u;a->partial=1;}
  }
@@ -439,14 +488,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
     }else{
      const int app_data=!strcmp(kind,"app-data")&&
                         !strcmp(relative,"data");
-     const uint32_t before_folders=a->stats->cache_like_folders;
-     const uint32_t before_matched=a->stats->cache_like_name_matched;
-     const uint32_t before_unmatched=a->stats->cache_like_name_unmatched;
-     const uint32_t before_files=a->stats->cache_like_files;
-     const uint64_t before_bytes=a->stats->cache_like_nominal_bytes;
-     const uint32_t before_recent=a->stats->cache_mtime_recent;
-     const uint32_t before_unknown=a->stats->cache_mtime_unknown;
-     const uint32_t before_no_recent=a->stats->cache_mtime_no_recent;
+     const Cmp5HomebrewStats before_app_stats=*a->stats;
      const size_t before_names=a->homebrew_name_count;
      if(app_data)scan_cache_subdirs(a,child,e->d_name);
      if(!strcmp(kind,"homebrew")&&!strcmp(relative,"data/homebrew"))
@@ -458,14 +500,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
       /* A renamed parent invalidates all its observed cache names,
        * including the weak homebrew correspondence. */
       if(app_data){
-       a->stats->cache_like_folders=before_folders;
-       a->stats->cache_like_name_matched=before_matched;
-       a->stats->cache_like_name_unmatched=before_unmatched;
-       a->stats->cache_like_files=before_files;
-       a->stats->cache_like_nominal_bytes=before_bytes;
-       a->stats->cache_mtime_recent=before_recent;
-       a->stats->cache_mtime_unknown=before_unknown;
-       a->stats->cache_mtime_no_recent=before_no_recent;
+       *a->stats=before_app_stats;
        a->stats->cache_like_partial=1u;
       }
       a->homebrew_name_count=before_names;

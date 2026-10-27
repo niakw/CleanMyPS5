@@ -39,6 +39,19 @@ int main(int argc,char**argv){
  /* Cache-like names are just directory observations, not deletion claims. */
  assert(stats.cache_like_folders==4u&&stats.cache_like_files==5u);
  assert(stats.cache_like_nominal_bytes==22u&&!stats.cache_like_partial);
+ assert(stats.cache_top_count==4u);
+ assert(stats.cache_top[0].nominal_bytes==9u);
+ assert(stats.cache_top[1].nominal_bytes==7u);
+ assert(stats.cache_top[2].nominal_bytes==4u);
+ assert(stats.cache_top[3].nominal_bytes==2u);
+ assert(!strcmp(stats.cache_top[0].app_label,"ExampleTool"));
+ assert(stats.cache_top[0].kind==1u&&stats.cache_top[0].files==2u);
+ assert(stats.cache_top[0].name_matched==1u);
+ assert(stats.cache_top[1].kind==2u&&stats.cache_top[1].age_hint==0u);
+ assert(stats.cache_top[2].kind==3u&&stats.cache_top[2].age_hint==2u);
+ assert(stats.cache_top[3].kind==1u&&
+        !strcmp(stats.cache_top[3].app_label,"OtherApp")&&
+        stats.cache_top[3].name_matched==0u);
  assert(stats.cache_like_name_matched==3u);
  assert(stats.cache_like_name_unmatched==1u);
  assert(!stats.homebrew_name_index_partial);
@@ -77,7 +90,7 @@ int main(int argc,char**argv){
  assert(interrupted.partial==1);
  assert(strstr(report,"\"partial\":true"));
  assert(interrupted.entries==0);
- assert(interrupted.top_count==0);
+ assert(interrupted.top_count==0&&interrupted.cache_top_count==0);
  assert(interrupted.cache_like_folders==0u&&
         interrupted.cache_like_nominal_bytes==0u);
  free(report);

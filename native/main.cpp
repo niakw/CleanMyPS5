@@ -2310,8 +2310,8 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::apps&&(pressed&l1||pressed&r1)){
-   homebrew_page=(pressed&r1)?(homebrew_page+1u)%3u:
-     (homebrew_page+2u)%3u;
+   homebrew_page=(pressed&r1)?(homebrew_page+1u)%4u:
+     (homebrew_page+3u)%4u;
    continue;
   }
   if(screen==Screen::analyze&&(pressed&l1||pressed&r1)){
@@ -2707,7 +2707,7 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
       item.files,item.partial?"  PARTIEL":"");
    panel(canvas,355+i*144,title,detail,Color::cyan);
   }
- }else{
+ }else if(homebrew_page==2u){
   /* Caches are candidate NAMES, never verified app-owned disposable
    * files. The four cards deliberately avoid a reclaimable byte total. */
   char detail[156]{};
@@ -2748,6 +2748,33 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,799,"PREUVES MANQUANTES",
     "PROCESSUS NON VERIFIES  FOURNISSEUR NON ATTESTE",
     Color::yellow);
+ }else{
+  static constexpr const char*kinds[]={"INCONNU","CACHE",".CACHE","TMP","TEMP"};
+  for(unsigned i=0;i<CMP5_CACHE_TOP_CAP;i++){
+   if(i>=homebrew_stats.cache_top_count){
+    panel(canvas,355+i*144,"AUCUN AUTRE CACHE",
+      "OBSERVATION BORNEE  AUCUNE SUPPRESSION");
+    continue;
+   }
+   const Cmp5CacheTop&item=homebrew_stats.cache_top[i];
+   const char*type=item.kind<=4u?kinds[item.kind]:"INCONNU";
+   char label[105]{},detail[145]{};
+   (void)std::snprintf(label,sizeof(label),"%u  %s / %s",
+     i+1u,item.app_label,type);
+   const char*age=item.age_hint==1u?"RECENT 24H":
+     item.age_hint==2u?"NON RECENT":"DATE INCONNUE";
+   if(item.nominal_bytes>=1048576ULL)
+    (void)std::snprintf(detail,sizeof(detail),
+      "%llu MIO  %u FICHIERS  %s%s",
+      static_cast<unsigned long long>(item.nominal_bytes/1048576ULL),
+      item.files,age,item.partial?"  PARTIEL":"");
+   else
+    (void)std::snprintf(detail,sizeof(detail),
+      "%llu OCTETS  %u FICHIERS  %s%s",
+      static_cast<unsigned long long>(item.nominal_bytes),
+      item.files,age,item.partial?"  PARTIEL":"");
+   panel(canvas,355+i*144,label,detail,Color::yellow);
+  }
  }
  const auto root_label=[](unsigned state) noexcept -> const char* {
   switch(state){
@@ -2759,14 +2786,18 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   }
  };
  char footer_message[160]{};
- if(homebrew_page==2u)
+ if(homebrew_page==3u)
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE 3/3  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",
+    "PAGE 4/4  /DATA:%s  AUCUN CACHE SUPPRIMABLE  L1/R1",
+    root_label(homebrew_stats.data_root_state));
+ else if(homebrew_page==2u)
+  (void)std::snprintf(footer_message,sizeof(footer_message),
+    "PAGE 3/4  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",
     root_label(homebrew_stats.data_root_state),
     root_label(homebrew_stats.installed_root_state));
  else
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE %u/3 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
+    "PAGE %u/4 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
     homebrew_page+1u,root_label(homebrew_stats.data_root_state),
     homebrew_stats.cache_like_folders,
     homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,

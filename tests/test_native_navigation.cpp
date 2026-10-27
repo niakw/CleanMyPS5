@@ -1793,7 +1793,35 @@ int main(){
    cache_coverage_visible=true;
  }
  assert(cache_size&&weak_match&&index_partial&&recency&&blocked&&cache_coverage_visible);
- /* Both directions wrap all three tabs, including zero candidates. */
+ /* A fourth page reviews the largest individual cache-shaped folders.
+  * It never reveals full paths or offers a destructive action. */
+ homebrew_stats.cache_top_count=2u;
+ homebrew_stats.cache_top[0]=Cmp5CacheTop{};
+ homebrew_stats.cache_top[0].nominal_bytes=3145728u;
+ homebrew_stats.cache_top[0].files=7u;
+ homebrew_stats.cache_top[0].kind=1u;
+ homebrew_stats.cache_top[0].age_hint=1u;
+ std::strcpy(homebrew_stats.cache_top[0].app_label,"ExampleTool");
+ homebrew_stats.cache_top[1]=Cmp5CacheTop{};
+ homebrew_stats.cache_top[1].nominal_bytes=9u;
+ homebrew_stats.cache_top[1].kind=3u;
+ homebrew_stats.cache_top[1].age_hint=0u;
+ homebrew_stats.cache_top[1].partial=1u;
+ std::strcpy(homebrew_stats.cache_top[1].app_label,"OtherApp");
+ press(r1);assert(homebrew_page==3u);
+ scene(canvas);
+ bool listed_cache=false,listed_temp=false,blocked_delete=false;
+ for(const auto&command:canvas.commands){
+  if(command.text.find("ExampleTool / CACHE")!=std::string::npos&&
+     command.text.find("1  ExampleTool")!=std::string::npos)
+   listed_cache=true;
+  if(command.text.find("OtherApp / TMP")!=std::string::npos)
+   listed_temp=true;
+  if(command.text.find("AUCUN CACHE SUPPRIMABLE")!=std::string::npos)
+   blocked_delete=true;
+ }
+ assert(listed_cache&&listed_temp&&blocked_delete);
+ /* Both directions wrap all four tabs, including zero candidates. */
  homebrew_stats.cache_like_files=0u;
  homebrew_stats.cache_like_folders=0u;
  homebrew_stats.cache_like_nominal_bytes=0u;
@@ -1805,6 +1833,7 @@ int main(){
      !=std::string::npos)empty_cache=true;
  assert(empty_cache);
  press(r1);assert(homebrew_page==0u);
+ press(l1);assert(homebrew_page==3u);
  press(l1);assert(homebrew_page==2u);
  press(l1);assert(homebrew_page==1u);
  homebrew_stats=before_mtime_ui;
