@@ -42,9 +42,9 @@ int main(int argc,char**argv){
  assert(stats.cache_top_count==4u);
  assert(stats.cache_ledger_count==4u&&!stats.cache_ledger_overflow);
  for(unsigned i=0;i<stats.cache_ledger_count;i++){
-  const Cmp5CacheLedger&v=stats.cache_ledger[i];
-  assert(v.app_label[0]&&v.kind>=1u&&v.kind<=4u);
-  if(i>0u)assert(stats.cache_ledger[i-1u].nominal_bytes>=v.nominal_bytes);
+  const Cmp5CacheLedger*v=&stats.cache_ledger[i];
+  assert(v->app_label[0]&&v->kind>=1u&&v->kind<=4u);
+  if(i>0u)assert(stats.cache_ledger[i-1u].nominal_bytes>=v->nominal_bytes);
  }
  for(unsigned i=0;i<stats.cache_ledger_count;i++){
   assert(stats.cache_ledger[i].key!=0u);
