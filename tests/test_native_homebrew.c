@@ -42,12 +42,19 @@ int main(int argc,char**argv){
  assert(stats.cache_like_name_matched==3u);
  assert(stats.cache_like_name_unmatched==1u);
  assert(!stats.homebrew_name_index_partial);
+ /* 24 h recency is a negative signal only; old never means idle. */
+ assert(stats.cache_mtime_recent==1u);
+ assert(stats.cache_mtime_unknown==1u); /* future clock from .cache */
+ assert(stats.cache_mtime_no_recent==2u);
+ assert(stats.cache_mtime_recent+stats.cache_mtime_unknown+
+        stats.cache_mtime_no_recent==stats.cache_like_folders);
  /* .cache is intentionally excluded from the general app subtotal,
   * and the independent cache-candidate subtotal is NON-ADDITIVE. */
  assert(stats.nominal_bytes==36u);
  assert(strstr(report,"\"cacheCandidates\":{\"folders\":4,\"files\":4,"));
  assert(strstr(report,"\"nominalBytes\":19,\"partial\":false,"));
- assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":1,\"nameIndexPartial\":false,\"providerVerified\":false,\"deletable\":false"));
+ assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":1,\"nameIndexPartial\":false,"));
+ assert(strstr(report,"\"recentMtime24h\":1,\"mtimeUnknown\":1,\"noRecentMtimeObserved\":2,\"idleVerified\":false,\"providerVerified\":false,\"deletable\":false"));
  assert(strstr(report,"\"path\":\"/data/etaHEN/notice.txt\""));
  assert(!strstr(report,"\"path\":\"/data/homebrew\","));
  assert(!strstr(report,"\"path\":\"/data/etaHEN\","));
@@ -60,6 +67,8 @@ int main(int argc,char**argv){
  assert(strstr(report,"\"cacheCandidates\":{\"folders\":4,\"files\":4,"));
  assert(strstr(report,"\"nominalBytes\":19,\"partial\":false,"));
  assert(strstr(report,"\"nameMatched\":3,\"noNameMatch\":1,"));
+ assert(strstr(report,"\"recentMtime24h\":1,\"mtimeUnknown\":1,\"noRecentMtimeObserved\":2,"));
+ assert(strstr(report,"\"idleVerified\":false,\"providerVerified\":false,\"deletable\":false"));
  assert(strstr(report,"\"deletable\":false"));
  free(report);
  Cmp5HomebrewStats interrupted={0};
