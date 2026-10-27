@@ -56,10 +56,22 @@ char *cmp5_volumes(const char*root,size_t*bytes){
  dev_t device[ROOTS]={0};
  int first_seen[ROOTS];
  for(int i=0;i<ROOTS;i++)first_seen[i]=-1;
+ /* An existing /mnt/usbN directory is NOT proof of a mounted USB
+  * filesystem. Compare its device against the anchored /mnt parent
+  * before publishing capacity. This is only a conservative signal:
+  * same-device bind mounts may also be rejected as unverified. */
+ const char*mount_status="unavailable";
+ const int mount_parent=checked_dir(root,"mnt",&mount_status);
+ struct stat mount_stat={0};
+ const int mount_known=mount_parent>=0&&
+    fstat(mount_parent,&mount_stat)==0&&S_ISDIR(mount_stat.st_mode);
  size_t len=0;
  int rc=snprintf(json,JSON_CAP,
   "{\"schemaVersion\":1,\"scope\":\"mounts-not-total-ssd\",\"volumes\":[");
- if(rc<0||(size_t)rc>=JSON_CAP){free(json);return NULL;}
+ if(rc<0||(size_t)rc>=JSON_CAP){
+  if(mount_parent>=0)close(mount_parent);
+  free(json);return NULL;
+ }
  len=(size_t)rc;
  for(int i=0;i<ROOTS;i++){
   char rel[48],label[48];
@@ -84,7 +96,9 @@ char *cmp5_volumes(const char*root,size_t*bytes){
    struct statvfs fs;struct stat st;
    if(fstat(fd,&st)==0&&fstatvfs(fd,&fs)==0){
     const unsigned long long block=fs.f_frsize?fs.f_frsize:fs.f_bsize;
-    if(block&&multiply(fs.f_blocks,block,&total)&&
+    if(i>=2&&(!mount_known||st.st_dev==mount_stat.st_dev)){
+     status=mount_known?"not-mounted":"mount-unverified";
+    }else if(block&&multiply(fs.f_blocks,block,&total)&&
        multiply(fs.f_bfree,block,&freebytes)&&
        multiply(fs.f_bavail,block,&available)&&
        total>0&&total>=freebytes&&freebytes>=available){
@@ -120,11 +134,16 @@ char *cmp5_volumes(const char*root,size_t*bytes){
    i?",":"",label,status,total,freebytes,available,
    readonly?"true":"false",
    shared?",\"sharedWith\":\"":"",shared?shared:"",shared?"\"":"");
-  if(rc<0||(size_t)rc>=JSON_CAP-len){free(json);return NULL;}
+  if(rc<0||(size_t)rc>=JSON_CAP-len){
+   if(mount_parent>=0)close(mount_parent);
+   free(json);return NULL;
+  }
   len+=(size_t)rc;
  }
+ if(mount_parent>=0)close(mount_parent);
  rc=snprintf(json+len,JSON_CAP-len,
   "],\"note\":\"Mount capacities and available space are observations only. "
+  "An unmounted USB/EXT directory has no attributable capacity. "
   "Aliases sharing the same filesystem are not additional free space. "
   "No value here authorizes deleting data or predicts recoverable bytes.\"}");
  if(rc<0||(size_t)rc>=JSON_CAP-len){free(json);return NULL;}

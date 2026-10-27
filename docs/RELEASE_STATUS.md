@@ -1,3 +1,19 @@
+## Diagnostic USB/EXT : un répertoire n'est pas un volume monté (27 octobre 2026)
+
+Le helper GET /api/volumes compare maintenant le périphérique st_dev
+de chaque /mnt/usbN et /mnt/extN avec celui du parent /mnt maintenu
+ouvert. Un simple dossier sur le stockage parent est classé
+not-mounted : capacités totale, libre et disponible égales à zéro,
+sans fausse association de montage ni promesse d'espace utilisable.
+Si le parent ne peut pas être vérifié, le diagnostic renvoie
+mount-unverified, également sans capacité annoncée. C'est un
+contrôle conservateur : un bind mount du même périphérique peut être
+classé non vérifié. Le moteur intégré de compression conserve sa propre
+barrière indépendante, et ce diagnostic ne donne aucun droit
+d'écriture. Une fixture de serveur Linux vérifie les répertoires
+USB fictifs sans montage, les liens symboliques et les dossiers absents.
+Aucun test de périphérique sur PS5 13.60 n'est impliqué.
+
 ## Empreinte des caches : annulation complète des sous-arbres instables (27 octobre 2026)
 
 Lorsqu'un sous-dossier de cache est renommé ou change d'identité pendant sa

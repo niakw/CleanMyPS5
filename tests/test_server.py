@@ -356,13 +356,19 @@ with tempfile.TemporaryDirectory() as temp:
    f"/mnt/{kind}{number}" for kind in ("usb","ext") for number in range(8)
   }
   assert set(bypath)==expected_mounts,bypath
-  visible={"/user/av_contents","/data","/mnt/usb0","/mnt/usb1",
-           "/mnt/usb2","/mnt/usb3","/mnt/usb4"}
-  assert all(bypath[p]["status"]=="ok" for p in visible),bypath
+  internal={"/user/av_contents","/data"}
+  assert all(bypath[p]["status"]=="ok" for p in internal),bypath
   assert all(v["totalBytes"]>=v["freeBytes"]>=v["availableBytes"]>=0
              for v in bypath.values())
   assert bypath["/data"]["sharedWith"]=="/user/av_contents"
-  assert bypath["/mnt/usb0"]["sharedWith"]=="/user/av_contents"
+  # These are plain directories on the host's /mnt filesystem.
+  # They must never pretend to be inserted, separately writable USB.
+  for number in range(5):
+   entry=bypath[f"/mnt/usb{number}"]
+   assert entry["status"]=="not-mounted",entry
+   assert entry["totalBytes"]==entry["freeBytes"]==entry["availableBytes"]==0
+   assert entry["readOnlyMount"] is False
+   assert "sharedWith" not in entry
   assert bypath["/mnt/usb6"]["status"]=="symlink"
   assert bypath["/mnt/usb7"]["status"]=="absent"
   assert bypath["/mnt/ext0"]["status"]=="absent"
