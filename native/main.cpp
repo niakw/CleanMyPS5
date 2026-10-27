@@ -2718,13 +2718,11 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
  };
  char footer_message[160]{};
  (void)std::snprintf(footer_message,sizeof(footer_message),
-  "PAGE %u/2 /DATA:%s /USER/APP:%s  CACHE:%u  NOM:%u  %s",
+  "PAGE %u/2 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  JAMAIS PREUVE INACTIF",
   homebrew_page+1u,root_label(homebrew_stats.data_root_state),
-  root_label(homebrew_stats.installed_root_state),
   homebrew_stats.cache_like_folders,
-  homebrew_stats.cache_like_name_matched,
-  homebrew_stats.partial||homebrew_stats.homebrew_name_index_partial?
-    "PARTIEL":"NON ATTESTE");
+  homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,
+  homebrew_stats.cache_mtime_no_recent);
  footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
@@ -2825,9 +2823,11 @@ void show_cleanup(ps5::demo::Canvas&canvas) noexcept {
     "%u OBSERVATIONS  %s",summary_files,reason_fr(gallery.first_blocker));
   panel(canvas,355,"CAPTURES ET REFERENCES GALERIE",message,Color::yellow);
   (void)std::snprintf(message,sizeof(message),
-    "%u CACHE/TMP  %u NOM IDENTIQUE  %s",
+    "%u CACHE/TMP %u NOM %u RECENTS %u DATE?  %s",
     homebrew_stats.cache_like_folders,
     homebrew_stats.cache_like_name_matched,
+    homebrew_stats.cache_mtime_recent,
+    homebrew_stats.cache_mtime_unknown,
     reason_fr(apps.first_blocker));
   panel(canvas,503,"INDICES TEMPORAIRES NON ATTESTES",message,
     Color::yellow);
