@@ -67,8 +67,9 @@ constexpr std::uint32_t required_proofs(Category category) noexcept {
    permissions|source_identity|explicit_approval;
  if(category==Category::gallery||
     category==Category::exact_duplicates)return common|references;
- if(category==Category::autoload)return common|processes_idle;
- return common; // app cache: independent, verified owner/provider only
+ if(category==Category::autoload||
+    category==Category::homebrew_cache)return common|processes_idle;
+ return common; // no other category is authorized for mutations
 }
 constexpr Blocker next_blocker(Category category,std::uint32_t missing) noexcept {
  // Prioritize the proof that is characteristic of each category.
@@ -77,6 +78,8 @@ constexpr Blocker next_blocker(Category category,std::uint32_t missing) noexcept
   return Blocker::references_unverified;
  if(category==Category::homebrew_cache&&(missing&provider))
   return Blocker::provider_unverified;
+ if(category==Category::homebrew_cache&&(missing&processes_idle))
+  return Blocker::process_active_unknown;
  if(category==Category::autoload&&(missing&processes_idle))
   return Blocker::process_active_unknown;
  return (missing&owner)?Blocker::owner_unverified:
