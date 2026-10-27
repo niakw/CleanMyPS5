@@ -31,7 +31,10 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
  }
  if(rc==0&&fake_nested_identity_mode&&strcmp(name,"nested")==0){
   ++nested_name_lookups;
-  if(nested_name_lookups==fake_nested_identity_mode)st->st_ino+=1;
+  if(fake_nested_identity_mode==3&&nested_name_lookups==1)
+   st->st_dev+=1; /* nested bind mount outside cache device */
+  else if(nested_name_lookups==fake_nested_identity_mode)
+   st->st_ino+=1;
  }
  if(rc==0&&fake_app_identity_mode&&strcmp(name,"ExampleTool")==0){
   ++app_name_lookups;
@@ -106,12 +109,12 @@ int main(int argc,char**argv){
  /* Cache with a nested directory replaced at first or final lookup.
   * Scanner may retain a nominal observation but its timestamp MUST be
   * UNKNOWN (never "no recent activity") and the report partial. */
- for(int mode=1;mode<=2;mode++){
+ for(int mode=1;mode<=3;mode++){
   fake_nested_identity_mode=mode;nested_name_lookups=0;
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
-  assert(nested_name_lookups>=mode);
+  assert(nested_name_lookups>=(mode==3?1:mode));
   assert(stats.cache_like_folders==4u);
   assert(stats.cache_mtime_unknown==2u);
   assert(stats.cache_mtime_recent==0u);
@@ -141,6 +144,8 @@ int main(int argc,char**argv){
  assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
  assert(stats.cache_like_name_matched==0u&&
         stats.cache_like_name_unmatched==1u);
+ assert(stats.cache_mtime_recent==0u&&stats.cache_mtime_unknown==0u&&
+        stats.cache_mtime_no_recent==1u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
  /* The source /data/homebrew/ExampleTool directory is now replaced
@@ -154,6 +159,10 @@ int main(int argc,char**argv){
  assert(stats.cache_like_folders==4u);
  assert(stats.cache_like_name_matched==0u&&
         stats.cache_like_name_unmatched==4u);
+ assert(stats.cache_mtime_recent==1u&&stats.cache_mtime_unknown==1u&&
+        stats.cache_mtime_no_recent==2u);
+ assert(stats.cache_mtime_recent+stats.cache_mtime_unknown+
+        stats.cache_mtime_no_recent==stats.cache_like_folders);
  assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
  free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
