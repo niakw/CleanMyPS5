@@ -1777,7 +1777,7 @@ int main(){
  press(r1);assert(homebrew_page==2u);
  scene(canvas);
  bool cache_size=false,weak_match=false,index_partial=false;
- bool recency=false,blocked=false,coverage=false;
+ bool recency=false,blocked=false,cache_coverage_visible=false;
  for(const auto&command:canvas.commands){
   if(command.text.find("7 FICHIERS  3 MIO NOMINAUX")!=std::string::npos)
    cache_size=true;
@@ -1790,9 +1790,9 @@ int main(){
   if(command.text.find("PROCESSUS NON VERIFIES")!=std::string::npos)
    blocked=true;
   if(command.text.find("/DATA:REFUSE  TITRES:ERREUR")!=std::string::npos)
-   coverage=true;
+   cache_coverage_visible=true;
  }
- assert(cache_size&&weak_match&&index_partial&&recency&&blocked&&coverage);
+ assert(cache_size&&weak_match&&index_partial&&recency&&blocked&&cache_coverage_visible);
  /* Both directions wrap all three tabs, including zero candidates. */
  homebrew_stats.cache_like_files=0u;
  homebrew_stats.cache_like_folders=0u;
