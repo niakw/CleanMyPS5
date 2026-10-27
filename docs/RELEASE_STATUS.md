@@ -1,3 +1,19 @@
+## Montages imbriqués dans un album ou une miniature (27 octobre 2026)
+
+Lors du relevé des compagnons de capture, chaque fichier JPG/JXR/PNG,
+vidéo ou DAT doit appartenir au même périphérique (`st_dev`) que le
+dossier de l'album réellement ouvert. Le candidat connu de miniature
+`.jpg.jpeg` doit de même appartenir au périphérique de son dossier
+`thumbnails/photo`. Si un fichier apparaît monté depuis un autre
+système de fichiers, le groupe est classé ambigu ou la miniature
+suspecte. Aucun octet ni plan de sauvegarde privée n'est publié.
+
+Le test d'injection C simule séparément une DAT étrangère et une
+miniature étrangère sans aucune écriture de fichier, et exige le refus
+de l'inspection ainsi que du planificateur privé. Ce garde-fou est
+conservateur : une identité de périphérique identique ne prouve pas
+l'absence de bind mount et aucune suppression Galerie n'est permise.
+
 ## Mutation pendant l'énumération du dossier des miniatures (27 octobre 2026)
 
 Le scanner prend maintenant un instantané des métadonnées du dossier parent

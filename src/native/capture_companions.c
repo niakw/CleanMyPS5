@@ -196,7 +196,12 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
   return error==EACCES||error==EPERM?
     CMP5_THUMBNAIL_INACCESSIBLE:CMP5_THUMBNAIL_UNSAFE;
  }
- if(!S_ISREG(named.st_mode)||named.st_nlink!=1||named.st_size<=0||
+ /* A bind-mounted foreign file is not a proven member of the known
+  * thumbnail namespace, even if its leaf name and timestamps look valid.
+  * Different devices are refused; a same-device bind is still not proven
+  * safe by this advisory observation. */
+ if(named.st_dev!=parent_before.st_dev||
+    !S_ISREG(named.st_mode)||named.st_nlink!=1||named.st_size<=0||
     (uint64_t)named.st_size>64u*1024u*1024u){
   close(fd);return CMP5_THUMBNAIL_UNSAFE;
  }
@@ -359,7 +364,11 @@ static int scan_capture_group(const char*root,const Cmp5MediaCandidate*primary,
   struct stat st;
   const int read_stat=fstatat(anchored_fd,name,&st,AT_SYMLINK_NOFOLLOW);
   const int stat_error=errno;
-  if(read_stat!=0||!S_ISREG(st.st_mode)||st.st_nlink!=1||
+  /* Mounted foreign files must not enter a supposedly coherent Gallery
+   * capture/sidecar group. An album can only be reviewed as partial if
+   * any candidate belongs to a different filesystem from its parent. */
+  if(read_stat!=0||st.st_dev!=parent_before.st_dev||
+     !S_ISREG(st.st_mode)||st.st_nlink!=1||
      st.st_size<=0||(type==3&&st.st_size>65536)||
      gathered>=CMP5_GROUP_MAX||
      (uint64_t)st.st_size>max_total-total){

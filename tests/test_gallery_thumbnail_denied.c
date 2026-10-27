@@ -16,6 +16,7 @@
 #include <unistd.h>
 static int rejects=0,deny_dat=0,denied_dat_calls=0;
 static int reject_thumbnail=1,change_namespace=0,namespace_changes=0;
+static int foreign_device=0,foreign_device_hits=0;
 static dev_t thumbnail_dev=0;
 static ino_t thumbnail_ino=0;
 /* Host-only: modify the thumbnail directory during its readdir walk. */
@@ -38,7 +39,13 @@ static int injected_fstatat(int dir,const char*name,struct stat*st,int flags){
   errno=deny_dat==1?EACCES:EPERM;
   return -1;
  }
- return fstatat(dir,name,st,flags);
+ const int rc=fstatat(dir,name,st,flags);
+ if(rc==0&&((foreign_device==1&&!strcmp(name,"REC_001.dat"))||
+            (foreign_device==2&&!strcmp(name,"REC_001.jpg.jpeg")))){
+  st->st_dev++; /* Simulate a different mounted filesystem, no writes. */
+  ++foreign_device_hits;
+ }
+ return rc;
 }
 static int injected_openat(int fd,const char*name,int flags,...){
  if(reject_thumbnail&&strcmp(name,"REC_001.jpg.jpeg")==0){
@@ -130,6 +137,26 @@ int main(int argc,char**argv){
  assert(namespace_changes==1&&raced_count==0u);
  const unsigned char*zeroed=(const unsigned char*)raced_group;
  for(size_t i=0;i<sizeof(raced_group);i++)assert(zeroed[i]==0u);
- puts("Thumbnail DAT permissions and enumeration race: blocked: PASS");
+ change_namespace=0;
+ for(int device_case=1;device_case<=2;device_case++){
+  foreign_device=device_case;foreign_device_hits=0;
+  Cmp5CompanionReport suspicious={0};
+  assert(!cmp5_inspect_capture_companions(root,&photo,
+                                          &suspicious,NULL,NULL));
+  assert(foreign_device_hits>0);
+  assert(suspicious.state==CMP5_COMPANIONS_UNVERIFIABLE);
+  assert(suspicious.files==0u&&suspicious.nominal_bytes==0u);
+  assert(suspicious.failure==(device_case==1?
+   CMP5_COMPANION_FAILURE_AMBIGUOUS:
+   CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE));
+  Cmp5MediaCandidate group[CMP5_GROUP_MAX];
+  memset(group,0xA5,sizeof(group));
+  uint32_t count=99u;
+  assert(!cmp5_plan_capture_group(root,&photo,group,&count,NULL,NULL));
+  assert(count==0u);
+  const unsigned char*raw=(const unsigned char*)group;
+  for(size_t i=0;i<sizeof(group);i++)assert(raw[i]==0u);
+ }
+ puts("Gallery DAT and thumbnail cross-device guards: blocked: PASS");
  return 0;
 }
