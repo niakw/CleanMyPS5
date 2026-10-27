@@ -205,6 +205,21 @@ int main(int argc,char**argv){
    * flagged as an untrusted timestamp. */
   assert(stats.cache_like_nominal_bytes==19u&&
          stats.cache_like_files==4u);
+  /* The invalid nested subtree contains cache2.bin. Its bytes AND its
+   * previously sampled metadata must be absent from the surviving
+   * ExampleTool/cache observation. The root and index.bin remain. */
+  const Cmp5CacheLedger *example_cache=NULL;
+  for(unsigned j=0;j<stats.cache_ledger_count;j++){
+   const Cmp5CacheLedger *entry=&stats.cache_ledger[j];
+   if(entry->kind==1u&&!strcmp(entry->app_label,"ExampleTool")){
+    example_cache=entry;break;
+   }
+  }
+  assert(example_cache!=NULL);
+  assert(example_cache->nominal_bytes==6u&&example_cache->files==1u);
+  assert(example_cache->metadata_nodes==2u&&!example_cache->metadata_complete);
+  assert((example_cache->partial_reasons&
+    (mode==3?CMP5_CACHE_REASON_EXCLUDED:CMP5_CACHE_REASON_CHANGED))!=0u);
   assert(stats.cache_mtime_unknown==2u);
   assert(stats.cache_mtime_recent==0u);
   assert(stats.cache_mtime_no_recent==2u);

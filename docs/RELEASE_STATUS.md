@@ -1,3 +1,15 @@
+## Empreinte des caches : annulation complète des sous-arbres instables (27 octobre 2026)
+
+Lorsqu'un sous-dossier de cache est renommé ou change d'identité pendant sa
+lecture, l'inventaire natif annule maintenant **les octets, les fichiers et
+les contributions à l'empreinte de métadonnées** issus de ce sous-arbre.
+Auparavant, des octets invalides étaient déjà exclus mais leur empreinte
+pouvait persister dans un rapport pourtant signalé incomplet.
+Les motifs d'incertitude et le statut partiel sont conservés : aucune
+déduction d'inactivité, de propriété ou de suppression possible.
+Un test d'injection déterministe vérifie les trois cas de dérive du
+répertoire imbriqué. Ces vérifications restent hôte/CI uniquement.
+
 ### Répertoire d'application alias sous `/data`
 
 La protection s'applique aussi aux liens symboliques rencontrés

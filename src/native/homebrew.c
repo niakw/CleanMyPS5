@@ -245,6 +245,12 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
    }
    const uint64_t before_bytes=*size;
    const size_t before_files=*files;
+   /* A child renamed or altered during traversal must not leave behind
+    * stale fingerprint contributions when we drop its nominal bytes.
+    * Keep any uncertainty/reason flags: rollback is NOT proof of idle. */
+   const uint64_t before_xor=change?change->metadata_xor:0u;
+   const uint64_t before_sum=change?change->metadata_sum:0u;
+   const uint32_t before_nodes=change?change->metadata_nodes:0u;
    count_tree(a,child,depth+1,size,files,partial,change);
    /* A rename/swap invalidates that subtree's attribution. Discard
     * its stale bytes and file count, even though the parent scan
@@ -253,6 +259,11 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
    if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
       !stable_directory(&st,&after)){
     *size=before_bytes;*files=before_files;
+    if(change){
+     change->metadata_xor=before_xor;
+     change->metadata_sum=before_sum;
+     change->metadata_nodes=before_nodes;
+    }
     *partial=1;cache_mark(change,CMP5_CACHE_REASON_CHANGED);
    }else if(!*partial){
     cache_observe(change,&parent,e->d_name,&st);
