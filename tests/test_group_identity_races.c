@@ -17,6 +17,21 @@
 #include <unistd.h>
 static char watched[1024],moved[1024];
 static int action,triggered,fail_staging_unlink,swap_stage_on_fsync;
+static int owner_fault,owner_after_read,owner_fault_hits;
+/* Host-only fstat fault: another owner AFTER the first body read.
+ * No on-disk chown is performed, so tests are safe when run as root. */
+static int racing_fstat(int fd,struct stat*st){
+ const int rc=fstat(fd,st);
+ if(rc==0&&owner_fault&&owner_after_read&&S_ISREG(st->st_mode)){
+  struct stat current={0};
+  if(stat(watched,&current)==0&&
+     st->st_dev==current.st_dev&&st->st_ino==current.st_ino){
+   st->st_uid=(uid_t)(st->st_uid+1u);
+   ++owner_fault_hits;
+  }
+ }
+ return rc;
+}
 /* Swap the just-written temporary between fsync and linkat. The
  * group publisher must neither commit a foreign inode nor remove it. */
 static int racing_fsync(int fd){
@@ -45,6 +60,12 @@ static int racing_unlinkat(int dir,const char*name,int flags){
 }
 static ssize_t race_read(int fd,void*out,size_t n){
  ssize_t got=read(fd,out,n);
+ if(got>0&&owner_fault){
+  struct stat opened={0},current={0};
+  if(fstat(fd,&opened)==0&&stat(watched,&current)==0&&
+     opened.st_dev==current.st_dev&&opened.st_ino==current.st_ino)
+   owner_after_read=1;
+ }
  if(got>0&&action&&!triggered){
   struct stat opened,current;
   if(fstat(fd,&opened)==0&&stat(watched,&current)==0&&
@@ -112,6 +133,7 @@ static struct dirent*racing_readdir(DIR*dir){
  return entry;
 }
 #define read race_read
+#define fstat racing_fstat
 #define readdir racing_readdir
 #define unlinkat racing_unlinkat
 #define fsync racing_fsync
@@ -123,6 +145,7 @@ static struct dirent*racing_readdir(DIR*dir){
 #undef fsync
 #undef unlinkat
 #undef readdir
+#undef fstat
 #undef read
 static void setup_watch(const char*parent,const char*name,const char*replacement,int operation){
  int length=snprintf(watched,sizeof(watched),"%s/%s",parent,name);
@@ -219,6 +242,20 @@ int main(int argc,char**argv){
  Cmp5GroupReceipt result={0};
  assert(read_manifest(dir,"ALBUM",1,buffer,found,&count,&result));
  assert(count==2&&result.bytes==lens[0]+lens[1]);
+ /* A manifest that changes owner while being read cannot be certified,
+  * even if inode, size, bytes and times are otherwise identical. */
+ setup_watch(workspace,"ALBUM__RESTORED","OWNER_UNUSED",0);
+ owner_fault=1;owner_after_read=0;owner_fault_hits=0;
+ assert(!read_manifest(dir,"ALBUM",1,buffer,found,&count,&result));
+ assert(owner_after_read&&owner_fault_hits>0);
+ owner_fault=0;owner_after_read=0;
+ assert(read_manifest(dir,"ALBUM",1,buffer,found,&count,&result));
+ /* The same invariant applies to independently hashed RAW members. */
+ setup_watch(workspace,"ALBUM__1","OWNER_UNUSED",0);
+ owner_fault=1;owner_after_read=0;owner_fault_hits=0;
+ assert(!raw_restored(dir,"ALBUM__1",lens[0],receipts[0].sha256,NULL,NULL));
+ assert(owner_after_read&&owner_fault_hits>0);
+ owner_fault=0;owner_after_read=0;
  assert(raw_restored(dir,"ALBUM__1",lens[0],receipts[0].sha256,NULL,NULL));
  setup_watch(workspace,"ALBUM__RESTORED","MOVED__RESTORED",1);
  assert(!read_manifest(dir,"ALBUM",1,buffer,found,&count,&result));
@@ -282,6 +319,14 @@ int main(int argc,char**argv){
  }
  assert(cmp5_validate_capture_group(origin_parts,2u));
  assert(publish_origin_map(dir,"BACKUP",origin_parts,2u,manifest,NULL,NULL));
+ assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ /* The private origin map includes sensitive locators. Ownership must
+  * remain stable through the actual map read before group verification. */
+ setup_watch(workspace,"BACKUP__ORIGINS","OWNER_UNUSED",0);
+ owner_fault=1;owner_after_read=0;owner_fault_hits=0;
+ assert(!cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
+ assert(owner_after_read&&owner_fault_hits>0);
+ owner_fault=0;owner_after_read=0;
  assert(cmp5_verify_group(workspace,"BACKUP",&result,NULL,NULL));
  /* A valid origin-map digest does not excuse a pathname switch, chmod or
   * second hardlink while its bytes are read. Revalidate the opened inode. */

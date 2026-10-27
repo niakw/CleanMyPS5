@@ -1,3 +1,20 @@
+## Propriétaire des manifestes, cartes d'origine et restaurations de groupe (27 octobre 2026)
+
+Le comparateur d'identité des groupes dans `verified_group.c` vérifie
+maintenant aussi le `st_uid` avant/après lecture. Le test initial de
+propriété 0600/UID de l'utilisateur n'est pas suffisant pour publier une
+preuve d'intégrité si les attributs de sécurité divergent pendant le
+hachage ou si le répertoire privé change de propriétaire. Cette
+révalidation couvre le manifeste COMMIT/RESTORED, le fichier sensible
+ORIGINS, les membres RAW reconstitués et les répertoires privés.
+
+La fixture hôte intercepte `fstat` après la lecture du fichier et
+simule uniquement un UID différent pour chacun des trois types de
+fichiers, sans effectuer de `chown`. Les trois validations sont
+refusées ; les mêmes fichiers inchangés restent vérifiables ensuite.
+Aucune écriture dans la Galerie Sony et aucune suppression système
+ne deviennent possibles du fait de ce correctif.
+
 ## Révalidation des attributs des capsules privées (27 octobre 2026)
 
 La comparaison d'identité de `verified_backup.c` exige désormais, outre

@@ -13,4 +13,4 @@ with tempfile.TemporaryDirectory() as temp:
     assert "refused: PASS" in result.stdout
     assert not list(workspace.glob("*MOVED*"))
     assert not list(workspace.glob("*HARDLINK*"))
-print("Group manifest, inode, mode and restored-file snapshots: PASS")
+print("Group manifest, origin-map and restored-file owner revalidation: PASS")

@@ -81,7 +81,11 @@ static int same_file(const struct stat*a,const struct stat*b){
  const int nsec=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
    a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
 #endif
+ /* Revalidation must preserve ownership as well as permissions and inode.
+  * The initial geteuid() check alone does not attest ownership after a
+  * potentially long manifest, origin-map or restored-file read. */
  return nsec&&a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+  a->st_uid==b->st_uid&&
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime&&a->st_mode==b->st_mode&&
   a->st_nlink==b->st_nlink;
