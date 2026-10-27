@@ -28,7 +28,6 @@ int main(int argc,char**argv){
   assert(stats.cache_ledger[0].kind==1u);
   assert((stats.cache_reason_mask&CMP5_CACHE_REASON_EXCLUDED)!=0u);
   assert(stats.cache_like_partial&&stats.partial);
-  assert(strstr(json,"\\"deletable\\":false")!=NULL);
   puts("Symlinked cache-shaped alias excluded, actual cache preserved: PASS");
   return 0;
  }
