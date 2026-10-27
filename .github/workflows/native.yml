@@ -50,6 +50,8 @@ on:
       - native/compression_progress.hpp
       - native/cache_delta.hpp
       - tests/test_cache_delta.cpp
+      - tests/test_cache_metadata.c
+      - tests/test_cache_metadata.py
       - tests/test_compression_progress.cpp
       - native/compression_image.hpp
       - tests/test_compression_image.cpp

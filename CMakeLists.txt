@@ -64,6 +64,20 @@ add_test(NAME native_homebrew_fixture COMMAND ${Python3_EXECUTABLE}
  $<TARGET_FILE:cmp5-native-homebrew-tests>
  $<TARGET_FILE:cmp5-homebrew-io-tests>)
 
+# Two actual local inventory scans must catch replacements that preserve size.
+# This is a synthetic test sandbox, not console cleanup or file hashing.
+add_executable(cmp5-cache-metadata-fixture
+ tests/test_cache_metadata.c src/native/homebrew.c ${RULES})
+target_include_directories(cmp5-cache-metadata-fixture PRIVATE
+ src/native ${CMAKE_CURRENT_BINARY_DIR}/generated)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+ target_compile_options(cmp5-cache-metadata-fixture PRIVATE
+  -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native_cache_metadata_changes COMMAND ${Python3_EXECUTABLE}
+ ${CMAKE_SOURCE_DIR}/tests/test_cache_metadata.py
+ $<TARGET_FILE:cmp5-cache-metadata-fixture>)
+
 # Deterministic identity races: replacement by rename or in-place
 # metadata mutation between read and publication must fail closed.
 add_executable(cmp5-native-autoload-identity-races

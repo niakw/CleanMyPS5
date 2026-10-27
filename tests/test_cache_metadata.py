@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Read-only native scanner against synthetic caches mutated by the TEST."""
+from pathlib import Path
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    (root / "data/homebrew").mkdir(parents=True)
+    (root / "data/etaHEN/plugins").mkdir(parents=True)
+    (root / "user/app").mkdir(parents=True)
+    cache = root / "data/ExampleApp/cache"
+    cache.mkdir(parents=True)
+    path = cache / "same.bin"
+    path.write_bytes(b"ABCDEF")
+    old_ns = time.time_ns() - 3 * 86400 * 10**9
+    os.utime(path, ns=(old_ns, old_ns))
+    os.utime(cache, ns=(old_ns, old_ns))
+
+    def capture():
+        result = subprocess.run(
+            [sys.argv[1], str(root)], capture_output=True,
+            text=True, timeout=12, check=True)
+        return tuple(int(v) for v in result.stdout.strip().split())
+
+    baseline = capture()
+    assert baseline == capture(), "a stable tree changed its metadata signature"
+    assert baseline[2] >= 2
+
+    # Replace bytes with a SAME-SIZE body and a controlled, different
+    # timestamp. The production scanner never opens that body for hashing.
+    path.write_bytes(b"UVWXYZ")
+    new_ns = old_ns + 20 * 10**9
+    os.utime(path, ns=(new_ns, new_ns))
+    rewritten = capture()
+    assert rewritten != baseline, "same-size file rewrite was invisible"
+    assert rewritten == capture(), "rewritten metadata was not repeatable"
+
+    renamed = cache / "other.bin"
+    path.rename(renamed)
+    moved = capture()
+    assert moved != rewritten, "same-size inode rename was invisible"
+    assert moved == capture()
+    assert renamed.read_bytes() == b"UVWXYZ"
+
+print("Native cache metadata identity detects stable-size rewrites and renames: PASS")

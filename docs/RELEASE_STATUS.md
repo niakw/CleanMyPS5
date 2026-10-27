@@ -1,3 +1,15 @@
+### Tests réels du scanner sur répertoire de cache synthétique
+
+Un nouveau test hôte exécute le vrai `src/native/homebrew.c` deux
+fois sur un dossier temporaire. Il confirme qu'un dossier inchangé
+produit la même empreinte, tandis qu'une réécriture de six octets par
+six autres octets, puis un renommage sans variation de volume,
+produisent des empreintes différentes. Le moteur n'ouvre pas le
+contenu des fichiers ; la fixture les modifie uniquement pour tester
+la détection des métadonnées. Linux et macOS exécutent ce test via
+CMake/CTest. Il ne prétend ni à une validation console ni à une
+garantie cryptographique.
+
 ## Comparaison des caches : empreintes de métadonnées (27 octobre 2026)
 
 La comparaison locale reconnaît désormais des modifications **à taille et
