@@ -1,3 +1,14 @@
+### Lecture interrompue de `/data` : invalidation du registre
+
+Le parcours du répertoire `/data` suit désormais son propre indicateur
+d'erreur, indépendant de celui des autres racines. Une erreur `readdir`
+(même après avoir vu tous les dossiers), une erreur de `stat`, une
+limite de parcours ou une entrée partielle invalide explicitement la
+couverture du registre des caches. Un échec antérieur de `/data/homebrew`
+ne peut plus masquer l'échec de `/data`. Un test de faute ciblé simule
+une erreur de fin d'énumération du vrai dossier de fixture sans toucher
+au contenu. Aucun cache n'est alors déclaré stable ou supprimable.
+
 ## Attribution cache : registre local élargi à 96 dossiers (27 octobre 2026)
 
 La page de comparaison n'utilise plus les quatre plus gros caches comme

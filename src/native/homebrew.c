@@ -526,6 +526,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   close(fd);a->partial=1;return;
  }
  const int anchored_fd=fd;
+ /* Track this root's own incomplete reads even when a previous,
+  * unrelated root has already set the global partial flag. A partial
+  * /data traversal must invalidate the whole cache delta ledger. */
+ int root_scan_error=0;
  DIR*d=fdopendir(fd);
  if(!d){
   if(critical)*critical=4u;
@@ -536,7 +540,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
  for(;;){
   errno=0;
   e=readdir(d);
-  if(!e){if(errno!=0)a->partial=1;break;}
+  if(!e){
+   if(errno!=0){a->partial=1;root_scan_error=1;}
+   break;
+  }
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
   /* Nonoverlapping accounting: /data/homebrew and etaHEN/plugins are
    * already listed separately. Do not count their containers a second
@@ -549,18 +556,22 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
       !strcasecmp(e->d_name,"plugins"))continue;
   }
   a->visited++;
-  if(over(a)){a->partial=1;break;}
+  if(over(a)){a->partial=1;root_scan_error=1;break;}
   struct stat st;
-  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){a->partial=1;continue;}
+  if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){
+   a->partial=1;root_scan_error=1;continue;
+  }
   if(S_ISLNK(st.st_mode)||(!S_ISREG(st.st_mode)&&!S_ISDIR(st.st_mode)))continue;
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
   for(size_t i=0;i<count;i++)if(!strcasecmp(e->d_name,names[i]))excluded=1;
   if(excluded)continue;
-  if(a->items>=ITEMS_CAP){a->partial=1;break;}
+  if(a->items>=ITEMS_CAP){a->partial=1;root_scan_error=1;break;}
   char relative_path[NAME_CAP];
-  if(!join(relative_path,sizeof(relative_path),relative,e->d_name)){a->partial=1;continue;}
+  if(!join(relative_path,sizeof(relative_path),relative,e->d_name)){
+   a->partial=1;root_scan_error=1;continue;
+  }
   uint64_t bytes=0;size_t files=0;int partial=0;
   if(S_ISREG(st.st_mode)){
    struct stat confirmed={0};
@@ -616,18 +627,23 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    else if(!strcmp(kind,"installed"))a->stats->installed++;
    if(UINT64_MAX-a->stats->nominal_bytes<bytes){
     a->stats->nominal_bytes=UINT64_MAX;a->partial=1;
+    root_scan_error=1;
    }else a->stats->nominal_bytes+=bytes;
   }
   if(a->items++)add(&a->out,",");
   add(&a->out,"{\"path\":");char display[NAME_CAP+2];
-  if(snprintf(display,sizeof(display),"/%s",relative_path)<0){a->partial=1;break;}
+  if(snprintf(display,sizeof(display),"/%s",relative_path)<0){
+   a->partial=1;root_scan_error=1;break;
+  }
   quote(&a->out,display);
   add(&a->out,",\"kind\":");quote(&a->out,kind);
   add(&a->out,",\"risk\":\"protected\",\"nominalBytes\":");
   char n[72];snprintf(n,sizeof(n),"%llu",(unsigned long long)bytes);add(&a->out,n);
   snprintf(n,sizeof(n),",\"files\":%zu,\"partial\":%s}",files,partial?"true":"false");add(&a->out,n);
-  if(partial)a->partial=1;
-  if(a->out.bad||over(a))break;
+  if(partial){a->partial=1;root_scan_error=1;}
+  if(a->out.bad||over(a)){
+   root_scan_error=1;break;
+  }
  }
  /* Compare both the still-open directory and the root pathname. A
   * replacement after enumeration must never leave stale JSON entries,
@@ -651,7 +667,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   a->out.data[before_json]=0;
   a->partial=1;
   if(critical)*critical=4u;
+  root_scan_error=1;
  }
+ if(!strcmp(relative,"data")&&root_scan_error)
+  a->stats->cache_like_partial=1u;
 }
 char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  Cmp5HomebrewStats *stats,Cmp5CancelCheck cancel,void *context){

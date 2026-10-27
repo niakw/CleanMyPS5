@@ -12,6 +12,8 @@
 #include <string.h>
 #include <sys/stat.h>
 static int eof_error_enabled,eof_error_seen;
+static int eof_data_enabled,eof_data_seen;
+static ino_t eof_data_inode;
 static int close_error_enabled,close_error_seen;
 static int fake_cache_identity_mode,cache_name_lookups;
 static int fake_nested_identity_mode,nested_name_lookups;
@@ -84,6 +86,13 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
 }
 static struct dirent* race_readdir(DIR*dir){
  struct dirent*entry=readdir(dir);
+ if(!entry&&eof_data_enabled&&!eof_data_seen){
+  struct stat current={0};
+  if(fstat(dirfd(dir),&current)==0&&
+     current.st_ino==eof_data_inode){
+   eof_data_seen=1;errno=EIO;
+  }
+ }
  if(!entry&&eof_error_enabled&&!eof_error_seen){
   eof_error_seen=1;errno=EIO;
  }
@@ -124,6 +133,26 @@ int main(int argc,char**argv){
  assert(stats.installed==1u);
  assert(strstr(json,"\"partial\":true"));
  free(json);
+ close_error_enabled=0;
+ /* The main /data directory can yield every observed cache and then
+  * fail at EOF. Its cache ledger must NOT be considered complete. */
+ char data_path[1024];
+ int chars=snprintf(data_path,sizeof(data_path),"%s/data",argv[1]);
+ assert(chars>0&&(size_t)chars<sizeof(data_path));
+ struct stat data_root={0};
+ assert(stat(data_path,&data_root)==0);
+ eof_data_inode=data_root.st_ino;
+ eof_data_enabled=1;eof_data_seen=0;
+ memset(&stats,0,sizeof(stats));size=0;
+ json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+ assert(json&&size>100&&eof_data_seen);
+ assert(stats.data_root_state==1u&&stats.partial==1u);
+ assert(stats.cache_like_partial==1u);
+ assert(stats.cache_like_folders==4u&&stats.cache_ledger_count==4u);
+ assert(strstr(json,"\"cacheCandidates\":")!=NULL);
+ assert(strstr(json,"\"partial\":true")!=NULL);
+ free(json);
+ eof_data_enabled=0;
  /* A cache name that resolves to a different inode must not
   * contribute its nominal bytes to an allegedly complete scan.
   * readdir order differs by host: either the 6-byte or 2-byte cache
