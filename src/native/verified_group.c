@@ -93,7 +93,9 @@ static int same_file(const struct stat*a,const struct stat*b){
 /* A descriptor survives rename/unlink of its pathname. Do not report a
  * verified group for bytes in an orphaned directory when the caller's
  * selected private workspace now names another one (or no directory). */
-/* A restore can change directory size/mtime. Keep the opened private
+#if !defined(CMP5_NATIVE_GROUP_BACKUP_ONLY) || defined(CMP5_NATIVE_GROUP_PRIVATE_REHEARSAL_ONLY)
+/* A restore can change directory size/mtime and on some filesystems
+ * even link count. Keep the opened private
  * inode pinned while requiring the original PATH to name it, with
  * unchanged owner, access mode and link count. Never follow symlinks. */
 static int mutable_workspace_current(int fd,const char*path,
@@ -102,8 +104,8 @@ static int mutable_workspace_current(int fd,const char*path,
  if(fd<0||!path||!initial||fstat(fd,&held)!=0||
     !S_ISDIR(held.st_mode)||
     held.st_dev!=initial->st_dev||held.st_ino!=initial->st_ino||
-    held.st_uid!=initial->st_uid||held.st_mode!=initial->st_mode||
-    held.st_nlink!=initial->st_nlink)return 0;
+    held.st_uid!=initial->st_uid||held.st_mode!=initial->st_mode)
+    return 0;
  int reopened=safe_dir(path);
  if(reopened<0)return 0;
  const int ok=fstat(reopened,&named)==0&&S_ISDIR(named.st_mode)&&
@@ -113,6 +115,7 @@ static int mutable_workspace_current(int fd,const char*path,
  close(reopened);
  return ok;
 }
+#endif /* Group restore-only mutable workspace guard. */
 static int workspace_unchanged(int dir,const char*path,
                                const struct stat*initial){
  struct stat anchored,current,named;

@@ -1,3 +1,22 @@
+## Correctif de portabilité du verrouillage privé (27 octobre 2026)
+
+La fonction de validation des répertoires en écriture est maintenant
+compilée uniquement quand la restauration de groupe est disponible.
+Le build PS5 « sauvegarde seule » ne contient donc pas de fonction
+statique inutilisée sous `-Werror`. Le nombre de liens du dossier
+cible n'est plus comparé à sa valeur **avant la transaction** :
+certains systèmes de fichiers peuvent le faire évoluer lors de la
+création de fichiers ordinaires. L'identité vérifiée demeure le
+périphérique, l'inode, le propriétaire et les permissions, recontrôlés
+au chemin d'origine. Le nombre de liens est encore comparé entre
+les deux vues instantanées du même répertoire pendant ce contrôle.
+
+Les erreurs observées sur GitHub Actions : compilateur Linux
+`unused-function` en profil backup-only et tests de restauration
+macOS refusant une transaction privée normale. La suite CI du
+correctif doit encore confirmer la réparation ; aucun résultat de
+validation n'est anticipé.
+
 ## Verrouillage des chemins privés pendant une restauration de groupe (27 octobre 2026)
 
 La restitution d'un groupe revalide désormais l'identité des deux
