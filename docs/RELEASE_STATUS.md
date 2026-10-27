@@ -1,3 +1,25 @@
+## Scanner des dossiers : mutation sans changement d'inode (27 octobre 2026)
+
+Les protections du scanner de fichiers couvrent également les mutations
+**sur place** des répertoires. Lors du second contrôle d'un dossier parent,
+d'un sous-dossier de cache ou d'un sous-dossier imbriqué, le moteur compare
+désormais, en plus de `st_dev` et `st_ino`, le mode, le nombre de liens,
+la taille du répertoire et ses dates `mtime` / `ctime` disponibles.
+Une divergence retire les octets/fichiers attribués à la sous-arborescence
+concernée et publie un bilan partiel.
+
+Trois injections hôte conservent volontairement le même inode mais
+modifient l'horodatage observable à la dernière sonde : cache,
+sous-dossier imbriqué et dossier d'application. Les autres mesures
+restent comptées sans confondre la taille nominale avec de l'espace
+libérable. Les fichiers eux-mêmes sont relus indépendamment par
+`fstatat` ; aucun nettoyage réel n'est activé.
+
+Ce contrôle est conservateur mais **non atomique** : la précision des
+horodatages et une mutation après la vérification restent des limites
+connues. Le test PS5 13.60 ne remplace pas une preuve d'inactivité du
+processus ni d'autorisation du fournisseur.
+
 ## Scanner de fichiers : attribution refusée en cas de remplacement (27 octobre 2026)
 
 Après le contrôle des dossiers parents, l'inventaire `homebrew.c`

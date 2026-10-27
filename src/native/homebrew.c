@@ -97,6 +97,19 @@ static int stable_regular_file(const struct stat*first,
         first->st_mtime==second->st_mtime&&
         first->st_ctime==second->st_ctime;
 }
+/* An unchanged directory inode is not an unchanged inventory: the
+ * provider may create/rename children in place during traversal.
+ * Compare observable directory metadata before claiming its totals.
+ * The filesystem's timestamp resolution still limits this sample. */
+static int stable_directory(const struct stat*first,const struct stat*after){
+ return S_ISDIR(first->st_mode)&&S_ISDIR(after->st_mode)&&
+        first->st_dev==after->st_dev&&first->st_ino==after->st_ino&&
+        first->st_mode==after->st_mode&&
+        first->st_nlink==after->st_nlink&&
+        first->st_size==after->st_size&&
+        first->st_mtime==after->st_mtime&&
+        first->st_ctime==after->st_ctime;
+}
 static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
                        int*partial,CacheChange*change){
  if(over(a)){*partial=1;if(change)change->unknown=1;close(fd);return;}
@@ -157,8 +170,7 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
     * necessarily stays partial and cannot prove inactivity. */
    struct stat after={0};
    if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
-      !S_ISDIR(after.st_mode)||after.st_dev!=st.st_dev||
-      after.st_ino!=st.st_ino){
+      !stable_directory(&st,&after)){
     *size=before_bytes;*files=before_files;
     *partial=1;if(change)change->unknown=1;
    }
@@ -326,7 +338,7 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
   count_tree(a,child,0,&bytes,&files,&partial,&change); /* owns child fd */
   struct stat after={0};
   if(fstatat(app_dir,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
-     !same_cache_dir(&st,&after)){
+     !stable_directory(&st,&after)){
    a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   if(a->stats->cache_like_folders==UINT32_MAX||
@@ -429,7 +441,7 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
      count_tree(a,child,0,&bytes,&files,&partial,NULL);
      struct stat after={0};
      if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
-        !same_cache_dir(&st,&after)){
+        !stable_directory(&st,&after)){
       /* A renamed parent invalidates all its observed cache names,
        * including the weak homebrew correspondence. */
       if(app_data){

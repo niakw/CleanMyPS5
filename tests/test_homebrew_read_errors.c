@@ -17,6 +17,7 @@ static int fake_cache_identity_mode,cache_name_lookups;
 static int fake_nested_identity_mode,nested_name_lookups;
 static int fake_app_identity_mode,app_name_lookups;
 static int fake_regular_mode,regular_name_lookups;
+static int fake_directory_metadata_mode,directory_name_lookups;
 /* Inject an identity swap at either lookup edge of /data/<app>/cache.
  * Actual files remain untouched; this simulates concurrent renames
  * reproducibly on macOS, Linux and under sanitizers. */
@@ -36,6 +37,15 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
    st->st_dev+=1; /* nested bind mount outside cache device */
   else if(nested_name_lookups==fake_nested_identity_mode)
    st->st_ino+=1;
+ }
+ if(rc==0&&fake_directory_metadata_mode){
+  const char*target=fake_directory_metadata_mode==1?"cache":
+                    fake_directory_metadata_mode==2?"nested":"ExampleTool";
+  if(strcmp(name,target)==0){
+   ++directory_name_lookups;
+   if(directory_name_lookups==(fake_directory_metadata_mode==3?4:2))
+    st->st_mtime+=60; /* same inode, modified contents in place */
+  }
  }
  if(rc==0&&fake_regular_mode){
   const char*target=fake_regular_mode==3?"public.bin":
@@ -235,6 +245,35 @@ int main(int argc,char**argv){
   free(json);
  }
  fake_regular_mode=0;
+ /* Parent-directory changes must not preserve stale file counts even
+  * if dev/inode remain identical at every sampled lookup. */
+ for(int mode=1;mode<=3;mode++){
+  fake_directory_metadata_mode=mode;directory_name_lookups=0;
+  memset(&stats,0,sizeof(stats));size=0;
+  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+  assert(json&&size>100&&stats.partial);
+  assert(directory_name_lookups>=(mode==3?4:2));
+  if(mode==1){
+   assert(stats.cache_like_partial);
+   assert(stats.cache_like_folders==3u);
+   assert(stats.cache_like_nominal_bytes==13u&&stats.cache_like_files==3u);
+   assert(stats.nominal_bytes==39u);
+  }else if(mode==2){
+   assert(stats.cache_like_partial);
+   assert(stats.cache_like_folders==4u);
+   assert(stats.cache_like_nominal_bytes==19u&&stats.cache_like_files==4u);
+   assert(stats.cache_mtime_unknown==2u);
+   assert(stats.nominal_bytes==39u);
+  }else{
+   assert(stats.cache_like_partial);
+   assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
+   assert(stats.nominal_bytes==20u);
+   assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
+  }
+  assert(strstr(json,"\"deletable\":false"));
+  free(json);
+ }
+ fake_directory_metadata_mode=0;
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
 }
