@@ -1,3 +1,24 @@
+## Analyse native des applications : compteurs invalidés après échange de dossier (27 octobre 2026)
+
+Le scanner de répertoires publiait déjà une couverture **partielle** et
+annulait le sous-total des caches lorsque le nom d'un dossier
+`/data/<app>` ou `/data/homebrew/<app>` ne désignait plus
+l'inode précédemment ouvert. Les octets et le nombre de fichiers
+issus de ce dossier pouvaient toutefois rester dans le **bilan global**,
+le classement des éléments volumineux et la réponse JSON.
+
+L'attribution est désormais annulée également à ces trois niveaux :
+l'entrée est conservée et marquée partielle, mais avec **0 octet et
+0 fichier attribuables**. Deux injections de course déterministes
+couvrent le renommage en fin d'inspection du dossier homebrew
+et celui du dossier d'application, y compris ses caches ; les autres
+répertoires valides restent comptés. Le scan reste en lecture seule ;
+aucune date de cache, taille nominale ou similitude de nom ne
+permet de conclure à un fichier supprimable.
+
+Ces tests hôte ne certifient toujours pas les permissions, les
+processus au repos ni la sécurité d'une suppression sur PS5 13.60.
+
 # CleanMyPS5 — critères de clôture (constat vérifiable)
 
 ## Reprise LZ4 : fichiers runtime et plugins préservés (26 octobre 2026)

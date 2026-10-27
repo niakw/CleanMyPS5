@@ -420,6 +420,12 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
        a->stats->cache_like_partial=1u;
       }
       a->homebrew_name_count=before_names;
+      /* The initial directory name no longer designates the scanned
+       * inode. Do not publish its stale bytes/files in top-N, JSON or
+       * the aggregate, even when the scan was otherwise readable.
+       * Keep an explicit partial entry for diagnostic coverage. */
+      bytes=0;
+      files=0;
       partial=1;
      }
     }

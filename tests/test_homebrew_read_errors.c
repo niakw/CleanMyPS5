@@ -42,7 +42,8 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
    * homebrew traversal (lookups 1 and 2). The third stat precedes
    * opening the independent /data/ExampleTool app-data tree. */
   if((fake_app_identity_mode==1&&app_name_lookups==3)||
-     (fake_app_identity_mode==2&&app_name_lookups==2))
+     (fake_app_identity_mode==2&&app_name_lookups==2)||
+     (fake_app_identity_mode==3&&app_name_lookups==4))
    st->st_ino+=1;
  }
  return rc;
@@ -160,6 +161,10 @@ int main(int argc,char**argv){
  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100&&stats.partial);
  assert(app_name_lookups>=4);
+ /* 3 bytes from the stale /data/homebrew/ExampleTool inode must not
+  * survive in global nominal bytes, top-N or the JSON item. */
+ assert(stats.nominal_bytes==36u);
+ assert(strstr(json,"\"path\":\"/data/homebrew/ExampleTool\",\"kind\":\"homebrew\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
  assert(stats.cache_like_folders==4u);
  assert(stats.cache_like_name_matched==0u&&
         stats.cache_like_name_unmatched==4u);
@@ -168,6 +173,22 @@ int main(int argc,char**argv){
  assert(stats.cache_mtime_recent+stats.cache_mtime_unknown+
         stats.cache_mtime_no_recent==stats.cache_like_folders);
  assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
+ free(json);
+ /* Fourth lookup is the final /data/ExampleTool stat. This time the
+  * directory was fully traversed, including the cache shortlist,
+  * before it was replaced. All its 19 nominal bytes and five
+  * general files must disappear from stale parent accounting. */
+ fake_app_identity_mode=3;app_name_lookups=0;
+ memset(&stats,0,sizeof(stats));size=0;
+ json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+ assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
+ assert(app_name_lookups>=4);
+ assert(stats.nominal_bytes==20u);
+ assert(stats.cache_like_folders==1u&&stats.cache_like_nominal_bytes==2u);
+ assert(stats.cache_like_name_matched==0u&&stats.cache_like_name_unmatched==1u);
+ assert(stats.cache_mtime_no_recent==1u&&
+        stats.cache_mtime_recent==0u&&stats.cache_mtime_unknown==0u);
+ assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":0,\"files\":0,\"partial\":true"));
  free(json);
  puts("Homebrew readdir and closedir failures plus cache identity races: PARTIAL; healthy apps retained");
  return 0;
