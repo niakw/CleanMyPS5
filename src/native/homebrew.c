@@ -278,7 +278,10 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    close(child);a->stats->cache_like_partial=1u;a->partial=1;continue;
   }
   uint64_t bytes=0;size_t files=0;int partial=0;
-  count_tree(a,child,0,&bytes,&files,&partial); /* owns child fd */
+  CacheChange change={0};
+  change.now=a->cache_wall_now;
+  note_cache_mtime(&change,st.st_mtime);
+  count_tree(a,child,0,&bytes,&files,&partial,&change); /* owns child fd */
   struct stat after={0};
   if(fstatat(app_dir,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
      !same_cache_dir(&st,&after)){
@@ -295,6 +298,9 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    else a->stats->cache_like_name_unmatched++;
    a->stats->cache_like_files+=(uint32_t)files;
    a->stats->cache_like_nominal_bytes+=bytes;
+   if(partial||change.unknown)a->stats->cache_mtime_unknown++;
+   else if(change.recent)a->stats->cache_mtime_recent++;
+   else a->stats->cache_mtime_no_recent++;
   }
   if(partial){a->stats->cache_like_partial=1u;a->partial=1;}
  }
@@ -364,11 +370,14 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
      const uint32_t before_unmatched=a->stats->cache_like_name_unmatched;
      const uint32_t before_files=a->stats->cache_like_files;
      const uint64_t before_bytes=a->stats->cache_like_nominal_bytes;
+     const uint32_t before_recent=a->stats->cache_mtime_recent;
+     const uint32_t before_unknown=a->stats->cache_mtime_unknown;
+     const uint32_t before_no_recent=a->stats->cache_mtime_no_recent;
      const size_t before_names=a->homebrew_name_count;
      if(app_data)scan_cache_subdirs(a,child,e->d_name);
      if(!strcmp(kind,"homebrew")&&!strcmp(relative,"data/homebrew"))
       remember_homebrew_name(a,e->d_name,child);
-     count_tree(a,child,0,&bytes,&files,&partial);
+     count_tree(a,child,0,&bytes,&files,&partial,NULL);
      struct stat after={0};
      if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
         !same_cache_dir(&st,&after)){
@@ -380,6 +389,9 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
        a->stats->cache_like_name_unmatched=before_unmatched;
        a->stats->cache_like_files=before_files;
        a->stats->cache_like_nominal_bytes=before_bytes;
+       a->stats->cache_mtime_recent=before_recent;
+       a->stats->cache_mtime_unknown=before_unknown;
+       a->stats->cache_mtime_no_recent=before_no_recent;
        a->stats->cache_like_partial=1u;
       }
       a->homebrew_name_count=before_names;
@@ -423,6 +435,7 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  /* The JSON-only API still needs honest cache-candidate counters. */
  a->stats=stats?stats:&fallback;
  a->cancel=cancel;a->context=context;
+ a->cache_wall_now=time(NULL);
  a->out.data=(char*)calloc(1,JSON_CAP);
  if(!a->out.data){free(a);return NULL;}
  uint64_t now=now_ns();
@@ -448,7 +461,7 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
   stats->data_root_state=a->data_root_state;
   stats->installed_root_state=a->installed_root_state;
  }
- char finish[760];
+ char finish[920];
  const uint32_t caches=a->stats->cache_like_folders;
  const uint32_t cache_files=a->stats->cache_like_files;
  const uint64_t cache_bytes=a->stats->cache_like_nominal_bytes;
@@ -456,13 +469,17 @@ char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  const uint32_t matched=a->stats->cache_like_name_matched;
  const uint32_t unmatched=a->stats->cache_like_name_unmatched;
  const int index_partial=a->stats->homebrew_name_index_partial!=0u;
+ const uint32_t recent=a->stats->cache_mtime_recent;
+ const uint32_t unknown=a->stats->cache_mtime_unknown;
+ const uint32_t no_recent=a->stats->cache_mtime_no_recent;
  snprintf(finish,sizeof(finish),
-  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"nameMatched\":%u,\"noNameMatch\":%u,\"nameIndexPartial\":%s,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
+  "],\"visited\":%zu,\"partial\":%s,\"rootCoverage\":{\"appData\":\"%s\",\"installedTitles\":\"%s\"},\"cacheCandidates\":{\"folders\":%u,\"files\":%u,\"nominalBytes\":%llu,\"partial\":%s,\"nameMatched\":%u,\"noNameMatch\":%u,\"nameIndexPartial\":%s,\"recentMtime24h\":%u,\"mtimeUnknown\":%u,\"noRecentMtimeObserved\":%u,\"idleVerified\":false,\"providerVerified\":false,\"deletable\":false},\"limits\":{\"maxEntries\":256,\"maxVisited\":5000,\"maxDepth\":5},\"note\":\"Taille nominale, pas un espace recuperable. Aucun fichier supprimable presume.\"}",
   a->visited,a->partial?"true":"false",
   root_state_name(a->data_root_state),root_state_name(a->installed_root_state),
   caches,cache_files,(unsigned long long)cache_bytes,
   cache_partial?"true":"false",
-  matched,unmatched,index_partial?"true":"false");
+  matched,unmatched,index_partial?"true":"false",
+  recent,unknown,no_recent);
  add(&a->out,finish);
  char*result=a->out.data;
  if(a->out.bad){free(result);result=NULL;}else *length=a->out.len;
