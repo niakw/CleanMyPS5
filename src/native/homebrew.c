@@ -402,7 +402,7 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    if(age==0u)a->stats->cache_mtime_unknown++;
    else if(age==1u)a->stats->cache_mtime_recent++;
    else a->stats->cache_mtime_no_recent++;
-   record_cache_top(a,app_name,kind,bytes,files,partial||change.unknown,
+   record_cache_top(a,app_name,kind,bytes,files,partial,
                     weak_match,age);
   }
   if(partial){a->stats->cache_like_partial=1u;a->partial=1;}

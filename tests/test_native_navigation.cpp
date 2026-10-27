@@ -1826,12 +1826,14 @@ int main(){
  homebrew_stats.cache_like_folders=0u;
  homebrew_stats.cache_like_nominal_bytes=0u;
  homebrew_stats.cache_like_partial=0u;
+ press(l1);assert(homebrew_page==2u);
  scene(canvas);
  bool empty_cache=false;
  for(const auto&command:canvas.commands)
   if(command.text.find("0 DOSSIERS  0 FICHIERS  0 OCTETS NOMINAUX")
      !=std::string::npos)empty_cache=true;
  assert(empty_cache);
+ press(r1);assert(homebrew_page==3u);
  press(r1);assert(homebrew_page==0u);
  press(l1);assert(homebrew_page==3u);
  press(l1);assert(homebrew_page==2u);
