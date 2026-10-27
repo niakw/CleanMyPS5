@@ -132,6 +132,19 @@ static int over(Audit*a){
  if(a->deadline&&n&&n>a->deadline){a->partial=1;return 1;}
  return 0;
 }
+/* Preserve the sub-second portion of the *same* timestamps already
+ * incorporated in the cache metadata signature. Otherwise an overwrite
+ * or rename completed within the same second may be reported as stable.
+ * This is still only sampled metadata, not a filesystem transaction. */
+static int stable_time_precision(const struct stat*a,const struct stat*b){
+#if defined(__APPLE__)
+ return a->st_mtimespec.tv_nsec==b->st_mtimespec.tv_nsec&&
+        a->st_ctimespec.tv_nsec==b->st_ctimespec.tv_nsec;
+#else
+ return a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+        a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+#endif
+}
 /* A file's first directory-entry stat can be stale before it is
  * attributed. Require a second anchored, no-follow lookup for identity,
  * size and metadata. This is bounded metadata sampling, NOT a filesystem
@@ -144,7 +157,8 @@ static int stable_regular_file(const struct stat*first,
         first->st_nlink==second->st_nlink&&
         first->st_size>=0&&first->st_size==second->st_size&&
         first->st_mtime==second->st_mtime&&
-        first->st_ctime==second->st_ctime;
+        first->st_ctime==second->st_ctime&&
+        stable_time_precision(first,second);
 }
 /* An unchanged directory inode is not an unchanged inventory: the
  * provider may create/rename children in place during traversal.
@@ -157,7 +171,8 @@ static int stable_directory(const struct stat*first,const struct stat*after){
         first->st_nlink==after->st_nlink&&
         first->st_size==after->st_size&&
         first->st_mtime==after->st_mtime&&
-        first->st_ctime==after->st_ctime;
+        first->st_ctime==after->st_ctime&&
+        stable_time_precision(first,after);
 }
 static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
                        int*partial,CacheChange*change){

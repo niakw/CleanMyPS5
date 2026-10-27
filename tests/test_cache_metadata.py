@@ -39,10 +39,18 @@ with tempfile.TemporaryDirectory() as temp:
     assert rewritten != baseline, "same-size file rewrite was invisible"
     assert rewritten == capture(), "rewritten metadata was not repeatable"
 
+    # A change in fractional seconds alone must be visible even when
+    # file length and integer mtime seconds are identical.
+    subsecond_ns = new_ns + 1_000_000
+    os.utime(path, ns=(subsecond_ns, subsecond_ns))
+    subsecond = capture()
+    assert subsecond != rewritten, "sub-second metadata mutation was invisible"
+    assert subsecond == capture()
+
     renamed = cache / "other.bin"
     path.rename(renamed)
     moved = capture()
-    assert moved != rewritten, "same-size inode rename was invisible"
+    assert moved != subsecond, "same-size inode rename was invisible"
     assert moved == capture()
     assert renamed.read_bytes() == b"UVWXYZ"
 

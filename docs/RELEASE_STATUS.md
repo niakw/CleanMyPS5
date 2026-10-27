@@ -1,3 +1,19 @@
+## Vérification nanoseconde des identités pendant le scan (27 octobre 2026)
+
+Les empreintes des caches incluaient déjà les fractions de seconde des
+horodatages, mais les doubles lectures `fstatat` d'un fichier ou
+répertoire ne comparaient que les secondes entières. Ces deux contrôles
+utilisent désormais la **même précision** (mtime et ctime, nanosecondes
+quand la plateforme l'expose). Une modification à taille et inode
+identiques dans la même seconde invalide donc le contrôle dès lors que
+le système de fichiers expose la variation. Des tests de fautes
+déterministes injectent une variation de nanoseconde dans un fichier
+de cache, son répertoire et la racine `/data` ; un test de scanner
+sur disque vérifie également une modification fractionnaire. Les
+cache/compteurs observés ne donnent toujours aucun droit d'effacement,
+et aucune atomicité n'est présumée lorsque le système de fichiers
+arrondit ses horodatages.
+
 ### Test d'intégration : plus de 96 dossiers
 
 Le test du scanner natif parcourt également 100 répertoires synthétiques,

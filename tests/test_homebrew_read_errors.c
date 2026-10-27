@@ -22,12 +22,24 @@ static int fake_regular_mode,regular_name_lookups;
 static int fake_directory_metadata_mode,directory_name_lookups;
 static int fake_root_metadata_mode,root_name_lookups;
 static ino_t fake_root_inode;
+/* Flip only the fractional nanoseconds. The seconds, inode, size and
+ * link counts remain the same, simulating a same-second mutation. */
+static void race_flip_mtime_nsec(struct stat*st){
+#if defined(__APPLE__)
+ st->st_mtimespec.tv_nsec^=1L;
+#else
+ st->st_mtim.tv_nsec^=1L;
+#endif
+}
 static int race_fstat(int fd,struct stat*st){
  const int rc=fstat(fd,st);
  if(rc==0&&fake_root_metadata_mode&&S_ISDIR(st->st_mode)&&
     st->st_ino==fake_root_inode){
   ++root_name_lookups;
-  if(root_name_lookups==2)st->st_mtime+=60;
+  if(root_name_lookups==2){
+   if(fake_root_metadata_mode==3)race_flip_mtime_nsec(st);
+   else st->st_mtime+=60;
+  }
  }
  return rc;
 }
@@ -52,12 +64,15 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
    st->st_ino+=1;
  }
  if(rc==0&&fake_directory_metadata_mode){
-  const char*target=fake_directory_metadata_mode==1?"cache":
+  const char*target=fake_directory_metadata_mode==1||
+                    fake_directory_metadata_mode==4?"cache":
                     fake_directory_metadata_mode==2?"nested":"ExampleTool";
   if(strcmp(name,target)==0){
    ++directory_name_lookups;
-   if(directory_name_lookups==(fake_directory_metadata_mode==3?4:2))
-    st->st_mtime+=60; /* same inode, modified contents in place */
+   if(directory_name_lookups==(fake_directory_metadata_mode==3?4:2)){
+    if(fake_directory_metadata_mode==4)race_flip_mtime_nsec(st);
+    else st->st_mtime+=60; /* same inode, modified contents in place */
+   }
   }
  }
  if(rc==0&&fake_regular_mode){
@@ -69,6 +84,7 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
     if(fake_regular_mode==1||fake_regular_mode==4)st->st_ino+=1;
     else if(fake_regular_mode==2)st->st_size+=1;
     else if(fake_regular_mode==3)st->st_mtime-=60;
+    else if(fake_regular_mode==5)race_flip_mtime_nsec(st);
    }
   }
  }
@@ -258,13 +274,13 @@ int main(int argc,char**argv){
  fake_app_identity_mode=0;
  /* A metadata-only scanner must not count an inode, length or mtime
   * which changed between its two anchored file-name probes. */
- for(int mode=1;mode<=4;mode++){
+ for(int mode=1;mode<=5;mode++){
   fake_regular_mode=mode;regular_name_lookups=0;
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial);
   assert(regular_name_lookups>=2);
-  if(mode<=2){
+  if(mode<=2||mode==5){
    /* index.bin is counted separately in the cache shortlist first.
     * Later clean metadata samples in the general tree are independent. */
    assert(stats.cache_like_partial);
@@ -291,13 +307,13 @@ int main(int argc,char**argv){
  fake_regular_mode=0;
  /* Parent-directory changes must not preserve stale file counts even
   * if dev/inode remain identical at every sampled lookup. */
- for(int mode=1;mode<=3;mode++){
+ for(int mode=1;mode<=4;mode++){
   fake_directory_metadata_mode=mode;directory_name_lookups=0;
   memset(&stats,0,sizeof(stats));size=0;
   json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
   assert(json&&size>100&&stats.partial);
   assert(directory_name_lookups>=(mode==3?4:2));
-  if(mode==1){
+  if(mode==1||mode==4){
    assert(stats.cache_like_partial);
    assert(stats.cache_like_folders==3u);
    /* Which cache named directory is sampled first depends on the
@@ -327,7 +343,7 @@ int main(int argc,char**argv){
  /* Simulate an in-place root mutation after its children were read.
   * Revalidating the root must discard all of THAT root's output,
   * not merely set partial=true on stale bytes or stale weak matches. */
- for(int mode=1;mode<=2;mode++){
+ for(int mode=1;mode<=3;mode++){
   char name[1024];
   snprintf(name,sizeof(name),"%s/%s",argv[1],
            mode==1?"data/homebrew":"data");
