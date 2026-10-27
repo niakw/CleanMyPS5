@@ -90,13 +90,17 @@ int main(){
  b.data_root_state=1u;
  b.cache_top[1]=make("Missing",3u,1u,1u);
  r=compare_synced(true);
- assert(r.incomparable==4u&&r.newly_observed==2u);
- assert(r.no_longer_observed==2u&&r.uncertain==0u);
+ assert(r.incomparable==4u&&r.newly_observed==0u);
+ assert(r.no_longer_observed==2u&&r.uncertain==2u);
+ // Identical keys in the new survey are ambiguous observations, NOT
+ // evidence of two distinct newly created cache directories.
  b.cache_top[1]=make("ToolA",1u,2u,1u);
  a.cache_top[1]=make("ToolA",1u,3u,1u);
  r=compare_synced(true);
- assert(r.incomparable==2u&&r.uncertain==2u);
- assert(r.newly_observed==0u&&r.no_longer_observed==0u);
+ assert(r.incomparable==2u&&r.uncertain==1u);
+ assert(r.newly_observed==1u&&r.no_longer_observed==0u);
+ // The other new key is distinct, but the duplicated old key cannot
+ // be compared to it with confidence.
  a.cache_top[1]=make("ToolB",3u,1u,1u);
  b.cache_top[0]=make("ToolB",3u,1u,1u);
  b.cache_top[1]=make("ToolA",1u,5u,1u);
