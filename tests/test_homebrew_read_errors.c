@@ -275,7 +275,9 @@ int main(int argc,char**argv){
    assert(stats.nominal_bytes==39u);
   }else if(mode==3){
    assert(stats.nominal_bytes==35u);
-   assert(!stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
+   /* A changed public file makes the /data traversal incomplete.
+    * Cache nominal bytes remain 22, but they cannot certify coverage. */
+   assert(stats.cache_like_partial&&stats.cache_like_nominal_bytes==22u);
    assert(strstr(json,"\"path\":\"/data/ExampleTool\",\"kind\":\"app-data\",\"risk\":\"protected\",\"nominalBytes\":15,\"files\":4,\"partial\":true"));
   }else{
    assert(stats.nominal_bytes==36u);
