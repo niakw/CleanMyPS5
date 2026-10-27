@@ -25,21 +25,40 @@ struct Comparison {
 };
 inline bool complete(const Cmp5HomebrewStats&s) noexcept {
  if(s.data_root_state!=1u||s.cache_like_partial!=0u||
-    s.cache_top_count>CMP5_CACHE_TOP_CAP)return false;
- for(unsigned i=0;i<s.cache_top_count;i++)
-  if(s.cache_top[i].partial||!s.cache_top[i].app_label[0]||
-     std::strlen(s.cache_top[i].app_label)>=47u)return false;
+    s.cache_ledger_overflow!=0u||
+    s.cache_top_count>CMP5_CACHE_TOP_CAP||
+    s.cache_ledger_count>CMP5_CACHE_LEDGER_CAP||
+    s.cache_ledger_count!=s.cache_like_folders)return false;
+ for(unsigned i=0;i<s.cache_top_count;i++){
+  const void*end=std::memchr(s.cache_top[i].app_label,0,
+                             sizeof(s.cache_top[i].app_label));
+  if(s.cache_top[i].partial||!end||
+     static_cast<const char*>(end)==s.cache_top[i].app_label||
+     static_cast<const char*>(end)-s.cache_top[i].app_label>=47||
+     !s.cache_top[i].identity_key)return false;
+ }
+ for(unsigned i=0;i<s.cache_ledger_count;i++)
+  if(!s.cache_ledger[i].key)return false;
  return true;
 }
-inline bool key_equal(const Cmp5CacheTop&a,const Cmp5CacheTop&b) noexcept {
- return a.kind==b.kind&&std::strcmp(a.app_label,b.app_label)==0;
-}
 inline unsigned matches(const Cmp5HomebrewStats&s,
-                        const Cmp5CacheTop&candidate) noexcept {
+                        std::uint64_t key) noexcept {
  unsigned n=0;
- for(unsigned i=0;i<s.cache_top_count;i++)
-  if(key_equal(s.cache_top[i],candidate))++n;
+ for(unsigned i=0;i<s.cache_ledger_count;i++)
+  if(s.cache_ledger[i].key==key)n++;
  return n;
+}
+inline const Cmp5CacheLedger*locate(const Cmp5HomebrewStats&s,
+                                   std::uint64_t key) noexcept {
+ for(unsigned i=0;i<s.cache_ledger_count;i++)
+  if(s.cache_ledger[i].key==key)return &s.cache_ledger[i];
+ return nullptr;
+}
+inline bool changed(const Cmp5CacheLedger&a,
+                    const Cmp5CacheLedger&b) noexcept {
+ return a.nominal_bytes!=b.nominal_bytes||a.files!=b.files||
+        a.metadata_nodes!=b.metadata_nodes||
+        a.metadata_xor!=b.metadata_xor||a.metadata_sum!=b.metadata_sum;
 }
 inline Comparison compare(const Cmp5HomebrewStats&before,
                           const Cmp5HomebrewStats&after,
@@ -50,39 +69,49 @@ inline Comparison compare(const Cmp5HomebrewStats&before,
   result.state=State::incomplete;return result;
  }
  result.state=State::compared;
+ // Count ALL observed cache folders, not just the four display previews.
+ for(unsigned i=0;i<after.cache_ledger_count;i++){
+  const auto&candidate=after.cache_ledger[i];
+  if(matches(before,candidate.key)!=1u||
+     matches(after,candidate.key)!=1u){
+   result.incomparable++;continue;
+  }
+  const auto*prior=locate(before,candidate.key);
+  if(!prior||!candidate.metadata_complete||!prior->metadata_complete||
+     !candidate.metadata_nodes||!prior->metadata_nodes){
+   result.incomparable++;continue;
+  }
+  result.compared++;
+  if(changed(*prior,candidate))result.changed++;
+  else result.unchanged_observed++;
+ }
+ // Previously observed directories absent this time are NOT declared
+ // deleted or idle. Report the lost comparison coverage explicitly.
+ for(unsigned i=0;i<before.cache_ledger_count;i++)
+  if(matches(after,before.cache_ledger[i].key)==0u)
+   result.incomparable++;
+ // Four human-readable previews, with matching based on exact raw-name
+ // keys instead of sanitised or truncated presentation labels.
  for(unsigned i=0;i<after.cache_top_count;i++){
   const auto&candidate=after.cache_top[i];
-  Entry&entry=result.entries[i];
-  std::memcpy(entry.app_label,candidate.app_label,sizeof(entry.app_label));
+  auto&entry=result.entries[i];
+  std::memcpy(entry.app_label,candidate.app_label,
+              sizeof(entry.app_label));
   entry.kind=candidate.kind;
   entry.new_bytes=candidate.nominal_bytes;
   entry.new_files=candidate.files;
-  if(matches(after,candidate)!=1u||matches(before,candidate)!=1u){
-   result.incomparable++;continue;
-  }
-  const Cmp5CacheTop*previous=nullptr;
-  for(unsigned j=0;j<before.cache_top_count;j++)
-   if(key_equal(before.cache_top[j],candidate)){
-    previous=&before.cache_top[j];break;
-   }
-  if(!previous){result.incomparable++;continue;}
-  entry.old_bytes=previous->nominal_bytes;
-  entry.old_files=previous->files;
-  if(!previous->metadata_complete||!candidate.metadata_complete||
-     !previous->metadata_nodes||!candidate.metadata_nodes){
-   result.incomparable++;continue;
-  }
+  if(matches(before,candidate.identity_key)!=1u||
+     matches(after,candidate.identity_key)!=1u)continue;
+  const auto*prior=locate(before,candidate.identity_key);
+  const auto*current=locate(after,candidate.identity_key);
+  if(!prior||!current||!prior->metadata_complete||
+     !current->metadata_complete||!prior->metadata_nodes||
+     !current->metadata_nodes)continue;
+  entry.old_bytes=prior->nominal_bytes;
+  entry.old_files=prior->files;
   entry.metadata_compared=true;
-  result.compared++;
-  if(previous->nominal_bytes!=candidate.nominal_bytes||
-     previous->files!=candidate.files||
-     previous->metadata_nodes!=candidate.metadata_nodes||
-     previous->metadata_xor!=candidate.metadata_xor||
-     previous->metadata_sum!=candidate.metadata_sum){
-   entry.result=Kind::changed;result.changed++;
-  }else{
-   entry.result=Kind::unchanged_observed;result.unchanged_observed++;
-  }
+  entry.result=changed(*prior,*current)?
+    Kind::changed:Kind::unchanged_observed;
  }
  return result;
 }

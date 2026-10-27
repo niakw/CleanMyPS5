@@ -40,6 +40,13 @@ int main(int argc,char**argv){
  assert(stats.cache_like_folders==4u&&stats.cache_like_files==5u);
  assert(stats.cache_like_nominal_bytes==22u&&!stats.cache_like_partial);
  assert(stats.cache_top_count==4u);
+ assert(stats.cache_ledger_count==4u&&!stats.cache_ledger_overflow);
+ for(unsigned i=0;i<stats.cache_ledger_count;i++){
+  assert(stats.cache_ledger[i].key!=0u);
+  assert(stats.cache_ledger[i].metadata_complete==1u);
+ }
+ for(unsigned i=0;i<stats.cache_top_count;i++)
+  assert(stats.cache_top[i].identity_key!=0u);
  assert(stats.cache_top[0].nominal_bytes==9u);
  assert(stats.cache_top[1].nominal_bytes==7u);
  assert(stats.cache_top[2].nominal_bytes==4u);

@@ -2706,7 +2706,7 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
     const auto&item=cache_change.entries[i];
     if(item.result==cmp5_cache_delta::Kind::changed){
      (void)std::snprintf(observed,sizeof(observed),
-       "%s  %llu -> %llu OCTETS NOMINAUX",
+       "%s  %llu -> %llu OCTETS / METADONNEES",
        item.app_label,
        static_cast<unsigned long long>(item.old_bytes),
        static_cast<unsigned long long>(item.new_bytes));
@@ -2714,9 +2714,10 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
     }
    }
   panel(canvas,503,"VARIATION OBSERVEE",
-     shown?observed:"AUCUN EXEMPLE COMPARABLE DE VARIATION",Color::yellow);
+     shown?observed:
+       "VARIATION HORS TOP 4 OU PAS D EXEMPLE COMPARABLE",Color::yellow);
   panel(canvas,651,"LIMITES DE L OBSERVATION",
-     "TOP 4  NOMS NON CERTIFIES  TAILLES ET FICHIERS SEULEMENT",
+     "REGISTRE 96 MAX  APERCU TOP 4  PAS DE PREUVE D INACTIVITE",
      Color::yellow);
   panel(canvas,799,"PREUVE D INACTIVITE",
      "ABSENTE MEME SI STABLE  ZERO CACHE SUPPRIMABLE",Color::yellow);

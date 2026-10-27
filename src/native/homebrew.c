@@ -355,7 +355,21 @@ static unsigned cache_kind(const char*name){
 /* Keep the four largest observed cache-shaped folders for human review.
  * The display never contains full paths and no entry proves deletion-safe
  * ownership or inactivity. Sorting is stable under equal byte counts. */
-static void record_cache_top(Audit*a,const char*app_name,unsigned kind,
+static uint64_t cache_identity_key(const char*app_name,const char*cache_name){
+ /* Delimited exact basenames, not the lossy 47-char UI label; never
+  * retain a path, a PID or a raw private basename in the ledger. */
+ uint64_t key=UINT64_C(14695981039346656037);
+ for(const unsigned char*p=(const unsigned char*)app_name;*p;p++){
+  key^=*p;key*=UINT64_C(1099511628211);
+ }
+ key=cache_mix64(key,UINT64_MAX);
+ for(const unsigned char*p=(const unsigned char*)cache_name;*p;p++){
+  key^=*p;key*=UINT64_C(1099511628211);
+ }
+ return key?key:1u;
+}
+static void record_cache_top(Audit*a,const char*app_name,
+                             const char*cache_name,unsigned kind,
                             uint64_t bytes,size_t files,int partial,
                             int matched,unsigned age,
                             const CacheChange*change){
@@ -365,6 +379,7 @@ static void record_cache_top(Audit*a,const char*app_name,unsigned kind,
  item.files=(uint32_t)files;
  item.partial=partial?1u:0u;
  item.kind=kind;item.name_matched=matched?1u:0u;item.age_hint=age;
+ item.identity_key=cache_identity_key(app_name,cache_name);
  if(change){
   item.metadata_xor=change->metadata_xor;
   item.metadata_sum=change->metadata_sum;
@@ -385,6 +400,16 @@ static void record_cache_top(Audit*a,const char*app_name,unsigned kind,
  while(len&&item.app_label[len-1]==' ')len--;
  if(!len){memcpy(item.app_label,"APPLICATION",12u);len=11u;}
  item.app_label[len]=0;
+ if(stats->cache_ledger_count<CMP5_CACHE_LEDGER_CAP){
+  Cmp5CacheLedger*stamp=&stats->cache_ledger[stats->cache_ledger_count++];
+  stamp->key=item.identity_key;
+  stamp->nominal_bytes=item.nominal_bytes;
+  stamp->metadata_xor=item.metadata_xor;
+  stamp->metadata_sum=item.metadata_sum;
+  stamp->metadata_nodes=item.metadata_nodes;
+  stamp->metadata_complete=item.metadata_complete;
+  stamp->files=item.files;
+ }else stats->cache_ledger_overflow=1u;
  unsigned where=0;
  for(;where<stats->cache_top_count;where++){
   const Cmp5CacheTop*prev=&stats->cache_top[where];
@@ -469,7 +494,7 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    if(age==0u)a->stats->cache_mtime_unknown++;
    else if(age==1u)a->stats->cache_mtime_recent++;
    else a->stats->cache_mtime_no_recent++;
-   record_cache_top(a,app_name,kind,bytes,files,partial,
+   record_cache_top(a,app_name,e->d_name,kind,bytes,files,partial,
                     weak_match,age,&change);
   }
   if(partial){a->stats->cache_like_partial=1u;a->partial=1;}

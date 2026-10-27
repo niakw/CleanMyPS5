@@ -1,3 +1,24 @@
+## Attribution cache : registre local élargi à 96 dossiers (27 octobre 2026)
+
+La page de comparaison n'utilise plus les quatre plus gros caches comme
+*seule source* de différences. Le scanner conserve un registre temporaire
+borné à **96 dossiers**, avec uniquement une clé hachée de leurs noms
+bruts (application et sous-dossier), les compteurs nominaux et l'empreinte
+de métadonnées précédemment validée. Le texte exact du chemin n'est jamais
+enregistré dans le registre. Les quatre plus gros caches restent des
+aperçus, mais les différences provenant de dossiers plus petits
+participent désormais au bilan agrégé.
+
+Les collisions ou répétitions d'identifiants, les entrées illisibles
+et les empreintes incomplètes ne sont jamais converties en constats
+de stabilité. Si plus de 96 dossiers sont présents, la comparaison
+est **incomplète** au lieu d'afficher une stabilité trompeuse. Les
+entrées vues lors du scan précédent mais absentes du nouveau sont
+signalées non comparables, sans affirmer que les dossiers ont été
+effacés. Cette comparaison ne prouve ni l'usage exclusif d'un cache
+par une application, ni la sécurité d'une suppression. Aucun accès
+API supplémentaire, ouverture de contenu ou effacement n'est ajouté.
+
 ### Tests réels du scanner sur répertoire de cache synthétique
 
 Un nouveau test hôte exécute le vrai `src/native/homebrew.c` deux

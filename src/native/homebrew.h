@@ -11,6 +11,13 @@ typedef int (*Cmp5CancelCheck)(void *context);
 #endif
 #define CMP5_HOMEBREW_TOP_CAP 4u
 #define CMP5_CACHE_TOP_CAP 4u
+#define CMP5_CACHE_LEDGER_CAP 96u
+/* Hash-keyed, pathless scan observations; they do not identify a provider
+ * and cannot be used as deletion targets. Hash collisions fail comparison. */
+typedef struct {
+ uint64_t key,nominal_bytes,metadata_xor,metadata_sum;
+ uint32_t files,metadata_nodes,metadata_complete;
+} Cmp5CacheLedger;
 /* 1=cache, 2=.cache, 3=tmp, 4=temp; not deletion categories. */
 typedef struct {
  uint64_t nominal_bytes;
@@ -25,6 +32,7 @@ typedef struct {
  uint64_t metadata_sum;
  uint32_t metadata_nodes;
  uint32_t metadata_complete;
+ uint64_t identity_key; /* exact raw app/cache basenames, hashed in memory */
  char app_label[48]; /* ASCII basename only; no paths persisted */
 } Cmp5CacheTop;
 /* Categories: 1=homebrew, 2=plugin, 3=app-data, 4=installed.
@@ -57,6 +65,9 @@ typedef struct {
  uint32_t cache_like_folders;
  uint32_t cache_top_count;
  Cmp5CacheTop cache_top[CMP5_CACHE_TOP_CAP];
+ uint32_t cache_ledger_count;
+ uint32_t cache_ledger_overflow;
+ Cmp5CacheLedger cache_ledger[CMP5_CACHE_LEDGER_CAP];
  uint32_t cache_like_files;
  uint32_t cache_like_partial;
  uint64_t cache_like_nominal_bytes;
