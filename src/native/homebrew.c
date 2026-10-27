@@ -506,7 +506,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   * replacement after enumeration must never leave stale JSON entries,
   * top-N items or cache candidates attributed to the new root. */
  struct stat root_after={0},resolved={0};
- const int original_ok=fstat(dirfd(d),&root_after)==0&&
+ /* fdopendir() adopts anchored_fd, but it remains a valid descriptor
+  * until closedir(). Use fstat directly: the PS5 runtime does not
+  * export dirfd(), which is not needed for this metadata check. */
+ const int original_ok=fstat(anchored_fd,&root_after)==0&&
    stable_directory(&root_before,&root_after);
  const int current_fd=open_dir(root,relative);
  const int resolved_ok=current_fd>=0&&
