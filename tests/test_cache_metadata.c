@@ -18,10 +18,21 @@ int main(int argc,char**argv){
  char*json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100u);
  free(json);
+ if(argc==3&&strcmp(argv[2],"excluded")==0){
+  assert(stats.cache_like_folders==1u&&stats.cache_ledger_count==1u);
+  const Cmp5CacheLedger*item=&stats.cache_ledger[0];
+  assert(!item->metadata_complete);
+  assert((item->partial_reasons&CMP5_CACHE_REASON_EXCLUDED)!=0u);
+  assert((stats.cache_reason_mask&CMP5_CACHE_REASON_EXCLUDED)!=0u);
+  assert(stats.cache_like_partial&&stats.partial);
+  puts("Excluded content marked as incomplete without touching files: PASS");
+  return 0;
+ }
  if(argc==3&&strcmp(argv[2],"overflow")==0){
   assert(stats.cache_like_folders==100u);
   assert(stats.cache_ledger_count==CMP5_CACHE_LEDGER_CAP);
   assert(stats.cache_ledger_overflow==1u&&stats.cache_like_partial==1u);
+  assert((stats.cache_reason_mask&CMP5_CACHE_REASON_LIMIT)!=0u);
   assert(stats.partial==1u); /* no false complete comparison */
   assert(stats.cache_top_count==CMP5_CACHE_TOP_CAP);
   assert(stats.cache_ledger[0].nominal_bytes==100u);

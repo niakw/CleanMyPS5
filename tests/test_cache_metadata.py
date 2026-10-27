@@ -70,4 +70,16 @@ with tempfile.TemporaryDirectory() as temp:
         check=True, capture_output=True, text=True, timeout=20)
     assert "overflow fail-closed: PASS" in check.stdout
 
-print("Native metadata rewrites, renames and 96-cache overflow: PASS")
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    (root / "data/homebrew").mkdir(parents=True)
+    (root / "data/etaHEN/plugins").mkdir(parents=True)
+    (root / "user/app").mkdir(parents=True)
+    cache = root / "data/ExampleApp/cache"
+    cache.mkdir(parents=True)
+    (cache / ".private").write_bytes(b"do-not-read")
+    check = subprocess.run([sys.argv[1], str(root), "excluded"],
+        check=True, capture_output=True, text=True, timeout=12)
+    assert "Excluded content marked as incomplete" in check.stdout
+
+print("Native cache metadata, limits and exclusion reasons: PASS")

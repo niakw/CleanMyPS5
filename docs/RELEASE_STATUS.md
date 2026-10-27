@@ -1,3 +1,24 @@
+## Motifs vérifiables d'inventaire de caches incomplet (27 octobre 2026)
+
+Le scanner associe désormais un masque de motifs à ses observations
+de caches en lecture seule : **erreur de lecture**, **accès refusé**,
+**identité ou métadonnées modifiées**, **limite de parcours/capacité** et
+**contenu protégé/exclu**. Plusieurs motifs peuvent coexister pour un
+même dossier. Les indicateurs sont également agrégés sur le relevé
+pour signaler une erreur avant même l'enregistrement d'une entrée.
+Les masques ne contiennent ni noms privés ni chemins.
+
+La page 4/5 affiche les motifs des dossiers dont la couverture n'est
+pas complète. La page 5/5 décrit les motifs du dernier relevé si
+la comparaison a été invalidée. Une entrée exclue pour raisons
+de protection est traitée comme **couverture incomplète**, même si
+les fichiers publics ont été lus correctement. Des tests injectent
+des erreurs d'énumération et des changements d'identité, vérifient
+le dépassement de 96 entrées et la présence d'un fichier privé
+dans un cache fictif. Ce diagnostic ne constitue ni une identification
+certaine du propriétaire, ni une preuve d'inactivité, ni une
+autorisation de suppression.
+
 ## Vérification nanoseconde des identités pendant le scan (27 octobre 2026)
 
 Les empreintes des caches incluaient déjà les fractions de seconde des

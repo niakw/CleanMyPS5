@@ -578,6 +578,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
  if(fd<0){
   const int error=errno;
   if(critical)*critical=root_state_from_errno(error);
+  if(!strcmp(relative,"data")){
+   a->stats->cache_reason_mask|=cache_io_reason(error);
+   a->stats->cache_like_partial=1u;
+  }
   if(error!=ENOENT)a->partial=1;
   return;
  }
@@ -592,6 +596,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
  struct stat root_before={0};
  if(fstat(fd,&root_before)!=0||!S_ISDIR(root_before.st_mode)){
   if(critical)*critical=4u;
+  if(!strcmp(relative,"data")){
+   a->stats->cache_reason_mask|=CMP5_CACHE_REASON_IO;
+   a->stats->cache_like_partial=1u;
+  }
   close(fd);a->partial=1;return;
  }
  const int anchored_fd=fd;
@@ -599,9 +607,14 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   * unrelated root has already set the global partial flag. A partial
   * /data traversal must invalidate the whole cache delta ledger. */
  int root_scan_error=0;
+ uint32_t root_reason=0u;
  DIR*d=fdopendir(fd);
  if(!d){
   if(critical)*critical=4u;
+  if(!strcmp(relative,"data")){
+   a->stats->cache_reason_mask|=cache_io_reason(errno);
+   a->stats->cache_like_partial=1u;
+  }
   close(fd);a->partial=1;return;
  }
  if(critical)*critical=1u;
@@ -610,7 +623,8 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   errno=0;
   e=readdir(d);
   if(!e){
-   if(errno!=0){a->partial=1;root_scan_error=1;}
+   if(errno!=0){a->partial=1;root_scan_error=1;
+    root_reason|=cache_io_reason(errno);}
    break;
   }
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
@@ -625,9 +639,11 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
       !strcasecmp(e->d_name,"plugins"))continue;
   }
   a->visited++;
-  if(over(a)){a->partial=1;root_scan_error=1;break;}
+  if(over(a)){a->partial=1;root_scan_error=1;
+   root_reason|=CMP5_CACHE_REASON_LIMIT;break;}
   struct stat st;
   if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){
+   root_reason|=cache_io_reason(errno);
    a->partial=1;root_scan_error=1;continue;
   }
   if(S_ISLNK(st.st_mode)||(!S_ISREG(st.st_mode)&&!S_ISDIR(st.st_mode)))continue;
@@ -636,10 +652,12 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
   for(size_t i=0;i<count;i++)if(!strcasecmp(e->d_name,names[i]))excluded=1;
   if(excluded)continue;
-  if(a->items>=ITEMS_CAP){a->partial=1;root_scan_error=1;break;}
+  if(a->items>=ITEMS_CAP){a->partial=1;root_scan_error=1;
+   root_reason|=CMP5_CACHE_REASON_LIMIT;break;}
   char relative_path[NAME_CAP];
   if(!join(relative_path,sizeof(relative_path),relative,e->d_name)){
-   a->partial=1;root_scan_error=1;continue;
+   a->partial=1;root_scan_error=1;
+   root_reason|=CMP5_CACHE_REASON_LIMIT;continue;
   }
   uint64_t bytes=0;size_t files=0;int partial=0;
   if(S_ISREG(st.st_mode)){
@@ -674,7 +692,10 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
       if(app_data){
        *a->stats=before_app_stats;
        a->stats->cache_like_partial=1u;
+       a->stats->cache_reason_mask|=CMP5_CACHE_REASON_CHANGED;
       }
+      if(!strcmp(relative,"data"))
+       root_reason|=CMP5_CACHE_REASON_CHANGED;
       a->homebrew_name_count=before_names;
       /* The initial directory name no longer designates the scanned
        * inode. Do not publish its stale bytes/files in top-N, JSON or
@@ -696,22 +717,24 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    else if(!strcmp(kind,"installed"))a->stats->installed++;
    if(UINT64_MAX-a->stats->nominal_bytes<bytes){
     a->stats->nominal_bytes=UINT64_MAX;a->partial=1;
-    root_scan_error=1;
+    root_scan_error=1;root_reason|=CMP5_CACHE_REASON_LIMIT;
    }else a->stats->nominal_bytes+=bytes;
   }
   if(a->items++)add(&a->out,",");
   add(&a->out,"{\"path\":");char display[NAME_CAP+2];
   if(snprintf(display,sizeof(display),"/%s",relative_path)<0){
-   a->partial=1;root_scan_error=1;break;
+   a->partial=1;root_scan_error=1;
+   root_reason|=CMP5_CACHE_REASON_LIMIT;break;
   }
   quote(&a->out,display);
   add(&a->out,",\"kind\":");quote(&a->out,kind);
   add(&a->out,",\"risk\":\"protected\",\"nominalBytes\":");
   char n[72];snprintf(n,sizeof(n),"%llu",(unsigned long long)bytes);add(&a->out,n);
   snprintf(n,sizeof(n),",\"files\":%zu,\"partial\":%s}",files,partial?"true":"false");add(&a->out,n);
-  if(partial){a->partial=1;root_scan_error=1;}
+  if(partial){a->partial=1;root_scan_error=1;
+   if(!root_reason)root_reason|=CMP5_CACHE_REASON_IO;}
   if(a->out.bad||over(a)){
-   root_scan_error=1;break;
+   root_scan_error=1;root_reason|=CMP5_CACHE_REASON_LIMIT;break;
   }
  }
  /* Compare both the still-open directory and the root pathname. A
@@ -736,10 +759,13 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
   a->out.data[before_json]=0;
   a->partial=1;
   if(critical)*critical=4u;
-  root_scan_error=1;
+  root_scan_error=1;root_reason|=CMP5_CACHE_REASON_CHANGED;
  }
- if(!strcmp(relative,"data")&&root_scan_error)
+ if(!strcmp(relative,"data")&&root_scan_error){
+  a->stats->cache_reason_mask|=root_reason?
+    root_reason:CMP5_CACHE_REASON_IO;
   a->stats->cache_like_partial=1u;
+ }
 }
 char*cmp5_homebrew_with_stats(const char*root,size_t*length,
  Cmp5HomebrewStats *stats,Cmp5CancelCheck cancel,void *context){

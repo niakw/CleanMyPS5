@@ -2687,6 +2687,19 @@ void show_access(ps5::demo::Canvas&canvas) noexcept {
    access_page+1u,access_page_count);
  footer(canvas,access_footer);
 }
+/* Reasons describe incomplete observation, never a cleanup target. */
+void cache_reason_text(std::uint32_t reasons,char*out,std::size_t capacity) noexcept {
+ if(!out||!capacity)return;
+ if(!reasons){
+  (void)std::snprintf(out,capacity,"AUCUN INCIDENT SIGNALE");return;
+ }
+ (void)std::snprintf(out,capacity,"%s%s%s%s%s",
+  reasons&CMP5_CACHE_REASON_PERMISSION?" ACCES REFUSE":"",
+  reasons&CMP5_CACHE_REASON_IO?" ERREUR LECTURE":"",
+  reasons&CMP5_CACHE_REASON_CHANGED?" SOURCE MODIFIEE":"",
+  reasons&CMP5_CACHE_REASON_LIMIT?" LIMITE ATTEINTE":"",
+  reasons&CMP5_CACHE_REASON_EXCLUDED?" CONTENU EXCLU":"");
+}
 void show_apps(ps5::demo::Canvas&canvas) noexcept {
  if(task_busy()){
   panel(canvas,355,"APPS ET PLUGINS","INVENTAIRE EN COURS",Color::cyan);
@@ -2718,6 +2731,12 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   else
    (void)std::snprintf(lifecycle,sizeof(lifecycle),
       "SEULS DEUX SCANS COMPLETS PERMETTENT LA COMPARAISON");
+  if(state==cmp5_cache_delta::State::incomplete){
+   char issues[135]{};
+   cache_reason_text(homebrew_stats.cache_reason_mask,
+                     issues,sizeof(issues));
+   (void)std::snprintf(lifecycle,sizeof(lifecycle),"%s",issues);
+  }
   panel(canvas,503,"COUVERTURE ENTRE DEUX SCANS",lifecycle,Color::yellow);
   char observed[165]{};
   bool shown=false;
@@ -2868,6 +2887,14 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
       "%llu OCTETS NOMINAUX  %u FICHIERS  %s%s",
       static_cast<unsigned long long>(item.nominal_bytes),
       item.files,age,!item.metadata_complete?"  PARTIEL":"");
+   if(!item.metadata_complete){
+    char reason[92]{};
+    cache_reason_text(item.partial_reasons,reason,sizeof(reason));
+    const std::size_t used=std::strlen(detail);
+    if(used<sizeof(detail))
+     (void)std::snprintf(detail+used,sizeof(detail)-used,
+       "  %s",item.partial_reasons?reason:" COUVERTURE INCOMPLETE");
+   }
    panel(canvas,355+i*144,label,detail,Color::yellow);
   }
  }

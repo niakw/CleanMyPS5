@@ -1834,6 +1834,8 @@ int main(){
   entry.key=i+1u;entry.nominal_bytes=top.nominal_bytes;
   entry.files=top.files;entry.kind=top.kind;entry.age_hint=top.age_hint;
   entry.metadata_complete=i==0u?1u:0u;
+  entry.partial_reasons=i==0u?0u:
+    (CMP5_CACHE_REASON_EXCLUDED|CMP5_CACHE_REASON_PERMISSION);
   std::strcpy(entry.app_label,top.app_label);
  }
  for(unsigned i=2u;i<5u;i++){
@@ -1855,6 +1857,12 @@ int main(){
    blocked_delete=true;
  }
  assert(listed_cache&&listed_temp&&blocked_delete);
+ bool explicit_reason=false;
+ for(const auto&command:canvas.commands)
+  if(command.text.find("ACCES REFUSE")!=std::string::npos&&
+     command.text.find("CONTENU EXCLU")!=std::string::npos)
+   explicit_reason=true;
+ assert(explicit_reason);
  /* Page navigation exposes entries beyond the first four, never paths. */
  press(down);assert(homebrew_cache_page==1u);
  scene(canvas);
@@ -1909,6 +1917,17 @@ int main(){
   if(cmd.text.find("METADONNEES MODIFIEES  TAILLE IDENTIQUE")!=
        std::string::npos)metadata_only_visible=true;
  assert(metadata_only_visible);
+ /* A partial result shows diagnostic reasons but not an idle claim. */
+ cache_change.state=cmp5_cache_delta::State::incomplete;
+ homebrew_stats.cache_reason_mask=CMP5_CACHE_REASON_IO|
+                                  CMP5_CACHE_REASON_CHANGED;
+ scene(canvas);
+ bool summary_reason=false;
+ for(const auto&cmd:canvas.commands)
+  if(cmd.text.find("ERREUR LECTURE")!=std::string::npos&&
+     cmd.text.find("SOURCE MODIFIEE")!=std::string::npos)
+   summary_reason=true;
+ assert(summary_reason);
  /* Simulate a local user-requested rescan. With unavailable /data on the
   * host, the old comparison is discarded, never treated as current. */
  press(cross);finish_scan();
