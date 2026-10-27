@@ -30,6 +30,9 @@ with tempfile.TemporaryDirectory() as directory:
     (root/"data/homebrew/OtherApp").mkdir(parents=True)
     (root/"data/homebrew/OtherApp/eboot.elf").symlink_to(
         "../ExampleTool/eboot.elf")
+    # An empty nested directory changes neither byte count nor file
+    # count, but permits deterministic nested rename/mount fault tests.
+    (root/"data/ExampleTool/cache/nested").mkdir()
     # Create four distinct, deterministic mtime observations. Reset BOTH
     # the contents and their directory's mtime (directory writes alone
     # would otherwise imply activity within 24 hours).
