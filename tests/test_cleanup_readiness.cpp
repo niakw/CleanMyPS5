@@ -35,6 +35,14 @@ int main(){
  assert(named_cache.first_blocker==Blocker::provider_unverified);
  assert((named_cache.missing_proofs&provider)!=0u);
  assert((named_cache.missing_proofs&verified_backup)!=0u);
+ assert((named_cache.missing_proofs&processes_idle)!=0u);
+ /* Old mtime, matching basename, or even all other independent proofs
+  * cannot stand in for a real PS5 process-state/idle verification. */
+ const auto no_idle=assess(Evidence{Category::homebrew_cache,true,false,
+                                   4u,all_proofs&~processes_idle});
+ assert(no_idle.can_review&&!no_idle.can_delete);
+ assert(no_idle.missing_proofs==processes_idle);
+ assert(no_idle.first_blocker==Blocker::process_active_unknown);
  assert(!assess(unverified_cache_names(true,true,2u)).can_review);
  assert(!assess(unverified_cache_names(true,false,0u)).can_review);
  const auto app_partial=assess(unclassified_app_inventory(true,true,100u));
@@ -53,6 +61,7 @@ int main(){
  assert(gallery.first_blocker==Blocker::references_unverified);
  assert(required_proofs(Category::exact_duplicates)&references);
  assert(required_proofs(Category::autoload)&processes_idle);
+ assert(required_proofs(Category::homebrew_cache)&processes_idle);
  assert((required_proofs(Category::homebrew_cache)&references)==0u);
  for(auto cat:{Category::system_cache,Category::game_images,
                Category::unknown_residues,static_cast<Category>(255u)}){
