@@ -101,7 +101,7 @@ int main(int argc,char**argv){
   assert(stats.cache_like_name_matched+
          stats.cache_like_name_unmatched==stats.cache_like_folders);
   assert(stats.cache_like_nominal_bytes==13u||
-         stats.cache_like_nominal_bytes==17u);
+         stats.cache_like_nominal_bytes==20u);
   assert(strstr(json,"\"cacheCandidates\":{\"folders\":3,"));
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
@@ -116,6 +116,10 @@ int main(int argc,char**argv){
   assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
   assert(nested_name_lookups>=(mode==3?1:mode));
   assert(stats.cache_like_folders==4u);
+  /* Three bytes in the nested subtree must be discarded, not just
+   * flagged as an untrusted timestamp. */
+  assert(stats.cache_like_nominal_bytes==19u&&
+         stats.cache_like_files==4u);
   assert(stats.cache_mtime_unknown==2u);
   assert(stats.cache_mtime_recent==0u);
   assert(stats.cache_mtime_no_recent==2u);
