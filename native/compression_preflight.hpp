@@ -60,6 +60,8 @@ struct GamePreflight {
  char title_id[16]{};
  std::uint64_t source_bytes=0,image_bytes=0,need_typical=0,need_max=0,dest_free=0,dest_total=0;
  unsigned errors=0,warnings=0;
+ /* Only bounded machine codes, never arbitrary JSON text or private paths. */
+ char first_error[32]{},first_warning[32]{};
  bool compatible=false,compatibility_pending=false;
  bool ready() const noexcept {
   return compatible&&title_id[0]&&source_bytes>0&&need_max>0&&
@@ -122,12 +124,31 @@ class PreflightParser {
   if(p<end&&*p=='-')++p;
   std::uint64_t n=0;return positive(&n);
  }
- bool string_list(unsigned*out) noexcept {
+ bool string_list(unsigned*out,char*first,std::size_t cap) noexcept {
+  if(first&&cap)first[0]=0;
   if(!take('['))return false;
   unsigned n=0;
   if(take(']')){*out=0;return true;}
   for(;;){
-   if(++n>20||!string(nullptr,0))return false;
+   if(++n>20)return false;
+   const char*begin=p;
+   if(!string(nullptr,0))return false;
+   /* Extract only the FIRST bare, bounded machine code. JSON escapes,
+    * controls, punctuation and path-shaped values remain undisplayed.
+    * Other list entries are still parsed and counted normally. */
+   if(n==1&&first&&cap&&p>begin+2){
+    const std::size_t size=static_cast<std::size_t>(p-begin)-2u;
+    if(size<cap){
+     bool safe=true;
+     for(std::size_t i=0;i<size;i++){
+      const char c=begin[i+1u];
+      if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='_')){
+       safe=false;break;
+      }
+     }
+     if(safe){std::memcpy(first,begin+1,size);first[size]=0;}
+    }
+   }
    if(take(']'))break;
    if(!take(','))return false;
   }
@@ -172,8 +193,10 @@ public:
      !positive(&out->dest_free)||!take(',')||!field("dest_total")||
      !positive(&out->dest_total)||!take(',')||!field("compatible")||
      !compatibility(&out->compatible,&out->compatibility_pending)||!take(',')||
-     !field("errors")||!string_list(&out->errors)||!take(',')||
-     !field("warnings")||!string_list(&out->warnings)||
+     !field("errors")||
+     !string_list(&out->errors,out->first_error,sizeof(out->first_error))||
+     !take(',')||!field("warnings")||
+     !string_list(&out->warnings,out->first_warning,sizeof(out->first_warning))||
      !take('}')||p!=end)return false;
   // An actual title id: four uppercase letters, five decimal digits.
   if(std::strlen(out->title_id)!=9)return false;
@@ -184,6 +207,52 @@ public:
   return out->dest_free<=out->dest_total&&out->need_typical<=out->need_max;
  }
 };
+/* Known codes originate from the pinned AMPR job_preflight implementation.
+ * Never render a raw service-provided error string in the console UI. */
+inline const char* preflight_issue_label(const GamePreflight&v) noexcept {
+ const char*c=v.errors?v.first_error:v.first_warning;
+ struct Entry {const char*code;const char*label;};
+ static constexpr Entry messages[]={
+  {"source_missing","SOURCE DU JEU INTROUVABLE"},
+  {"not_game","DOSSIER NON RECONNU COMME JEU"},
+  {"already_ampr","JEU DEJA CONVERTI EN AMPR"},
+  {"not_ampr","JEU INCOMPATIBLE AVEC AMPR"},
+  {"game_running","FERMER LE JEU AVANT CONVERSION"},
+  {"dest_missing","STOCKAGE DESTINATION INTROUVABLE"},
+  {"dest_readonly","DESTINATION NON INSCRIPTIBLE"},
+  {"space_insufficient","ESPACE DESTINATION INSUFFISANT"},
+  {"dest_not_converted","DESTINATION OCCUPEE PAR UN AUTRE JEU"},
+  {"fakelib_disabled","FAKELIB DESACTIVEE POUR CE JEU"},
+  {"smp_wait_app","FERMER L APPLICATION POUR MONTER L IMAGE"},
+  {"smp_wait_game","FERMER LE JEU POUR MONTER L IMAGE"},
+  {"ampr_unknown","COMPATIBILITE AMPR INDETERMINEE"},
+  {"backport_ampr","CONFLIT POSSIBLE AVEC UN BACKPORT"},
+  {"space_low","ESPACE DESTINATION TROP FAIBLE"},
+  {"already_exists","UNE SORTIE EXISTE DEJA"}
+ };
+ for(const auto&entry:messages)
+  if(std::strcmp(c,entry.code)==0)return entry.label;
+ return v.errors?"BLOCAGE SIGNALE PAR LE MOTEUR":
+        v.warnings?"ALERTE SIGNALEE PAR LE MOTEUR":
+        v.compatibility_pending?"IMAGE NON MONTEE  COMPATIBILITE INCONNUE":
+        !v.compatible?"COMPATIBILITE AMPR NON CONFIRMEE":
+        v.dest_free<v.need_max?"ESPACE DESTINATION INSUFFISANT":
+        "VERIFIER LES CONDITIONS DE CONVERSION";
+}
+/* Required capacity is rounded UP; available space is rounded DOWN.
+ * Both are shown to two decimal GiB without 64-bit overflow, so even
+ * a 256 MiB requirement never appears as '0 Gio'. */
+struct GibDisplay {std::uint64_t whole=0;unsigned hundredths=0;};
+inline GibDisplay display_gib(std::uint64_t bytes,bool round_up) noexcept {
+ constexpr std::uint64_t unit=1073741824ULL;
+ GibDisplay out{bytes/unit,0u};
+ const auto fractional=(bytes%unit)*100ULL;
+ const auto scaled=round_up?(fractional+unit-1ULL)/unit:
+                           fractional/unit;
+ if(scaled==100ULL){out.whole++;return out;}
+ out.hundredths=static_cast<unsigned>(scaled);
+ return out;
+}
 inline bool parse_game_preflight(const char*data,std::size_t n,
                                  GamePreflight*out) noexcept {
  if(!data||!out||n<180||n>4096)return false;

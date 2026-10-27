@@ -1,3 +1,28 @@
+## Precontrole AMPR : afficher la premiere cause et les Gio precis (27 octobre 2026)
+
+Le controle de conversion retourne deja des codes distincts en cas de
+source introuvable, jeu actif, conflit de bibliotheque, volume absent
+ou manque de place. Auparavant le titre PS5 affichait uniquement les
+**nombres** d'erreurs et d'alertes ; les causes restaient masquees.
+Le titre lit maintenant le premier code de chaque liste (maximum
+20 elements), ne retient que les identifiants machine bornes avec
+lettres minuscules, chiffres et underscore, et le **traduit via une
+liste de messages francais fixes** correspondant aux codes du moteur
+AMPR epingle. Un code inconnu, un echappement JSON ou une valeur
+ressemblant a un chemin prive produit uniquement un message generique.
+Les erreurs priment sur les alertes. Aucun texte brut de l'API n'est
+dessine dans l'interface.
+
+La capacite maximale requise s'affiche en Gio avec deux decimales
+arrondies **vers le haut**, tandis que l'espace disponible est
+arrondi **vers le bas**. Un besoin de 256 Mio affiche donc 0,25 Gio,
+pas 0 Gio. Les calculs evitent tout overflow sur les entiers 64 bits.
+
+Les fixtures du parseur testent les codes reconnus, plusieurs erreurs,
+les codes inconnus/valeurs privees et les arrondis aux bornes.
+La compatibilite et les verifications de securite du worker restent
+independantes ; ceci ne change ni les jobs ni les fichiers source.
+
 ## Débit observé dans le moniteur LZ4 (27 octobre 2026)
 
 Le moniteur natif peut maintenant afficher un débit estimé, en Mio/s,

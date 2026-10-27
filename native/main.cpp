@@ -3998,18 +3998,18 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      game_preflight.errors,game_preflight.warnings);
    panel(canvas,585,"COMPATIBILITE AMPR",detail,
      game_preflight.ready()?Color::cyan:Color::yellow);
+   const auto required=cmp5_compression::display_gib(game_preflight.need_max,true);
+   const auto available=cmp5_compression::display_gib(game_preflight.dest_free,false);
    (void)std::snprintf(detail,sizeof(detail),
-     "REQUIS MAX: %llu GIO   LIBRES: %llu GIO",
-     static_cast<unsigned long long>(game_preflight.need_max/1073741824ULL),
-     static_cast<unsigned long long>(game_preflight.dest_free/1073741824ULL));
+     "REQUIS MAX: %llu.%02u GIO   LIBRES: %llu.%02u GIO",
+     static_cast<unsigned long long>(required.whole),required.hundredths,
+     static_cast<unsigned long long>(available.whole),available.hundredths);
    panel(canvas,732,"RESERVATION DE STOCKAGE",detail,
      game_preflight.ready()?Color::cyan:Color::yellow);
    canvas.text(120,885,game_preflight.ready()?
       "PRECONTROLE FAVORABLE  X POUR CONFIRMER 1/2":
-      game_preflight.compatibility_pending?
-         "JEU IMAGE NON MONTE  COMPATIBILITE NON PROUVEE":
-         "CONVERSION BLOQUEE: COMPATIBILITE OU ESPACE A VERIFIER",
-      2,Color::yellow);
+      cmp5_compression::preflight_issue_label(game_preflight),
+      2,game_preflight.ready()?Color::cyan:Color::yellow);
   }
   footer(canvas,"X SI COMPATIBLE  TRIANGLE REVERIFIER  CERCLE JEUX");
   return;
