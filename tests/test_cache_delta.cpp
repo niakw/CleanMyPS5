@@ -74,7 +74,7 @@ int main(){
  assert(!r.idle_verified&&!r.deletion_allowed);
  b.cache_top[0]=make("Missing",3u,1u,1u);
  r=compare_synced(true);
- assert(r.compared==1u&&r.incomparable==1u);
+ assert(r.compared==1u&&r.incomparable==2u); // new + no-longer-observed
  b.cache_top[1].partial=1u;
  r=compare_synced(true);
  assert(r.state==State::incomplete&&r.compared==0u);
@@ -86,7 +86,7 @@ int main(){
  assert(compare_synced(true).state==State::incomplete);
  b.data_root_state=1u;
  b.cache_top[1]=make("Missing",3u,1u,1u);
- assert(compare_synced(true).incomparable==2u); // duplicate sanitised label
+ assert(compare_synced(true).incomparable==4u); // two new + two lost
  b.cache_top[1]=make("ToolA",1u,2u,1u);
  a.cache_top[1]=make("ToolA",1u,3u,1u);
  assert(compare_synced(true).incomparable==2u); // non-unique candidate key
