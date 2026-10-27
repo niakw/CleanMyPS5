@@ -986,6 +986,7 @@ bool game_job_attempted=false,game_job_accepted=false,game_job_reply_unknown=fal
 bool game_job_plan_changed=false;
 unsigned game_job_position=0;
 cmp5_compression::GameProgress game_progress{};
+cmp5_compression::ProgressRate game_progress_rate{};
 cmp5_compression::ProgressRefresh game_progress_refresh{};
 std::uint64_t compression_monotonic_ns() noexcept {
  struct timespec ts{};
@@ -1014,6 +1015,7 @@ void reset_compression_job_state() noexcept {
  game_job_attempted=false;game_job_accepted=false;game_job_reply_unknown=false;
  game_job_plan_changed=false;
  game_job_position=0;game_progress={};game_progress_checked=false;
+ game_progress_rate.clear();
  game_pause_attempted=false;game_pause_accepted=false;game_pause_unknown=false;
  game_resume_attempted=false;game_resume_accepted=false;game_resume_unknown=false;
  game_preflight=cmp5_compression::GamePreflight{};
@@ -1407,7 +1409,9 @@ void run_game_progress() noexcept {
  char ver[32]{};
  if(check_local_ampr(ver)&&ampr_read_progress(&result)&&
     !cancellation_hook(nullptr)){
-  game_progress=result;game_progress_checked=true;
+  game_progress=result;
+  game_progress_rate.observe(result,compression_monotonic_ns());
+  game_progress_checked=true;
   /* A confirmed transition back to RUNNING concludes an accepted resume.
    * A later automatic storage pause can then be resumed separately. */
   if(result.state==cmp5_compression::JobState::running &&
@@ -1417,6 +1421,7 @@ void run_game_progress() noexcept {
    game_pause_accepted=false;
   }
  }
+ if(!game_progress_checked)game_progress_rate.clear();
 }
 /* Pause is reversible; it checkpoints the packed output, NEVER the
  * original game directory. Refuse to pause another title's active job. */
@@ -3867,9 +3872,18 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
      game_progress.queue_len);
    panel(canvas,712,"AVANCEMENT RECU",detail,Color::cyan);
    char stage[190]{};
-   (void)std::snprintf(stage,sizeof(stage),"ETAPE: %s  |  %s",
-      cmp5_compression::phase_label(game_progress.phase),
-      cmp5_compression::reason_label(game_progress.reason));
+   if(game_progress_rate.available){
+    (void)std::snprintf(stage,sizeof(stage),
+       "ETAPE: %s  |  %s  |  DEBIT %u.%02u MIO/S",
+       cmp5_compression::phase_label(game_progress.phase),
+       cmp5_compression::reason_label(game_progress.reason),
+       game_progress_rate.hundredths_mib_per_second/100u,
+       game_progress_rate.hundredths_mib_per_second%100u);
+   }else{
+    (void)std::snprintf(stage,sizeof(stage),"ETAPE: %s  |  %s",
+       cmp5_compression::phase_label(game_progress.phase),
+       cmp5_compression::reason_label(game_progress.reason));
+   }
    canvas.text(125,815,stage,2,
      game_progress.reason==cmp5_compression::PauseReason::none?
        Color::cyan:Color::yellow);

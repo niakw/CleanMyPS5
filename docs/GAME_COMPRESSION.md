@@ -1,3 +1,19 @@
+## Débit observé dans le moniteur LZ4 (27 octobre 2026)
+
+Le moniteur natif peut maintenant afficher un débit estimé, en Mio/s,
+à partir de deux relevés du **même jeu et de la même étape** PACK, COPY
+ou VERIFY, séparés d'au moins une seconde sur une horloge monotone.
+Ce débit est une mesure observée, pas une vitesse promise, un ETA ou
+une attestation de jouabilité. L'affichage reste absent au premier
+relevé, si l'étape ou le jeu change, sur pause, sur perte de réponse,
+si le compteur recule ou si le total est incohérent.
+
+Le test C++ simule une progression de 1 Mio/s, un changement de phase,
+un changement de jeu, une pause, un compteur remis à zéro, une horloge
+régressive et un total invalide. Aucun trafic réseau ni écriture
+supplémentaire n'est provoqué : le moteur AMPR/LZ4 et ses checkpoints
+sont inchangés. Le rendu sur PS5 13.60 n'est pas encore testé.
+
 # Compression des jeux PS5 — conserver le lancement
 
 ## Montages USB/EXT : refus avant toute nouvelle conversion (26 octobre 2026)

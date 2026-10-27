@@ -57,6 +57,44 @@ struct GameProgress {
  bool launch_checked=false; /* prelaunch check, NOT tested gameplay */
  char title_id[16]{}; /* only a validated 9-character ID can authorize pause */
 };
+/* Advisory measured transfer rate from successive read-only worker polls.
+ * A new title, phase, paused job, backwards counter or invalid clock resets
+ * the baseline. This is not a prediction of remaining time or launchability. */
+struct ProgressRate {
+ char title_id[16]{};
+ JobPhase phase=JobPhase::idle;
+ std::uint64_t last_ns=0,last_bytes=0;
+ unsigned hundredths_mib_per_second=0;
+ bool available=false;
+ void clear() noexcept {*this=ProgressRate{};}
+ void observe(const GameProgress&value,std::uint64_t now) noexcept {
+  const bool transfer=value.phase==JobPhase::pack||
+    value.phase==JobPhase::copy||value.phase==JobPhase::verify;
+  if(!now||value.state!=JobState::running||!transfer||
+     !value.title_id[0]||
+     !std::memchr(value.title_id,0,sizeof(value.title_id))||
+     !value.bytes_total||value.bytes_done>value.bytes_total){
+   clear();return;
+  }
+  const bool same_job=last_ns!=0&&now>last_ns&&
+    phase==value.phase&&
+    std::memcmp(title_id,value.title_id,sizeof(title_id))==0&&
+    value.bytes_done>=last_bytes;
+  available=false;
+  if(same_job&&now-last_ns>=1000000000ULL){
+   const double seconds=static_cast<double>(now-last_ns)/1000000000.0;
+   const double rate=static_cast<double>(value.bytes_done-last_bytes)/
+       seconds*(100.0/1048576.0);
+   if(rate>=0.0&&rate<=1000000.0){
+    hundredths_mib_per_second=static_cast<unsigned>(rate+0.5);
+    available=true;
+   }
+  }
+  std::memcpy(title_id,value.title_id,sizeof(title_id));
+  phase=value.phase;
+  last_ns=now;last_bytes=value.bytes_done;
+ }
+};
 class ProgressParser {
  const char*p;const char*end;
  bool token(const char*s) noexcept {
