@@ -1,3 +1,21 @@
+## Taille des dossiers de jeu : refus des sous-montages étrangers (27 octobre 2026)
+
+Le calcul en lecture seule de la taille d'un dossier de jeu refuse
+désormais un fichier ou sous-répertoire dont le st_dev ne correspond
+pas au répertoire parent immédiatement inspecté. Un montage imbriqué
+ou un bind depuis un autre système de fichiers ne peut ainsi être
+additionné à tort au total du jeu. La fiche du dossier reste visible,
+mais indique une taille incomplète et aucun octet n'est attribué
+comme taille totale certaine. Les images et jeux d'autres racines
+indépendantes continuent d'être inventoriés.
+
+Deux injections hôte simulent une entrée régulière et un sous-dossier
+sur un périphérique différent. Les tests vérifient la couverture
+partielle, l'absence de taille de jeu publiée et la conservation
+du candidat externe sain. Ceci reste un indice d'inventaire :
+ni compatibilité de compression, ni montage réel, ni gameplay
+sur PS5 13.60 ne sont démontrés par ce contrôle.
+
 ## Diagnostic USB/EXT : un répertoire n'est pas un volume monté (27 octobre 2026)
 
 Le helper GET /api/volumes compare maintenant le périphérique st_dev

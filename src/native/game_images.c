@@ -129,6 +129,12 @@ static int total_game_tree(Audit*a,int fd,unsigned depth,uint64_t*out){
   if(fstatat(fd,entry->d_name,&st,AT_SYMLINK_NOFOLLOW)!=0){
    good=0;break;
   }
+  /* An embedded mount or bind of a different filesystem is not part of
+   * the enclosing game directory's independently attributable size.
+   * Refuse the entire advertised folder total rather than silently
+   * adding unrelated bytes. The UI can still show the folder as partial.
+   * This does not assert whether the mounted content is a valid game. */
+  if(st.st_dev!=before.st_dev){good=0;break;}
   if(S_ISREG(st.st_mode)){
    /* A file observed before traversal may be replaced, resized, or
     * rewritten before we account for its nominal bytes. The second
