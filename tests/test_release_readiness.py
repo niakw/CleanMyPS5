@@ -51,6 +51,20 @@ with tempfile.TemporaryDirectory() as work:
     assert result["readOnlyDiagnosticRelease"]["status"] == "hardware-validation-required"
     assert result["reversibleCleanerRelease"]["status"] == "blocked"
     assert not result["reversibleCleanerRelease"]["destructiveFunctionsEnabled"]
+    # Release evidence and roadmap are distinct: the manifest is NOT a
+    # CI result, PS5 hardware report, or deletion authorization.
+    stages = result["validationMilestones"]
+    assert [x["id"] for x in stages] == [
+        "M1_HOST_CODE", "M2_PS5_NATIVE", "M3_LZ4_GAMEPLAY",
+        "M4_REVERSIBLE_CLEANUP", "M5_RELEASE"
+    ]
+    assert [x["status"] for x in stages] == [
+        "packaged_ci_validation_required", "hardware_evidence_missing",
+        "hardware_evidence_missing", "blocked_no_safe_sony_mutation",
+        "blocked_by_scope_gates"
+    ]
+    assert all("verified" not in s["status"] for s in stages)
+    assert "SMOKE_TEST_PS5_13_60.md" in stages[1]["acceptance"]
     assert len(result["blockingConditions"]) == 5
     assert all(item["status"] != "verified" for item in result["blockingConditions"])
     assert not result["nativeArtifact"]["hasExperimentalFfpkg"]

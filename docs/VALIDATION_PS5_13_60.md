@@ -1,3 +1,11 @@
+> **Deux contrôles distincts.** La [première recette M2
+> non destructive](SMOKE_TEST_PS5_13_60.md) est destinée à constater
+> l'exécution réelle et les droits du titre installé. Elle ne nécessite
+> pas d'avoir déjà implémenté la suppression Sony. Le présent document
+> conserve les **portes de livraison finale**, qui restent bloquées.
+> Ne pas transformer une recette M2 réussie en autorisation de supprimer
+> des fichiers ni de convertir un jeu.
+
 # CleanMyPS5 — portes de livraison et acceptation PS5 firmware 13.60
 
 **État : développement natif en cours, aucune validation matérielle sur PS5 13.60.**

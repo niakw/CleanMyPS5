@@ -79,8 +79,36 @@ def inspect(manifest_path: Path) -> dict:
             "acceptance": "Confirm install/uninstall and restart behavior on compatible title manager",
         },
     ]
+    milestones = [
+        {
+            "id": "M1_HOST_CODE",
+            "status": "packaged_ci_validation_required",
+            "acceptance": "Same revision: host tests, sanitizers, CodeQL and PS5 packaging successful",
+        },
+        {
+            "id": "M2_PS5_NATIVE",
+            "status": "hardware_evidence_missing",
+            "acceptance": "Complete docs/SMOKE_TEST_PS5_13_60.md on real firmware 13.60",
+        },
+        {
+            "id": "M3_LZ4_GAMEPLAY",
+            "status": "hardware_evidence_missing",
+            "acceptance": "Separate copy: pack, checksum, interruption/resume and verified launch",
+        },
+        {
+            "id": "M4_REVERSIBLE_CLEANUP",
+            "status": "blocked_no_safe_sony_mutation",
+            "acceptance": "Category-specific Sony references, restored original and verified space reclamation",
+        },
+        {
+            "id": "M5_RELEASE",
+            "status": "blocked_by_scope_gates",
+            "acceptance": "Only claim documented M1/M2/M3/M4 proofs required by the chosen release scope",
+        },
+    ]
     return {
         "schemaVersion": 1,
+        "validationMilestones": milestones,
         "titleId": "PPSA99784",
         "sourceEvidence": "native-release-manifest",
         "manifestSha256": hashlib.sha256(raw).hexdigest(),

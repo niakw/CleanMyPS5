@@ -1,3 +1,41 @@
+# Roadmap de clôture — CleanMyPS5
+
+**Référence active :** `main` à partir de `5264120` (27 octobre 2026).
+**Périmètre gelé** : titre natif `PPSA99784` + inventaire non destructif
++ compression AMPR/LZ4 en option + nettoyage seulement après preuves Sony.
+Ne pas ouvrir de fonctionnalité supplémentaire sans décision de périmètre.
+
+| Jalon | Objectif / critère de sortie | État vérifié |
+| --- | --- | --- |
+| **M1 — Socle CI** | Tests Linux/macOS/sanitizers/CodeQL + ELF + archive PS5 verts pour un même commit | **TERMINÉ côté CI**, commit `5264120` |
+| **M2 — Première exécution PS5** | Installation, démarrage, DualSense, scans lecture seule, fermeture/reprise sur FW 13.60 ; [fiche M2](SMOKE_TEST_PS5_13_60.md) | **NON TESTÉ — prochaine étape** |
+| **M3 — Compression réelle** | Après M2, convertir une **copie** distincte, vérifier intégrité, pause/reprise et lancement d'un jeu ; conserver l'original | **NON TESTÉ SUR CONSOLE** |
+| **M4 — Nettoyage réellement réversible** | Identifier une catégorie supprimable avec registre/dépendances, sauvegarde/restauration vérifiées, preuve d'espace libéré, rollback/arrêts | **BLOQUÉ — API et preuves manquantes** |
+| **M5 — Livraison** | Repasser CI sur la révision testée, recette installation/désinstallation, métadonnées et SHA-256, documenter explicitement les capacités prouvées | **BLOQUÉ par les jalons requis** |
+
+**Deux sorties possibles, à ne jamais confondre :** une livraison
+*Diagnostic en lecture seule* exige M1 + M2 ; une livraison
+*Diagnostic + Compression* exige M1 + M2 + M3. La livraison comme
+**nettoyeur** exige en plus M4. M5 vérifie le périmètre réellement
+annoncé, pas toutes les fonctionnalités imaginables.
+
+**Stop rule :** une CI verte ne clôture que M1. Une absence de preuve
+matérielle ne déclenche pas une nouvelle série de durcissements sans
+bug reproductible ; elle reste `NON TESTÉ`. Un blocage de la base
+multimédia Sony interdit l'activation des suppressions, sans bloquer
+indéfiniment une première validation des diagnostics en lecture seule.
+
+**Dernier artefact M1 :**
+[workflow natif 40574602802](https://github.com/niakw/CleanMyPS5/actions/runs/40574602802)
+(archive expérimentale et rapport de sécurité ; aucun essai PS5 établi).
+Les rapports générés par `scripts/release_readiness.py` émettent
+également les statuts machine des cinq jalons, jamais de validation
+matérielle inférée du manifeste.
+
+---
+
+## Historique technique antérieur (référence, non plan de travaux actif)
+
 # CleanMyPS5 — validation et priorités
 
 **État natif :** dossier de titre `PPSA99784/` compilé avec `eboot.bin`, icône, runtime et écran DualSense. Le scanner de métadonnées est désormais **lié dans `eboot.bin`**, les analyses passent sur un worker avec annulation coopérative (Cercle), résultats interrompus rejetés, un catalogue natif de 10 000 médias maximum (dans la limite des dossiers et permissions) est paginé et filtrable depuis Nettoyage et le guide Retour officiel a huit étapes cochables et un diagnostic autoload natif à 11 chemins, accessible avec Carré depuis le guide (comptes uniquement, permissions du titre, sans garantie PSN). Un helper ELF **facultatif** expose des diagnostics et une couverture complémentaire en lecture seule sur loopback. La CI produit aussi un `.ffpkg` UFS2 expérimental. La construction active désormais une vraie boucle de rafraîchissement VideoOut, contrairement au template original qui n'affichait que l'image initiale. Compilation et tests de correspondance de version exigés en CI ; aucune validation physique sur FW 13.60 ni aucun nettoyage activé. Le tableau ci-dessous décrit majoritairement l'ancien moteur de lecture WebKit/ELF, pas la parité de l'interface native. Le scanner utilise maintenant une table de hachage exacte (dev/inode) pour éviter un coût quadratique des déduplications sur grosses bibliothèques.
