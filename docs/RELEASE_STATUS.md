@@ -1,3 +1,22 @@
+## Compression : refuser une sélection de dossier sans taille vérifiée (27 octobre 2026)
+
+Un dossier de jeu dont le scan n'a pas terminé tous les contrôles
+restait sélectionnable par X dans l'écran **Compression des jeux**,
+malgré le libellé `TAILLE INCOMPLETE`. Le moteur AMPR possède son propre
+précontrôle obligatoire, mais l'interface n'avait aucune raison de
+déclencher ce précontrôle pour une source déjà incertaine.
+
+La préparation d'une conversion exige désormais
+`size_complete==1` et une taille nominale non nulle pour le
+**dossier sélectionné**, indépendamment du caractère partiel du scan
+global (les autres jeux complets restent disponibles). En cas de
+refus, aucun état de conversion n'est préparé, aucun travail n'est
+lancé et le pied d'écran affiche **`X BLOQUE`** avec la nécessité
+de réinventorier les données. Les tests de navigation vérifient les
+deux refus et le retour à la sélection après restauration d'une taille
+valide. Le contrôle indépendant AMPR reste requis même pour un dossier
+admis, et la jouabilité PS5 13.60 n'est pas prétendue validée.
+
 ## Inventaire des jeux : identité des fichiers et des sous-dossiers (27 octobre 2026)
 
 Le calcul nominal des tailles de dossiers de jeux parcourait les fichiers

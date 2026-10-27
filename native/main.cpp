@@ -1020,7 +1020,12 @@ bool stage_game_image_preflight() noexcept {
 bool stage_game_preflight() noexcept {
  if(!game_images_checked||compression_selection>=game_images.shown_folders||
     compression_destination>=game_destination_count)return false;
- const char*source=game_images.folder[compression_selection].path;
+ /* A filesystem scan interrupted by a changed file or directory must not
+  * become an affirmative compression selection. The engine still performs
+  * its own mandatory independent preflight on complete entries. */
+ const Cmp5GameFolder&selected=game_images.folder[compression_selection];
+ if(!selected.size_complete||selected.nominal_bytes==0u)return false;
+ const char*source=selected.path;
  const char*dest=game_destinations[compression_destination];
  if(!source[0]||std::strlen(source)>=sizeof(game_source_checked)||
     std::strlen(dest)>=sizeof(game_dest_checked))return false;
@@ -3940,7 +3945,13 @@ void show_compression(ps5::demo::Canvas&canvas) noexcept {
    }
   }
   panel(canvas,897,"DESTINATION",game_destinations[compression_destination]);
-  footer(canvas,"X CONTROLE DU JEU  GAUCHE/DROITE DESTINATION  CARRE MOTEUR");
+  const bool eligible=game_images.shown_folders>0u&&
+    compression_selection<game_images.shown_folders&&
+    game_images.folder[compression_selection].size_complete!=0u&&
+    game_images.folder[compression_selection].nominal_bytes>0u;
+  footer(canvas,eligible?
+    "X CONTROLE DU JEU  GAUCHE/DROITE DESTINATION  CARRE MOTEUR":
+    "TAILLE NON VERIFIEE  X BLOQUE  RELANCER INVENTAIRE AVANT CONVERSION");
   return;
  }
  (void)std::snprintf(detail,sizeof(detail),

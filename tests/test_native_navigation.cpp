@@ -1386,6 +1386,23 @@ int main(){
  assert(compression_selection==1u);
  press(up);
  assert(compression_selection==0u);
+ /* Incomplete or zero-byte folders remain visible for diagnosis, but
+  * cannot trigger any compression preflight or send a POST. */
+ const std::uint64_t original_folder_size=game_images.folder[0].nominal_bytes;
+ const unsigned preflight_gets_before=mock_ampr_gets;
+ game_images.folder[0].size_complete=0u;
+ press(cross);assert(compression_view==1u&&!task_busy());
+ scene(canvas);
+ bool blocked_incomplete=false;
+ for(const auto&command:canvas.commands)
+  if(command.text.find("X BLOQUE")!=std::string::npos)
+   blocked_incomplete=true;
+ assert(blocked_incomplete&&mock_ampr_gets==preflight_gets_before);
+ game_images.folder[0].size_complete=1u;
+ game_images.folder[0].nominal_bytes=0u;
+ press(cross);assert(compression_view==1u&&!task_busy());
+ assert(mock_ampr_gets==preflight_gets_before);
+ game_images.folder[0].nominal_bytes=original_folder_size;
  press(l1);
  assert(compression_view==0u);
  scene(canvas);
