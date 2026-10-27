@@ -1749,7 +1749,23 @@ int main(){
  scene(canvas);
  assert(homebrew_page==0u);
  press(r1);assert(homebrew_page==1u);
+ const auto before_mtime_ui=homebrew_stats;
+ homebrew_stats.cache_like_folders=4u;
+ homebrew_stats.cache_mtime_recent=1u;
+ homebrew_stats.cache_mtime_unknown=1u;
+ homebrew_stats.cache_mtime_no_recent=2u;
  scene(canvas);
+ bool observed_recent=false,observed_unknown=false,no_idle_claim=false;
+ for(const auto&command:canvas.commands){
+  if(command.text.find("24H:1")!=std::string::npos)
+   observed_recent=true;
+  if(command.text.find("DATE?:1")!=std::string::npos)
+   observed_unknown=true;
+  if(command.text.find("INACTIVITE NON PROUVEE")!=std::string::npos)
+   no_idle_claim=true;
+ }
+ assert(observed_recent&&observed_unknown&&no_idle_claim);
+ homebrew_stats=before_mtime_ui;
  press(l1);assert(homebrew_page==0u);
  press(circle);
  assert(screen==Screen::access);
