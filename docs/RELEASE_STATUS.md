@@ -1,3 +1,13 @@
+### Test d'intégration : plus de 96 dossiers
+
+Le test du scanner natif parcourt également 100 répertoires synthétiques,
+chacun contenant un fichier de taille distincte. Il vérifie que le
+registre garde les **96 plus gros**, y compris ceux rencontrés en fin
+de parcours, que les étiquettes restent locales sans chemins et que
+le dépassement déclenche un statut **partiel**. Le classement n'autorise
+aucun nettoyage. Le test est exécuté dans les suites CMake/CTest sur
+Linux et macOS ainsi que les sanitizers.
+
 ## Consultation des 96 caches locaux par pages (27 octobre 2026)
 
 La liste native **Applications et plugins**, page 4/5, est maintenant

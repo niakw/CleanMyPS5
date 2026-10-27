@@ -46,4 +46,20 @@ with tempfile.TemporaryDirectory() as temp:
     assert moved == capture()
     assert renamed.read_bytes() == b"UVWXYZ"
 
-print("Native cache metadata identity detects stable-size rewrites and renames: PASS")
+# A separate synthetic workspace exercises the production 96-entry bound,
+# including a late-discovered large cache and explicit partial coverage.
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    (root / "data/homebrew").mkdir(parents=True)
+    (root / "data/etaHEN/plugins").mkdir(parents=True)
+    (root / "user/app").mkdir(parents=True)
+    for i in range(100):
+        folder = root / f"data/APP{i:03d}/cache"
+        folder.mkdir(parents=True)
+        (folder / "item.bin").write_bytes(b"Z" * (i + 1))
+    check = subprocess.run(
+        [sys.argv[1], str(root), "overflow"],
+        check=True, capture_output=True, text=True, timeout=20)
+    assert "overflow fail-closed: PASS" in check.stdout
+
+print("Native metadata rewrites, renames and 96-cache overflow: PASS")
