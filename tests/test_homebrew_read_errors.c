@@ -14,6 +14,7 @@
 static int eof_error_enabled,eof_error_seen;
 static int close_error_enabled,close_error_seen;
 static int fake_cache_identity_mode,cache_name_lookups;
+static int fake_nested_identity_mode,nested_name_lookups;
 static int fake_app_identity_mode,app_name_lookups;
 /* Inject an identity swap at either lookup edge of /data/<app>/cache.
  * Actual files remain untouched; this simulates concurrent renames
@@ -27,6 +28,10 @@ static int race_fstatat(int parent,const char*name,struct stat*st,int flags){
    st->st_ino+=1;
   if(fake_cache_identity_mode==3&&cache_name_lookups==1)
    st->st_dev+=1; /* simulated bind mount outside app device */
+ }
+ if(rc==0&&fake_nested_identity_mode&&strcmp(name,"nested")==0){
+  ++nested_name_lookups;
+  if(nested_name_lookups==fake_nested_identity_mode)st->st_ino+=1;
  }
  if(rc==0&&fake_app_identity_mode&&strcmp(name,"ExampleTool")==0){
   ++app_name_lookups;
@@ -98,6 +103,25 @@ int main(int argc,char**argv){
   assert(strstr(json,"\"providerVerified\":false,\"deletable\":false"));
   free(json);
  }
+ /* Cache with a nested directory replaced at first or final lookup.
+  * Scanner may retain a nominal observation but its timestamp MUST be
+  * UNKNOWN (never "no recent activity") and the report partial. */
+ for(int mode=1;mode<=2;mode++){
+  fake_nested_identity_mode=mode;nested_name_lookups=0;
+  memset(&stats,0,sizeof(stats));size=0;
+  json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
+  assert(json&&size>100&&stats.partial&&stats.cache_like_partial);
+  assert(nested_name_lookups>=mode);
+  assert(stats.cache_like_folders==4u);
+  assert(stats.cache_mtime_unknown==2u);
+  assert(stats.cache_mtime_recent==0u);
+  assert(stats.cache_mtime_no_recent==2u);
+  assert(stats.cache_mtime_recent+stats.cache_mtime_unknown+
+         stats.cache_mtime_no_recent==stats.cache_like_folders);
+  assert(strstr(json,"\"idleVerified\":false,\"providerVerified\":false,\"deletable\":false"));
+  free(json);
+ }
+ fake_nested_identity_mode=0;
  /* A case-only label difference is not an identity match, even on
   * macOS's default case-insensitive filesystem. Test pure comparison
   * without creating filesystem aliases. */
