@@ -18,9 +18,11 @@ int main(int argc,char**argv){
  char*json=cmp5_homebrew_with_stats(argv[1],&size,&stats,NULL,NULL);
  assert(json&&size>100u);
  free(json);
- if(argc==3&&strcmp(argv[2],"alias")==0){
-  /* One regular cache remains independently observable. The symlink
-   * named tmp must not be traversed, counted, or treated as coverage. */
+ if(argc==3&&(strcmp(argv[2],"alias")==0||
+               strcmp(argv[2],"app-alias")==0)){
+  /* One regular cache remains independently observable. Whether the
+   * symlink is a cache-shaped alias inside an app or a direct app-data
+   * alias under /data, its target must not be traversed or counted. */
   assert(stats.cache_like_folders==1u&&stats.cache_ledger_count==1u);
   assert(stats.cache_like_files==1u&&stats.cache_like_nominal_bytes==6u);
   assert(!stats.cache_ledger_overflow);

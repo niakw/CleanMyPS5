@@ -104,4 +104,27 @@ with tempfile.TemporaryDirectory() as temp:
     assert "Symlinked cache-shaped alias excluded" in check.stdout
     assert alias.is_symlink() and secret.read_bytes() == b"SECRET"
 
+# A symlink representing the application root itself must not be
+# silently omitted from what would otherwise look like a complete
+# scan of /data's applications.
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp)
+    (root / "data/homebrew").mkdir(parents=True)
+    (root / "data/etaHEN/plugins").mkdir(parents=True)
+    (root / "user/app").mkdir(parents=True)
+    cache = root / "data/ExampleApp/cache"
+    cache.mkdir(parents=True)
+    (cache / "content.bin").write_bytes(b"ABCDEF")
+    target = root / "unscanned-private-app"
+    target.mkdir()
+    (target / "cache").mkdir()
+    secret = target / "cache/account-state.bin"
+    secret.write_bytes(b"SECRET")
+    alias = root / "data/AliasApp"
+    alias.symlink_to(target, target_is_directory=True)
+    check = subprocess.run([sys.argv[1], str(root), "app-alias"],
+        check=True, capture_output=True, text=True, timeout=12)
+    assert "Symlinked cache-shaped alias excluded" in check.stdout
+    assert alias.is_symlink() and secret.read_bytes() == b"SECRET"
+
 print("Native cache metadata, limits, exclusions and cache aliases: PASS")

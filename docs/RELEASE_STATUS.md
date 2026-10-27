@@ -1,3 +1,14 @@
+### Répertoire d'application alias sous `/data`
+
+La protection s'applique aussi aux liens symboliques rencontrés
+directement sous `/data`, susceptibles de masquer un véritable
+répertoire applicatif. La cible n'est pas suivie et l'absence de
+cache observable à cet emplacement **ne vaut pas couverture complète**.
+La comparaison est invalidée et le motif `CONTENU EXCLU` est affiché.
+Une deuxième fixture crée un alias d'application vers une arborescence
+externe et contrôle que les fichiers fictifs de la cible demeurent
+inchangés. Les vrais dossiers indépendants restent comptés.
+
 ## Cache nommé par un lien symbolique : couverture explicitement partielle
 
 Un nom direct `/data/<application>/cache`, `.cache`, `tmp` ou

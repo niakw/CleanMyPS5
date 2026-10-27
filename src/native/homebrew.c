@@ -654,7 +654,18 @@ static void audit_root(Audit*a,const char*root,const char*relative,const char*ki
    root_reason|=cache_io_reason(errno);
    a->partial=1;root_scan_error=1;continue;
   }
-  if(S_ISLNK(st.st_mode)||(!S_ISREG(st.st_mode)&&!S_ISDIR(st.st_mode)))continue;
+  if(S_ISLNK(st.st_mode)){
+   /* /data/<app> may be an alias to another tree. Treat any direct
+    * app-data symlink as uninspected scope: do not follow it or
+    * quietly claim a full cache inventory of the applications. */
+   if(!strcmp(relative,"data")&&!strcmp(kind,"app-data")){
+    a->partial=1;
+    root_scan_error=1;
+    root_reason|=CMP5_CACHE_REASON_EXCLUDED;
+   }
+   continue;
+  }
+  if(!S_ISREG(st.st_mode)&&!S_ISDIR(st.st_mode))continue;
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
