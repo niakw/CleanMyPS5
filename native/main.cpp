@@ -888,16 +888,40 @@ void run_private_archive_audit() noexcept {
   private_inventory_selection=0u;
  }
 }
+#if CMP5_PROCESS_SYSCTL
+/* 0x60-byte app-info ABI, Title ID begins at offset 16. The only user data
+ * retained are well-formed, de-duplicated user Title IDs; never use this
+ * mapping to authorize mutation. Hardware FW 13.60 is still unverified. */
+struct alignas(8) Cmp5NativeAppInfo {
+ std::uint32_t app_id;
+ std::uint32_t padding;
+ std::uint64_t unknown;
+ char title_id[14];
+ unsigned char rest[60];
+};
+static_assert(sizeof(Cmp5NativeAppInfo)==0x60);
+static_assert(offsetof(Cmp5NativeAppInfo,title_id)==16u);
+extern "C" int sceKernelGetAppInfo(int,Cmp5NativeAppInfo*);
+#endif
 void run_process_snapshot() noexcept {
  process_snapshot=cmp5_process::Snapshot{};
 #if CMP5_PROCESS_SYSCTL
  // This is a read-only sysctl query. The title's sandbox may deny it;
  // that result remains UNAVAILABLE, never "no active processes".
  const int mib[4]={CTL_KERN,KERN_PROC,KERN_PROC_PROC,0};
- process_snapshot=cmp5_process::sample([&](void*out,std::size_t*size){
-  if(cancellation_hook(nullptr))return false;
-  return sysctl(mib,4,out,size,nullptr,0)==0;
- });
+ process_snapshot=cmp5_process::sample_with_titles(
+  [&](void*out,std::size_t*size){
+   if(cancellation_hook(nullptr))return false;
+   return sysctl(mib,4,out,size,nullptr,0)==0;
+  },
+  [&](int pid,char title[10])->bool {
+   if(cancellation_hook(nullptr))return false;
+   Cmp5NativeAppInfo info{};
+   if(sceKernelGetAppInfo(pid,&info)!=0||info.app_id==0u)return false;
+   std::memcpy(title,info.title_id,9u);
+   title[9]='\0';
+   return cmp5_process::valid_user_title_id(title);
+  });
 #else
  process_snapshot.state=cmp5_process::State::unavailable;
 #endif
@@ -2701,10 +2725,31 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,355,"PROCESSUS VISIBLES DEPUIS LE TITRE",count,
     process_snapshot.state==cmp5_process::State::observed?
       Color::cyan:Color::yellow);
-  panel(canvas,503,"PORTÉE DU CONTROLE",
-    "SYSCTL LECTURE SEULE  PAS DE DONNEE DE PID CONSERVEE",Color::yellow);
-  panel(canvas,651,"IDENTITE DES APPLICATIONS",
-    "NOMS EBOOT ET ELF INDICATIFS  TITLE ID NON CORRELE",Color::yellow);
+  char identity[155]{};
+  if(process_snapshot.state==cmp5_process::State::observed)
+   (void)std::snprintf(identity,sizeof(identity),
+     "%u IDENTIFIANTS  %u REQUETES  %s",
+     process_snapshot.identified_titles,process_snapshot.title_lookups,
+     process_snapshot.title_lookups_limited?
+       "LIMITE ATTEINTE":"REPONSES PARTIELLES POSSIBLES");
+  else
+   (void)std::snprintf(identity,sizeof(identity),
+     "API NON VERIFIEE  IDENTITE INCONNUE");
+  panel(canvas,503,"CORRESPONDANCE PID / TITLE ID",identity,Color::yellow);
+  char names[152]{};
+  const unsigned shown=process_snapshot.identified_titles;
+  if(shown>0u)
+   (void)std::snprintf(names,sizeof(names),
+     "%s  %s  %s  %s%s",
+     process_snapshot.title_ids[0],
+     shown>1u?process_snapshot.title_ids[1]:"",
+     shown>2u?process_snapshot.title_ids[2]:"",
+     shown>3u?process_snapshot.title_ids[3]:"",
+     process_snapshot.hidden_titles?"  AUTRES NON AFFICHES":"");
+  else
+   (void)std::snprintf(names,sizeof(names),
+     "AUCUNE IDENTITE ATTESTEE  RESULTAT NON EXHAUSTIF");
+  panel(canvas,651,"TITRES RAPPORTES PAR LE NOYAU",names,Color::yellow);
   panel(canvas,799,"AUTORISATION DE NETTOYAGE",
     "ACTIVITE DES CACHES INCONNUE  AUCUNE SUPPRESSION",Color::yellow);
   footer(canvas,"PAGE 5/5  X SONDER  L1/R1 NAVIGUER  ZERO EFFACEMENT");

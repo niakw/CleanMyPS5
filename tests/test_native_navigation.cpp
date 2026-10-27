@@ -1848,6 +1848,22 @@ int main(){
   if(cmd.text.find("PAGE 5/5")!=std::string::npos)process_page=true;
  }
  assert(no_idle&&process_page);
+ process_snapshot.state=cmp5_process::State::observed;
+ process_snapshot.processes=7u;
+ process_snapshot.title_lookups=6u;
+ process_snapshot.identified_titles=2u;
+ std::strcpy(process_snapshot.title_ids[0],"PPSA12345");
+ std::strcpy(process_snapshot.title_ids[1],"CUSA00001");
+ scene(canvas);
+ bool titles_present=false,unknown_activity=false;
+ for(const auto&cmd:canvas.commands){
+  if(cmd.text.find("PPSA12345")!=std::string::npos&&
+     cmd.text.find("CUSA00001")!=std::string::npos)
+   titles_present=true;
+  if(cmd.text.find("ACTIVITE DES CACHES INCONNUE")!=std::string::npos)
+   unknown_activity=true;
+ }
+ assert(titles_present&&unknown_activity);
  press(cross);finish_scan();
  assert(process_snapshot.state==cmp5_process::State::unavailable);
  assert(!process_snapshot.safe_to_clean);

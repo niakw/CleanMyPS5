@@ -1,3 +1,28 @@
+## Processus : rapprochement Title ID non destructif (27 octobre 2026)
+
+La sonde native optionnelle lit les PID du relevé `sysctl` et
+interroge séparément `sceKernelGetAppInfo` pour au plus **96 PID**
+afin d'obtenir des identifiants de titre plausibles. Le tampon de
+réponse de l'API fait 0x60 octets et l'offset du Title ID (16) est
+vérifié à la compilation. Seuls des identifiants de jeux utilisateur
+de forme `PPSA00000`, `CUSA00000` ou `PCSA00000` sont conservés.
+L'interface ne montre que **quatre identifiants distincts** :
+sans chemins, PID, noms de threads ni données de compte. Les identifiants
+supplémentaires et la saturation des requêtes sont signalés.
+
+Une réponse absente, un PID périmé, une sandbox refusée ou un titre
+non conforme n'est **jamais** interprété comme un jeu fermé.
+Les associations restent des observations non exhaustives au moment
+du scan, et ne prouvent ni l'absence d'écrivain sur un cache, ni
+l'identité d'un fournisseur, ni une autorisation d'effacer. L'app et
+le helper conservent leurs droits séparés. Les tests hôtes simulent les
+réponses valides, dupliquées, inconnues, les débordements et le
+maintien du blocage de nettoyage.
+
+Le symbole natif et le résultat de `sysctl` doivent encore être
+**vérifiés sur une vraie PS5 13.60** ; une compilation CI ne prouve
+pas que l'API est disponible dans la sandbox du titre.
+
 ## Processus : diagnostic à la demande sans droit d'effacement (27 octobre 2026)
 
 La cinquième page de **Applications et plugins** présente une sonde

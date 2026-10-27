@@ -60,5 +60,47 @@ int main(){
  for(unsigned i=0;i<max_processes+1u;i++)record(huge,int(i+1),"e",448);
  assert(decode(huge.data(),huge.size()).state==State::over_limit);
  assert(!decode(nullptr,0).safe_to_clean);
+ assert(valid_user_title_id("PPSA12345"));
+ assert(valid_user_title_id("CUSA00001"));
+ assert(!valid_user_title_id("NPXS00001"));
+ assert(!valid_user_title_id("PPSA12x45"));
+ assert(!valid_user_title_id("PPSA1234"));
+ auto linked=decode_with_titles(raw.data(),raw.size(),
+     [](int pid,char out[10])->bool {
+      const char*title=pid==144?"PPSA12345":
+                       pid==211?"NPXS00001":"PPSA12345";
+      std::memcpy(out,title,10);
+      return true;
+     });
+ assert(linked.state==State::observed&&linked.identified_titles==1u);
+ assert(linked.title_lookups==3u&&!linked.safe_to_clean);
+ assert(std::strcmp(linked.title_ids[0],"PPSA12345")==0);
+ auto linked_sample=sample_with_titles(reader,
+     [](int,char out[10])->bool {
+      std::memcpy(out,"CUSA12345",10);return true;
+     });
+ assert(linked_sample.identified_titles==1u);
+ assert(std::strcmp(linked_sample.title_ids[0],"CUSA12345")==0);
+ std::vector<unsigned char> many;
+ for(unsigned i=0;i<max_title_lookups+1u;i++)
+   record(many,int(i+1),"eboot.bin",448);
+ unsigned queries=0;
+ auto capped=decode_with_titles(many.data(),many.size(),
+     [&](int pid,char out[10])->bool {
+      ++queries;
+      if(pid<6){std::memcpy(out,"PPSA00000",10);return true;}
+      return false;
+     });
+ assert(capped.state==State::observed);
+ assert(capped.title_lookups==max_title_lookups);
+ assert(capped.title_lookups_limited&&queries==max_title_lookups);
+ assert(capped.identified_titles==1u&&!capped.safe_to_clean);
+ std::vector<unsigned char> fifth;
+ for(int id=1;id<=5;id++)record(fifth,id,"eboot.bin");
+ auto five=decode_with_titles(fifth.data(),fifth.size(),
+     [](int pid,char out[10])->bool {
+      std::snprintf(out,10,"PPSA%05d",pid);return true;
+     });
+ assert(five.identified_titles==displayed_titles&&five.hidden_titles==1u);
  puts("Read-only bounded process observer and fail-closed states: PASS");
 }

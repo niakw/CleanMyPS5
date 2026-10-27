@@ -12,15 +12,41 @@ enum class State : unsigned { not_requested, observed, unavailable, malformed, o
 struct Snapshot {
  State state=State::not_requested;
  unsigned processes=0,eboot_names=0,elf_names=0,unnamed=0;
+ unsigned title_lookups=0,identified_titles=0,hidden_titles=0;
+ bool title_lookups_limited=false;
+ char title_ids[4][10]{}; // bounded, validated user-game Title IDs; no PIDs
  bool safe_to_clean=false; // no algorithm in this project can set true
 };
 constexpr std::size_t max_bytes=512u*1024u;
 constexpr unsigned max_processes=1024u;
+constexpr unsigned max_title_lookups=96u;
+constexpr unsigned displayed_titles=4u;
+inline bool valid_user_title_id(const char*id) noexcept {
+ if(!id)return false;
+ // Retail IDs alone are NOT evidence of ownership or a running game.
+ if(std::memcmp(id,"PPSA",4)!=0&&std::memcmp(id,"CUSA",4)!=0&&
+    std::memcmp(id,"PCSA",4)!=0)return false;
+ for(unsigned i=4;i<9;i++)if(id[i]<'0'||id[i]>'9')return false;
+ return id[9]=='\0';
+}
+inline void record_title(Snapshot&result,const char*id) noexcept {
+ if(!valid_user_title_id(id))return;
+ for(unsigned i=0;i<result.identified_titles;i++)
+  if(i<displayed_titles&&std::memcmp(result.title_ids[i],id,10)==0)
+   return;
+ // A full shortlist is explicitly incomplete; never claim full coverage.
+ if(result.identified_titles==displayed_titles) {
+  result.hidden_titles++;
+  return;
+ }
+ std::memcpy(result.title_ids[result.identified_titles++],id,10);
+}
 // Layout from FreeBSD kinfo_proc on PS5: ki_structsize at 0, ki_pid
 // at 72 and representative thread name at 447. Verified external PS5
 // implementations, but MUST be checked against actual FW 13.60 output.
 // No Title IDs, PIDs, or process names are retained in Snapshot.
-inline Snapshot decode(const void*raw,std::size_t n) noexcept {
+template<class Resolve>
+Snapshot decode_with_titles(const void*raw,std::size_t n,Resolve resolve) noexcept {
  Snapshot result{};result.state=State::malformed;
  if(!raw||n<448u||n>max_bytes)return result;
  const auto*data=static_cast<const unsigned char*>(raw);
@@ -46,16 +72,29 @@ inline Snapshot decode(const void*raw,std::size_t n) noexcept {
    result.eboot_names++;
   else if(used>=4u&&std::memcmp(name+used-4u,".elf",4u)==0)
    result.elf_names++;
+  // Registered title mapping is best-effort and bounded. Failure (including
+  // reused PIDs or forbidden API) cannot mean this app is not running.
+  if(pid>0){
+   if(result.title_lookups<max_title_lookups){
+    ++result.title_lookups;
+    char title[10]={};
+    if(resolve(pid,title)&&valid_user_title_id(title))
+     record_title(result,title);
+   }else result.title_lookups_limited=true;
+  }
   cursor+=static_cast<std::size_t>(size);
  }
  if(cursor!=n)return result;
  result.state=State::observed;
  return result;
 }
+inline Snapshot decode(const void*raw,std::size_t n) noexcept {
+ return decode_with_titles(raw,n,[](int,char[10]){return false;});
+}
 // Reader(out, &capacity): out==nullptr requests size; otherwise returns
 // all records. Never accept partial/ambiguous sysctl buffers as complete.
-template<class Reader>
-Snapshot sample(Reader reader) noexcept {
+template<class Reader,class Resolve>
+Snapshot sample_with_titles(Reader reader,Resolve resolve) noexcept {
  Snapshot unknown{};unknown.state=State::unavailable;
  std::size_t need=0;
  if(!reader(nullptr,&need)||need<448u)return unknown;
@@ -69,9 +108,13 @@ Snapshot sample(Reader reader) noexcept {
  Snapshot result{};
  if(!ok)result.state=State::unavailable;
  else if(!size||size>room)result.state=State::malformed;
- else result=decode(buf,size);
+ else result=decode_with_titles(buf,size,resolve);
  std::free(buf);
  return result;
+}
+template<class Reader>
+Snapshot sample(Reader reader) noexcept {
+ return sample_with_titles(reader,[](int,char[10]){return false;});
 }
 static_assert(!Snapshot{}.safe_to_clean);
 } // namespace cmp5_process
