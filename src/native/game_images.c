@@ -294,17 +294,35 @@ static void scan_one(Audit*a,int parent,const char*relative){
   else{a->stats->unavailable_roots++;a->stats->partial=1;}
   return;
  }
- a->stats->scanned_roots++;
+ /* The full root inventory is provisional until its opened descriptor
+  * AND its independently re-resolved path still name the same directory.
+  * Preserve previously completed roots; a root that disappears or changes
+  * cannot contribute stale images, game folders, shortlist or seen inodes. */
+ struct stat root_before={0};
+ if(fstat(fd,&root_before)!=0||!S_ISDIR(root_before.st_mode)){
+  close(fd);a->stats->unavailable_roots++;a->stats->partial=1;return;
+ }
+ const Cmp5GameImageStats before_stats=*a->stats;
+ const unsigned before_seen=a->nseen;
  DIR*dir=fdopendir(fd);
- if(!dir){close(fd);a->stats->partial=1;return;}
+ if(!dir){
+  close(fd);a->stats->unavailable_roots++;a->stats->partial=1;return;
+ }
+ a->stats->scanned_roots++;
  unsigned visited=0;
+ int root_complete=1;
  for(;;){
-  if(stopped(a))break;
+  if(stopped(a)){root_complete=0;break;}
   errno=0;
   struct dirent*e=readdir(dir);
-  if(!e){if(errno)a->stats->partial=1;break;}
+  if(!e){
+   if(errno){a->stats->partial=1;root_complete=0;}
+   break;
+  }
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;
-  if(++visited>MAX_PER_ROOT){a->stats->partial=1;break;}
+  if(++visited>MAX_PER_ROOT){
+   a->stats->partial=1;root_complete=0;break;
+  }
   a->stats->entries_seen++;
   const int kind=format(e->d_name);
   if(kind<0){
@@ -347,7 +365,9 @@ static void scan_one(Audit*a,int parent,const char*relative){
    if(a->seen[i].device==before.st_dev&&
       a->seen[i].inode==before.st_ino)duplicate=1;
   if(duplicate)continue;
-  if(a->nseen==MAX_SEEN){a->stats->partial=1;break;}
+  if(a->nseen==MAX_SEEN){
+   a->stats->partial=1;root_complete=0;break;
+  }
   a->seen[a->nseen++]=(Seen){before.st_dev,before.st_ino};
   uint64_t bytes=(uint64_t)before.st_size;
   if(bytes>UINT64_MAX-a->stats->nominal_bytes){
@@ -381,7 +401,33 @@ static void scan_one(Audit*a,int parent,const char*relative){
    a->stats->large_nominal_bytes+=bytes;
   }
  }
- if(closedir(dir)!=0)a->stats->partial=1;
+ struct stat root_after={0},root_named={0};
+ if(fstat(fd,&root_after)!=0||
+    !cmp5_same_game_directory(&root_before,&root_after))
+  root_complete=0;
+ /* Do not use dirfd(): unavailable on the PS5 payload runtime. The
+  * directory FD remains open until closedir(), so fstat(fd) above is
+  * valid. A second anchored open detects a pathname replacement. */
+ const int named=open_child_path(parent,relative);
+ if(named<0){
+  root_complete=0;
+ }else{
+  if(fstat(named,&root_named)!=0||
+     !cmp5_same_game_directory(&root_before,&root_named))
+   root_complete=0;
+  if(close(named)!=0)root_complete=0;
+ }
+ if(closedir(dir)!=0)root_complete=0;
+ if(!root_complete){
+  /* The visit count is a safety budget, not attributable game content.
+   * Do not reset it when rolling back a bad root. */
+  const uint32_t visits=a->stats->entries_seen;
+  *a->stats=before_stats;
+  if(a->stats->entries_seen<visits)a->stats->entries_seen=visits;
+  a->nseen=before_seen;
+  a->stats->partial=1;
+  a->stats->unavailable_roots++;
+ }
 }
 int cmp5_scan_game_images(const char*root,Cmp5GameImageStats*result,
  Cmp5CancelCheck cancel,void*context){

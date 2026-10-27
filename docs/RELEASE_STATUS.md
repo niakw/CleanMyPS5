@@ -1,3 +1,32 @@
+## Jeux/images : invalidation complète d'une racine instable (27 octobre 2026)
+
+Une racine d'inventaire (par exemple `/data/homebrew` ou
+`/mnt/usb0/homebrew`) pouvait être remplacée ou modifiée pendant
+son énumération, laissant dans le catalogue des fichiers d'un ancien
+inode, et potentiellement des tailles périmées. La surveillance des
+fichiers et sous-dossiers ne suffit pas à détecter ce cas.
+
+Le parcours sauvegarde désormais, **par racine**, les comptes, tailles,
+candidats retenus, indices de déduplication par inode et liste des
+jeux. Après l'énumération, il recontrôle l'identité et les
+horodatages du descripteur encore ouvert **et** du même chemin
+résolu à nouveau depuis l'ancre d'origine. Un échec de lecture
+`readdir`, une limite de parcours atteinte, une mutation visible,
+un changement de nom ou un échec de fermeture annulent **toutes**
+les contributions de cette racine, sans effacer les observations
+valides des autres racines. Le budget global des entrées déjà visitées
+n'est pas réinitialisé. L'ensemble est signalé partiel et la racine
+instable comptée indisponible.
+
+Les tests de fautes simulent l'horodatage modifié sur place, le
+remplacement de la racine au moment de la résolution du chemin et
+une erreur de lecture après plusieurs entrées. Ils vérifient que le
+jeu d'une autre racine reste listé, tandis que les jeux et octets
+provenant de la racine instable sont retirés. Ce test est **hôte** :
+la cohérence atomique du système de fichiers et les permissions
+sur PS5 13.60 restent non démontrées. Aucun nettoyage système
+n'est ajouté.
+
 ## Compression : refuser une sélection de dossier sans taille vérifiée (27 octobre 2026)
 
 Un dossier de jeu dont le scan n'a pas terminé tous les contrôles

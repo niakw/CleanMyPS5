@@ -7,12 +7,43 @@
 #endif
 #include <assert.h>
 #include <errno.h>
+#include <dirent.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 static int fault_mode=0,fault_hits=0,regular_lookups=0,child_lookups=0;
+static dev_t target_dev;
+static ino_t target_ino;
+static unsigned root_stats=0;
+static int injected_fstat(int fd,struct stat*st){
+ const int rc=fstat(fd,st);
+ if(rc==0&&fault_mode>=8&&fault_mode<=9&&S_ISDIR(st->st_mode)&&
+    st->st_dev==target_dev&&st->st_ino==target_ino){
+  if(++root_stats==(fault_mode==8?2u:3u)){
+   ++fault_hits;
+   if(fault_mode==8)st->st_mtime+=60; /* same inode, root modified */
+   else st->st_ino++; /* path re-resolved to another inode */
+  }
+ }
+ return rc;
+}
+static struct dirent* injected_readdir(DIR*d){
+ struct dirent*entry=readdir(d);
+ if(!entry&&fault_mode==10){
+  struct stat st={0};
+  const int descriptor=dirfd(d); /* host-only fault injector */
+  if(descriptor>=0&&fstat(descriptor,&st)==0&&
+     st.st_dev==target_dev&&st.st_ino==target_ino){
+   ++fault_hits;
+   errno=EIO; /* fail at EOF after reporting earlier files */
+  }
+ }
+ return entry;
+}
 static int injected_fstatat(int fd,const char*name,struct stat*st,int flags){
  if(fault_mode==1&&!strcmp(name,"FAULT_ENTRY.txt")){
   ++fault_hits;errno=EIO;return -1;
@@ -44,7 +75,11 @@ static int injected_openat(int fd,const char*name,int flags,...){
 }
 #define fstatat injected_fstatat
 #define openat injected_openat
+#define fstat injected_fstat
+#define readdir injected_readdir
 #include "../src/native/game_images.c"
+#undef readdir
+#undef fstat
 #undef fstatat
 #undef openat
 int main(int argc,char**argv){
@@ -56,14 +91,32 @@ int main(int argc,char**argv){
             !strcmp(argv[2],"regular-mtime")?5:
             !strcmp(argv[2],"child-inode")?6:
             !strcmp(argv[2],"child-mtime")?7:
+            !strcmp(argv[2],"root-mtime")?8:
+            !strcmp(argv[2],"root-replaced")?9:
+            !strcmp(argv[2],"root-eof-error")?10:
             !strcmp(argv[2],"normal")?0:-1;
  assert(fault_mode>=0);
+ char root_path[PATH_MAX]={0};
+ const int count=snprintf(root_path,sizeof root_path,
+                          "%s/data/homebrew",argv[1]);
+ assert(count>0&&(size_t)count<sizeof root_path);
+ struct stat root_stat={0};
+ assert(stat(root_path,&root_stat)==0);
+ target_dev=root_stat.st_dev;
+ target_ino=root_stat.st_ino;
  Cmp5GameImageStats result={0};
  assert(cmp5_scan_game_images(argv[1],&result,NULL,NULL));
  assert(result.scanned_roots>=1u);
- assert(result.count[CMP5_IMAGE_EXFAT]==1u);
- assert(result.shown_images==1u);
- assert(!strcmp(result.image[0].label,"HEALTHY.exfat"));
+ const int root_invalid=fault_mode>=8;
+ assert(result.count[CMP5_IMAGE_EXFAT]==(root_invalid?1u:2u));
+ assert(result.shown_images==(root_invalid?1u:2u));
+ int found_primary=0,found_survivor=0;
+ for(unsigned i=0;i<result.shown_images;i++){
+  if(!strcmp(result.image[i].label,"HEALTHY.exfat"))found_primary=1;
+  if(!strcmp(result.image[i].label,"SURVIVOR.exfat"))found_survivor=1;
+ }
+ assert(found_survivor);
+ assert(found_primary==!root_invalid);
  if(!fault_mode){
   assert(fault_hits==0);
   assert(!result.partial&&result.folder_games==1u);
@@ -73,13 +126,20 @@ int main(int argc,char**argv){
  }else{
   assert(fault_hits==1);
   assert(result.partial);
-  assert(result.folder_games==(fault_mode==2?0u:1u));
-  if(fault_mode>=3){
+  assert(result.folder_games==(fault_mode==2||root_invalid?0u:1u));
+  if(fault_mode>=3&&fault_mode<=7){
    assert(result.folder_partials==1u);
    assert(result.folder_nominal_bytes==0u);
    assert(result.shown_folders==1u&&result.folder[0].size_complete==0u);
    assert(result.folder[0].nominal_bytes==0u);
-   assert(result.nominal_bytes==sizeof("synthetic game image")-1u);
+  }
+  if(root_invalid){
+   /* No stale shortlist, nominal bytes, or inode de-dup from this
+    * root. An independent external game remains discoverable. */
+   assert(result.unavailable_roots>=1u);
+   assert(result.folder_partials==0u&&result.shown_folders==0u);
+   assert(result.folder_nominal_bytes==0u);
+   assert(result.nominal_bytes==sizeof("surviving external image")-1u);
   }
  }
  puts("Game metadata I/O faults: PASS (healthy candidates retained)");

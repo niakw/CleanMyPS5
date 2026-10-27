@@ -10,6 +10,9 @@ with tempfile.TemporaryDirectory() as tmp:
     games=root/"data/homebrew"
     games.mkdir(parents=True)
     (games/"HEALTHY.exfat").write_bytes(b"synthetic game image")
+    independent=root/"mnt/usb0/homebrew"
+    independent.mkdir(parents=True)
+    (independent/"SURVIVOR.exfat").write_bytes(b"surviving external image")
     (games/"FAULT_ENTRY.txt").write_bytes(b"unrecognized")
     folder=games/"FAULT_GAME"
     (folder/"sce_sys").mkdir(parents=True)
@@ -18,7 +21,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assets.mkdir()
     (assets/"texture.bin").write_bytes(b"synthetic texture")
     for mode in ("normal","stat","dir","regular-inode","regular-size",
-                 "regular-mtime","child-inode","child-mtime"):
+                 "regular-mtime","child-inode","child-mtime",
+                 "root-mtime","root-replaced","root-eof-error"):
         result=subprocess.run([sys.argv[1],str(root),mode],
                               capture_output=True,text=True,timeout=12)
         assert result.returncode==0,(mode,result.stdout,result.stderr)
