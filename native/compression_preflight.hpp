@@ -292,6 +292,28 @@ inline bool same_confirmation_snapshot(const GamePreflight&confirmed,
   confirmed.dest_total==current.dest_total;
 }
 
+/* HTTP/1.0 server actions require a COMPLETE POST body. Keep the
+ * non-idempotent outcome 'unknown' ONLY after at least one body byte
+ * was successfully sent. Before that, cancellation/socket failure
+ * cannot have delivered a valid mutation request. Any partial body
+ * is conservatively ambiguous: do not replay after a lost ACK.
+ * Sender must return a positive count <= requested bytes. */
+template<typename Sender,typename Cancel>
+inline bool send_mutation_body(const char*data,std::size_t count,
+                              Sender send,Cancel cancelled,
+                              bool*body_transmitted) noexcept {
+ if(body_transmitted)*body_transmitted=false;
+ if(!data||!count||!body_transmitted)return false;
+ std::size_t done=0;
+ while(done<count){
+  if(cancelled())return false;
+  const int n=send(data+done,count-done);
+  if(n<=0||static_cast<std::size_t>(n)>count-done)return false;
+  *body_transmitted=true;
+  done+=static_cast<std::size_t>(n);
+ }
+ return true;
+}
 struct StartAck {unsigned position=0;};
 inline bool parse_start_ack(const char*json,std::size_t size,
                             StartAck*out) noexcept {

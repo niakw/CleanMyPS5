@@ -207,6 +207,47 @@ int main(){
  assert(!build_pause_body("/data/homebrew/","PPSA12345",pause,sizeof(pause)));
  assert(!build_pause_body("/data/homebrew","PPSA12345",pause,12));
  assert(!build_pause_body("/data/homebrew","PPSA12345",nullptr,256));
+ /* Deterministic POST transport: no real socket or engine. A failure
+  * before the first BODY byte is certain non-delivery; after any
+  * positive write it is ambiguous even if the remainder is cancelled. */
+ const char payload[]="dest=%2Fdata%2Fhomebrew%2FPPSA12345";
+ bool body_sent=true;
+ unsigned sent_calls=0;
+ assert(!send_mutation_body(payload,sizeof(payload)-1u,
+   [&](const char*,std::size_t)->int{++sent_calls;return 1;},
+   []{return true;},&body_sent));
+ assert(!body_sent&&sent_calls==0u);
+ assert(!send_mutation_body(payload,sizeof(payload)-1u,
+   [&](const char*,std::size_t)->int{++sent_calls;return -1;},
+   []{return false;},&body_sent));
+ assert(!body_sent&&sent_calls==1u);
+ sent_calls=0;
+ assert(!send_mutation_body(payload,sizeof(payload)-1u,
+   [&](const char*,std::size_t n)->int{
+    ++sent_calls;return static_cast<int>(n+1u);
+   },[]{return false;},&body_sent));
+ assert(!body_sent&&sent_calls==1u);
+ sent_calls=0;
+ assert(!send_mutation_body(payload,sizeof(payload)-1u,
+   [&](const char*,std::size_t n)->int{
+    ++sent_calls;return static_cast<int>(n>3u?3u:n);
+   },[&]{return sent_calls>0u;},&body_sent));
+ assert(body_sent&&sent_calls==1u);
+ std::string assembled{};
+ sent_calls=0;
+ assert(send_mutation_body(payload,sizeof(payload)-1u,
+   [&](const char*data,std::size_t n)->int{
+    const auto take=n>4u?4u:n;
+    assembled.append(data,take);++sent_calls;
+    return static_cast<int>(take);
+   },[]{return false;},&body_sent));
+ assert(body_sent&&assembled==payload&&sent_calls>1u);
+ assert(!send_mutation_body(payload,0,
+   [](const char*,std::size_t)->int{return 1;},
+   []{return false;},&body_sent)&&!body_sent);
+ assert(!send_mutation_body(nullptr,3,
+   [](const char*,std::size_t)->int{return 1;},
+   []{return false;},&body_sent)&&!body_sent);
  StartAck acknowledgment{};
  assert(parse_start_ack(R"({"ok":true,"position":0})",24,&acknowledgment));
  assert(acknowledgment.position==0);

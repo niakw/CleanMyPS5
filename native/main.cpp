@@ -1348,11 +1348,18 @@ bool ampr_submit_job(const char*source,const char*dest,const char*smp,
  };
  if(ok)ok=write_all(header,static_cast<std::size_t>(header_len));
  if(ok){
-  // The upstream HTTP server is allowed to start converting once it
-  // has the full request. After this point, an absent ACK is UNKNOWN,
-  // not proof that nothing was queued: never retry automatically.
-  if(could_have_started)*could_have_started=true;
-  ok=write_all(body,static_cast<std::size_t>(bytes));
+  /* The worker can start after a complete body. No body byte sent
+   * means no valid mutation POST was delivered; any body byte sent
+   * means a lost ACK is ambiguous and must never be replayed. */
+  bool body_transmitted=false;
+  ok=cmp5_compression::send_mutation_body(
+   body,static_cast<std::size_t>(bytes),
+   [fd](const char*data,std::size_t count) noexcept {
+    return sceNetSend(fd,data,count,0);
+   },
+   []() noexcept {return cancellation_hook(nullptr);},
+   &body_transmitted);
+  if(could_have_started)*could_have_started=body_transmitted;
  }
  char response[1024]{};
  std::size_t used=0;
@@ -1463,11 +1470,18 @@ bool ampr_safe_command(const char*route,const char*form,
  };
  if(ok)ok=send_all(header,static_cast<std::size_t>(len));
  if(ok&&body_len){
-  /* Once the request BODY may have reached the worker, a lost reply
-   * does not mean rejection. Never replay the same non-idempotent
-   * resume (or pause) just because the ACK was lost. */
-  if(could_have_acted)*could_have_acted=true;
-  ok=send_all(form,body_len);
+  /* A partial mutation body is ambiguous; no body byte sent is not.
+   * This distinction avoids dead-end 'lost reply' after cancellation
+   * before POST while preserving no-replay after an actual send. */
+  bool body_transmitted=false;
+  ok=cmp5_compression::send_mutation_body(
+   form,body_len,
+   [fd](const char*data,std::size_t count) noexcept {
+    return sceNetSend(fd,data,count,0);
+   },
+   []() noexcept {return cancellation_hook(nullptr);},
+   &body_transmitted);
+  if(could_have_acted)*could_have_acted=body_transmitted;
  }
  char response[512]{};
  std::size_t used=0;
@@ -1803,9 +1817,9 @@ void* background_task(void*) noexcept {
   if(task_kind==Task::engine_start)engine_launch=EngineLaunch::untouched;
   if(task_kind==Task::helper_start)helper_launch=EngineLaunch::untouched;
   if(task_kind==Task::game_check){game_preflight_checked=false;game_preflight_transport=false;game_preflight={};}
-  /* A cancelled POST may have already reached the engine: keep the
-   * uncertain result until the user checks job status. */
-  if(task_kind==Task::game_start&&!game_job_accepted)game_job_reply_unknown=game_job_attempted;
+  /* Preserve the send-tracked POST outcome across cancellation. Merely
+   * ENTERING preflight or writing headers never establishes uncertainty.
+   * An already transmitted body retains its no-retry/unknown flag. */
   if(task_kind==Task::game_progress)game_progress_checked=false;
   if(task_kind==Task::access||task_kind==Task::environment)local_checked=false;
   task_state.store(4,std::memory_order_release);

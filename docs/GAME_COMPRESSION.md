@@ -1,3 +1,21 @@
+## Acknowledgement HTTP et annulation avant le POST (27 octobre 2026)
+
+Le client natif de conversion, pause et reprise distingue maintenant
+la **preparation des controles/headers** de l'envoi effectif du corps
+HTTP. Si l'annulation arrive avant le premier octet de corps transmis,
+l'etat n'est plus presente comme un resultat incertain : aucun POST
+valide n'a pu etre recu par le service HTTP/1.0 epingle avec une longueur
+de corps strictement positive. Si au moins un octet de corps a ete
+transmis, une absence de reponse est conservatrice : **issue inconnue,
+aucune relance automatique**. Une confirmation explicite du serveur
+garde sa priorite.
+
+La suite C++ simule annulation pre-send, erreur de socket avant
+transmission, longueur invalide, annulation apres emission partielle
+et transmission reussie en plusieurs ecritures. Aucun reseau console
+n'est utilise dans les tests. La source des jeux, les checkpoints,
+les restrictions d'actions et la suppression restent inchanges.
+
 ## Diagnostic AMPR sans identifiant de titre (27 octobre 2026)
 
 La fonction job_preflight du moteur epingle renvoie un titre vide
