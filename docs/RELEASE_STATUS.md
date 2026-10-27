@@ -1,3 +1,27 @@
+## Troisième page native « Applications » : caches à examiner (27 octobre 2026)
+
+La navigation DualSense de l'écran **Applications et plugins** comporte
+désormais **trois pages** (L1/R1, dans les deux sens). Après les comptes
+d'applications et le classement nominal, la nouvelle page
+**« Caches / temp observés »** rend consultables les résultats du scanner
+déjà intégrés au titre : dossiers `cache`, `.cache`, `tmp` et `temp`,
+nombre de fichiers et volume **nominal non additif**, rapprochements de
+noms avec les homebrews détectés, date de modification récente,
+incertaine ou non récente, et état de couverture des racines.
+
+Le panneau signale explicitement **« Processus non vérifiés »** et
+**« Fournisseur non attesté »** : aucune absence d'activité, autorisation
+de purge, ni place récupérable ne peut être déduite des noms et dates.
+Les résultats partiels et les index de noms incomplets restent visibles
+comme tels, sans masquer un scan inaccessible. Un catalogue vide affiche
+0 octet observé et non une autorisation de nettoyage.
+
+Le test de navigation native vérifie l'aller-retour et le rebouclage
+des trois pages, les limites de couverture, les libellés de preuve
+manquante, les sommes nominales et les états vides. Aucune écriture
+nouvelle n'est introduite par l'interface ; la sécurité sur PS5 13.60
+reste à confirmer matériellement.
+
 ## Inventaire applicatif : invalidation transactionnelle par racine (27 octobre 2026)
 
 Le scanner pouvait reconnaître un changement d'inode ou de métadonnées

@@ -2310,7 +2310,8 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::apps&&(pressed&l1||pressed&r1)){
-   homebrew_page^=1u;
+   homebrew_page=(pressed&r1)?(homebrew_page+1u)%3u:
+     (homebrew_page+2u)%3u;
    continue;
   }
   if(screen==Screen::analyze&&(pressed&l1||pressed&r1)){
@@ -2675,7 +2676,7 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
    (void)std::snprintf(detail,sizeof(detail),"%u ELEMENTS PROTEGES",counts[i]);
    panel(canvas,355+i*144,labels[i],detail,Color::cyan);
   }
- }else{
+ }else if(homebrew_page==1u){
   static constexpr const char*categories[4]={
    "HOMEBREW","PLUGIN","DONNEES APP","INSTALLATION"
   };
@@ -2706,6 +2707,47 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
       item.files,item.partial?"  PARTIEL":"");
    panel(canvas,355+i*144,title,detail,Color::cyan);
   }
+ }else{
+  /* Caches are candidate NAMES, never verified app-owned disposable
+   * files. The four cards deliberately avoid a reclaimable byte total. */
+  char detail[156]{};
+  if(homebrew_stats.cache_like_nominal_bytes>=1048576ULL)
+   (void)std::snprintf(detail,sizeof(detail),
+     "%u DOSSIERS  %u FICHIERS  %llu MIO NOMINAUX%s",
+     homebrew_stats.cache_like_folders,homebrew_stats.cache_like_files,
+     static_cast<unsigned long long>(
+       homebrew_stats.cache_like_nominal_bytes/1048576ULL),
+     homebrew_stats.cache_like_partial?"  PARTIEL":"");
+  else if(homebrew_stats.cache_like_nominal_bytes>=1024ULL)
+   (void)std::snprintf(detail,sizeof(detail),
+     "%u DOSSIERS  %u FICHIERS  %llu KIO NOMINAUX%s",
+     homebrew_stats.cache_like_folders,homebrew_stats.cache_like_files,
+     static_cast<unsigned long long>(
+       homebrew_stats.cache_like_nominal_bytes/1024ULL),
+     homebrew_stats.cache_like_partial?"  PARTIEL":"");
+  else
+   (void)std::snprintf(detail,sizeof(detail),
+     "%u DOSSIERS  %u FICHIERS  %llu OCTETS NOMINAUX%s",
+     homebrew_stats.cache_like_folders,homebrew_stats.cache_like_files,
+     static_cast<unsigned long long>(
+       homebrew_stats.cache_like_nominal_bytes),
+     homebrew_stats.cache_like_partial?"  PARTIEL":"");
+  panel(canvas,355,"CACHES / TEMP OBSERVES",detail,Color::cyan);
+  (void)std::snprintf(detail,sizeof(detail),
+    "%u NOMS IDENTIQUES  %u NON ASSOCIES%s",
+    homebrew_stats.cache_like_name_matched,
+    homebrew_stats.cache_like_name_unmatched,
+    homebrew_stats.homebrew_name_index_partial?"  INDEX PARTIEL":"");
+  panel(canvas,503,"RAPPROCHEMENT INDICATIF",detail,Color::yellow);
+  (void)std::snprintf(detail,sizeof(detail),
+    "%u MODIF 24H  %u DATE INCONNUE  %u SANS MODIF RECENTE",
+    homebrew_stats.cache_mtime_recent,
+    homebrew_stats.cache_mtime_unknown,
+    homebrew_stats.cache_mtime_no_recent);
+  panel(canvas,651,"OBSERVATIONS DE MODIFICATION",detail,Color::yellow);
+  panel(canvas,799,"PREUVES MANQUANTES",
+    "PROCESSUS NON VERIFIES  FOURNISSEUR NON ATTESTE",
+    Color::yellow);
  }
  const auto root_label=[](unsigned state) noexcept -> const char* {
   switch(state){
@@ -2717,12 +2759,18 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   }
  };
  char footer_message[160]{};
- (void)std::snprintf(footer_message,sizeof(footer_message),
-  "PAGE %u/2 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
-  homebrew_page+1u,root_label(homebrew_stats.data_root_state),
-  homebrew_stats.cache_like_folders,
-  homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,
-  homebrew_stats.cache_mtime_no_recent);
+ if(homebrew_page==2u)
+  (void)std::snprintf(footer_message,sizeof(footer_message),
+    "PAGE 3/3  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",
+    root_label(homebrew_stats.data_root_state),
+    root_label(homebrew_stats.installed_root_state));
+ else
+  (void)std::snprintf(footer_message,sizeof(footer_message),
+    "PAGE %u/3 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
+    homebrew_page+1u,root_label(homebrew_stats.data_root_state),
+    homebrew_stats.cache_like_folders,
+    homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,
+    homebrew_stats.cache_mtime_no_recent);
  footer(canvas,footer_message);
 }
 void show_cleanup(ps5::demo::Canvas&canvas) noexcept {

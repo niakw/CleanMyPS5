@@ -1765,6 +1765,48 @@ int main(){
    no_idle_claim=true;
  }
  assert(observed_recent&&observed_unknown&&no_idle_claim);
+ /* Third tab exposes raw cache hints, no cleanup authorization. */
+ homebrew_stats.cache_like_files=7u;
+ homebrew_stats.cache_like_nominal_bytes=3145728ULL;
+ homebrew_stats.cache_like_name_matched=2u;
+ homebrew_stats.cache_like_name_unmatched=2u;
+ homebrew_stats.homebrew_name_index_partial=1u;
+ homebrew_stats.cache_like_partial=1u;
+ homebrew_stats.data_root_state=3u;
+ homebrew_stats.installed_root_state=4u;
+ press(r1);assert(homebrew_page==2u);
+ scene(canvas);
+ bool cache_size=false,weak_match=false,index_partial=false;
+ bool recency=false,blocked=false,coverage=false;
+ for(const auto&command:canvas.commands){
+  if(command.text.find("7 FICHIERS  3 MIO NOMINAUX")!=std::string::npos)
+   cache_size=true;
+  if(command.text.find("2 NOMS IDENTIQUES")!=std::string::npos)
+   weak_match=true;
+  if(command.text.find("INDEX PARTIEL")!=std::string::npos)
+   index_partial=true;
+  if(command.text.find("1 MODIF 24H  1 DATE INCONNUE")!=std::string::npos)
+   recency=true;
+  if(command.text.find("PROCESSUS NON VERIFIES")!=std::string::npos)
+   blocked=true;
+  if(command.text.find("/DATA:REFUSE  TITRES:ERREUR")!=std::string::npos)
+   coverage=true;
+ }
+ assert(cache_size&&weak_match&&index_partial&&recency&&blocked&&coverage);
+ /* Both directions wrap all three tabs, including zero candidates. */
+ homebrew_stats.cache_like_files=0u;
+ homebrew_stats.cache_like_folders=0u;
+ homebrew_stats.cache_like_nominal_bytes=0u;
+ homebrew_stats.cache_like_partial=0u;
+ scene(canvas);
+ bool empty_cache=false;
+ for(const auto&command:canvas.commands)
+  if(command.text.find("0 DOSSIERS  0 FICHIERS  0 OCTETS NOMINAUX")
+     !=std::string::npos)empty_cache=true;
+ assert(empty_cache);
+ press(r1);assert(homebrew_page==0u);
+ press(l1);assert(homebrew_page==2u);
+ press(l1);assert(homebrew_page==1u);
  homebrew_stats=before_mtime_ui;
  press(l1);assert(homebrew_page==0u);
  press(circle);
