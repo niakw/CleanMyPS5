@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Host-only protected homebrew fixture, entirely read-only."""
 from pathlib import Path
+import os
+import time
 import subprocess
 import sys
 import tempfile
@@ -28,6 +30,20 @@ with tempfile.TemporaryDirectory() as directory:
     (root/"data/homebrew/OtherApp").mkdir(parents=True)
     (root/"data/homebrew/OtherApp/eboot.elf").symlink_to(
         "../ExampleTool/eboot.elf")
+    # Create four distinct, deterministic mtime observations. Reset BOTH
+    # the contents and their directory's mtime (directory writes alone
+    # would otherwise imply activity within 24 hours).
+    now=time.time()
+    for relative,age in [
+        ("data/ExampleTool/cache",60),
+        ("data/ExampleTool/tmp",3*86400),
+        ("data/ExampleTool/.cache",-2*86400),
+        ("data/OtherApp/cache",4*86400),
+    ]:
+        folder=root/relative
+        for child in folder.iterdir():
+            os.utime(child,(now-age,now-age))
+        os.utime(folder,(now-age,now-age))
     # A cache-named symlink must never be traversed as an app cache.
     (root/"data/ExampleTool/temp").symlink_to(root/"data/ExampleTool/saves",
                                               target_is_directory=True)
