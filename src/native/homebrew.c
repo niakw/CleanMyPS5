@@ -29,7 +29,56 @@ typedef struct {size_t visited,items;int partial;uint64_t deadline;Writer out;
  char homebrew_names[HOMEBREW_NAMES_CAP][HOMEBREW_NAME_LEN];
  Cmp5HomebrewStats *stats;Cmp5CancelCheck cancel;void *context;
  time_t cache_wall_now;} Audit;
-typedef struct {time_t now;int recent;int unknown;} CacheChange;
+typedef struct {
+ time_t now;
+ int recent,unknown,metadata_partial;
+ uint64_t metadata_xor,metadata_sum;
+ uint32_t metadata_nodes;
+} CacheChange;
+/* Fingerprint only already-verified directory entries. XOR + sum make the
+ * aggregate independent of readdir ordering; the tuple uses path context
+ * (parent inode + entry basename), own inode and high-resolution times.
+ * No file body is read. Collision and filesystem timestamp limits mean
+ * equal aggregates are merely "no variation OBSERVED", not inactivity. */
+static uint64_t cache_mix64(uint64_t hash,uint64_t value){
+ for(unsigned i=0;i<8u;i++){
+  hash^=(unsigned char)(value&255u);
+  hash*=UINT64_C(1099511628211);
+  value>>=8u;
+ }
+ return hash;
+}
+static void cache_observe(CacheChange*change,const struct stat*parent,
+                          const char*name,const struct stat*st){
+ if(!change||!st||!name)return;
+ uint64_t hash=UINT64_C(14695981039346656037);
+ if(parent){
+  hash=cache_mix64(hash,(uint64_t)parent->st_dev);
+  hash=cache_mix64(hash,(uint64_t)parent->st_ino);
+ }
+ for(const unsigned char*p=(const unsigned char*)name;*p;p++){
+  hash^=*p;
+  hash*=UINT64_C(1099511628211);
+ }
+ hash=cache_mix64(hash,(uint64_t)st->st_dev);
+ hash=cache_mix64(hash,(uint64_t)st->st_ino);
+ hash=cache_mix64(hash,(uint64_t)st->st_mode);
+ hash=cache_mix64(hash,(uint64_t)st->st_nlink);
+ hash=cache_mix64(hash,(uint64_t)st->st_size);
+ hash=cache_mix64(hash,(uint64_t)st->st_mtime);
+ hash=cache_mix64(hash,(uint64_t)st->st_ctime);
+#if defined(__APPLE__)
+ hash=cache_mix64(hash,(uint64_t)st->st_mtimespec.tv_nsec);
+ hash=cache_mix64(hash,(uint64_t)st->st_ctimespec.tv_nsec);
+#else
+ hash=cache_mix64(hash,(uint64_t)st->st_mtim.tv_nsec);
+ hash=cache_mix64(hash,(uint64_t)st->st_ctim.tv_nsec);
+#endif
+ change->metadata_xor^=hash;
+ change->metadata_sum+=hash;
+ if(change->metadata_nodes<UINT32_MAX)change->metadata_nodes++;
+ else change->metadata_partial=1;
+}
 /* mtime is only a signal of recent writes; its age never proves idle. */
 static void note_cache_mtime(CacheChange*change,time_t modified){
  if(!change)return;
@@ -134,12 +183,18 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
   if(fstatat(anchored_fd,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){
    *partial=1;if(change)change->unknown=1;continue;
   }
-  if(S_ISLNK(st.st_mode)){if(change)change->unknown=1;continue;}
+  if(S_ISLNK(st.st_mode)){
+   if(change){change->unknown=1;change->metadata_partial=1;}
+   continue;
+  }
   int excluded=e->d_name[0]=='.';
   const char *const *names=S_ISDIR(st.st_mode)?cmp5_private_dirs:cmp5_private_files;
   size_t count=S_ISDIR(st.st_mode)?sizeof(cmp5_private_dirs)/sizeof(*cmp5_private_dirs):sizeof(cmp5_private_files)/sizeof(*cmp5_private_files);
   for(size_t i=0;i<count;i++)if(!strcasecmp(e->d_name,names[i]))excluded=1;
-  if(excluded){if(change)change->unknown=1;continue;}
+  if(excluded){
+   if(change){change->unknown=1;change->metadata_partial=1;}
+   continue;
+  }
   if(change)note_cache_mtime(change,st.st_mtime);
   if(S_ISREG(st.st_mode)){
    struct stat confirmed={0};
@@ -151,6 +206,7 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
    if(v>UINT64_MAX-*size){*partial=1;if(change)change->unknown=1;continue;}
    (*files)++;
    *size+=v;
+   cache_observe(change,&parent,e->d_name,&st);
   }else if(S_ISDIR(st.st_mode)){
    if(depth>=DEPTH_CAP||st.st_dev!=parent.st_dev){
     *partial=1;if(change)change->unknown=1;continue;
@@ -173,6 +229,8 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
       !stable_directory(&st,&after)){
     *size=before_bytes;*files=before_files;
     *partial=1;if(change)change->unknown=1;
+   }else if(!*partial){
+    cache_observe(change,&parent,e->d_name,&st);
    }
   }else{
    *partial=1;if(change)change->unknown=1;
@@ -299,13 +357,21 @@ static unsigned cache_kind(const char*name){
  * ownership or inactivity. Sorting is stable under equal byte counts. */
 static void record_cache_top(Audit*a,const char*app_name,unsigned kind,
                             uint64_t bytes,size_t files,int partial,
-                            int matched,unsigned age){
+                            int matched,unsigned age,
+                            const CacheChange*change){
  Cmp5HomebrewStats*stats=a->stats;
  Cmp5CacheTop item={0};
  item.nominal_bytes=bytes;
  item.files=(uint32_t)files;
  item.partial=partial?1u:0u;
  item.kind=kind;item.name_matched=matched?1u:0u;item.age_hint=age;
+ if(change){
+  item.metadata_xor=change->metadata_xor;
+  item.metadata_sum=change->metadata_sum;
+  item.metadata_nodes=change->metadata_nodes;
+  item.metadata_complete=(!partial&&!change->metadata_partial&&
+                          change->metadata_nodes>0u)?1u:0u;
+ }
  size_t len=0;
  for(const unsigned char*p=(const unsigned char*)app_name;*p&&
      len<sizeof(item.app_label)-1u;p++){
@@ -380,6 +446,7 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
   CacheChange change={0};
   change.now=a->cache_wall_now;
   note_cache_mtime(&change,st.st_mtime);
+  cache_observe(&change,NULL,".",&st);
   count_tree(a,child,0,&bytes,&files,&partial,&change); /* owns child fd */
   struct stat after={0};
   if(fstatat(app_dir,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
@@ -403,7 +470,7 @@ static void scan_cache_subdirs(Audit*a,int app_dir,const char*app_name){
    else if(age==1u)a->stats->cache_mtime_recent++;
    else a->stats->cache_mtime_no_recent++;
    record_cache_top(a,app_name,kind,bytes,files,partial,
-                    weak_match,age);
+                    weak_match,age,&change);
   }
   if(partial){a->stats->cache_like_partial=1u;a->partial=1;}
  }

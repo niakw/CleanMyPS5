@@ -11,6 +11,9 @@ static Cmp5CacheTop make(const char*name,unsigned kind,
  Cmp5CacheTop c{};
  std::strcpy(c.app_label,name);
  c.kind=kind;c.nominal_bytes=bytes;c.files=files;
+ c.metadata_complete=1u;c.metadata_nodes=files+1u;
+ c.metadata_xor=bytes^((std::uint64_t)files<<32u);
+ c.metadata_sum=bytes+files;
  return c;
 }
 int main(){
@@ -33,7 +36,20 @@ int main(){
  assert(!r.idle_verified&&!r.deletion_allowed);
  b.cache_top[1].nominal_bytes=2048u;b.cache_top[1].files=2u;
  r=compare(a,b,true);
+ assert(r.changed==1u&&r.unchanged_observed==1u);
+ // Same totals but different metadata: not a stable directory.
+ b.cache_top[1].metadata_xor=a.cache_top[0].metadata_xor;
+ b.cache_top[1].metadata_sum=a.cache_top[0].metadata_sum;
+ b.cache_top[1].metadata_nodes=a.cache_top[0].metadata_nodes;
+ r=compare(a,b,true);
  assert(r.changed==0u&&r.unchanged_observed==2u);
+ b.cache_top[1].metadata_xor^=1u;
+ r=compare(a,b,true);
+ assert(r.changed==1u&&r.unchanged_observed==1u);
+ b.cache_top[1].metadata_complete=0u;
+ r=compare(a,b,true);
+ assert(r.incomparable==1u&&r.compared==1u);
+ b.cache_top[1].metadata_complete=1u;
  assert(!r.idle_verified&&!r.deletion_allowed);
  b.cache_top[0]=make("Missing",3u,1u,1u);
  r=compare(a,b,true);

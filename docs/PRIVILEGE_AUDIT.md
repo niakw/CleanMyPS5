@@ -1,3 +1,21 @@
+## Comparaison des caches : empreintes de métadonnées (27 octobre 2026)
+
+La comparaison locale reconnaît désormais des modifications **à taille et
+nombre de fichiers identiques**. Le scanner natif réutilise uniquement
+les informations déjà inspectées en lecture seule : nom du fichier ou
+dossier, inode, périphérique, type, taille, nombre de liens et dates
+de modification/création des métadonnées à la précision disponible.
+Une double agrégation 64 bits, indépendante de l'ordre de lecture
+des entrées, est limitée au périmètre du cache inspecté. Aucun
+contenu de fichier n'est ouvert pour calculer une empreinte.
+
+Si des fichiers sont exclus ou si la couverture métadonnées est partielle,
+la ligne n'est **pas comparable**. Deux empreintes différentes sont un
+indice de changement ; deux empreintes identiques ne prouvent **ni**
+l'absence de réécriture non détectée, **ni** l'inactivité du processus,
+**ni** la possibilité d'effacement. Ce ne sont pas des empreintes
+cryptographiques de contenu. Le nettoyage réel demeure bloqué.
+
 ## Application sans API : comparaison locale de caches (27 octobre 2026)
 
 CleanMyPS5 **n'exige pas d'API applicative** pour inventorier les dossiers

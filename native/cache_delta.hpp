@@ -14,6 +14,7 @@ struct Entry {
  Kind result=Kind::incomparable;
  std::uint64_t old_bytes=0,new_bytes=0;
  std::uint32_t old_files=0,new_files=0;
+ bool metadata_compared=false;
 };
 struct Comparison {
  State state=State::no_baseline;
@@ -67,9 +68,17 @@ inline Comparison compare(const Cmp5HomebrewStats&before,
   if(!previous){result.incomparable++;continue;}
   entry.old_bytes=previous->nominal_bytes;
   entry.old_files=previous->files;
+  if(!previous->metadata_complete||!candidate.metadata_complete||
+     !previous->metadata_nodes||!candidate.metadata_nodes){
+   result.incomparable++;continue;
+  }
+  entry.metadata_compared=true;
   result.compared++;
   if(previous->nominal_bytes!=candidate.nominal_bytes||
-     previous->files!=candidate.files){
+     previous->files!=candidate.files||
+     previous->metadata_nodes!=candidate.metadata_nodes||
+     previous->metadata_xor!=candidate.metadata_xor||
+     previous->metadata_sum!=candidate.metadata_sum){
    entry.result=Kind::changed;result.changed++;
   }else{
    entry.result=Kind::unchanged_observed;result.unchanged_observed++;

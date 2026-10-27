@@ -47,6 +47,10 @@ int main(int argc,char**argv){
  assert(!strcmp(stats.cache_top[0].app_label,"ExampleTool"));
  assert(stats.cache_top[0].kind==1u&&stats.cache_top[0].files==2u);
  assert(stats.cache_top[0].name_matched==1u);
+ for(unsigned i=0;i<stats.cache_top_count;i++){
+  assert(stats.cache_top[i].metadata_complete==1u);
+  assert(stats.cache_top[i].metadata_nodes>=1u);
+ }
  assert(stats.cache_top[1].kind==2u&&stats.cache_top[1].age_hint==0u);
  assert(stats.cache_top[2].kind==3u&&stats.cache_top[2].age_hint==2u);
  assert(stats.cache_top[3].kind==1u&&

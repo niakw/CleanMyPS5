@@ -19,6 +19,12 @@ typedef struct {
  uint32_t kind;
  uint32_t name_matched;
  uint32_t age_hint; /* 0=unknown/partial, 1=recent 24h, 2=no recent mtime */
+ /* Order-independent, metadata-only identity clues for two local scans.
+  * Never hash file bodies or regard equal fingerprints as proof of idle. */
+ uint64_t metadata_xor;
+ uint64_t metadata_sum;
+ uint32_t metadata_nodes;
+ uint32_t metadata_complete;
  char app_label[48]; /* ASCII basename only; no paths persisted */
 } Cmp5CacheTop;
 /* Categories: 1=homebrew, 2=plugin, 3=app-data, 4=installed.
