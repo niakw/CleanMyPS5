@@ -87,6 +87,10 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
                        int*partial,CacheChange*change){
  if(over(a)){*partial=1;if(change)change->unknown=1;close(fd);return;}
  const int anchored_fd=fd;
+ struct stat parent={0};
+ if(fstat(fd,&parent)!=0||!S_ISDIR(parent.st_mode)){
+  close(fd);*partial=1;if(change)change->unknown=1;return;
+ }
  DIR*d=fdopendir(fd);
  if(!d){close(fd);*partial=1;if(change)change->unknown=1;return;}
  struct dirent*e;
@@ -118,10 +122,28 @@ static void count_tree(Audit*a,int fd,int depth,uint64_t*size,size_t*files,
     *size+=v;
    }
   }else if(S_ISDIR(st.st_mode)){
-   if(depth>=DEPTH_CAP){*partial=1;if(change)change->unknown=1;continue;}
+   if(depth>=DEPTH_CAP||st.st_dev!=parent.st_dev){
+    *partial=1;if(change)change->unknown=1;continue;
+   }
    int child=openat(anchored_fd,e->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
    if(child<0){*partial=1;if(change)change->unknown=1;continue;}
+   struct stat opened={0};
+   if(fstat(child,&opened)!=0||!S_ISDIR(opened.st_mode)||
+      opened.st_dev!=st.st_dev||opened.st_ino!=st.st_ino){
+    close(child);*partial=1;if(change)change->unknown=1;continue;
+   }
    count_tree(a,child,depth+1,size,files,partial,change);
+   /* A rename/swap during recursion invalidates the directory's
+    * metadata evidence, even if the contents were readable. A bounded
+    * scan can diagnose the partial view, never grant deletion rights. */
+   struct stat after={0};
+   if(fstatat(anchored_fd,e->d_name,&after,AT_SYMLINK_NOFOLLOW)!=0||
+      !S_ISDIR(after.st_mode)||after.st_dev!=st.st_dev||
+      after.st_ino!=st.st_ino){
+    *partial=1;if(change)change->unknown=1;
+   }
+  }else{
+   *partial=1;if(change)change->unknown=1;
   }
   /* A corrupt sibling is not a global hard stop. Continue to count
    * readable files within the fixed visit/time/depth budgets. */
