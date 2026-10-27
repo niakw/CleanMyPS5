@@ -50,6 +50,13 @@ with tempfile.TemporaryDirectory() as temp:
     assert (backup/"UNSYNCED").is_file()
     run("create",restored)
     assert (backup/"GOOD").is_file()
+    # Synthetic post-read metadata changes must not produce a receipt.
+    # No mode/owner/hardlink is changed in the actual host filesystem.
+    for action in ("verify-metadata-mode","verify-metadata-owner",
+                   "verify-metadata-links"):
+        run(action,restored)
+    assert (backup/"GOOD").is_file()
+    assert (backup/"GOOD").stat().st_nlink==1
     moved_backup=backup/"GOOD-MOVED"
     run("verify-rename",moved_backup)
     assert moved_backup.is_file() and not (backup/"GOOD").exists()

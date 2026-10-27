@@ -43,8 +43,14 @@ static int same(const struct stat*a,const struct stat*b){
  const int precise=a->st_mtim.tv_nsec==b->st_mtim.tv_nsec &&
   a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
 #endif
+ /* A matching inode and content digest do not certify privacy if the
+  * capsule becomes readable by another user or acquires a second link
+  * during hashing. Recheck these attributes as part of every identity
+  * comparison, including the final pathname-anchored check. */
  return precise&&S_ISREG(a->st_mode)&&S_ISREG(b->st_mode)&&
   a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+  a->st_uid==b->st_uid&&a->st_mode==b->st_mode&&
+  a->st_nlink==b->st_nlink&&
   a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
   a->st_ctime==b->st_ctime;
 }
@@ -61,6 +67,7 @@ static int same_private_directory(const struct stat*a,const struct stat*b){
 #endif
  return nanos&&S_ISDIR(a->st_mode)&&S_ISDIR(b->st_mode)&&
    a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&
+   a->st_uid==b->st_uid&&
    a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&
    a->st_size==b->st_size&&a->st_mtime==b->st_mtime&&
    a->st_ctime==b->st_ctime;

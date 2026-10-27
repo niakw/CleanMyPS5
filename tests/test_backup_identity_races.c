@@ -17,6 +17,7 @@
 
 static char watching[1024],moved[1024];
 static int armed,triggered,restore_only,fail_directory_fsync;
+static int metadata_fault,metadata_after_read,metadata_injections;
 static int corrupt_published_restore;
 static int replace_stage,stage_replaced,post_sync_swap;
 static char watched_stage[1024],moved_stage[1024];
@@ -46,8 +47,32 @@ static int intercepted_fsync(int fd){
  }
  return fsync(fd);
 }
+/* Fault injection changes ONLY the metadata returned by fstat after a
+ * capsule read, with identical inode, size and timestamps. No chmod,
+ * chown or link calls ever touch a real file in this fixture. */
+static int racing_fstat(int fd,struct stat*st){
+ const int result=fstat(fd,st);
+ if(result==0&&metadata_after_read&&metadata_fault&&
+    S_ISREG(st->st_mode)){
+  struct stat named={0};
+  if(stat(watching,&named)==0&&
+     st->st_dev==named.st_dev&&st->st_ino==named.st_ino){
+   if(metadata_fault==1)st->st_mode|=S_IRGRP;
+   else if(metadata_fault==2)st->st_uid=(uid_t)(st->st_uid+1u);
+   else st->st_nlink=2;
+   ++metadata_injections;
+  }
+ }
+ return result;
+}
 static ssize_t racing_read(int fd,void*buffer,size_t n){
  const ssize_t got=read(fd,buffer,n);
+ if(got>0&&metadata_fault){
+  struct stat current={0},named={0};
+  if(fstat(fd,&current)==0&&stat(watching,&named)==0&&
+     current.st_dev==named.st_dev&&current.st_ino==named.st_ino)
+   metadata_after_read=1;
+ }
  if(got>0&&armed&&!triggered){
   struct stat current,expected;
   if(fstat(fd,&current)==0&&stat(watching,&expected)==0&&
@@ -100,6 +125,7 @@ static int change_workspace_during_read(void*ctx){
  return 0;
 }
 #define read racing_read
+#define fstat racing_fstat
 #define linkat racing_linkat
 #define lseek racing_lseek
 #define fsync intercepted_fsync
@@ -107,6 +133,7 @@ static int change_workspace_during_read(void*ctx){
 #undef fsync
 #undef lseek
 #undef linkat
+#undef fstat
 #undef read
 
 int main(int argc,char**argv){
@@ -182,6 +209,20 @@ int main(int argc,char**argv){
   armed=1;
   assert(!cmp5_backup_media(root,&item,backup,"RACED",&receipt,NULL,NULL));
   assert(triggered&&!receipt.published);
+ }else if(!strcmp(action,"verify-metadata-mode")||
+           !strcmp(action,"verify-metadata-owner")||
+           !strcmp(action,"verify-metadata-links")){
+  (void)snprintf(watching,sizeof(watching),"%s/GOOD",backup);
+  metadata_fault=!strcmp(action,"verify-metadata-mode")?1:
+    !strcmp(action,"verify-metadata-owner")?2:3;
+  assert(!cmp5_verify_backup(backup,"GOOD",&receipt,NULL,NULL));
+  assert(metadata_after_read&&metadata_injections>0);
+  assert(!receipt.published&&!receipt.bytes);
+  /* The synthetic fault does not actually change disk permissions. */
+  Cmp5BackupReceipt stable={0};
+  metadata_fault=0;metadata_after_read=0;
+  assert(cmp5_verify_backup(backup,"GOOD",&stable,NULL,NULL));
+  assert(stable.published&&stable.bytes>0);
  }else if(!strcmp(action,"verify-rename")){
   (void)snprintf(watching,sizeof(watching),"%s/GOOD",backup);
   (void)snprintf(moved,sizeof(moved),"%s",new_path);

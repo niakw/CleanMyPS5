@@ -1,3 +1,22 @@
+## Révalidation des attributs des capsules privées (27 octobre 2026)
+
+La comparaison d'identité de `verified_backup.c` exige désormais, outre
+périphérique, inode, taille et horodatages fins, la concordance explicite
+de l'**UID propriétaire**, des **bits de mode** et du **nombre de liens**.
+L'examen initial d'une capsule à permissions 0600 ne suffit pas si elle
+devient publiquement lisible ou se voit ajouter un lien dur pendant le
+hachage. Le comparateur des répertoires de travail privés vérifie
+également l'UID pour la même raison. Une divergence refuse le reçu de
+sauvegarde/restauration, sans suppression ni modification de la source.
+
+Le test hôte injecte successivement un changement de permissions,
+propriétaire et nombre de liens **dans les résultats de fstat après
+lecture**, tout en conservant les mêmes métadonnées de taille, inode et
+horodatages. Les trois cas doivent refuser le reçu. Les valeurs POSIX
+réelles ne sont jamais modifiées par l'injection. Les tests habituels
+de vérification de capsule inchangée doivent continuer à réussir.
+Ce résultat n'atteste pas les dépendances Sony ou le firmware 13.60.
+
 ## Montages imbriqués dans un album ou une miniature (27 octobre 2026)
 
 Lors du relevé des compagnons de capture, chaque fichier JPG/JXR/PNG,
