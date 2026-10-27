@@ -1,5 +1,20 @@
 # Galerie PS5 — dépendances vérifiables et limites d'automatisation
 
+## Mutation pendant l'énumération du dossier des miniatures (27 octobre 2026)
+
+Le scanner prend maintenant un instantané des métadonnées du dossier parent
+avant readdir, puis le compare immédiatement après l'énumération. Avant,
+le premier instantané intervenait trop tard : une modification du parent
+pendant l'énumération pouvait rester invisible si la miniature attendue
+ne changeait pas. Le relevé est désormais classé miniature suspecte
+et la sauvegarde privée du groupe est refusée.
+
+Une injection hôte modifie les permissions du parent pendant readdir,
+sans toucher aux fichiers média. Elle exige le refus de l'inspection
+et du planificateur, ainsi que la remise à zéro des membres candidats.
+Cette preuve n'atteste ni les index Sony ni la compatibilité console.
+
+
 Ce document est une **cartographie de sources publiques**, pas une validation de
 la base de données d'une PS5 donnée. Aucune voie de suppression, modification
 de l'index multimédia ou restauration sur console n'est activée.

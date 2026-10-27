@@ -172,10 +172,16 @@ static Cmp5ThumbnailState inspect_known_thumbnail(const char*root,
  }
  if(cancelled(cancel,context)){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
  struct stat parent_before={0},parent_after={0},named={0},opened={0};
+ /* Snapshot BEFORE enumeration. The directory may change while readdir
+  * runs, even when the expected thumbnail remains unchanged. */
  if(fstat(fd,&parent_before)!=0){close(fd);return CMP5_THUMBNAIL_INACCESSIBLE;}
  const Cmp5ThumbnailState siblings=known_thumbnail_namespace(
   fd,leaf,cancel,context);
  if(siblings!=CMP5_THUMBNAIL_CANDIDATE_FOUND){close(fd);return siblings;}
+ if(fstat(fd,&parent_after)!=0||
+    !same_file(&parent_before,&parent_after)){
+  close(fd);return CMP5_THUMBNAIL_UNSAFE;
+ }
  if(fstatat(fd,leaf,&named,AT_SYMLINK_NOFOLLOW)!=0){
   const int error=errno;
   struct stat parent_after_absence={0};

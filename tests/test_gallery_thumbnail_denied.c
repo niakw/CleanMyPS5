@@ -7,6 +7,7 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -14,6 +15,23 @@
 #include <sys/stat.h>
 #include <unistd.h>
 static int rejects=0,deny_dat=0,denied_dat_calls=0;
+static int reject_thumbnail=1,change_namespace=0,namespace_changes=0;
+static dev_t thumbnail_dev=0;
+static ino_t thumbnail_ino=0;
+/* Host-only: modify the thumbnail directory during its readdir walk. */
+static struct dirent* injected_readdir(DIR*stream){
+ if(change_namespace&&!namespace_changes){
+  const int descriptor=dirfd(stream);
+  struct stat st={0};
+  if(descriptor>=0&&fstat(descriptor,&st)==0&&
+     st.st_dev==thumbnail_dev&&st.st_ino==thumbnail_ino){
+   const mode_t changed=(st.st_mode&07777)^S_IXGRP;
+   assert(fchmod(descriptor,changed)==0);
+   namespace_changes++;
+  }
+ }
+ return readdir(stream);
+}
 static int injected_fstatat(int dir,const char*name,struct stat*st,int flags){
  if(deny_dat&&strcmp(name,"REC_001.dat")==0){
   ++denied_dat_calls;
@@ -23,14 +41,16 @@ static int injected_fstatat(int dir,const char*name,struct stat*st,int flags){
  return fstatat(dir,name,st,flags);
 }
 static int injected_openat(int fd,const char*name,int flags,...){
- if(strcmp(name,"REC_001.jpg.jpeg")==0){
+ if(reject_thumbnail&&strcmp(name,"REC_001.jpg.jpeg")==0){
   ++rejects;errno=EACCES;return -1;
  }
  return openat(fd,name,flags);
 }
 #define openat injected_openat
 #define fstatat injected_fstatat
+#define readdir injected_readdir
 #include "../src/native/capture_companions.c"
+#undef readdir
 #undef fstatat
 #undef openat
 int main(int argc,char**argv){
@@ -78,6 +98,38 @@ int main(int argc,char**argv){
   const unsigned char*raw=(const unsigned char*)unknown;
   for(size_t i=0;i<sizeof(unknown);i++)assert(raw[i]==0u);
  }
- puts("Thumbnail and same-stem DAT EACCES/EPERM: fail closed: PASS");
+ deny_dat=0;
+ reject_thumbnail=0;
+ char thumbnail_dir[1024];
+ const int written=snprintf(thumbnail_dir,sizeof(thumbnail_dir),
+   "%s/user/av_contents/thumbnails/photo/NPXS00000/GAME123",root);
+ assert(written>0&&(size_t)written<sizeof(thumbnail_dir));
+ struct stat thumb_stat={0};
+ assert(stat(thumbnail_dir,&thumb_stat)==0);
+ thumbnail_dev=thumb_stat.st_dev;
+ thumbnail_ino=thumb_stat.st_ino;
+ Cmp5CompanionReport stable={0};
+ assert(cmp5_inspect_capture_companions(root,&photo,&stable,NULL,NULL));
+ assert(stable.thumbnail==CMP5_THUMBNAIL_CANDIDATE_FOUND);
+ change_namespace=1;
+ namespace_changes=0;
+ Cmp5CompanionReport raced={0};
+ assert(!cmp5_inspect_capture_companions(root,&photo,&raced,NULL,NULL));
+ assert(namespace_changes==1);
+ assert(raced.state==CMP5_COMPANIONS_UNVERIFIABLE);
+ assert(raced.thumbnail==CMP5_THUMBNAIL_UNSAFE);
+ assert(raced.failure==CMP5_COMPANION_FAILURE_THUMBNAIL_UNSAFE);
+ assert(raced.files==0u&&raced.nominal_bytes==0u);
+ /* The independent private backup planner must reject the same race. */
+ namespace_changes=0;
+ Cmp5MediaCandidate raced_group[CMP5_GROUP_MAX];
+ memset(raced_group,0xA5,sizeof(raced_group));
+ uint32_t raced_count=77u;
+ assert(!cmp5_plan_capture_group(root,&photo,raced_group,
+                                 &raced_count,NULL,NULL));
+ assert(namespace_changes==1&&raced_count==0u);
+ const unsigned char*zeroed=(const unsigned char*)raced_group;
+ for(size_t i=0;i<sizeof(raced_group);i++)assert(zeroed[i]==0u);
+ puts("Thumbnail DAT permissions and enumeration race: blocked: PASS");
  return 0;
 }
