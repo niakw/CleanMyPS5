@@ -104,6 +104,7 @@ int main(int argc,char**argv){
             !strcmp(argv[2],"root-eof-error")?10:
             !strcmp(argv[2],"regular-device")?11:
             !strcmp(argv[2],"child-device")?12:
+            !strcmp(argv[2],"game-alias")?13:
             !strcmp(argv[2],"normal")?0:-1;
  assert(fault_mode>=0);
  char root_path[PATH_MAX]={0};
@@ -127,7 +128,14 @@ int main(int argc,char**argv){
  }
  assert(found_survivor);
  assert(found_primary==!root_invalid);
- if(!fault_mode){
+ if(fault_mode==13){
+  /* An unrecognized-name symlink to a game tree cannot be silently
+   * treated as fully scanned, even without an injected I/O error. */
+  assert(fault_hits==0);
+  assert(result.partial&&result.folder_games==1u);
+  assert(result.shown_folders==1u);
+  assert(!strcmp(result.folder[0].label,"FAULT_GAME"));
+ }else if(!fault_mode){
   assert(fault_hits==0);
   assert(!result.partial&&result.folder_games==1u);
   assert(result.folder_partials==0u&&result.shown_folders==1u);

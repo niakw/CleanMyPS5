@@ -338,6 +338,10 @@ static void scan_one(Audit*a,int parent,const char*relative){
     /* An unrecognized suffix may hide a game directory. */
     a->stats->partial=1;continue;
    }
+   /* A symlink called PPSAxxxxx (or any other unrecognized name)
+    * may hide an uninspected game tree. Do not follow its target and
+    * do not claim complete coverage simply because it was skipped. */
+   if(S_ISLNK(candidate.st_mode)){a->stats->partial=1;continue;}
    if(S_ISDIR(candidate.st_mode))
     scan_game_folder(a,fd,relative,e->d_name);
    continue;

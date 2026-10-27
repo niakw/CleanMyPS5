@@ -28,4 +28,17 @@ with tempfile.TemporaryDirectory() as tmp:
                               capture_output=True,text=True,timeout=12)
         assert result.returncode==0,(mode,result.stdout,result.stderr)
         assert "PASS" in result.stdout
-print("Game metadata EIO and directory EACCES fixtures: PASS")
+    # Symlinked application/game directory: never follow a second tree,
+    # but report that the root inventory cannot prove complete coverage.
+    outside=root/"uninspected-private-game"
+    (outside/"sce_sys").mkdir(parents=True)
+    (outside/"eboot.bin").write_bytes(b"PRIVATE SYNTHETIC GAME")
+    alias=games/"ALIAS_GAME"
+    alias.symlink_to(outside,target_is_directory=True)
+    result=subprocess.run([sys.argv[1],str(root),"game-alias"],
+                          capture_output=True,text=True,timeout=12)
+    assert result.returncode==0,(result.stdout,result.stderr)
+    assert "PASS" in result.stdout
+    assert alias.is_symlink()
+    assert (outside/"eboot.bin").read_bytes()==b"PRIVATE SYNTHETIC GAME"
+print("Game metadata faults, mount exclusions and symlink aliases: PASS")

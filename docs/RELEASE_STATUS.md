@@ -1,3 +1,15 @@
+## Dossier de jeu alias : couverture partielle, cible non visitée (27 octobre 2026)
+
+Le scanner des images et dossiers de jeux classe désormais comme
+inventaire partiel les liens symboliques de nom quelconque rencontrés
+dans une racine connue. Avant cela, les aliases nommés sans extension
+d'image étaient ignorés sans alerte, alors que la cible pouvait être
+un dossier de jeu non inspecté. Aucun lien symbolique n'est suivi ;
+le catalogue des jeux réguliers voisins reste disponible. La fixture
+C/Python construit une cible de jeu synthétique en dehors des racines,
+confirme que la cible reste inchangée et impose un résultat partiel.
+Aucun retrait, démontage ou modification de la cible n'est effectué.
+
 ## Taille des dossiers de jeu : refus des sous-montages étrangers (27 octobre 2026)
 
 Le calcul en lecture seule de la taille d'un dossier de jeu refuse
