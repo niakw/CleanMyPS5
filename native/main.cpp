@@ -17,6 +17,13 @@
 #include "compression_image.hpp"
 #include "privilege_contract.hpp"
 #include "cleanup_readiness.hpp"
+#include "process_snapshot.hpp"
+#if defined(__FreeBSD__) && __has_include(<sys/sysctl.h>)
+#include <sys/sysctl.h>
+#define CMP5_PROCESS_SYSCTL 1
+#else
+#define CMP5_PROCESS_SYSCTL 0
+#endif
 #include "capture_companions.h"
 #include "private_media_backup.hpp"
 #include "private_group_backup.hpp"
@@ -393,6 +400,7 @@ bool duplicates_checked=false;
 Cmp5HomebrewStats homebrew_stats{};
 bool homebrew_checked=false;
 unsigned homebrew_page=0;
+cmp5_process::Snapshot process_snapshot{};
 Cmp5AutoloadStats autoload_stats{};
 bool autoload_checked=false;
 /* Coordinated read-only audit: only aggregate game counts persist here.
@@ -879,6 +887,21 @@ void run_private_archive_audit() noexcept {
   private_inventory=cmp5_private_backup::Inventory{};
   private_inventory_selection=0u;
  }
+}
+void run_process_snapshot() noexcept {
+ process_snapshot=cmp5_process::Snapshot{};
+#if CMP5_PROCESS_SYSCTL
+ // This is a read-only sysctl query. The title's sandbox may deny it;
+ // that result remains UNAVAILABLE, never "no active processes".
+ const int mib[4]={CTL_KERN,KERN_PROC,KERN_PROC_PROC,0};
+ process_snapshot=cmp5_process::sample([&](void*out,std::size_t*size){
+  if(cancellation_hook(nullptr))return false;
+  return sysctl(mib,4,out,size,nullptr,0)==0;
+ });
+#else
+ process_snapshot.state=cmp5_process::State::unavailable;
+#endif
+ if(cancellation_hook(nullptr))process_snapshot=cmp5_process::Snapshot{};
 }
 void run_homebrew_check() noexcept {
  homebrew_stats=Cmp5HomebrewStats{};
@@ -1673,7 +1696,7 @@ void run_game_image_scan() noexcept {
  if(!cancellation_hook(nullptr))
   compression_engine_seen=check_local_ampr(compression_engine_version);
 }
-enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify,
+enum class Task : unsigned { none, environment, access, overview, duplicates, homebrew, process_snapshot, autoload, photo, video_info, companions, images, engine_start, helper_start, game_check, game_start, game_progress, game_pause, game_resume, recovery_scan, recovery_resume, private_backup, private_backup_verify, private_inventory, private_group_backup, private_group_verify, private_archive_audit, private_rehearsal, private_rehearsal_verify,
  private_rehearsal_discard };
 std::atomic<unsigned> task_state{0}; // 0=idle, 1=busy, 2=complete, 3=start failed, 4=cancelled
 Task task_kind=Task::none;
@@ -1685,6 +1708,7 @@ void* background_task(void*) noexcept {
   case Task::overview: run_overview(); break;
   case Task::duplicates: run_duplicate_check(); break;
   case Task::homebrew: run_homebrew_check(); break;
+  case Task::process_snapshot: run_process_snapshot(); break;
   case Task::autoload: run_autoload_check(); break;
   case Task::photo: run_photo_preview(); break;
   case Task::video_info: run_video_info(); break;
@@ -1730,6 +1754,8 @@ void* background_task(void*) noexcept {
    homebrew_stats=Cmp5HomebrewStats{};
    homebrew_checked=false;
   }
+  if(task_kind==Task::process_snapshot)
+   process_snapshot=cmp5_process::Snapshot{};
   if(task_kind==Task::autoload){
    autoload_stats=Cmp5AutoloadStats{};
    autoload_checked=false;
@@ -2315,8 +2341,8 @@ void poll_pad() noexcept {
    continue;
   }
   if(screen==Screen::apps&&(pressed&l1||pressed&r1)){
-   homebrew_page=(pressed&r1)?(homebrew_page+1u)%4u:
-     (homebrew_page+3u)%4u;
+   homebrew_page=(pressed&r1)?(homebrew_page+1u)%5u:
+     (homebrew_page+4u)%5u;
    continue;
   }
   if(screen==Screen::analyze&&(pressed&l1||pressed&r1)){
@@ -2381,7 +2407,8 @@ void poll_pad() noexcept {
    if(screen==Screen::analyze)(void)begin_task(Task::environment);
    if(screen==Screen::cleanup)(void)begin_task(Task::environment);
    if(screen==Screen::access)(void)begin_task(Task::access);
-   if(screen==Screen::apps)(void)begin_task(Task::homebrew);
+   if(screen==Screen::apps)(void)begin_task(homebrew_page==4u?
+     Task::process_snapshot:Task::homebrew);
   }
  }
 }
@@ -2662,6 +2689,27 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   footer(canvas,"CERCLE ANNULER  AUCUNE DESINSTALLATION");
   return;
  }
+ if(homebrew_page==4u){
+  char count[128]{};
+  if(process_snapshot.state==cmp5_process::State::observed)
+   (void)std::snprintf(count,sizeof(count),
+       "%u PROCESSUS  %u EBOOT.BIN  %u ELF",
+       process_snapshot.processes,process_snapshot.eboot_names,
+       process_snapshot.elf_names);
+  else
+   (void)std::snprintf(count,sizeof(count),"NON VERIFIE / ACCES REFUSE");
+  panel(canvas,355,"PROCESSUS VISIBLES DEPUIS LE TITRE",count,
+    process_snapshot.state==cmp5_process::State::observed?
+      Color::cyan:Color::yellow);
+  panel(canvas,503,"PORTÉE DU CONTROLE",
+    "SYSCTL LECTURE SEULE  PAS DE DONNEE DE PID CONSERVEE",Color::yellow);
+  panel(canvas,651,"IDENTITE DES APPLICATIONS",
+    "NOMS EBOOT ET ELF INDICATIFS  TITLE ID NON CORRELE",Color::yellow);
+  panel(canvas,799,"AUTORISATION DE NETTOYAGE",
+    "ACTIVITE DES CACHES INCONNUE  AUCUNE SUPPRESSION",Color::yellow);
+  footer(canvas,"PAGE 5/5  X SONDER  L1/R1 NAVIGUER  ZERO EFFACEMENT");
+  return;
+ }
  if(task_cancelled()||task_failed()||!homebrew_checked){
   panel(canvas,355,"INVENTAIRE INDISPONIBLE",
     task_cancelled()?"ANNULE":"DROITS OU MOTEUR LIMITES",Color::yellow);
@@ -2753,7 +2801,7 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
   panel(canvas,799,"PREUVES MANQUANTES",
     "PROCESSUS NON VERIFIES  FOURNISSEUR NON ATTESTE",
     Color::yellow);
- }else{
+ }else if(homebrew_page==3u){
   static constexpr const char*kinds[]={"INCONNU","CACHE",".CACHE","TMP","TEMP"};
   for(unsigned i=0;i<CMP5_CACHE_TOP_CAP;i++){
    if(i>=homebrew_stats.cache_top_count){
@@ -2793,16 +2841,16 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
  char footer_message[160]{};
  if(homebrew_page==3u)
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE 4/4  /DATA:%s  AUCUN CACHE SUPPRIMABLE  L1/R1",
+    "PAGE 4/5  /DATA:%s  AUCUN CACHE SUPPRIMABLE  L1/R1",
     root_label(homebrew_stats.data_root_state));
  else if(homebrew_page==2u)
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE 3/4  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",
+    "PAGE 3/5  /DATA:%s  TITRES:%s  L1/R1 NAVIGUER  ZERO SUPPRESSION",
     root_label(homebrew_stats.data_root_state),
     root_label(homebrew_stats.installed_root_state));
  else
   (void)std::snprintf(footer_message,sizeof(footer_message),
-    "PAGE %u/4 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
+    "PAGE %u/5 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
     homebrew_page+1u,root_label(homebrew_stats.data_root_state),
     homebrew_stats.cache_like_folders,
     homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,

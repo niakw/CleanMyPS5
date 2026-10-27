@@ -48,6 +48,8 @@ on:
       - tests/test_compression_preflight.cpp
       - native/compression_preflight.hpp
       - native/compression_progress.hpp
+      - native/process_snapshot.hpp
+      - tests/test_process_snapshot.cpp
       - tests/test_compression_progress.cpp
       - native/compression_image.hpp
       - tests/test_compression_image.cpp
@@ -129,6 +131,10 @@ jobs:
           clang++-18 -std=c++20 -Wall -Wextra -Wpedantic -Werror -I. \
             tests/test_cleanup_readiness.cpp -o /tmp/cmp5-cleanup-readiness
           /tmp/cmp5-cleanup-readiness
+      - name: Validate bounded process snapshot decoder
+        run: |
+          c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror tests/test_process_snapshot.cpp -o /tmp/cmp5-process-observer
+          /tmp/cmp5-process-observer
       - name: Simulate native DualSense navigation without console
         run: |
           c++ -std=c++20 -Wall -Wextra -Wpedantic -Werror -pthread             -Itests/native_mock -Isrc/native tests/test_native_navigation.cpp             -o /tmp/cmp5-native-navigation

@@ -1,3 +1,31 @@
+## Processus : diagnostic à la demande sans droit d'effacement (27 octobre 2026)
+
+La cinquième page de **Applications et plugins** présente une sonde
+**en lecture seule, lancée seulement sur X**. Sur les environnements
+FreeBSD disposant de `sysctl(KERN_PROC_PROC)`, elle effectue deux
+requêtes (taille et instantané), limite les octets à 512 KiB et
+l'analyse à 1 024 enregistrements, vérifie la disposition et les tailles
+des `kinfo_proc`, puis compte les processus visibles et les noms
+indicatifs `eboot.bin` / `*.elf`. **Aucun PID ni nom brut n'est
+conservé ou transmis**.
+
+Si la sandbox du titre refuse `sysctl`, si la structure est
+malformée, si la liste a changé au point de dépasser la limite ou si
+le SDK n'expose pas cette API, le bilan reste **non vérifié**.
+Le simple nom `eboot.bin` ne suffit pas à identifier un jeu,
+un propriétaire de cache ou le processus d'une application donnée.
+Un instantané sans processus de jeu ne constitue donc jamais une
+preuve d'inactivité. Toute suppression reste interdite.
+
+Le chemin d'observation est compilé conditionnellement selon les
+en-têtes/plateformes disponibles. Les tests hôtes injectent des
+enregistrements factices, des échecs de requête, des entrées
+tronquées/malformées et le dépassement des limites. La navigation
+DualSense vérifie que le résultat `unavailable` demeure un
+bloqueur, pas un état `idle`. Une **validation du sysctl dans le
+contexte du titre sur firmware 13.60** reste obligatoire avant
+d'utiliser ces compteurs pour établir des règles ciblées.
+
 # Audit de frontière des privilèges : CleanMyPS5
 
 ## Comparatif du 24 octobre 2026

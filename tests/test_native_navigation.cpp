@@ -1838,11 +1838,25 @@ int main(){
    blocked_delete=true;
  }
  assert(listed_cache&&listed_temp&&blocked_delete);
- /* Both directions wrap all four tabs, including zero candidates. */
+ /* Fifth tab: an explicit, bounded sysctl probe. Unsupported on the
+  * host test must never be misreported as no active applications. */
+ press(r1);assert(homebrew_page==4u);
+ scene(canvas);
+ bool no_idle=false,process_page=false;
+ for(const auto&cmd:canvas.commands){
+  if(cmd.text.find("ACTIVITE DES CACHES INCONNUE")!=std::string::npos)no_idle=true;
+  if(cmd.text.find("PAGE 5/5")!=std::string::npos)process_page=true;
+ }
+ assert(no_idle&&process_page);
+ press(cross);finish_scan();
+ assert(process_snapshot.state==cmp5_process::State::unavailable);
+ assert(!process_snapshot.safe_to_clean);
+ /* Both directions wrap all five tabs, including zero candidates. */
  homebrew_stats.cache_like_files=0u;
  homebrew_stats.cache_like_folders=0u;
  homebrew_stats.cache_like_nominal_bytes=0u;
  homebrew_stats.cache_like_partial=0u;
+ press(l1);assert(homebrew_page==3u);
  press(l1);assert(homebrew_page==2u);
  scene(canvas);
  bool empty_cache=false;
@@ -1851,7 +1865,9 @@ int main(){
      !=std::string::npos)empty_cache=true;
  assert(empty_cache);
  press(r1);assert(homebrew_page==3u);
+ press(r1);assert(homebrew_page==4u);
  press(r1);assert(homebrew_page==0u);
+ press(l1);assert(homebrew_page==4u);
  press(l1);assert(homebrew_page==3u);
  press(l1);assert(homebrew_page==2u);
  press(l1);assert(homebrew_page==1u);
