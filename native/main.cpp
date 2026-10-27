@@ -2718,7 +2718,7 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
  };
  char footer_message[160]{};
  (void)std::snprintf(footer_message,sizeof(footer_message),
-  "PAGE %u/2 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  JAMAIS PREUVE INACTIF",
+  "PAGE %u/2 /DATA:%s  CACHE:%u  24H:%u  DATE?:%u  NON REC:%u  INACTIVITE NON PROUVEE",
   homebrew_page+1u,root_label(homebrew_stats.data_root_state),
   homebrew_stats.cache_like_folders,
   homebrew_stats.cache_mtime_recent,homebrew_stats.cache_mtime_unknown,
