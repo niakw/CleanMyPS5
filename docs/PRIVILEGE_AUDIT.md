@@ -1,3 +1,22 @@
+### Ordre du sysctl et budget d'identification (27 octobre 2026)
+
+Le relevé de processus peut lister les services système avant les jeux.
+Avec un budget strict de 96 appels `sceKernelGetAppInfo`, un parcours
+séquentiel risquait de ne jamais interroger les exécutables visibles.
+Le décodeur valide désormais d'abord **toute la structure** de la
+réponse, puis effectue deux passages read-only : priorité aux noms
+exactement égaux à `eboot.bin`, suivis des autres PID avec le
+budget restant. Le nom sert uniquement à établir l'ordre des sondes ;
+la correspondance Title ID exige une réponse valide de l'API.
+Aucune erreur, aucun dépassement et aucune absence de correspondance
+ne constitue une preuve d'inactivité.
+
+Un test injecte 120 services devant un jeu et confirme que le premier
+PID interrogé correspond au jeu, sans dépasser 96 appels. Un second
+test vérifie qu'une réponse malformée en fin de liste provoque zéro
+appel au service d'identification. Il n'y a toujours aucun effacement,
+ni liste de PID exportée.
+
 ## Processus : rapprochement Title ID non destructif (27 octobre 2026)
 
 La sonde native optionnelle lit les PID du relevé `sysctl` et

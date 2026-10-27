@@ -95,6 +95,30 @@ int main(){
  assert(capped.title_lookups==max_title_lookups);
  assert(capped.title_lookups_limited&&queries==max_title_lookups);
  assert(capped.identified_titles==1u&&!capped.safe_to_clean);
+ std::vector<unsigned char> reordered;
+ for(int i=1;i<=120;i++)record(reordered,i,"SceService");
+ record(reordered,900,"eboot.bin");
+ unsigned first_looked_up=0;
+ auto prioritized=decode_with_titles(reordered.data(),reordered.size(),
+     [&](int pid,char out[10])->bool {
+      if(!first_looked_up)first_looked_up=static_cast<unsigned>(pid);
+      if(pid==900){
+       std::memcpy(out,"PPSA98765",10);return true;
+      }
+      return false;
+     });
+ assert(prioritized.state==State::observed);
+ assert(first_looked_up==900u&&prioritized.identified_titles==1u);
+ assert(prioritized.title_lookups==max_title_lookups);
+ assert(prioritized.title_lookups_limited);
+ assert(std::strcmp(prioritized.title_ids[0],"PPSA98765")==0);
+ unsigned corrupted_calls=0;
+ auto corrupt=raw;
+ int corrupted_length=8193;
+ std::memcpy(corrupt.data()+512u,&corrupted_length,sizeof(corrupted_length));
+ auto malformed=decode_with_titles(corrupt.data(),corrupt.size(),
+     [&](int,char[10])->bool {++corrupted_calls;return false;});
+ assert(malformed.state==State::malformed&&corrupted_calls==0u);
  std::vector<unsigned char> fifth;
  for(int id=1;id<=5;id++)record(fifth,id,"eboot.bin");
  auto five=decode_with_titles(fifth.data(),fifth.size(),

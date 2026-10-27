@@ -51,6 +51,8 @@ Snapshot decode_with_titles(const void*raw,std::size_t n,Resolve resolve) noexce
  if(!raw||n<448u||n>max_bytes)return result;
  const auto*data=static_cast<const unsigned char*>(raw);
  std::size_t cursor=0;
+ // First validate the ENTIRE snapshot. A malformed tail must not cause
+ // calls into PS5 process services on earlier, untrusted PID records.
  while(cursor<n){
   if(n-cursor<448u)return result;
   std::int32_t size=0,pid=0;
@@ -72,19 +74,37 @@ Snapshot decode_with_titles(const void*raw,std::size_t n,Resolve resolve) noexce
    result.eboot_names++;
   else if(used>=4u&&std::memcmp(name+used-4u,".elf",4u)==0)
    result.elf_names++;
-  // Registered title mapping is best-effort and bounded. Failure (including
-  // reused PIDs or forbidden API) cannot mean this app is not running.
-  if(pid>0){
-   if(result.title_lookups<max_title_lookups){
-    ++result.title_lookups;
-    char title[10]={};
-    if(resolve(pid,title)&&valid_user_title_id(title))
-     record_title(result,title);
-   }else result.title_lookups_limited=true;
-  }
   cursor+=static_cast<std::size_t>(size);
  }
  if(cursor!=n)return result;
+ // System records often appear first. Prioritize executable-shaped entries
+ // before unrelated processes so the bounded 96-lookup budget still reaches
+ // registered games at the end of an arbitrarily ordered sysctl response.
+ // Names are merely ordering hints; only the separate app-info API can
+ // supply a reported Title ID, never a proof that a cache is idle.
+ for(unsigned pass=0;pass<2u;pass++){
+  cursor=0;
+  while(cursor<n){
+   std::int32_t size=0,pid=0;
+   std::memcpy(&size,data+cursor,sizeof(size));
+   std::memcpy(&pid,data+cursor+72u,sizeof(pid));
+   const char*name=reinterpret_cast<const char*>(data+cursor+447u);
+   std::size_t available=static_cast<std::size_t>(size)-447u;
+   if(available>16u)available=16u;
+   std::size_t used=0;
+   while(used<available&&name[used])++used;
+   const bool eboot=used==9u&&std::memcmp(name,"eboot.bin",9u)==0;
+   if(pid>0&&((pass==0u&&eboot)||(pass==1u&&!eboot))){
+    if(result.title_lookups<max_title_lookups){
+     ++result.title_lookups;
+     char title[10]={};
+     if(resolve(pid,title)&&valid_user_title_id(title))
+      record_title(result,title);
+    }else result.title_lookups_limited=true;
+   }
+   cursor+=static_cast<std::size_t>(size);
+  }
+ }
  result.state=State::observed;
  return result;
 }
