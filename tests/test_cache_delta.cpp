@@ -69,12 +69,15 @@ int main(){
  assert(r.changed==1u&&r.unchanged_observed==1u);
  b.cache_top[1].metadata_complete=0u;
  r=compare_synced(true);
- assert(r.incomparable==1u&&r.compared==1u);
+ assert(r.incomparable==1u&&r.compared==1u&&r.uncertain==1u);
  b.cache_top[1].metadata_complete=1u;
  assert(!r.idle_verified&&!r.deletion_allowed);
  b.cache_top[0]=make("Missing",3u,1u,1u);
  r=compare_synced(true);
  assert(r.compared==1u&&r.incomparable==2u); // new + no-longer-observed
+ assert(r.newly_observed==1u&&r.no_longer_observed==1u);
+ assert(r.uncertain==0u);
+ assert(r.incomparable==r.newly_observed+r.no_longer_observed+r.uncertain);
  b.cache_top[1].partial=1u;
  r=compare_synced(true);
  assert(r.state==State::incomplete&&r.compared==0u);
@@ -86,10 +89,14 @@ int main(){
  assert(compare_synced(true).state==State::incomplete);
  b.data_root_state=1u;
  b.cache_top[1]=make("Missing",3u,1u,1u);
- assert(compare_synced(true).incomparable==4u); // two new + two lost
+ r=compare_synced(true);
+ assert(r.incomparable==4u&&r.newly_observed==2u);
+ assert(r.no_longer_observed==2u&&r.uncertain==0u);
  b.cache_top[1]=make("ToolA",1u,2u,1u);
  a.cache_top[1]=make("ToolA",1u,3u,1u);
- assert(compare_synced(true).incomparable==2u); // non-unique candidate key
+ r=compare_synced(true);
+ assert(r.incomparable==2u&&r.uncertain==2u);
+ assert(r.newly_observed==0u&&r.no_longer_observed==0u);
  a.cache_top[1]=make("ToolB",3u,1u,1u);
  b.cache_top[0]=make("ToolB",3u,1u,1u);
  b.cache_top[1]=make("ToolA",1u,5u,1u);
@@ -122,6 +129,7 @@ int main(){
  b.cache_ledger[0].key^=1u;
  r=compare(a,b,true);
  assert(r.incomparable>=2u&&r.changed==1u);
+ assert(r.newly_observed==1u&&r.no_longer_observed==1u);
  assert(r.entries[0].result==Kind::incomparable);
  b.cache_ledger[0]=a.cache_ledger[0];
  b.cache_ledger_overflow=1u;

@@ -1852,20 +1852,34 @@ int main(){
  cache_change.state=cmp5_cache_delta::State::compared;
  cache_change.compared=2u;cache_change.changed=1u;
  cache_change.unchanged_observed=1u;
+ cache_change.newly_observed=2u;cache_change.no_longer_observed=1u;
+ cache_change.uncertain=3u;
  cache_change.entries[0].result=cmp5_cache_delta::Kind::changed;
  std::strcpy(cache_change.entries[0].app_label,"ExampleTool");
  cache_change.entries[0].old_bytes=1024u;
  cache_change.entries[0].new_bytes=4096u;
  scene(canvas);
  bool changed_label=false,stability_not_idle=false;
+ bool lifecycle_visible=false;
  for(const auto&cmd:canvas.commands){
   if(cmd.text.find("1 CHANGEMENTS")!=std::string::npos&&
      cmd.text.find("1 SANS VARIATION")!=std::string::npos)
    changed_label=true;
   if(cmd.text.find("ABSENTE MEME SI STABLE")!=std::string::npos)
    stability_not_idle=true;
+  if(cmd.text.find("2 APPARUS AU SCAN")!=std::string::npos&&
+     cmd.text.find("1 NON RETROUVES")!=std::string::npos&&
+     cmd.text.find("3 INCERTAINS")!=std::string::npos)
+   lifecycle_visible=true;
  }
- assert(changed_label&&stability_not_idle);
+ assert(changed_label&&stability_not_idle&&lifecycle_visible);
+ cache_change.entries[0].new_bytes=cache_change.entries[0].old_bytes;
+ scene(canvas);
+ bool metadata_only_visible=false;
+ for(const auto&cmd:canvas.commands)
+  if(cmd.text.find("METADONNEES MODIFIEES  TAILLE IDENTIQUE")!=
+       std::string::npos)metadata_only_visible=true;
+ assert(metadata_only_visible);
  /* Simulate a local user-requested rescan. With unavailable /data on the
   * host, the old comparison is discarded, never treated as current. */
  press(cross);finish_scan();

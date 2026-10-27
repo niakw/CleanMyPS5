@@ -19,6 +19,7 @@ struct Entry {
 struct Comparison {
  State state=State::no_baseline;
  unsigned compared=0,changed=0,unchanged_observed=0,incomparable=0;
+ unsigned newly_observed=0,no_longer_observed=0,uncertain=0;
  Entry entries[CMP5_CACHE_TOP_CAP]{};
  bool idle_verified=false;
  bool deletion_allowed=false;
@@ -72,14 +73,20 @@ inline Comparison compare(const Cmp5HomebrewStats&before,
  // Count ALL observed cache folders, not just the four display previews.
  for(unsigned i=0;i<after.cache_ledger_count;i++){
   const auto&candidate=after.cache_ledger[i];
-  if(matches(before,candidate.key)!=1u||
-     matches(after,candidate.key)!=1u){
-   result.incomparable++;continue;
+  const unsigned previous_matches=matches(before,candidate.key);
+  const unsigned current_matches=matches(after,candidate.key);
+  if(previous_matches==0u&&current_matches==1u){
+   // A new observation is not proof of a newly created filesystem object.
+   result.newly_observed++;result.incomparable++;continue;
+  }
+  if(previous_matches!=1u||current_matches!=1u){
+   // Duplicate hashed keys or colliding basenames cannot be attributed.
+   result.uncertain++;result.incomparable++;continue;
   }
   const auto*prior=locate(before,candidate.key);
   if(!prior||!candidate.metadata_complete||!prior->metadata_complete||
      !candidate.metadata_nodes||!prior->metadata_nodes){
-   result.incomparable++;continue;
+   result.uncertain++;result.incomparable++;continue;
   }
   result.compared++;
   if(changed(*prior,candidate))result.changed++;
@@ -88,8 +95,12 @@ inline Comparison compare(const Cmp5HomebrewStats&before,
  // Previously observed directories absent this time are NOT declared
  // deleted or idle. Report the lost comparison coverage explicitly.
  for(unsigned i=0;i<before.cache_ledger_count;i++)
-  if(matches(after,before.cache_ledger[i].key)==0u)
+  if(matches(after,before.cache_ledger[i].key)==0u){
+   if(matches(before,before.cache_ledger[i].key)==1u)
+    result.no_longer_observed++;
+   else result.uncertain++;
    result.incomparable++;
+  }
  // Four human-readable previews, with matching based on exact raw-name
  // keys instead of sanitised or truncated presentation labels.
  for(unsigned i=0;i<after.cache_top_count;i++){

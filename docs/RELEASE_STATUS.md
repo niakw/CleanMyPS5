@@ -1,3 +1,21 @@
+## Nouveaux dossiers, dossiers non retrouvés et comparaison incertaine (27 octobre 2026)
+
+La comparaison de deux relevés complets différencie maintenant les
+**nouvelles observations**, les dossiers **non retrouvés** dans le
+second relevé et les **correspondances indéterminées** (hash répété
+ou métadonnées incomplètes). Leur somme reste incluse dans le total
+*non comparable* ; aucune disparition observée ne prouve un effacement,
+et aucun nouvel enregistrement ne prouve une création de fichier.
+
+La cinquième page du titre natif affiche ces trois catégories ainsi
+qu'un exemple de variation parmi ses quatre aperçus. Lorsque seule
+l'empreinte des métadonnées change mais pas la taille, elle affiche
+explicitement « métadonnées modifiées, taille identique », au lieu
+de montrer deux nombres identiques comme explication du changement.
+La portée reste un registre de 96 caches au maximum, conservé seulement
+en mémoire et sans autorisation de nettoyage. Les tests du comparateur
+et de navigation vérifient ces distinctions.
+
 ### Lecture interrompue de `/data` : invalidation du registre
 
 Le parcours du répertoire `/data` suit désormais son propre indicateur

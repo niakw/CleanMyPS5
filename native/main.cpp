@@ -2699,29 +2699,42 @@ void show_apps(ps5::demo::Canvas&canvas) noexcept {
       "PREMIER INVENTAIRE  X POUR UN SECOND RELEVE");
   panel(canvas,355,"COMPARAISON LOCALE DE DEUX SCANS",status,
       state==cmp5_cache_delta::State::compared?Color::cyan:Color::yellow);
+  char lifecycle[145]{};
+  if(state==cmp5_cache_delta::State::compared)
+   (void)std::snprintf(lifecycle,sizeof(lifecycle),
+      "%u APPARUS AU SCAN  %u NON RETROUVES  %u INCERTAINS",
+      cache_change.newly_observed,cache_change.no_longer_observed,
+      cache_change.uncertain);
+  else
+   (void)std::snprintf(lifecycle,sizeof(lifecycle),
+      "SEULS DEUX SCANS COMPLETS PERMETTENT LA COMPARAISON");
+  panel(canvas,503,"COUVERTURE ENTRE DEUX SCANS",lifecycle,Color::yellow);
   char observed[165]{};
   bool shown=false;
   if(state==cmp5_cache_delta::State::compared)
    for(unsigned i=0;i<CMP5_CACHE_TOP_CAP;i++){
     const auto&item=cache_change.entries[i];
     if(item.result==cmp5_cache_delta::Kind::changed){
-     (void)std::snprintf(observed,sizeof(observed),
-       "%s  %llu -> %llu OCTETS / METADONNEES",
-       item.app_label,
-       static_cast<unsigned long long>(item.old_bytes),
-       static_cast<unsigned long long>(item.new_bytes));
+     if(item.old_bytes==item.new_bytes)
+      (void)std::snprintf(observed,sizeof(observed),
+        "%s  METADONNEES MODIFIEES  TAILLE IDENTIQUE",
+        item.app_label);
+     else
+      (void)std::snprintf(observed,sizeof(observed),
+        "%s  %llu -> %llu OCTETS NOMINAUX",
+        item.app_label,
+        static_cast<unsigned long long>(item.old_bytes),
+        static_cast<unsigned long long>(item.new_bytes));
      shown=true;break;
     }
    }
-  panel(canvas,503,"VARIATION OBSERVEE",
+  panel(canvas,651,"EXEMPLE DE VARIATION",
      shown?observed:
-       "VARIATION HORS TOP 4 OU PAS D EXEMPLE COMPARABLE",Color::yellow);
-  panel(canvas,651,"LIMITES DE L OBSERVATION",
-     "REGISTRE 96 MAX  APERCU TOP 4  PAS DE PREUVE D INACTIVITE",
+       "HORS APERCU TOP 4 OU AUCUNE VARIATION CONSTATEE",
      Color::yellow);
   panel(canvas,799,"PREUVE D INACTIVITE",
      "ABSENTE MEME SI STABLE  ZERO CACHE SUPPRIMABLE",Color::yellow);
-  footer(canvas,"PAGE 5/5  X NOUVEAU SCAN LOCAL  SANS API  L1/R1");
+  footer(canvas,"PAGE 5/5  REGISTRE 96 MAX  X NOUVEAU SCAN SANS API  L1/R1");
   return;
  }
  if(task_cancelled()||task_failed()||!homebrew_checked){
