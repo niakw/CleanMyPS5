@@ -256,6 +256,11 @@ int main(int argc,char**argv){
   if(mode==1){
    assert(stats.cache_like_partial);
    assert(stats.cache_like_folders==3u);
+   if(stats.cache_like_nominal_bytes!=13u||stats.cache_like_files!=3u)
+    fprintf(stderr,"cache inplace mutation: folders=%u bytes=%llu files=%u recent=%u unknown=%u old=%u probes=%d\\n",
+      stats.cache_like_folders,(unsigned long long)stats.cache_like_nominal_bytes,
+      stats.cache_like_files,stats.cache_mtime_recent,stats.cache_mtime_unknown,
+      stats.cache_mtime_no_recent,directory_name_lookups);
    assert(stats.cache_like_nominal_bytes==13u&&stats.cache_like_files==3u);
    assert(stats.nominal_bytes==39u);
   }else if(mode==2){
