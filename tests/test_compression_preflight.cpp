@@ -125,6 +125,41 @@ int main(){
  s=mutate("\"errors\":[]","\"errors\":[\"unknown_future_code\"]");
  assert(parse_game_preflight(s.data(),s.size(),&pre)&&pre.errors==1);
  assert(std::strcmp(preflight_issue_label(pre),"BLOCAGE SIGNALE PAR LE MOTEUR")==0);
+ /* Genuine worker /api/check for an absent or non-game folder can return
+  * title_id:"". These diagnostic-only frames must parse but cannot arm
+  * the conversion confirmation because ready() requires a real ID. */
+ auto no_title=good();
+ auto change_no_title=[&](const char*before,const char*after){
+  const auto pos=no_title.find(before);assert(pos!=std::string::npos);
+  no_title.replace(pos,std::strlen(before),after);
+ };
+ change_no_title("\"title_id\":\"PPSA12345\"","\"title_id\":\"\"");
+ change_no_title("\"compatible\":\"yes\"","\"compatible\":\"later\"");
+ change_no_title("\"errors\":[]","\"errors\":[\"source_missing\"]");
+ assert(parse_game_preflight(no_title.data(),no_title.size(),&pre));
+ assert(pre.title_id[0]==0&&!pre.ready()&&pre.errors==1);
+ assert(std::strcmp(preflight_issue_label(pre),"SOURCE DU JEU INTROUVABLE")==0);
+ auto bad_no_title=no_title;
+ auto no_title_mutate=[&](const char*before,const char*after){
+  const auto pos=bad_no_title.find(before);assert(pos!=std::string::npos);
+  bad_no_title.replace(pos,std::strlen(before),after);
+ };
+ no_title_mutate("source_missing","game_running");
+ assert(bad(bad_no_title)); /* Never allow unrelated no-ID errors. */
+ bad_no_title=no_title;
+ auto pos=bad_no_title.find("\"compatible\":\"later\"");assert(pos!=std::string::npos);
+ bad_no_title.replace(pos,std::strlen("\"compatible\":\"later\""),"\"compatible\":\"yes\"");
+ assert(bad(bad_no_title));
+ bad_no_title=no_title;
+ pos=bad_no_title.find("\"errors\":[\"source_missing\"]");assert(pos!=std::string::npos);
+ bad_no_title.replace(pos,std::strlen("\"errors\":[\"source_missing\"]"),"\"errors\":[]");
+ assert(bad(bad_no_title));
+ auto non_game=no_title;
+ pos=non_game.find("source_missing");assert(pos!=std::string::npos);
+ non_game.replace(pos,std::strlen("source_missing"),"not_game");
+ assert(parse_game_preflight(non_game.data(),non_game.size(),&pre));
+ assert(!pre.ready());
+ assert(std::strcmp(preflight_issue_label(pre),"DOSSIER NON RECONNU COMME JEU")==0);
  auto small=display_gib(1,true);
  assert(small.whole==0&&small.hundredths==1);
  small=display_gib(268435456ULL,true);

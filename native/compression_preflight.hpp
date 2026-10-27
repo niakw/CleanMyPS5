@@ -198,6 +198,17 @@ public:
      !take(',')||!field("warnings")||
      !string_list(&out->warnings,out->first_warning,sizeof(out->first_warning))||
      !take('}')||p!=end)return false;
+  /* Upstream legitimately returns an EMPTY title ID for a missing
+   * or unrecognized folder. Preserve its bounded error for UI diagnosis,
+   * but only for those two explicitly negative cases. NEVER allow a
+   * no-title response to become a confirmed conversion request. */
+  if(out->title_id[0]==0){
+   const bool no_game=!std::strcmp(out->first_error,"source_missing")||
+                      !std::strcmp(out->first_error,"not_game");
+   return no_game&&out->errors!=0u&&!out->compatible&&
+          out->dest_free<=out->dest_total&&
+          out->need_typical<=out->need_max;
+  }
   // An actual title id: four uppercase letters, five decimal digits.
   if(std::strlen(out->title_id)!=9)return false;
   for(unsigned i=0;i<9;i++){

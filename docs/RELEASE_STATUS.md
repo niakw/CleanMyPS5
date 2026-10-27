@@ -1,3 +1,20 @@
+## Diagnostic AMPR sans identifiant de titre (27 octobre 2026)
+
+La fonction job_preflight du moteur epingle renvoie un titre vide
+pour un dossier inexistant ou un dossier sans jeu reconnu. L'ancien
+parseur du titre PS5 exigeait toujours neuf caracteres ; il refusait
+donc ces reponses HTTP pourtant valides avant de presenter le code
+source_missing ou not_game.
+
+Le parseur accepte maintenant un identifiant vide **uniquement**
+si la reponse contient une erreur source_missing/not_game et une
+compatibilite non positive. Ces retours sont utilisables comme
+diagnostics explicites, mais la methode ready() continue de refuser
+toute conversion sans identifiant de jeu valide. Les tests C++
+verifient l'acceptation des deux seuls codes diagnostiques et le
+refus d'un titre vide avec compatibilite positive, zero erreur ou
+une cause etrangere.
+
 ## Precontrole AMPR : afficher la premiere cause et les Gio precis (27 octobre 2026)
 
 Le controle de conversion retourne deja des codes distincts en cas de
